@@ -1118,17 +1118,20 @@ cogniva/
 3. Paste vào `apps/web/.env.local` dòng `COHERE_API_KEY="..."` (free 1000 search/tháng đủ dev + golden eval)
 4. Pipeline graceful no-op khi key trống → vẫn chạy được mà không có rerank stage
 
-### Phase 4: Knowledge Graph (Tuần 8-9)
+### Phase 4: Knowledge Graph (Tuần 8-9) — ✅ **MVP shipped (2026-05-11)**
 **Goal:** Auto-extract concepts and visualize
 
-- [ ] Concept extraction job
-- [ ] Concept dedup (vector matching)
-- [ ] Prerequisite mining
-- [ ] React Flow graph UI
-- [ ] Mastery color coding
-- [ ] Click node → see related chunks/cards
+- [x] Concept extraction job *(lib/concepts/extract.ts — LLM scan từng chunk → list named concepts với name/description/domain; bỏ qua từ chung chung; failure → return [] không crash batch)*
+- [x] Concept dedup (vector matching) *(lib/concepts/dedup.ts — embed concept name qua Voyage → HNSW search threshold 0.85 → reuse hoặc INSERT mới)*
+- [x] Prerequisite mining *(lib/concepts/prerequisite.ts — group concepts theo domain ≤20/batch → LLM sinh edges (from, to, strength) → insert vào concept_relation với onConflictDoNothing)*
+- [x] React Flow graph UI *(@xyflow/react v12 + Dagre auto-layout TB; ConceptNode tô màu theo domain; MiniMap+Controls+Background; sidebar nav `/graph` đã có sẵn)*
+- [x] Mastery color coding *(stub — ConceptNode đọc data.mastery, ring color đỏ/vàng/xanh theo BKT score; Phase 6 wire dữ liệu thật từ bảng `mastery`)*
+- [x] Click node → see related chunks/cards *(ConceptPanel slide từ phải, fetch /api/graph/concept/[id] → list chunks + filename + page; click chunk → /documents/[id]#page-N)*
 
 **Deliverable:** Beautiful graph showing user's learning landscape.
+> ✅ Built 2026-05-11: pipeline `extractConceptsForChunks(chunkIds)` chạy auto trong ingest pipeline (sau khi chunks insert + READY) hoặc backfill qua `pnpm extract:concepts [docId|--user X|--prereq]`. Schema thêm `chunk_concept` pivot (chunkId × conceptId × strength). API `GET /api/graph` trả format React Flow-compatible (nodes + edges). UI `/graph` page render React Flow với Dagre layout + ConceptPanel side. Mastery color coding sẵn UI nhưng data chưa wire (Phase 6).
+>
+> Cần upload tài liệu mới (hoặc chạy `pnpm extract:concepts` trên test.pdf hiện có) để có concepts hiển thị.
 
 ### Phase 5: Flashcards + SR (Tuần 10)
 **Goal:** Spaced repetition system

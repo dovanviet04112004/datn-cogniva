@@ -31,6 +31,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -268,6 +269,37 @@ export const chunk = pgTable(
       'gin',
       sql`to_tsvector('english', ${t.content})`,
     ),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// Pivot — Chunk ↔ Concept (1 chunk có thể liên quan nhiều concept)
+// ──────────────────────────────────────────────────────────
+/**
+ * Bảng nối nhiều-nhiều giữa chunk và concept. Lý do dùng pivot table thay
+ * vì lưu mảng conceptIds trong chunk.metadata:
+ *   - Query "concept X có chunks nào" cần index ngược → metadata jsonb scan
+ *     tệ. Pivot có index riêng, scale tốt khi DB lớn.
+ *   - Có thể thêm field strength (độ liên quan) sau, không phá schema.
+ *
+ * Quan hệ tạo bởi job extract-concepts (Phase 4) khi LLM scan chunks.
+ */
+export const chunkConcept = pgTable(
+  'chunk_concept',
+  {
+    chunkId: text('chunk_id')
+      .notNull()
+      .references(() => chunk.id, { onDelete: 'cascade' }),
+    conceptId: text('concept_id')
+      .notNull()
+      .references(() => concept.id, { onDelete: 'cascade' }),
+    /** Độ liên quan chunk ↔ concept (0..1) — LLM judge hoặc default 1.0. */
+    strength: real('strength').notNull().default(1),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.chunkId, t.conceptId] }),
+    // Truy ngược "concept này có chunks nào" — query phổ biến khi click node graph
+    conceptIdx: index('chunk_concept_concept_idx').on(t.conceptId),
   }),
 );
 
@@ -529,8 +561,14 @@ export const documentRelations = relations(document, ({ one, many }) => ({
   chunks: many(chunk),
 }));
 
-export const chunkRelations = relations(chunk, ({ one }) => ({
+export const chunkRelations = relations(chunk, ({ one, many }) => ({
   document: one(document, { fields: [chunk.documentId], references: [document.id] }),
+  chunkConcepts: many(chunkConcept),
+}));
+
+export const chunkConceptRelations = relations(chunkConcept, ({ one }) => ({
+  chunk: one(chunk, { fields: [chunkConcept.chunkId], references: [chunk.id] }),
+  concept: one(concept, { fields: [chunkConcept.conceptId], references: [concept.id] }),
 }));
 
 // concept có 2 quan hệ self-reference (outgoing/incoming) qua bảng concept_relation
@@ -540,6 +578,7 @@ export const conceptRelations = relations(concept, ({ many }) => ({
   incoming: many(conceptRelation, { relationName: 'concept_incoming' }),
   flashcards: many(flashcard),
   mastery: many(mastery),
+  chunkConcepts: many(chunkConcept),
 }));
 
 export const conceptRelationRelations = relations(conceptRelation, ({ one }) => ({

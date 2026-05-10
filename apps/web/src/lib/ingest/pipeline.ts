@@ -25,6 +25,7 @@ import { chunkPages } from './chunk';
 import { embedBatch } from './embed';
 import { parsePdf } from './parse';
 import { getStorage } from '../storage';
+import { extractConceptsForChunks } from '../concepts';
 
 /**
  * Chạy ingest end-to-end cho 1 document đã có sẵn record (status PROCESSING).
@@ -64,18 +65,21 @@ export async function ingestDocument(documentId: string): Promise<void> {
 
     // ── 6. Insert chunks ────────────────────────────────
     // Drizzle insert nhiều row trong 1 query → tránh N+1
-    await db.insert(chunk).values(
-      inputs.map((input, i) => ({
-        documentId,
-        content: input.content,
-        embedding: embeddings[i] ?? [],
-        tokens: input.tokens,
-        metadata: {
-          chunkIndex: input.chunkIndex,
-          page: input.page,
-        },
-      })),
-    );
+    const insertedChunks = await db
+      .insert(chunk)
+      .values(
+        inputs.map((input, i) => ({
+          documentId,
+          content: input.content,
+          embedding: embeddings[i] ?? [],
+          tokens: input.tokens,
+          metadata: {
+            chunkIndex: input.chunkIndex,
+            page: input.page,
+          },
+        })),
+      )
+      .returning({ id: chunk.id });
 
     // ── 7. Mark READY + cập nhật metadata ───────────────
     await db
@@ -88,6 +92,21 @@ export async function ingestDocument(documentId: string): Promise<void> {
         },
       })
       .where(eq(document.id, documentId));
+
+    // ── 8. Phase 4: extract concepts (best-effort, không block ingest) ──
+    // Chạy SAU khi document đã READY — nếu extraction fail, tài liệu vẫn
+    // dùng được cho RAG, chỉ là chưa có concepts vào graph.
+    // Tuần tự (await) để render bug rõ ngay khi dev; production có thể
+    // chuyển sang Inngest job riêng.
+    try {
+      const stats = await extractConceptsForChunks(insertedChunks.map((c) => c.id));
+      console.log(
+        `[ingest] document ${documentId} concepts extracted: ${stats.conceptsExtracted} (${stats.linksCreated} links)`,
+      );
+    } catch (err) {
+      // Không rethrow — concepts là nice-to-have, không phá user flow
+      console.warn(`[ingest] concept extraction skipped:`, (err as Error).message);
+    }
   } catch (error) {
     // Đánh dấu FAILED rồi rethrow để caller log + xử lý
     await db

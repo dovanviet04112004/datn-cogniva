@@ -11,6 +11,7 @@
     "test": "vitest run",
     "eval:golden": "pnpm exec tsx --env-file=.env.local evals/golden-build.ts",
     "eval:run": "pnpm exec tsx --env-file=.env.local evals/run.ts",
+    "extract:concepts": "pnpm exec tsx --env-file=.env.local scripts/extract-concepts.ts",
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
@@ -32,10 +33,12 @@
     "@radix-ui/react-separator": "^1.1.1",
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.6",
+    "@xyflow/react": "^12.4.4",
     "better-auth": "^1.1.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cohere-ai": "^7.15.0",
+    "dagre": "^0.8.5",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^0.468.0",
     "langfuse": "^3.34.0",
@@ -62,6 +65,7 @@
     "@cogniva/tsconfig": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^6.6.3",
+    "@types/dagre": "^0.7.52",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",
