@@ -13,11 +13,12 @@
  * Lưu ý:
  *   - User row do Better Auth tạo (id, email, emailVerified, name, image,
  *     created_at, updated_at). Cogniva mở rộng thêm `plan` + `preferences`.
- *   - Cột `embedding` dùng vector(1536) — tương thích với:
- *       text-embedding-3-large (gọi với `dimensions: 1536`)
- *       text-embedding-3-small (1536 chiều native, rẻ hơn 6x)
- *     Phải dưới 2000 vì pgvector HNSW index không hỗ trợ >2000 chiều.
- *     Khi muốn dùng full 3072: chuyển sang halfvec hoặc IVFFlat (xem plan.md §5).
+ *   - Cột `embedding` dùng vector(1024) — tương thích với:
+ *       voyage-3 (Anthropic recommend, 1024 dim native, free 200M token)
+ *       voyage-3-large (chất lượng cao nhất, 1024 dim)
+ *       voyage-3-lite (cho embedding tốc độ cao, 512 dim — cần migrate xuống nếu dùng)
+ *     1024 < 2000 nên fit HNSW. Khi đổi sang OpenAI 1536 hoặc 3072 phải
+ *     migrate dim này (xem plan.md §3.3).
  *   - HNSW index tạo qua sql template tag vì Drizzle hiện chưa có API cao
  *     cấp cho operator class `vector_cosine_ops`.
  */
@@ -250,7 +251,7 @@ export const chunk = pgTable(
       .notNull()
       .references(() => document.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
-    embedding: vector('embedding', 1536),
+    embedding: vector('embedding', 1024),
     metadata: jsonb('metadata').$type<ChunkMetadata>().notNull(),
     /** Số token (tính theo tokenizer của OpenAI) — phục vụ tính chi phí + giới hạn context. */
     tokens: integer('tokens').notNull(),
@@ -286,7 +287,7 @@ export const concept = pgTable(
     description: text('description'),
     /** Lĩnh vực — "math", "biology", "history"… dùng để filter graph. */
     domain: text('domain').notNull(),
-    embedding: vector('embedding', 1536),
+    embedding: vector('embedding', 1024),
   },
   (t) => ({
     embeddingIdx: index('concept_embedding_idx').using(

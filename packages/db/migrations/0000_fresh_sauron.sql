@@ -25,7 +25,7 @@ CREATE TABLE "chunk" (
 	"id" text PRIMARY KEY NOT NULL,
 	"document_id" text NOT NULL,
 	"content" text NOT NULL,
-	"embedding" vector(1536),
+	"embedding" vector(1024),
 	"metadata" jsonb NOT NULL,
 	"tokens" integer NOT NULL
 );
@@ -35,7 +35,7 @@ CREATE TABLE "concept" (
 	"name" text NOT NULL,
 	"description" text,
 	"domain" text NOT NULL,
-	"embedding" vector(1536)
+	"embedding" vector(1024)
 );
 --> statement-breakpoint
 CREATE TABLE "concept_relation" (
