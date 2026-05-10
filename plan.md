@@ -1133,17 +1133,25 @@ cogniva/
 >
 > Cần upload tài liệu mới (hoặc chạy `pnpm extract:concepts` trên test.pdf hiện có) để có concepts hiển thị.
 
-### Phase 5: Flashcards + SR (Tuần 10)
+### Phase 5: Flashcards + SR (Tuần 10) — ✅ **MVP shipped (2026-05-11)**
 **Goal:** Spaced repetition system
 
-- [ ] Manual card creation
-- [ ] AI-generate cards from doc/chunk
-- [ ] FSRS algorithm implementation
-- [ ] Daily review UI (swipe/keyboard)
-- [ ] Review stats
-- [ ] Cloze deletion support
+- [x] Manual card creation *(FlashcardForm component, /flashcards page form collapsible, hỗ trợ BASIC + CLOZE + IMAGE_OCCLUSION)*
+- [x] AI-generate cards from doc/chunk *(lib/flashcards/generate.ts — LLM scan chunks → JSON {front, back} hoặc cloze text; API /api/flashcards/generate body {documentId, type, limit})*
+- [x] FSRS algorithm implementation *(ts-fsrs v4 wrapper lib/flashcards/fsrs.ts; state machine NEW→LEARNING→REVIEW + RELEARNING khi lapse; difficulty/stability/retrievability/due/lastReview lưu thẳng cột flashcard)*
+- [x] Daily review UI (swipe/keyboard) *(ReviewSession component, keyboard 1=Again/2=Hard/3=Good/4=Easy + Space=reveal, mobile-friendly grid 4-button)*
+- [x] Review stats *(StatsPanel — due today, retention 7d %, breakdown state count; API /api/flashcards/stats join review table)*
+- [x] Cloze deletion support *(lib/flashcards/cloze.ts — Anki-compat syntax {{c1::text}} hoặc {{c1::text::hint}}; ClozeRenderer ẩn/hiện theo revealed bool)*
+- [x] **Bonus: IMAGE_OCCLUSION** *(react-konva editor vẽ rectangle masks → upload ảnh /api/flashcards/upload-image → ImageOcclusionViewer overlay div absolute positioned theo % để responsive)*
 
 **Deliverable:** Functional Anki-like flashcard system.
+> ✅ Built 2026-05-11: full Phase 5 với 3 card types. Schema flashcard + review từ Phase 0 reuse 100% (FSRS fields đã design sẵn). Review queue ưu tiên NEW > RELEARNING > LEARNING > REVIEW + due ASC (Anki convention). Latency ~50ms/review (chỉ DB UPDATE + INSERT). Có thể start dev server `pnpm dev` và mở /flashcards để demo.
+>
+> **Sequel cần (Phase 7+):**
+> - Audio cards (TTS qua ElevenLabs)
+> - Anki import (.apkg parser)
+> - Multi-cloze split (1 text {{c1}} + {{c2}} → 2 cards)
+> - Card editor inline trong review (bấm 'e' edit nhanh)
 
 ### Phase 6: Quiz + Mastery (Tuần 11)
 **Goal:** Adaptive quizzing

@@ -25,17 +25,21 @@ export type ConceptNodeData = {
   mastery: number | undefined;
 };
 
-/** Map domain → tailwind class cho border/bg/text. */
+/**
+ * Map domain → tailwind class cho border/bg. Text dùng `text-foreground` để
+ * theme-aware (đen trên light, trắng trên dark) — KHÔNG hardcode text-xxx-100
+ * vì sẽ vô hình trên light mode.
+ */
 const DOMAIN_STYLES: Record<string, string> = {
-  math: 'border-blue-500/60 bg-blue-500/10 text-blue-100',
-  cs: 'border-purple-500/60 bg-purple-500/10 text-purple-100',
-  physics: 'border-orange-500/60 bg-orange-500/10 text-orange-100',
-  chemistry: 'border-pink-500/60 bg-pink-500/10 text-pink-100',
-  biology: 'border-green-500/60 bg-green-500/10 text-green-100',
-  history: 'border-amber-500/60 bg-amber-500/10 text-amber-100',
-  language: 'border-rose-500/60 bg-rose-500/10 text-rose-100',
-  business: 'border-emerald-500/60 bg-emerald-500/10 text-emerald-100',
-  general: 'border-slate-500/60 bg-slate-500/10 text-slate-100',
+  math: 'border-blue-500/60 bg-blue-500/15',
+  cs: 'border-purple-500/60 bg-purple-500/15',
+  physics: 'border-orange-500/60 bg-orange-500/15',
+  chemistry: 'border-pink-500/60 bg-pink-500/15',
+  biology: 'border-green-500/60 bg-green-500/15',
+  history: 'border-amber-500/60 bg-amber-500/15',
+  language: 'border-rose-500/60 bg-rose-500/15',
+  business: 'border-emerald-500/60 bg-emerald-500/15',
+  general: 'border-slate-500/60 bg-slate-500/15',
 };
 
 /** Mastery → ring color (cao = xanh, thấp = đỏ, undefined = mờ). */
@@ -54,7 +58,7 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
     <div
       className={cn(
         'rounded-lg border-2 px-3 py-2 backdrop-blur-sm transition-all',
-        'min-w-[140px] max-w-[200px] cursor-pointer hover:scale-105',
+        'min-w-[140px] max-w-[200px] cursor-pointer text-foreground hover:scale-105',
         domainStyle,
         masteryRing(d.mastery),
         selected && 'ring-offset-2 ring-offset-background',
@@ -62,8 +66,10 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
     >
       {/* Handles ẩn — chỉ làm anchor cho edges, không hiện chấm */}
       <Handle type="target" position={Position.Top} className="!bg-transparent !border-0" />
-      <div className="text-sm font-semibold leading-tight">{d.name}</div>
-      <div className="mt-0.5 text-[10px] uppercase tracking-wider opacity-60">{d.domain}</div>
+      <div className="text-sm font-semibold leading-tight text-foreground">{d.name}</div>
+      <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        {d.domain}
+      </div>
       <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0" />
     </div>
   );
