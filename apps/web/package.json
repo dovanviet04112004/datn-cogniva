@@ -9,8 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "eval:golden": "tsx --env-file=.env.local evals/golden-build.ts",
-    "eval:run": "tsx --env-file=.env.local evals/run.ts",
+    "eval:golden": "pnpm exec tsx --env-file=.env.local evals/golden-build.ts",
+    "eval:run": "pnpm exec tsx --env-file=.env.local evals/run.ts",
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {

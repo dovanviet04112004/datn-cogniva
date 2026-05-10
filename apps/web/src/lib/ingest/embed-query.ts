@@ -40,29 +40,71 @@ function getOpenAI(): OpenAI {
 }
 
 /**
+ * Sleep helper cho retry exponential — giữ nội bộ vì Node setTimeout không
+ * có Promise wrapper sẵn, và chỉ dùng ở 1 chỗ.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Detect lỗi 429 (rate limit) — Voyage trả Error.message có "429" hoặc
+ * statusCode. OpenAI cũng tương tự với status code field.
+ */
+function isRateLimitError(err: unknown): boolean {
+  if (!err) return false;
+  const message = (err as Error).message ?? '';
+  const status = (err as { status?: number; statusCode?: number }).status
+    ?? (err as { statusCode?: number }).statusCode;
+  return status === 429 || /429|rate limit/i.test(message);
+}
+
+/**
  * Embed 1 query string. Tự động chọn provider, dùng inputType='query'
  * khi qua Voyage để model tối ưu cho retrieval.
+ *
+ * Retry logic:
+ *   - Voyage free tier giới hạn 3 RPM → eval batch dễ hit 429.
+ *   - Retry tối đa 2 lần với delay 21s, 42s (1 phút "ngủ" cho rate limit reset).
+ *   - Lỗi khác 429 → throw ngay (không retry vô nghĩa).
  */
 export async function embedQuery(text: string): Promise<number[]> {
   const provider = pickProvider();
+  const MAX_RETRIES = 2;
+  const BACKOFF_MS = [21_000, 42_000];
 
-  if (provider === 'voyage') {
-    const response = await getVoyage().embed({
-      input: [text],
-      model: 'voyage-3',
-      inputType: 'query',
-    });
-    const embedding = response.data?.[0]?.embedding;
-    if (!embedding) throw new Error('[embed-query] Voyage trả response thiếu embedding');
-    return embedding;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (provider === 'voyage') {
+        const response = await getVoyage().embed({
+          input: [text],
+          model: 'voyage-3',
+          inputType: 'query',
+        });
+        const embedding = response.data?.[0]?.embedding;
+        if (!embedding) throw new Error('[embed-query] Voyage trả response thiếu embedding');
+        return embedding;
+      }
+
+      const response = await getOpenAI().embeddings.create({
+        model: 'text-embedding-3-large',
+        dimensions: EMBED_DIM,
+        input: text,
+      });
+      const embedding = response.data[0]?.embedding;
+      if (!embedding) throw new Error('[embed-query] OpenAI trả response thiếu embedding');
+      return embedding;
+    } catch (err) {
+      if (isRateLimitError(err) && attempt < MAX_RETRIES) {
+        const delay = BACKOFF_MS[attempt]!;
+        console.warn(`[embed-query] Rate limited, retry sau ${delay / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const response = await getOpenAI().embeddings.create({
-    model: 'text-embedding-3-large',
-    dimensions: EMBED_DIM,
-    input: text,
-  });
-  const embedding = response.data[0]?.embedding;
-  if (!embedding) throw new Error('[embed-query] OpenAI trả response thiếu embedding');
-  return embedding;
+  // Theoretically unreachable (return ở trên hoặc throw trong catch)
+  throw new Error('[embed-query] Hết retry sau rate limit');
 }

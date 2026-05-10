@@ -167,12 +167,11 @@ async function main() {
     const item = items[i]!;
     try {
       const userId = await lookupUserId(item.source_document_id);
-      // basic + advanced chạy SONG SONG để giảm wall time (và lấy delta đồng nhất
-      // môi trường: cùng provider load + Cohere health)
-      const [basic, advanced] = await Promise.all([
-        runMode('basic', item.question, userId, item.source_chunk_id, skipMetrics),
-        runMode('advanced', item.question, userId, item.source_chunk_id, skipMetrics),
-      ]);
+      // Sequential (không Promise.all) — Voyage free tier 3 RPM, embed song
+      // song của basic+advanced sẽ hit 429. Trade-off chậm hơn nhưng robust.
+      // Khi user upgrade Voyage payment → có thể đổi sang Promise.all.
+      const basic = await runMode('basic', item.question, userId, item.source_chunk_id, skipMetrics);
+      const advanced = await runMode('advanced', item.question, userId, item.source_chunk_id, skipMetrics);
       results.push({
         goldenId: item.id,
         question: item.question,
