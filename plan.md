@@ -259,6 +259,8 @@ Unstructured.io                 — document parsing
 
 **Why Voyage AI as primary embeddings:** Anthropic ngưng phát triển embedding API riêng và chính thức recommend Voyage AI. voyage-3 đạt MTEB cao hơn text-embedding-3-large @ 1024 dim, free tier 200M token (đủ index hàng triệu chunk Cogniva), không cần thẻ tín dụng. Kiến trúc giữ OpenAI làm fallback (`EMBEDDING_PROVIDER=openai` để force) — cùng dim 1024 nên không phải migrate schema khi switch.
 
+**Why OpenRouter as free LLM testing path:** Anthropic Console yêu cầu thẻ tín dụng cho production usage; OpenRouter cho phép sign up qua OAuth không thẻ và phơi 24+ model FREE (gpt-oss-20b/120b, GLM-4.5, Qwen3, Gemma-4, Hermes-3-405B…) qua OpenAI-compatible API tại `/api/v1`. Cogniva implement provider abstraction (`lib/ai/models.ts`): `ANTHROPIC_API_KEY` set → Claude direct; chỉ `OPENROUTER_API_KEY` → fallback OpenAI-compat client trỏ vào OpenRouter. Đổi giữa 2 path không touch app code, chỉ env. Free path quan trọng cho dev + portfolio demo, paid path cho production quality.
+
 ### 3.4. Vector & Graph DB
 ```
 pgvector (PostgreSQL extension) — vectors (start here, simple)
@@ -1066,22 +1068,24 @@ cogniva/
 - [x] pgvector extension + embedding storage *(vector(1024) HNSW, verified end-to-end)*
 - [ ] PDF viewer page (react-pdf) *(deferred to Phase 2 — chỉ cần khi click citation jump-to-page)*
 - [x] Document list UI *(server component, status pill, page count, chunk count, relative time)*
+- [x] PDF viewer page (react-pdf) *(landed in Phase 2 — react-pdf with PDF.js worker từ unpkg CDN, page navigation + zoom + URL hash `#page-N` cho citation jump)*
 
 **Deliverable:** Upload PDF → background processed → see "Ready" status.
 > ✅ Verified 2026-05-11: 4-page sample PDF → 4 chunks, vector(1024) via voyage-3, status READY trong **2 giây** end-to-end. UI render đúng với badge + metadata.
 
-### Phase 2: RAG Chat MVP (Tuần 5-6)
+### Phase 2: RAG Chat MVP (Tuần 5-6) — ✅ **MVP shipped (2026-05-11)**
 **Goal:** Q&A on uploaded docs with citations
 
-- [ ] Chat UI (streaming, Vercel AI SDK)
-- [ ] Basic vector retrieval (top-5)
-- [ ] Mastra workflow (basic: retrieve → generate)
-- [ ] Citation extraction & rendering
-- [ ] Click citation → highlight in PDF
-- [ ] Conversation persistence
-- [ ] Langfuse integration (trace every call)
+- [x] Chat UI (streaming, Vercel AI SDK) *(useChat hook + token-by-token render + auto-scroll + Cmd/Ctrl+Enter to send)*
+- [x] Basic vector retrieval (top-5) *(pgvector cosine `<=>`, scoped by user, optional workspace filter)*
+- [ ] Mastra workflow (basic: retrieve → generate) *(deferred — current `buildChatContext` is linear function, sẽ wrap Mastra khi Phase 3 query classification thêm branching; @mastra/core dep đã install)*
+- [x] Citation extraction & rendering *(inline `[N]` + CJK `【N】` regex → popover với snippet, score, page, link)*
+- [x] Click citation → jump to PDF page *(citation popover link tới `/documents/[id]#page-N`, PdfViewer đọc hash + scroll — overlay highlight trong trang để Phase 3)*
+- [x] Conversation persistence *(Drizzle: USER msg lưu trước stream, ASSISTANT + citations + cost trong onFinish)*
+- [x] Langfuse integration *(trace mỗi turn chat với retrieval span + generation span; no-op khi env chưa cấu hình)*
 
 **Deliverable:** Demo-able chat with citations.
+> ✅ Verified 2026-05-11: query "Tài liệu test.pdf nói về cái gì?" → 4 chunks retrieve (top score 0.69) → openai/gpt-oss-20b free model qua OpenRouter stream Vietnamese reply có [1][3] citations → conversation + messages persisted to DB với token usage. AI provider abstraction hỗ trợ Anthropic (paid prod) + OpenRouter (free testing với 24+ free model).
 
 ### Phase 3: Advanced RAG (Tuần 7)
 **Goal:** Production-quality retrieval
