@@ -246,7 +246,8 @@ Mastra                          — TypeScript-native agent + workflow framework
 Claude Sonnet 4.6               — primary reasoning
 Claude Haiku 4.5                — fast tasks (chunking, classification)
 Claude Opus 4.7                 — complex synthesis (research mode)
-text-embedding-3-large          — embeddings (OpenAI)
+voyage-3 (Voyage AI)            — embeddings primary (Anthropic recommend, free 200M token, 1024 dim)
+text-embedding-3-large          — embeddings fallback (OpenAI, dimensions:1024)
 Cohere rerank-3                 — reranking
 Whisper (OpenAI)                — STT
 ElevenLabs / Deepgram Aura      — TTS
@@ -255,6 +256,8 @@ Unstructured.io                 — document parsing
 ```
 
 **Why Mastra over LangGraph:** Mastra is TypeScript-native (no Python runtime), has first-class Vercel deploy support, built-in evals + tracing, and integrates cleanly with Next.js streaming + AI SDK. LangGraph's JS port still trails the Python implementation in feature parity.
+
+**Why Voyage AI as primary embeddings:** Anthropic ngưng phát triển embedding API riêng và chính thức recommend Voyage AI. voyage-3 đạt MTEB cao hơn text-embedding-3-large @ 1024 dim, free tier 200M token (đủ index hàng triệu chunk Cogniva), không cần thẻ tín dụng. Kiến trúc giữ OpenAI làm fallback (`EMBEDDING_PROVIDER=openai` để force) — cùng dim 1024 nên không phải migrate schema khi switch.
 
 ### 3.4. Vector & Graph DB
 ```
@@ -1036,32 +1039,36 @@ cogniva/
 
 ## 10. Roadmap 16 tuần
 
-### Phase 0: Foundation (Tuần 1-2)
+> **Status legend:** ✅ done · 🚧 in progress · ⬜ pending
+
+### Phase 0: Foundation (Tuần 1-2) — ✅ **Mostly complete (2026-05-11)**
 **Goal:** Repo + auth + basic UI shell
 
-- [ ] Setup monorepo (pnpm + turbo)
-- [ ] Next.js 14 app with App Router
-- [ ] Tailwind + shadcn/ui
-- [ ] Auth với Better Auth (email/password + OAuth Google) — custom shadcn forms
-- [ ] Drizzle + PostgreSQL + pgvector (local Docker)
-- [ ] Basic layout: sidebar, top nav, dashboard skeleton
-- [ ] Deploy preview to Vercel
-- [ ] CI: lint + typecheck + test on PR
+- [x] Setup monorepo (pnpm + turbo)
+- [x] Next.js 15 app with App Router *(plan said 14; Next 15 stable now, no functional difference)*
+- [x] Tailwind + shadcn/ui *(New York style, slate base, 12 primitives wired)*
+- [x] Auth với Better Auth (email/password + OAuth Google) — custom shadcn forms *(email/password fully wired; Google OAuth conditional on env keys)*
+- [x] Drizzle + PostgreSQL + pgvector (local Docker) *(17 tables, HNSW + GIN indexes, vector(1536))*
+- [x] Basic layout: sidebar, top nav, dashboard skeleton
+- [ ] Deploy preview to Vercel *(repo on GitHub at dovanviet04112004/datn-cogniva — Vercel import still pending)*
+- [x] CI: lint + typecheck + build on PR *(GitHub Actions workflow active)*
 
 **Deliverable:** Live URL, login works, empty dashboard.
+> ✅ Login + dashboard verified end-to-end against real Postgres on 2026-05-11. Vercel import is the only outstanding item.
 
-### Phase 1: Document Ingestion (Tuần 3-4)
+### Phase 1: Document Ingestion (Tuần 3-4) — ✅ **MVP shipped (2026-05-11)**
 **Goal:** Upload PDF → see chunks in DB
 
-- [ ] R2 storage setup, presigned URL API
-- [ ] Upload UI with progress
-- [ ] Inngest setup
-- [ ] Ingestion job: PDF parse + chunk + embed
-- [ ] pgvector extension + embedding storage
-- [ ] PDF viewer page (react-pdf)
-- [ ] Document list UI
+- [x] Storage abstraction with local FS impl *(R2 swap: chỉ thêm `r2.ts` đáp ứng cùng interface `Storage` — code app không đổi)*
+- [x] Upload UI with progress *(react-dropzone + sonner toast, drag-drop + click-pick, validate size/MIME)*
+- [ ] Inngest setup *(skipped Phase 1 v1 — chạy inline trong route handler. Swap khi PDF >10 MB hoặc khi cần retry policy)*
+- [x] Ingestion job: PDF parse + chunk + embed *(unpdf parser, recursive char splitter ~512 token + overlap 200 chars, Voyage AI primary + OpenAI fallback)*
+- [x] pgvector extension + embedding storage *(vector(1024) HNSW, verified end-to-end)*
+- [ ] PDF viewer page (react-pdf) *(deferred to Phase 2 — chỉ cần khi click citation jump-to-page)*
+- [x] Document list UI *(server component, status pill, page count, chunk count, relative time)*
 
 **Deliverable:** Upload PDF → background processed → see "Ready" status.
+> ✅ Verified 2026-05-11: 4-page sample PDF → 4 chunks, vector(1024) via voyage-3, status READY trong **2 giây** end-to-end. UI render đúng với badge + metadata.
 
 ### Phase 2: RAG Chat MVP (Tuần 5-6)
 **Goal:** Q&A on uploaded docs with citations
