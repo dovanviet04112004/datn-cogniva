@@ -1,0 +1,314 @@
+[
+  {
+    "goldenId": "8b8739ad-7637-4b0f-8a59-aa03cdb030ea",
+    "question": "In the example bookmark file, according to which field is each section sorted and in which order?",
+    "ground_truth": "The section ‘Invoices by Date’ sorts records by field trans_date in ascending order; ‘Invoices by Item Type’ sorts by field trans_type also ascending; and ‘Invoices by Transaction Amount’ sorts by field trans_amount in descending order.",
+    "source_chunk_id": "dxmd8fhs05w8650ctv3p0epn",
+    "basic": {
+      "answer": "In the example bookmark file, each section is sorted by the field specified in its header:\n\n- **Invoices** – sorted by `trans_date` in **ascending** order.  \n- **Invoices by Item Type** – sorted by `trans_type` in **ascending** order.  \n- **Invoices by Transaction Amount** – sorted by `trans_amount` in **descending** order.",
+      "retrieved": [
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.7905841421384663,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.7380179024924136,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.7080522142602037,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.6805173891320199,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        }
+      ],
+      "retrievalMs": 399,
+      "metrics": {
+        "faithfulness": 0,
+        "answer_relevancy": 1,
+        "context_relevancy": 1,
+        "context_recall": 1
+      }
+    },
+    "advanced": {
+      "answer": "In the sample bookmark file there are three sections:\n\n1. **Invoices – By Date**: sorted by the field **trans_date** in **ascending** order.  \n2. **Invoices – By Item Type**: sorted by the field **trans_type** in **ascending** order.  \n3. **Invoices – By Transaction Amount**: sorted by the field **trans_amount** in **descending** order.",
+      "retrieved": [
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.98262435,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.9645224,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.059646938,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.0034429806,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        }
+      ],
+      "retrievalMs": 14323,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 1,
+        "context_recall": 1
+      }
+    }
+  },
+  {
+    "goldenId": "987986fc-fcf0-482c-8ba1-7d3755b2d7ca",
+    "question": "Why must ap_bookmark.bmk be placed in an addressable directory, and how does that differ from the placement of ap_bookmark.IFD and ap_bookmark.mdf?",
+    "ground_truth": "ap_bookmark.bmk must be in an addressable directory so that it can be accessed by the application at runtime. ap_bookmark.IFD goes in the Designs subdirectory for Output Designer, and ap_bookmark.mdf is placed in the forms subdirectory accessible to Central. The placement of each file corresponds to its intended use within the system architecture.",
+    "source_chunk_id": "sl7l5vqhamh031rbb1fh4vu2",
+    "basic": {
+      "answer": "`ap_bookmark.bmk` must be in an **addressable directory** because the job command that runs the collector (or Central) has to locate the bookmark file at run time.  \nThe `-abmk` switch in the `^job` statement supplies a path that the engine can resolve during execution. Placing the bookmark file in a public, search‑path directory guarantees that the engine will find it no matter where the data file is located.\n\nIn contrast, `ap_bookmark.IFD` (the design template) and `ap_bookmark.mdf` (the PDF‑target form) are used only during the compile/preview phase in Output Designer or when the form is pre‑compiled by the server. They are placed in the designer’s *Designs* and *forms* subdirectories respectively, which are known at compile time, so no run‑time lookup is required. Thus, the bookmark file’s location is more critical for execution, while the design and form files are accessed only at compile time.",
+      "retrieved": [
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.8464206560379464,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.7852739180706121,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.6973037986340407,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.6721758246421814,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        }
+      ],
+      "retrievalMs": 384,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.9,
+        "context_recall": 1
+      }
+    },
+    "advanced": {
+      "answer": "ap_bookmark.bmk chứa các quy tắc đánh dấu (bookmark) mà máy in (Central) sẽ đọc khi tạo PDF. Vì vậy nó phải được đặt ở một thư mục mà lệnh ^job của Central có thể tìm thấy thông qua tham số `-abmk`. Đây là “đường dẫn thể hiện” (addressable directory) – tức là một thư mục được khai báo trong cấu hình của Central hoặc được tham chiếu trực tiếp trong lệnh.\n\nTrong khi đó, ap_bookmark.IFD và ap_bookmark.mdf là tệp thiết kế template.  \n- `ap_bookmark.IFD` được mở trong Output Designer, vì vậy chỉ cần đặt trong thư mục `Designs` của Output Designer.  \n- `ap_bookmark.mdf` là tệp mẫu của PDF mà Central sử dụng khi xuất, nên nó chỉ cần nằm trong thư mục `forms` mà Central truy cập.  \n\nDo đó, sự khác biệt chính là: `bmk` phải ở một vị trí “được xem thấy” bởi Central qua đường dẫn, trong khi `IFD` và `mdf` được đặt trong thư mục cấu hình cụ thể của các công cụ thiết kế và xuất.",
+      "retrieved": [
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.9928231,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.055515114,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.001044386,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.0005152657,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        }
+      ],
+      "retrievalMs": 8857,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.7,
+        "context_recall": 1
+      }
+    }
+  },
+  {
+    "goldenId": "ff8cd3e2-577b-4d79-96a1-a39815435b58",
+    "question": "How do you modify the ^job command in the data file to specify the bookmark file and the section for generating bookmarks?",
+    "ground_truth": "Edit the -z option in ap_bookmark.dat to include the -abmk option with the bookmark file name, and optionally add -abms with the chosen section (e.g., -abmsinvoices, -abmstype, or -abmsamount).",
+    "source_chunk_id": "rqvjxko1rauc5tllwb51n665",
+    "basic": {
+      "answer": "Bạn phải thêm hai tham số `-abmk` và `-abms` vào lệnh `^job` trong file dữ liệu, ví dụ:\n\n```\n^job -z … -abmk ap_bookmark.bmk -abms invoices\n```\n\n- `-abmk ap_bookmark.bmk` chỉ định file Bookmark (`ap_bookmark.bmk`).\n- `-abms invoices` chỉ định phần “invoices” trong file Bookmark để tạo các mục đánh dấu.",
+      "retrieved": [
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.7778244995422514,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.7112902253866196,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.6950234232849903,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.6887782477604302,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        }
+      ],
+      "retrievalMs": 375,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.92,
+        "context_recall": 1
+      }
+    },
+    "advanced": {
+      "answer": "Bạn sẽ chỉnh sửa tham số **-z** trong lệnh `^job` của tệp dữ liệu. Thêm hai tùy chọn:\n\n- `-abmk <đường dẫn tới .bmk>` để chỉ định tệp bookmark.\n- `-abms <tên section>` để chỉ định phần tiêu đề trong tệp bookmark mà bạn muốn tạo.\n\nVí dụ:  \n`^job -z \"invoices -abmk ap_bookmark.bmk -abms invoices\"`  \nĐiều này sẽ dùng tệp `ap_bookmark.bmk` và tạo bookmarks theo phần `[invoices]`.",
+      "retrieved": [
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.9991991,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.21816926,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.071981624,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.0027255826,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        }
+      ],
+      "retrievalMs": 10120,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.9,
+        "context_recall": 1
+      }
+    }
+  },
+  {
+    "goldenId": "d29946e2-488e-4383-a9b9-15055e4376be",
+    "question": "How does using a bookmark file affect the page order in the generated PDF compared to the original data file order?",
+    "ground_truth": "The bookmark file only changes the order shown in the bookmark pane; pages in the PDF are still created in the original sequence of the data file. Selecting a bookmark displays the corresponding page in that original order.",
+    "source_chunk_id": "q9qopesnec73soyvutmh2xoj",
+    "basic": {
+      "answer": "Sử dụng bookmark file không làm thay đổi thứ tự trang trong tệp PDF.  \nTrang vẫn được tạo theo thứ tự ban đầu của tệp dữ liệu; bookmark file chỉ tạo một thư mục biểu tượng (pane) giúp người dùng truy cập nhanh tới từng trang khi lướt.",
+      "retrieved": [
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.7890660041013964,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.7631359100341797,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.7500099614265551,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.7452644778866911,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        }
+      ],
+      "retrievalMs": 751,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.9,
+        "context_recall": 1
+      }
+    },
+    "advanced": {
+      "answer": "Using a bookmark file does not change the physical order of pages in the PDF.  \nThe pages are created in the same sequence as they appear in the original data file.  \nThe bookmark file only sorts the bookmark index, so the navigation pane may be reordered, but the underlying page order remains unchanged.",
+      "retrieved": [
+        {
+          "id": "q9qopesnec73soyvutmh2xoj",
+          "score": 0.9992267,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 1
+        },
+        {
+          "id": "rqvjxko1rauc5tllwb51n665",
+          "score": 0.91505283,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 3
+        },
+        {
+          "id": "sl7l5vqhamh031rbb1fh4vu2",
+          "score": 0.7509182,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 4
+        },
+        {
+          "id": "dxmd8fhs05w8650ctv3p0epn",
+          "score": 0.6356749,
+          "documentId": "mgwsq6elcaprse4ovnbajbps",
+          "page": 2
+        }
+      ],
+      "retrievalMs": 9897,
+      "metrics": {
+        "faithfulness": 1,
+        "answer_relevancy": 1,
+        "context_relevancy": 0.9,
+        "context_recall": 1
+      }
+    }
+  }
+]

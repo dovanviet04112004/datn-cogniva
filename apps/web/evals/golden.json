@@ -1,0 +1,34 @@
+[
+  {
+    "id": "8b8739ad-7637-4b0f-8a59-aa03cdb030ea",
+    "question": "In the example bookmark file, according to which field is each section sorted and in which order?",
+    "ground_truth": "The section ‘Invoices by Date’ sorts records by field trans_date in ascending order; ‘Invoices by Item Type’ sorts by field trans_type also ascending; and ‘Invoices by Transaction Amount’ sorts by field trans_amount in descending order.",
+    "source_chunk_id": "dxmd8fhs05w8650ctv3p0epn",
+    "source_document_id": "mgwsq6elcaprse4ovnbajbps",
+    "source_filename": "test.pdf"
+  },
+  {
+    "id": "987986fc-fcf0-482c-8ba1-7d3755b2d7ca",
+    "question": "Why must ap_bookmark.bmk be placed in an addressable directory, and how does that differ from the placement of ap_bookmark.IFD and ap_bookmark.mdf?",
+    "ground_truth": "ap_bookmark.bmk must be in an addressable directory so that it can be accessed by the application at runtime. ap_bookmark.IFD goes in the Designs subdirectory for Output Designer, and ap_bookmark.mdf is placed in the forms subdirectory accessible to Central. The placement of each file corresponds to its intended use within the system architecture.",
+    "source_chunk_id": "sl7l5vqhamh031rbb1fh4vu2",
+    "source_document_id": "mgwsq6elcaprse4ovnbajbps",
+    "source_filename": "test.pdf"
+  },
+  {
+    "id": "ff8cd3e2-577b-4d79-96a1-a39815435b58",
+    "question": "How do you modify the ^job command in the data file to specify the bookmark file and the section for generating bookmarks?",
+    "ground_truth": "Edit the -z option in ap_bookmark.dat to include the -abmk option with the bookmark file name, and optionally add -abms with the chosen section (e.g., -abmsinvoices, -abmstype, or -abmsamount).",
+    "source_chunk_id": "rqvjxko1rauc5tllwb51n665",
+    "source_document_id": "mgwsq6elcaprse4ovnbajbps",
+    "source_filename": "test.pdf"
+  },
+  {
+    "id": "d29946e2-488e-4383-a9b9-15055e4376be",
+    "question": "How does using a bookmark file affect the page order in the generated PDF compared to the original data file order?",
+    "ground_truth": "The bookmark file only changes the order shown in the bookmark pane; pages in the PDF are still created in the original sequence of the data file. Selecting a bookmark displays the corresponding page in that original order.",
+    "source_chunk_id": "q9qopesnec73soyvutmh2xoj",
+    "source_document_id": "mgwsq6elcaprse4ovnbajbps",
+    "source_filename": "test.pdf"
+  }
+]

@@ -1099,7 +1099,18 @@ cogniva/
 - [x] A/B test: basic RAG vs advanced → measure *(evals/run.ts — chạy 2 mode song song trên golden, in bảng delta + win rate + latency ratio; output evals/results.json)*
 
 **Deliverable:** Eval dashboard showing improvements.
-> ✅ Built 2026-05-11: pipeline HyDE→Hybrid(vector+BM25)→RRF(k=60)→Cohere rerank→MMR(λ=0.7) trong `lib/retrieval/advanced.ts`. Switch qua `RETRIEVAL_MODE=basic|advanced` env (default `advanced`). Eval runner output bảng so sánh 4 metric × 2 mode + latency. Cần chạy `pnpm eval:golden 50 && pnpm eval:run` để có số đo cụ thể trên dữ liệu user thật.
+> ✅ Built 2026-05-11: pipeline HyDE→Hybrid(vector+BM25)→RRF(k=60)→Cohere rerank→MMR(λ=0.7) trong `lib/retrieval/advanced.ts`. Switch qua `RETRIEVAL_MODE=basic|advanced` env (default `advanced`). Eval runner output bảng so sánh 4 metric × 2 mode + latency.
+>
+> **Smoke A/B 2026-05-11 (N=4, DB chỉ có test.pdf):**
+> | Metric | Basic | Advanced | Δ |
+> |---|---|---|---|
+> | faithfulness | 0.750 | **1.000** | +0.25 |
+> | answer_relevancy | 1.000 | 1.000 | 0 |
+> | context_relevancy | **0.930** | 0.875 | -0.055 |
+> | context_recall | 1.000 | 1.000 | 0 |
+> | latency mean | 477ms | 10799ms | ×22.6 |
+>
+> Pipeline hoạt động end-to-end (HyDE + BM25 + Cohere rerank + MMR). N=4 quá nhỏ để significant; cần upload tài liệu lớn hơn (50-200 chunks) rồi rebuild golden để đo chính xác. Latency ×22 phần lớn do HyDE qua OpenRouter free model — Anthropic prod ×1.5-3.
 
 **Cohere setup (free trial):**
 1. Signup tại https://dashboard.cohere.com/welcome/register (email, không cần thẻ)
