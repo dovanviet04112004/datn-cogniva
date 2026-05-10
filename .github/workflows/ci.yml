@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Actions CI cho Cogniva.
+#
+# Trigger:
+#   - Mỗi push lên main và mỗi pull request nhắm tới main.
+#
+# Concurrency:
+#   - Cùng workflow + cùng ref đang chạy thì cancel job cũ → tiết kiệm phút
+#     CI khi push liên tiếp lên 1 branch.
+#
+# Job verify chạy 4 bước:
+#   1. format:check  — Prettier kiểm style
+#   2. lint          — ESLint (rules từ next/core-web-vitals + typescript)
+#   3. typecheck     — tsc --noEmit cho mọi package
+#   4. build         — next build (cần env vars dummy ở dưới)
+#
+# Build cần DATABASE_URL/BETTER_AUTH_SECRET có giá trị để qua check shape —
+# KHÔNG phải secret thật. Production secret được set ở Vercel project.
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Cache Turborepo qua remote (Vercel) để re-build nhanh khi nhiều branch cùng
+  # hit chung cache. Set TURBO_TOKEN + TURBO_TEAM ở Settings → Secrets/Variables.
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  verify:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # Tự cache pnpm-lock để tăng tốc install ở các lần CI sau
+          cache: pnpm
+
+      - name: Install dependencies
+        # --frozen-lockfile bắt buộc lockfile không lệch — ngăn bug "works on
+        # my machine" do pnpm tự bump phiên bản
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build needs valid-shaped values, not real secrets
+          DATABASE_URL: postgresql://cogniva:cogniva@localhost:5432/cogniva
+          BETTER_AUTH_SECRET: ci-build-only-not-a-real-secret-please-rotate
+          BETTER_AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000

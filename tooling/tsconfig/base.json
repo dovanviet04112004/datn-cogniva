@@ -1,0 +1,42 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tsconfig CƠ SỞ dùng chung cho mọi package trong monorepo Cogniva.
+// Mục đích: gom các tuỳ chọn TypeScript phổ biến (strict, ES2022, ESM…) vào
+// một chỗ để các package con kế thừa qua "extends", tránh trùng lặp.
+//
+// Các tệp con: nextjs.json (cho apps/web), react-library.json (cho package
+// React tái sử dụng). Mọi cờ đặc thù môi trường nên được override ở tệp con,
+// không sửa trực tiếp tại đây trừ khi muốn áp dụng toàn bộ monorepo.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Default",
+  "compilerOptions": {
+    // Thiết lập build/output cơ bản — package nào cần emit thì override
+    "composite": false,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSources": false,
+
+    // Bắt buộc cho ESM + bundler hiện đại (Next.js, Vite, tsup…)
+    "isolatedModules": true,
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+
+    // Tắt 2 cờ này ở tầng cơ sở để tránh nhiễu khi prototyping;
+    // có thể bật ở từng package nếu muốn nghiêm hơn.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    "preserveWatchOutput": true,
+    "skipLibCheck": true,
+    "strict": true,
+    // Phát hiện sớm lỗi truy cập index không an toàn (a[i] có thể undefined).
+    "noUncheckedIndexedAccess": true,
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "resolveJsonModule": true
+  },
+  "exclude": ["node_modules"]
+}

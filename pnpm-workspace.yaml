@@ -1,0 +1,11 @@
+# pnpm workspace — khai báo các thư mục chứa package con.
+# Mỗi package có package.json riêng và có thể tham chiếu nhau qua
+# "@cogniva/xxx": "workspace:*" trong dependencies.
+#
+#   apps/*     — ứng dụng deploy được (web, worker, extension…)
+#   packages/* — thư viện nội bộ (db, ai, ui, types…)
+#   tooling/*  — preset chia sẻ (eslint, tsconfig, tailwind…)
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tooling/*"

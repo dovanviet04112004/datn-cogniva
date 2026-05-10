@@ -1,0 +1,16 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tsconfig cho thư viện React tái sử dụng (ví dụ packages/ui sau này).
+// Khác với nextjs.json:
+//   - jsx: "react-jsx"  (TS tự transform JSX, không phụ thuộc Next.js)
+//   - vẫn cần lib DOM để type cho component
+// Dùng khi tạo package shadcn-ui shared / package wrap component nội bộ.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "React Library",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "dom", "DOM.Iterable"]
+  }
+}

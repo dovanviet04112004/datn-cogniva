@@ -1,0 +1,39 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// tsconfig dành riêng cho ứng dụng Next.js (apps/web).
+// Kế thừa base.json và bổ sung các thiết lập đặc thù cho Next.js + React:
+//   - jsx: "preserve"  (Next.js sẽ tự transform qua SWC)
+//   - noEmit: true     (Next.js tự build, TS chỉ làm typecheck)
+//   - plugins: next    (kích hoạt typed routes, RSC linting…)
+//   - lib: ["dom", …]  (chạy cả phía browser, cần kiểu DOM)
+//
+// File này KHÔNG gắn trực tiếp với một dự án — apps/web/tsconfig.json kế thừa
+// nó qua `"extends": "@cogniva/tsconfig/nextjs.json"`.
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Next.js",
+  "extends": "./base.json",
+  "compilerOptions": {
+    // Plugin Next.js cung cấp typed routes + cảnh báo RSC trong IDE
+    "plugins": [{ "name": "next" }],
+
+    // Cho phép trộn .js/.jsx (next-env.d.ts là JS thuần)
+    "allowJs": true,
+
+    // Tắt emit declaration vì Next.js không cần
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": true,
+
+    // Next.js (hoặc SWC) sẽ transform JSX, không cần TS làm
+    "jsx": "preserve",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "module": "ESNext",
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "target": "ES2022"
+  },
+  // include mặc định cho Next.js App Router — package con có thể mở rộng thêm
+  "include": ["src", "next-env.d.ts", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

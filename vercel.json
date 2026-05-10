@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  // ─────────────────────────────────────────────────────────────────────
+  // Cấu hình deploy Vercel cho monorepo Cogniva.
+  // - buildCommand: build qua turbo, chỉ filter @cogniva/web + dependencies
+  // - installCommand: --frozen-lockfile để khớp lockfile với CI
+  // - framework: gợi ý Vercel autodetect Next.js (đường dẫn output…)
+  // - ignoreCommand: turbo-ignore quyết định có cần redeploy không —
+  //   nếu PR không touch web hay package phụ thuộc thì skip build.
+  // ─────────────────────────────────────────────────────────────────────
+  "buildCommand": "pnpm turbo run build --filter=@cogniva/web",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": "nextjs",
+  "ignoreCommand": "pnpm turbo-ignore @cogniva/web"
+}
