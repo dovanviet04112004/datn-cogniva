@@ -58,5 +58,9 @@ prisma/migrations/dev/
 # Docker volumes
 postgres-data/
 
+# Phase 1 — local uploads (R2 sẽ thay thế ở production)
+apps/web/uploads/
+uploads/
+
 # Misc
 .cache/

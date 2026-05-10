@@ -11,7 +11,7 @@
  *
  * Tất cả biến hiện tại đều `optional()` để Phase 0 không cần điền hết —
  * sẽ siết lại khi từng tính năng đi vào sản xuất (ví dụ Phase 2 sẽ require
- * ANTHROPIC_API_KEY).
+ * ANTHROPIC_API_KEY + VOYAGE_API_KEY).
  */
 import { z } from 'zod';
 
@@ -24,7 +24,7 @@ const serverSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
+  VOYAGE_API_KEY: z.string().optional(),
   COHERE_API_KEY: z.string().optional(),
 });
 
@@ -44,14 +44,13 @@ const processEnv = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  VOYAGE_API_KEY: process.env.VOYAGE_API_KEY,
   COHERE_API_KEY: process.env.COHERE_API_KEY,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 };
 
 const isServer = typeof window === 'undefined';
 const merged = serverSchema.merge(clientSchema);
-// Trên server validate cả 2 schema; trên client chỉ validate phần public
 const parsed = isServer ? merged.safeParse(processEnv) : clientSchema.safeParse(processEnv);
 
 if (!parsed.success) {
@@ -59,5 +58,4 @@ if (!parsed.success) {
   throw new Error('Invalid environment variables');
 }
 
-/** Biến môi trường đã validate, dùng làm thay thế typed cho `process.env`. */
 export const env = parsed.data as z.infer<typeof serverSchema> & z.infer<typeof clientSchema>;
