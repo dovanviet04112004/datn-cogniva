@@ -1,0 +1,5 @@
+# Migrations và meta/ PHẢI commit — drizzle-kit migrate đọc _journal.json
+# để biết migration nào đã apply. Chỉ ignore artifact build.
+node_modules/
+dist/
+.turbo/

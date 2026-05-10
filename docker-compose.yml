@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose cho môi trường phát triển local của Cogniva.
+#
+# Mục đích duy nhất: chạy 1 container Postgres 16 + pgvector preinstalled,
+# expose cổng 5432, persist data qua named volume `cogniva-postgres-data`.
+#
+# Image `pgvector/pgvector:pg16` đã include extension `vector` sẵn — chỉ cần
+# CREATE EXTENSION trong init.sql lúc boot lần đầu (file này được mount vào
+# /docker-entrypoint-initdb.d/, Postgres tự chạy khi DB rỗng).
+#
+# Lệnh hay dùng:
+#   pnpm db:up    → docker compose up -d postgres
+#   pnpm db:down  → docker compose down
+#   pnpm db:logs  → tail log để debug ingest pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: cogniva-postgres
+    restart: unless-stopped
+    ports:
+      # Bind ra host để app local kết nối qua localhost:5432
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cogniva
+      POSTGRES_PASSWORD: cogniva
+      POSTGRES_DB: cogniva
+      # Đặt PGDATA ở subfolder để tránh xung đột với một số FS Windows
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Mount read-only để init script không bị Postgres ghi đè
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # Dùng pg_isready để biết khi nào DB sẵn sàng nhận kết nối — Drizzle push
+      # ngay sau `db:up` cần DB ready, không thì lỗi connection.
+      test: ["CMD-SHELL", "pg_isready -U cogniva -d cogniva"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  # Đặt name explicit để dễ docker volume rm khi muốn reset DB
+  postgres-data:
+    name: cogniva-postgres-data
