@@ -1,26 +1,26 @@
 /**
  * Retrieval — vector search top-K trên chunks của user.
  *
- * Phase 2 v1 (MVP) chỉ dùng vector cosine similarity, scope theo user
- * (không leak chunks giữa các tài khoản). Phase 3 sẽ nâng lên hybrid
- * (BM25 + vector + reranking + MMR diversity).
+ * Phase 2 (basic): chỉ vector cosine, scope theo user — không leak chunks giữa
+ * các tài khoản.
+ * Phase 3 (advanced): vẫn dùng hàm này như 1 stage trong pipeline (HyDE →
+ * vector + BM25 → RRF → rerank → MMR). Khi `includeEmbedding=true` trả luôn
+ * vector 1024-dim để MMR tính diversity.
  *
  * Cách query:
  *   - pgvector cosine distance: `embedding <=> $1` (toán tử <=>)
- *   - 0 = identical, 2 = opposite. Score = 1 - distance để giống "% match".
+ *   - 0 = identical, 2 = opposite. Score = 1 - distance/2 → similarity [0,1].
  *   - Drizzle dùng raw sql template tag vì chưa có API cao cấp cho vector.
  *
  * Filter:
  *   - JOIN qua document để check userId = current user.
  *   - Nếu workspaceId được truyền, lọc thêm theo workspace (chat scope).
  *
- * KHÔNG có HNSW hint cụ thể trong query — Postgres planner tự chọn
- * HNSW index khi LIMIT nhỏ và ORDER BY embedding distance. Khi muốn
- * force, dùng `SET LOCAL hnsw.ef_search = 100` trước query.
+ * KHÔNG có HNSW hint cụ thể trong query — Postgres planner tự chọn HNSW index
+ * khi LIMIT nhỏ và ORDER BY embedding distance. Khi muốn force, dùng
+ * `SET LOCAL hnsw.ef_search = 100` trước query.
  */
-import { sql } from 'drizzle-orm';
-
-import { db } from '@cogniva/db';
+import { db, sql } from '@cogniva/db';
 
 export type RetrievedChunk = {
   /** ID chunk trong DB. */
@@ -33,8 +33,13 @@ export type RetrievedChunk = {
   filename: string;
   /** Trang trong PDF (1-indexed) nếu có. */
   page: number | null;
-  /** Cosine similarity score (0..1, càng cao càng gần). */
+  /** Cosine similarity score (0..1, càng cao càng gần) — hoặc score từ stage hiện tại. */
   score: number;
+  /**
+   * Embedding 1024-dim của chunk — chỉ có khi `includeEmbedding=true`. Dùng
+   * cho MMR diversity ở Phase 3, không expose ra client (payload lớn).
+   */
+  embedding?: number[];
 };
 
 export type RetrieveOptions = {
@@ -46,6 +51,11 @@ export type RetrieveOptions = {
   topK?: number;
   /** (Optional) chỉ retrieve trong 1 workspace cụ thể. */
   workspaceId?: string;
+  /**
+   * Trả về thêm cột `embedding` cho mỗi chunk (cần cho MMR).
+   * Default false để không tốn payload trong basic flow.
+   */
+  includeEmbedding?: boolean;
 };
 
 /**
@@ -54,10 +64,21 @@ export type RetrieveOptions = {
  * @returns Mảng chunk sắp xếp theo score giảm dần
  */
 export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedChunk[]> {
-  const { queryEmbedding, userId, topK = 5, workspaceId } = opts;
+  const { queryEmbedding, userId, topK = 5, workspaceId, includeEmbedding = false } = opts;
 
   // pgvector format: '[0.1,0.2,...]'
   const vectorLiteral = `[${queryEmbedding.join(',')}]`;
+
+  // Tách fragment có điều kiện ra biến để TypeScript không phải merge nhiều
+  // SQL<unknown> branch trong template — tránh xung đột giữa 2 phiên bản
+  // drizzle-orm (web 0.45 vs db package 0.38). Khi pin cùng version có thể
+  // inline lại.
+  const embeddingSelect = includeEmbedding
+    ? sql`, c.embedding::text AS embedding`
+    : sql``;
+  const workspaceFilter = workspaceId
+    ? sql`AND d.workspace_id = ${workspaceId}`
+    : sql``;
 
   // Dùng raw SQL vì:
   //   - Cosine distance operator <=> chưa có API Drizzle native
@@ -70,6 +91,7 @@ export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedCh
     filename: string;
     page: number | null;
     distance: number;
+    embedding?: string;
   }>(sql`
     SELECT
       c.id,
@@ -78,11 +100,12 @@ export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedCh
       d.filename,
       (c.metadata->>'page')::int AS page,
       (c.embedding <=> ${vectorLiteral}::vector) AS distance
+      ${embeddingSelect}
     FROM chunk c
     INNER JOIN document d ON d.id = c.document_id
     WHERE d.user_id = ${userId}
       AND d.status = 'READY'
-      ${workspaceId ? sql`AND d.workspace_id = ${workspaceId}` : sql``}
+      ${workspaceFilter}
     ORDER BY c.embedding <=> ${vectorLiteral}::vector
     LIMIT ${topK};
   `);
@@ -95,5 +118,15 @@ export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedCh
     page: r.page,
     // Cosine distance ∈ [0, 2]; convert sang similarity score [0, 1]
     score: Math.max(0, 1 - Number(r.distance) / 2),
+    ...(includeEmbedding && r.embedding ? { embedding: parseVectorText(r.embedding) } : {}),
   }));
+}
+
+/**
+ * Parse pgvector text format `'[1,2,3]'` → number[].
+ * Postgres trả về dạng text khi cast `::text` vì pgvector chưa có
+ * Postgres array codec. Format luôn là JSON-like nên JSON.parse work.
+ */
+export function parseVectorText(text: string): number[] {
+  return JSON.parse(text);
 }

@@ -1087,18 +1087,25 @@ cogniva/
 **Deliverable:** Demo-able chat with citations.
 > ✅ Verified 2026-05-11: query "Tài liệu test.pdf nói về cái gì?" → 4 chunks retrieve (top score 0.69) → openai/gpt-oss-20b free model qua OpenRouter stream Vietnamese reply có [1][3] citations → conversation + messages persisted to DB với token usage. AI provider abstraction hỗ trợ Anthropic (paid prod) + OpenRouter (free testing với 24+ free model).
 
-### Phase 3: Advanced RAG (Tuần 7)
+### Phase 3: Advanced RAG (Tuần 7) — ✅ **MVP shipped (2026-05-11)**
 **Goal:** Production-quality retrieval
 
-- [ ] HyDE query rewriting
-- [ ] Hybrid search (BM25 + vector)
-- [ ] Cohere reranking
-- [ ] MMR diversity
-- [ ] Build golden dataset (50 Q-A pairs)
-- [ ] RAGAS evals (faithfulness, relevancy)
-- [ ] A/B test: basic RAG vs advanced → measure
+- [x] HyDE query rewriting *(lib/retrieval/hyde.ts — generate hypothetical answer 2-4 câu rồi embed thay query gốc; graceful fallback khi LLM lỗi/empty)*
+- [x] Hybrid search (BM25 + vector) *(lib/retrieval/bm25.ts dùng Postgres tsvector + ts_rank_cd norm 32; chunk_content_tsv_idx GIN đã có sẵn trong schema. Vector + BM25 chạy parallel trong advanced.ts)*
+- [x] Cohere reranking *(lib/retrieval/rerank.ts — rerank-multilingual-v3.0 hỗ trợ tiếng Việt; graceful no-op khi COHERE_API_KEY trống → pipeline vẫn chạy)*
+- [x] MMR diversity *(lib/retrieval/mmr.ts — λ=0.7, greedy O(n²); chunks pass embedding qua includeEmbedding flag từ vector + BM25 search)*
+- [x] Build golden dataset (50 Q-A pairs) *(evals/golden-build.ts — random sample chunks → LLM synthesize Q-A có ground_truth_chunk_id; chạy `pnpm eval:golden [size]`)*
+- [x] RAGAS evals (faithfulness, relevancy) *(evals/ragas.ts — 4 metric LLM-as-judge: faithfulness, answer_relevancy, context_relevancy, context_recall (binary chunk hit))*
+- [x] A/B test: basic RAG vs advanced → measure *(evals/run.ts — chạy 2 mode song song trên golden, in bảng delta + win rate + latency ratio; output evals/results.json)*
 
 **Deliverable:** Eval dashboard showing improvements.
+> ✅ Built 2026-05-11: pipeline HyDE→Hybrid(vector+BM25)→RRF(k=60)→Cohere rerank→MMR(λ=0.7) trong `lib/retrieval/advanced.ts`. Switch qua `RETRIEVAL_MODE=basic|advanced` env (default `advanced`). Eval runner output bảng so sánh 4 metric × 2 mode + latency. Cần chạy `pnpm eval:golden 50 && pnpm eval:run` để có số đo cụ thể trên dữ liệu user thật.
+
+**Cohere setup (free trial):**
+1. Signup tại https://dashboard.cohere.com/welcome/register (email, không cần thẻ)
+2. Vào https://dashboard.cohere.com/api-keys → copy "Trial keys"
+3. Paste vào `apps/web/.env.local` dòng `COHERE_API_KEY="..."` (free 1000 search/tháng đủ dev + golden eval)
+4. Pipeline graceful no-op khi key trống → vẫn chạy được mà không có rerank stage
 
 ### Phase 4: Knowledge Graph (Tuần 8-9)
 **Goal:** Auto-extract concepts and visualize

@@ -82,3 +82,9 @@ export const db = new Proxy({} as DbClient, {
 export type Db = DbClient;
 export * from './schema';
 export * from './types';
+
+// Re-export `sql` template tag từ drizzle-orm để consumer (apps/web) chắc
+// chắn dùng CÙNG instance drizzle-orm với @cogniva/db. Nếu apps tự import
+// `sql from 'drizzle-orm'` mà pnpm resolve khác version (do peer conflict
+// với better-auth/openapi-fetch...), TS sẽ báo type collision SQL<unknown>.
+export { sql } from 'drizzle-orm';

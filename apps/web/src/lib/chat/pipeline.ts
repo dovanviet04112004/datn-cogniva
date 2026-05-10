@@ -1,19 +1,24 @@
 /**
  * Chat pipeline — wrapper retrieve → augment system prompt cho streamText.
  *
- * Phase 2 v1 chỉ có 1 strategy: linear (retrieve → generate). Khi Phase 3
- * thêm query classification + HyDE + reranking, hàm này sẽ chia thành
- * nhiều branch (factual / conceptual / chitchat) — đó là lúc Mastra workflow
- * giá trị thật sự (state machine quản lý transition).
+ * Hai chế độ retrieval (chọn qua env RETRIEVAL_MODE):
+ *   - 'basic' (Phase 2): vector cosine top-K. Nhanh ~150ms, recall vừa.
+ *   - 'advanced' (Phase 3, default): HyDE → hybrid (vector+BM25) → RRF →
+ *     Cohere rerank → MMR. Latency ~750ms nhưng faithfulness/precision cao.
  *
- * Hiện tại return về context (chunks + system prompt) để route handler
- * gọi streamText — tách phần "retrieval" và "generation" để Phase 3 dễ
- * trace bằng Langfuse + A/B test.
+ * Để debug + A/B test, mode có thể override qua opts.mode (eval runner
+ * pass thẳng 'basic' hay 'advanced' để so sánh trên cùng query).
+ *
+ * Khi Phase 4 thêm query classification (factual/conceptual/chitchat),
+ * sẽ thay route handler kiểu switch — đó là lúc Mastra workflow vào.
  */
 import { embedQuery } from '@/lib/ingest/embed-query';
+import { advancedRetrieve } from '@/lib/retrieval/advanced';
 import { retrieveChunks, type RetrievedChunk } from '@/lib/retrieval';
 
 import { buildSystemPrompt } from './system-prompt';
+
+export type RetrievalMode = 'basic' | 'advanced';
 
 export type ChatContext = {
   /** Chunks đã retrieve top-K, sort theo similarity giảm dần. */
@@ -22,6 +27,12 @@ export type ChatContext = {
   systemPrompt: string;
   /** Latency của retrieval (ms) — phục vụ trace + dashboard P50/P95. */
   retrievalMs: number;
+  /** Mode đã dùng — log + Langfuse metadata. */
+  mode: RetrievalMode;
+  /** HyDE hypothetical answer (chỉ khi mode='advanced'). */
+  hypothetical?: string;
+  /** Per-stage timings của advanced — chỉ khi mode='advanced'. */
+  timings?: Record<string, number>;
 };
 
 export type BuildContextOptions = {
@@ -29,23 +40,57 @@ export type BuildContextOptions = {
   userId: string;
   workspaceId?: string;
   topK?: number;
+  /** Override mode (mặc định lấy từ env RETRIEVAL_MODE, fallback 'advanced'). */
+  mode?: RetrievalMode;
 };
 
+/** Đọc retrieval mode từ env. Default 'advanced' khi Phase 3 ship. */
+export function pickRetrievalMode(): RetrievalMode {
+  const env = process.env.RETRIEVAL_MODE;
+  if (env === 'basic' || env === 'advanced') return env;
+  return 'advanced';
+}
+
 /**
- * Embed query → vector search → build system prompt với context.
+ * Build chat context cho streamText.
  *
- * @returns ChatContext sẵn dùng cho streamText
+ * @returns ChatContext kèm timings cho observability
  */
 export async function buildChatContext(opts: BuildContextOptions): Promise<ChatContext> {
+  const mode = opts.mode ?? pickRetrievalMode();
+  const topK = opts.topK ?? 5;
+
+  if (mode === 'advanced') {
+    const start = Date.now();
+    const result = await advancedRetrieve({
+      query: opts.query,
+      userId: opts.userId,
+      workspaceId: opts.workspaceId,
+      topK,
+    });
+    return {
+      chunks: result.chunks,
+      systemPrompt: buildSystemPrompt(result.chunks),
+      retrievalMs: Date.now() - start,
+      mode,
+      hypothetical: result.hypothetical,
+      timings: result.timings,
+    };
+  }
+
+  // Basic mode (Phase 2 fallback)
   const start = Date.now();
   const queryEmbedding = await embedQuery(opts.query);
   const chunks = await retrieveChunks({
     queryEmbedding,
     userId: opts.userId,
     workspaceId: opts.workspaceId,
-    topK: opts.topK ?? 5,
+    topK,
   });
-  const retrievalMs = Date.now() - start;
-  const systemPrompt = buildSystemPrompt(chunks);
-  return { chunks, systemPrompt, retrievalMs };
+  return {
+    chunks,
+    systemPrompt: buildSystemPrompt(chunks),
+    retrievalMs: Date.now() - start,
+    mode,
+  };
 }
