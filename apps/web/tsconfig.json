@@ -1,0 +1,31 @@
+// tsconfig riêng của apps/web — kế thừa preset Next.js từ tooling và bổ sung
+// alias "@/*" trỏ vào src/. include phải override include của parent vì layout
+// thực tế có file ở cả src/ và root (next-env.d.ts).
+//
+// Chú ý:
+//  - TS 5+ với moduleResolution "Bundler" không cần `baseUrl` — paths được
+//    resolve tương đối với chính file tsconfig này. baseUrl sẽ bị deprecate
+//    hoàn toàn ở TS 7.0 (xem https://aka.ms/ts6).
+//  - Pattern ".next/types/**/*.ts" được DÙNG khi bật `experimental.typedRoutes`
+//    của Next.js. Hiện đang tắt nên không include — sẽ thêm lại ở Phase 5
+//    khi route map ổn định.
+{
+  "extends": "@cogniva/tsconfig/nextjs.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}

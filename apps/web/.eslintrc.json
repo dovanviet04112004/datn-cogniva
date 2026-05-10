@@ -1,0 +1,19 @@
+// Cấu hình ESLint cho apps/web — kế thừa preset Next.js (đã bao gồm rule
+// React/JSX a11y + core-web-vitals) và thêm 2 rule TypeScript:
+//   - no-unused-vars: cảnh báo, nhưng cho phép biến/đối số bắt đầu bằng "_"
+//     (chuẩn ngầm khi muốn ignore tham số mà không xoá).
+//   - consistent-type-imports: ép import type để bundler tree-shake tốt
+//     hơn; fixStyle: 'inline-type-imports' giữ syntax `import { type X }`.
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "@typescript-eslint/consistent-type-imports": [
+      "warn",
+      { "prefer": "type-imports", "fixStyle": "inline-type-imports" }
+    ]
+  }
+}
