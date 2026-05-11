@@ -527,6 +527,66 @@ export const studySession = pgTable('study_session', {
 });
 
 // ──────────────────────────────────────────────────────────
+// Domain — Notes (Phase 7)
+// ──────────────────────────────────────────────────────────
+/**
+ * Note — văn bản tự do của user, viết bằng TipTap (HTML hoặc markdown).
+ * Liên kết optional với 1 concept (note về 1 khái niệm) hoặc 1 document
+ * (note đính kèm tài liệu, hiển thị sidebar khi mở doc).
+ */
+export const note = pgTable(
+  'note',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    /** TipTap HTML content — render trực tiếp trong viewer. */
+    content: text('content').notNull(),
+    conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
+    documentId: text('document_id').references(() => document.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('note_user_idx').on(t.userId),
+    updatedIdx: index('note_updated_idx').on(t.userId, t.updatedAt),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// Domain — Study Plan (Phase 7)
+// ──────────────────────────────────────────────────────────
+/**
+ * Mục trong kế hoạch học — user tự tạo hoặc AI gợi ý.
+ * status: PENDING / DONE — UI tick checkbox. dueDate optional (deadline).
+ * conceptId optional (gắn với 1 khái niệm để link sang quiz/flashcard).
+ */
+export const studyPlanStatusEnum = pgEnum('study_plan_status', ['PENDING', 'DONE']);
+
+export const studyPlanItem = pgTable(
+  'study_plan_item',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
+    status: studyPlanStatusEnum('status').notNull().default('PENDING'),
+    dueDate: timestamp('due_date'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (t) => ({
+    userStatusIdx: index('study_plan_user_status_idx').on(t.userId, t.status),
+    dueIdx: index('study_plan_due_idx').on(t.userId, t.dueDate),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
 // Relations — khai báo cho Drizzle để hỗ trợ join type-safe
 // ──────────────────────────────────────────────────────────
 // `relations()` không tạo cột mới — chỉ là metadata để Drizzle suy luận

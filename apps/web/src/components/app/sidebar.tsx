@@ -32,6 +32,7 @@ import {
   Menu,
   MessageSquare,
   Network,
+  NotebookPen,
   Settings,
   X,
 } from 'lucide-react';
@@ -55,6 +56,7 @@ const navGroups = [
     items: [
       { href: '/workspaces', label: 'Workspaces', icon: BookOpen },
       { href: '/documents', label: 'Documents', icon: FileText },
+      { href: '/notes', label: 'Notes', icon: NotebookPen },
       { href: '/chat', label: 'AI Tutor', icon: MessageSquare },
     ],
   },

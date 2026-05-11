@@ -1172,14 +1172,16 @@ cogniva/
 ### Phase 7: Polish + Productivity (Tuần 12)
 **Goal:** Notes, planner, search
 
-- [ ] Notes editor (TipTap)
-- [ ] AI inline completion in notes
-- [ ] Global search (Cmd+K)
-- [ ] Study planner (basic)
-- [ ] Pomodoro timer
-- [ ] Mobile responsive audit
+- [x] Notes editor (TipTap StarterKit + Placeholder) — `/notes/[id]` autosave 1.2s
+- [x] AI inline completion — Tab cuối câu gọi `/api/notes/complete` chèn tại cursor
+- [x] Global search (Cmd+K / Ctrl+K) — `CommandPaletteButton` trong topbar, search 5 nguồn (docs/concepts/flashcards/quizzes/notes) qua `/api/search`
+- [x] Study planner (basic) — `/study-plan` 2 cột Pending/Done, due date overdue badge
+- [x] Pomodoro timer — `PomodoroWidget` trong topbar, state machine 25/5/15 với localStorage + Web Notification + Web Audio chuông
+- [x] Mobile responsive audit — sidebar hamburger drawer (Phase 6 follow-up), topbar pl-14 không che, page list dùng `min-w-0 flex-1` đúng pattern
 
 **Deliverable:** Feels like a real product, not a demo.
+
+> ✅ Built 2026-05-11: schema thêm `note` (id, title, content HTML TipTap, concept/document FK optional) + `study_plan_item` (status PENDING/DONE, due_date, completed_at). API CRUD đầy đủ cho 2 entity + `/api/notes/complete` (LLM hoàn câu, prefix 500 ký tự cuối, maxTokens 120) + `/api/search` (5 entity ILIKE parallel với Promise.all). UI: `/notes` list + `/notes/[id]` TipTap editor; `/study-plan` 2-column kanban-lite; topbar swap search input → `CommandPaletteButton` mở `cmdk` dialog overlay; Pomodoro widget xen giữa ThemeToggle + UserMenu. Toàn bộ Vietnamese comments + JSDoc.
 
 ### Phase 8: Voice + Multimodal (Tuần 13)
 **Goal:** Wow factor features
