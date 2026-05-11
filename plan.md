@@ -389,6 +389,18 @@ Tách riêng nếu cần:
 
 ### 5.1. Core tables
 
+**Snapshot DB hiện tại** (Phase 0-9 cộng dồn, 21 tables):
+- Auth (Better Auth managed): `user` (+ cột mở rộng `plan`/`isPublic`/`preferences`), `session`, `account`, `verification`
+- Domain core: `workspace`, `document`, `chunk`, `concept`, `concept_relation`, `chunk_concept`
+- Learning: `conversation`, `message`, `flashcard`, `review`, `quiz`, `question`, `mastery`, `note`, `study_plan_item`, `study_session`
+- Gamification: `user_stats`, `study_group`, `study_group_member`
+
+**Lưu ý migration thực tế**:
+- `chunk.embedding` + `concept.embedding` dùng `vector(1024)` (Voyage-3 native), không phải 1536 như code spec dưới
+- Phase 7-9 thêm `note`, `study_plan_item`, `user_stats`, `study_group`, `study_group_member`, cột `user.is_public` (không có trong code spec dưới)
+
+Code spec gốc (giữ làm reference design):
+
 ```typescript
 // packages/db/src/schema.ts
 import {
@@ -617,24 +629,39 @@ Better Auth creates and migrates `session`, `account`, `verification` tables aut
 
 ## 6. API Design
 
-### 6.1. tRPC routers structure
+### 6.1. API style — REST (không phải tRPC)
 
-```typescript
-// server/routers/_app.ts
-export const appRouter = router({
-  auth:        authRouter,        // signup, login, oauth
-  user:        userRouter,        // profile, preferences
-  workspace:   workspaceRouter,   // CRUD workspaces
-  document:    documentRouter,    // upload, list, delete
-  chat:        chatRouter,        // messages, stream
-  flashcard:   flashcardRouter,   // CRUD, review
-  quiz:        quizRouter,        // generate, attempt, grade
-  concept:     conceptRouter,     // graph, mastery
-  analytics:   analyticsRouter,   // stats, reports
-  search:      searchRouter,      // global search
-  group:       groupRouter,       // study groups (V3)
-});
-```
+Spec ban đầu plan tRPC nhưng Phase 0-10 chọn **REST + Next.js route handlers**
+(`app/api/**/route.ts`) vì:
+- Đỡ phải maintain layer tRPC + zod context riêng (Next.js đã cho `Request`
+  + `NextResponse` chuẩn web standard).
+- Better Auth có built-in REST + cookie middleware → tích hợp natural.
+- Easier to consume từ external (mobile, extension Phase V3) — không phải
+  bind tRPC client.
+
+Trade-off: mất type-safety end-to-end (client phải tự type response). Bù
+lại mỗi route handler tự dùng Zod validate body / params → server vẫn an
+toàn input.
+
+**Route handlers thực tế** (`app/api/`):
+
+| Domain | Files |
+|---|---|
+| Auth (Better Auth) | `auth/[...all]/route.ts` |
+| Documents | `documents/route.ts`, `[id]/route.ts`, `upload/route.ts`, `[id]/move/route.ts` |
+| Chat | `chat/route.ts`, `conversations/route.ts`, `conversations/[id]/route.ts` |
+| Flashcards | `flashcards/route.ts`, `[id]/route.ts`, `[id]/review/route.ts`, `queue/`, `stats/`, `generate/`, `image/`, `upload-image/` |
+| Quiz | `quiz/route.ts`, `[id]/route.ts`, `[id]/attempt/route.ts`, `generate/` |
+| Mastery | `mastery/route.ts`, `recommendations/route.ts`, `decay/route.ts` |
+| Graph | `graph/route.ts`, `concept/[id]/route.ts` |
+| Notes | `notes/route.ts`, `[id]/route.ts`, `complete/route.ts` |
+| Study plan | `study-plan/route.ts`, `[id]/route.ts` |
+| Search | `search/route.ts` (Cmd+K global) |
+| Workspaces | `workspaces/route.ts`, `[id]/route.ts` |
+| Profile | `profile/me/route.ts`, `[id]/route.ts` |
+| Leaderboard | `leaderboard/route.ts` |
+| Groups | `groups/route.ts`, `[id]/route.ts`, `join/route.ts` |
+| Analytics | `analytics/route.ts` |
 
 ### 6.2. Key endpoints
 
@@ -968,74 +995,63 @@ components/
 
 ## 9. Folder Structure
 
-Monorepo với pnpm workspaces:
+**Pragmatic monolith** với pnpm workspaces. Spec ban đầu (tham vọng hơn)
+tách `apps/worker` + `packages/ai|ui|types` riêng, nhưng thực tế Phase 0-10
+gộp tất cả vào `apps/web` để giảm overhead. Refactor khi product grow.
 
 ```
-cogniva/
+cogniva/                                     — Thực tế Phase 0-10
 ├── apps/
-│   ├── web/                       — Next.js app
-│   │   ├── app/
-│   │   ├── components/
-│   │   ├── lib/
-│   │   ├── server/
-│   │   │   ├── routers/
-│   │   │   ├── db/
-│   │   │   └── trpc.ts
-│   │   ├── prompts/
-│   │   ├── public/
-│   │   └── package.json
-│   ├── worker/                    — Inngest jobs
-│   │   ├── functions/
-│   │   │   ├── ingest-document.ts
-│   │   │   ├── extract-concepts.ts
-│   │   │   ├── update-mastery.ts
-│   │   │   └── generate-flashcards.ts
-│   │   └── package.json
-│   └── extension/                 — browser extension (V3)
+│   └── web/                       — Next.js 15 App Router (toàn bộ stack)
+│       ├── src/
+│       │   ├── app/                — route handlers + pages (App Router)
+│       │   │   ├── (app)/          — protected routes (dashboard, chat, ...)
+│       │   │   ├── api/            — REST route handlers (Next.js native)
+│       │   │   ├── sign-in/sign-up — auth routes
+│       │   │   └── layout.tsx
+│       │   ├── components/         — UI (chat, flashcards, quiz, ...)
+│       │   ├── lib/                — domain logic
+│       │   │   ├── ai/             — model adapters
+│       │   │   ├── chat/           — pipeline (RAG context build)
+│       │   │   ├── concepts/       — extract + dedup + prereq
+│       │   │   ├── flashcards/     — FSRS + generators
+│       │   │   ├── quiz/           — generate + grade
+│       │   │   ├── mastery/        — BKT + recommend
+│       │   │   ├── notes/          — AI complete
+│       │   │   ├── gamification/   — XP + achievements
+│       │   │   ├── observability/  — Sentry + PostHog + cost
+│       │   │   ├── rate-limit/     — token bucket
+│       │   │   ├── retrieval/      — vector + reranker
+│       │   │   └── ingest/         — pipeline
+│       │   ├── instrumentation.ts  — Sentry init
+│       │   └── middleware.ts       — Better Auth session check
+│       ├── e2e/                    — Playwright specs
+│       ├── evals/                  — golden RAG eval scripts
+│       ├── scripts/                — CLI helpers (extract-concepts, mine-prereq)
+│       ├── public/
+│       ├── playwright.config.ts
+│       ├── vitest.config.ts
+│       └── package.json
 │
 ├── packages/
-│   ├── ai/                        — AI utilities
-│   │   ├── src/
-│   │   │   ├── pipelines/
-│   │   │   ├── retrievers/
-│   │   │   ├── prompts/
-│   │   │   ├── evals/
-│   │   │   └── tools/
-│   │   └── package.json
-│   ├── db/                        — Drizzle schema + client (postgres.js driver)
-│   ├── ui/                        — shared shadcn components
-│   ├── config/                    — eslint, tsconfig, tailwind presets
-│   └── types/                     — shared TS types
-│
-├── tooling/
-│   ├── eslint-config/
-│   └── tsconfig/
+│   ├── db/                        — Drizzle schema + client (postgres.js)
+│   └── tsconfig/                  — shared TS base config
 │
 ├── infrastructure/
-│   ├── docker/
-│   │   └── postgres/
-│   └── terraform/                 — IaC (optional)
-│
-├── docs/
-│   ├── architecture.md
-│   ├── prompts.md
-│   └── evals.md
-│
-├── tests/
-│   ├── e2e/                       — Playwright
-│   └── golden/                    — eval datasets
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       ├── eval.yml               — run RAG evals on PR
-│       └── deploy.yml
+│   └── docker-compose.yml         — Postgres + pgvector local
 │
 ├── pnpm-workspace.yaml
 ├── turbo.json
 ├── package.json
+├── plan.md                        — master spec (file này)
 └── README.md
 ```
+
+**Deferred** (Phase 11+ nếu cần scale):
+- `apps/worker/` — Inngest jobs cho ingest, concept extraction (hiện sync inline trong API route + fire-and-forget)
+- `packages/ai/` — tách AI utilities khỏi `apps/web/src/lib/` nếu reuse cho mobile/extension
+- `packages/ui/` — tách shadcn components khỏi `apps/web` nếu cần share
+- `apps/extension/` — browser extension (V3 feature)
 
 ---
 
@@ -1237,6 +1253,26 @@ cogniva/
 - [ ] Open-source select packages
 
 **Deliverable:** Live, payable, marketable.
+
+### Phase 10 follow-up — Bug fixes + lấp link 404 (2026-05-11)
+
+Sau Phase 10 commit (`c969024`), audit đã phát hiện 1 số vấn đề + thêm
+việc nhỏ. Lưu chronological để git audit trail match plan:
+
+- `671eec2` fix(voice): better error UX cho speech recognition — phân
+  loại `network`/`not-allowed`/`audio-capture` với message tiếng Việt
+  hữu ích (trước chỉ hiện raw error code).
+- `eb358db` fix(chat): image-only send dùng `append()` thay vì
+  `handleSubmit` — AI SDK v4 skip submit khi input rỗng, khiến math
+  canvas + image attach không gửi được nếu không gõ text.
+- `ebf329e` feat: build `/analytics` + `/workspaces` UI — lấp 2 link
+  sidebar 404 (chưa có page từ Phase 0 placeholder). Thêm REST API
+  workspaces CRUD + `POST /api/documents/[id]/move` đổi workspace.
+- **Audit fix** (commit sắp tới): add 3 deps thiếu trong `package.json`
+  (`@sentry/nextjs`, `posthog-js`, `posthog-node` — đã cài node_modules
+  nhưng quên save package.json); fix `vitest.config.ts` exclude `e2e/**`
+  (Playwright spec làm vitest crash vì cùng `test()` global khác API);
+  sync plan §5/§6/§9 với reality.
 
 ---
 
