@@ -77,7 +77,8 @@ export async function POST(
     .where(and(eq(question.quizId, quizId), inArray(question.id, questionIds)));
   const qById = new Map(questions.map((q) => [q.id, q]));
 
-  // Chấm tuần tự (LLM calls cho SHORT)
+  // Chấm song song — MCQ/TRUE_FALSE trả ngay (binary), SHORT mới cần
+  // LLM call. Promise.all giảm latency tổng từ N×~10s xuống ~10s.
   type ResultItem = {
     questionId: string;
     type: 'MCQ' | 'TRUE_FALSE' | 'SHORT';
@@ -87,11 +88,10 @@ export async function POST(
     explanation: string;
     masteryAfter: number | null;
   };
-  const results: ResultItem[] = [];
 
-  for (const ans of parsed.data.answers) {
+  const gradingPromises = parsed.data.answers.map(async (ans): Promise<ResultItem | null> => {
     const q = qById.get(ans.questionId);
-    if (!q) continue;
+    if (!q) return null;
     let grade: GradeResult = { score: 0, feedback: 'Không tìm thấy câu hỏi.' };
 
     if (q.type === 'MCQ' && typeof ans.userAnswer === 'number') {
@@ -110,6 +110,8 @@ export async function POST(
 
     let masteryAfter: number | null = null;
     if (q.conceptId) {
+      // applyAttempt vẫn await trong promise riêng — race condition giữa các
+      // câu cùng concept (hiếm) chấp nhận: kết quả cuối là posterior cuối.
       masteryAfter = await applyAttempt(
         session.user.id,
         q.conceptId,
@@ -117,7 +119,7 @@ export async function POST(
       );
     }
 
-    results.push({
+    return {
       questionId: q.id,
       type: q.type as 'MCQ' | 'TRUE_FALSE' | 'SHORT',
       score: grade.score,
@@ -125,8 +127,11 @@ export async function POST(
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
       masteryAfter,
-    });
-  }
+    };
+  });
+
+  const settled = await Promise.all(gradingPromises);
+  const results = settled.filter((r): r is ResultItem => r !== null);
 
   const totalScore = results.reduce((sum, r) => sum + r.score, 0);
   const maxScore = results.length;

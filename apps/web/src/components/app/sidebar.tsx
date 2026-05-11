@@ -1,21 +1,24 @@
 /**
- * Sidebar điều hướng cho route (app) — cố định trái, ẩn trên mobile (md:flex).
+ * Sidebar điều hướng cho route (app).
+ *
+ * Hai chế độ:
+ *   - Desktop (md+): cố định trái, w-64, luôn hiển thị.
+ *   - Mobile (< md): ẩn mặc định; nút hamburger fixed top-left toggle
+ *     drawer trượt từ trái + overlay tối. Click ngoài/sau khi navigate
+ *     → tự đóng.
  *
  * Nhóm điều hướng (navGroups):
  *   - Overview : Dashboard, Knowledge Graph, Analytics
  *   - Learn    : Workspaces, Documents, AI Tutor
  *   - Practice : Flashcards, Quizzes, Study Plan
- *   + (cuối)   : Settings (luôn ở đáy, tách bằng Separator)
+ *   + (cuối)   : Settings
  *
  * Active state: dùng usePathname để highlight item khi pathname trùng hoặc
  * bắt đầu bằng href + "/" (ví dụ /flashcards/123 vẫn highlight "Flashcards").
- *
- * Lưu ý: một số route trong list chưa tồn tại ở Phase 0 — middleware sẽ
- * redirect về /sign-in nếu user chưa đăng nhập, còn nếu đã đăng nhập sẽ
- * gặp 404 vì page chưa build. Sẽ giải quyết tự nhiên qua các phase.
  */
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -26,17 +29,18 @@ import {
   LayoutDashboard,
   LineChart,
   ListChecks,
+  Menu,
   MessageSquare,
   Network,
   Settings,
+  X,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 
-// `as const` để TypeScript suy luận literal types cho href — sau này
-// có thể dùng làm union type cho route guard.
+// `as const` để TypeScript suy luận literal types cho href.
 const navGroups = [
   {
     label: 'Overview',
@@ -64,12 +68,13 @@ const navGroups = [
   },
 ] as const;
 
-export function AppSidebar() {
+/** Nội dung nav dùng chung cho desktop + mobile drawer. */
+function SidebarBody({ onItemClick }: { onItemClick?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
-      {/* Header sidebar — logo + brand */}
+    <>
+      {/* Header — logo + brand */}
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <BrainCircuit className="h-5 w-5" />
@@ -77,7 +82,7 @@ export function AppSidebar() {
         <span className="text-base font-semibold">Cogniva</span>
       </div>
 
-      {/* Vùng nav cuộn — ScrollArea xử lý overflow gọn gàng */}
+      {/* Vùng nav cuộn */}
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-6">
           {navGroups.map((group) => (
@@ -87,13 +92,13 @@ export function AppSidebar() {
               </p>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                // Active khi đúng pathname HOẶC pathname là sub-route
                 const isActive =
                   pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onItemClick}
                     className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       isActive
@@ -111,11 +116,12 @@ export function AppSidebar() {
         </nav>
       </ScrollArea>
 
-      {/* Separator + Settings — luôn ở cuối sidebar */}
+      {/* Settings — cuối */}
       <Separator />
       <div className="p-3">
         <Link
           href="/settings"
+          onClick={onItemClick}
           className={cn(
             'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
             pathname.startsWith('/settings')
@@ -127,6 +133,65 @@ export function AppSidebar() {
           Settings
         </Link>
       </div>
-    </aside>
+    </>
+  );
+}
+
+/**
+ * Sidebar component — render cả desktop (luôn hiện ở md+) và mobile
+ * (drawer overlay khi toggle bằng hamburger).
+ */
+export function AppSidebar() {
+  const [open, setOpen] = React.useState(false);
+  const pathname = usePathname();
+
+  // Đóng drawer mỗi khi route đổi (user bấm vào item → navigate)
+  React.useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <>
+      {/* ── Mobile hamburger trigger (fixed, hiện < md) ── */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Mở menu"
+        className="fixed left-3 top-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background/90 text-foreground shadow-sm backdrop-blur md:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* ── Mobile overlay drawer (slide-in từ trái) ── */}
+      {open && (
+        <div
+          role="presentation"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+        />
+      )}
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground shadow-lg transition-transform md:hidden',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {/* Close button trong drawer (góc phải header) */}
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Đóng menu"
+          className="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <SidebarBody onItemClick={() => setOpen(false)} />
+      </aside>
+
+      {/* ── Desktop sidebar (md+) ── */}
+      <aside className="hidden h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex">
+        <SidebarBody />
+      </aside>
+    </>
   );
 }

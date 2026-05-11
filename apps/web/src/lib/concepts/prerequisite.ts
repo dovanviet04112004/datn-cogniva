@@ -100,35 +100,10 @@ async function mineGroup(concepts: ConceptRow[]): Promise<Edge[]> {
   }
 }
 
-/**
- * Mine prerequisite cho toàn list concepts. Group theo domain để giảm scope
- * mỗi LLM call + tránh cross-domain false positive.
- */
-export async function minePrerequisites(concepts: ConceptRow[]): Promise<number> {
-  // Group theo domain
-  const byDomain = new Map<string, ConceptRow[]>();
-  for (const c of concepts) {
-    const arr = byDomain.get(c.domain) ?? [];
-    arr.push(c);
-    byDomain.set(c.domain, arr);
-  }
-
-  const allEdges: Edge[] = [];
-  for (const [domain, group] of byDomain) {
-    // Nếu group > MAX_GROUP_SIZE, chia nhỏ — không tối ưu vì miss cross-batch
-    // edges, nhưng đủ tốt cho Phase 4 v1. Cải tiến Phase 5: hierarchical batching.
-    for (let i = 0; i < group.length; i += MAX_GROUP_SIZE) {
-      const slice = group.slice(i, i + MAX_GROUP_SIZE);
-      const edges = await mineGroup(slice);
-      console.log(`  [${domain}] batch ${i}-${i + slice.length}: ${edges.length} edges`);
-      allEdges.push(...edges);
-    }
-  }
-
-  // INSERT edges (idempotent qua ON CONFLICT — schema có uniqueIndex
-  // concept_relation_uniq trên (fromId, toId, relationType))
+/** INSERT 1 mảng edges với ON CONFLICT DO NOTHING. */
+async function insertEdges(edges: Edge[]): Promise<number> {
   let inserted = 0;
-  for (const edge of allEdges) {
+  for (const edge of edges) {
     try {
       await db
         .insert(conceptRelation)
@@ -144,8 +119,44 @@ export async function minePrerequisites(concepts: ConceptRow[]): Promise<number>
       console.warn('[prerequisite] insert edge failed:', (err as Error).message);
     }
   }
-
   return inserted;
+}
+
+/**
+ * Mine prerequisite cho toàn list concepts. Group theo domain để giảm scope
+ * mỗi LLM call + tránh cross-domain false positive.
+ *
+ * INSERT ngay sau mỗi batch để:
+ *   - Edges persist được dù script chạy dở (crash / Ctrl+C).
+ *   - User refresh /graph thấy progress dần.
+ *
+ * Idempotent qua uniqueIndex concept_relation_uniq.
+ */
+export async function minePrerequisites(concepts: ConceptRow[]): Promise<number> {
+  // Group theo domain
+  const byDomain = new Map<string, ConceptRow[]>();
+  for (const c of concepts) {
+    const arr = byDomain.get(c.domain) ?? [];
+    arr.push(c);
+    byDomain.set(c.domain, arr);
+  }
+
+  let totalInserted = 0;
+  for (const [domain, group] of byDomain) {
+    // Nếu group > MAX_GROUP_SIZE, chia nhỏ — không tối ưu vì miss cross-batch
+    // edges, nhưng đủ tốt cho v1. Cải tiến sau: hierarchical batching.
+    for (let i = 0; i < group.length; i += MAX_GROUP_SIZE) {
+      const slice = group.slice(i, i + MAX_GROUP_SIZE);
+      const edges = await mineGroup(slice);
+      const inserted = await insertEdges(edges);
+      totalInserted += inserted;
+      console.log(
+        `  [${domain}] batch ${i}-${i + slice.length}: ${edges.length} edges (${inserted} inserted)`,
+      );
+    }
+  }
+
+  return totalInserted;
 }
 
 /** Lấy tất cả concept_relation cho graph viz. */

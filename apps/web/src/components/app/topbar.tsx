@@ -23,7 +23,7 @@ export async function AppTopbar() {
   const session = await auth.api.getSession({ headers: await headers() });
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-background/80 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="flex h-14 items-center gap-4 border-b bg-background/80 pl-14 pr-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:pl-6 md:pr-6">
       {/* ── Search ────────────────────────────────────── */}
       <div className="relative flex flex-1 items-center">
         <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground" />

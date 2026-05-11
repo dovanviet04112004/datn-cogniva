@@ -93,20 +93,23 @@ export async function ingestDocument(documentId: string): Promise<void> {
       })
       .where(eq(document.id, documentId));
 
-    // ── 8. Phase 4: extract concepts (best-effort, không block ingest) ──
-    // Chạy SAU khi document đã READY — nếu extraction fail, tài liệu vẫn
-    // dùng được cho RAG, chỉ là chưa có concepts vào graph.
-    // Tuần tự (await) để render bug rõ ngay khi dev; production có thể
-    // chuyển sang Inngest job riêng.
-    try {
-      const stats = await extractConceptsForChunks(insertedChunks.map((c) => c.id));
-      console.log(
-        `[ingest] document ${documentId} concepts extracted: ${stats.conceptsExtracted} (${stats.linksCreated} links)`,
+    // ── 8. Phase 4+: extract concepts FIRE-AND-FORGET ──
+    // Không await — upload endpoint trả 200 ngay sau khi document READY.
+    // Concept extraction chạy ngầm trong cùng Node process, có thể mất
+    // 1-5 phút với PDF lớn do Voyage embed rate limit. UI có thể polling
+    // /api/graph để biết khi nào xong.
+    //
+    // Trade-off: lỗi extraction không bubble lên upload response (chỉ log).
+    // Production khi swap Inngest job, job riêng có retry + visible failure.
+    void extractConceptsForChunks(insertedChunks.map((c) => c.id))
+      .then((stats) =>
+        console.log(
+          `[ingest] document ${documentId} concepts extracted: ${stats.conceptsExtracted} (${stats.linksCreated} links)`,
+        ),
+      )
+      .catch((err: Error) =>
+        console.warn(`[ingest] concept extraction failed:`, err.message),
       );
-    } catch (err) {
-      // Không rethrow — concepts là nice-to-have, không phá user flow
-      console.warn(`[ingest] concept extraction skipped:`, (err as Error).message);
-    }
   } catch (error) {
     // Đánh dấu FAILED rồi rethrow để caller log + xử lý
     await db
