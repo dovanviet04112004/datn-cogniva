@@ -92,10 +92,20 @@ export function VoiceInputButton({ onTranscript, disabled }: Props) {
       if (finalText) onTranscript(finalText.trim());
     };
     recognition.onerror = (e) => {
-      // 'no-speech' / 'aborted' → bỏ qua, im lặng
+      // Phân loại lỗi để hiện message hữu ích thay vì raw error code
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         toast.error('Cần cấp quyền microphone trong browser');
+      } else if (e.error === 'network') {
+        // Chrome dùng Google Speech API cloud; mạng yếu / ISP chặn / VPN
+        // → speech service không phản hồi. Gợi ý cụ thể cho VN users.
+        toast.error(
+          'Voice service không kết nối được. Thử: tắt VPN, đổi 4G ↔ Wi-Fi, hoặc gõ tay.',
+          { duration: 6000 },
+        );
+      } else if (e.error === 'audio-capture') {
+        toast.error('Không tìm thấy microphone — cắm thiết bị âm thanh');
       } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        // 'no-speech' / 'aborted' im lặng (không phải lỗi user-facing)
         toast.error('Voice error: ' + e.error);
       }
       setListening(false);
