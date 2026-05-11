@@ -18,6 +18,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
+import { AppErrorBoundary } from '@/components/error-boundary';
+import { PosthogProvider } from '@/components/posthog-provider';
 
 import './globals.css';
 
@@ -64,7 +66,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+          <AppErrorBoundary>
+            <PosthogProvider>
+              <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+            </PosthogProvider>
+          </AppErrorBoundary>
           {/* Toaster dùng chung cho mọi route — đặt ngoài để tránh re-mount khi navigate */}
           <Toaster richColors closeButton />
         </ThemeProvider>

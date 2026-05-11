@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { SkeletonList } from '@/components/ui/skeleton-list';
 
 import { QuizGenerateDialog } from '@/components/quiz/quiz-generate-dialog';
 import { MasteryPanel } from '@/components/mastery/mastery-panel';
@@ -72,7 +73,7 @@ export default function QuizzesPage() {
 
       <div className="space-y-2">
         <h2 className="text-lg font-semibold">Danh sách ({quizzes.length})</h2>
-        {loading && <p className="text-sm text-muted-foreground">Đang tải...</p>}
+        {loading && <SkeletonList rows={4} />}
         {!loading && quizzes.length === 0 && (
           <Card className="p-8 text-center text-muted-foreground">
             Chưa có quiz nào. Bấm <strong>AI generate</strong> để tạo.

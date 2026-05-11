@@ -25,6 +25,7 @@ import { db, document } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
+import { checkLimit } from '@/lib/rate-limit';
 import { ingestDocument } from '@/lib/ingest/pipeline';
 import { getStorage } from '@/lib/storage';
 import { getOrCreateDefaultWorkspace } from '@/lib/workspace';
@@ -42,6 +43,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = session.user.id;
+
+  const rl = checkLimit(`upload:${userId}`, 'upload');
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many uploads' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+    );
+  }
 
   // ── 2. Parse multipart ───────────────────────────────
   let file: File;

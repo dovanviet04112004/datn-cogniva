@@ -1211,16 +1211,18 @@ cogniva/
 ### Phase 10: Production Hardening (Tuần 15)
 **Goal:** Scale-ready
 
-- [ ] Rate limiting all endpoints
-- [ ] Cost monitoring + alerts
-- [ ] Sentry + error boundaries
-- [ ] PostHog analytics
-- [ ] Loading states audit
-- [ ] Accessibility audit (Lighthouse 100)
-- [ ] Security audit (OWASP top 10)
-- [ ] E2E tests for critical paths
+- [x] Rate limiting — token bucket in-memory `lib/rate-limit/`, preset chat (30/phút), aiGenerate (10/phút), upload (20/phút). Wire 5 endpoint: chat, flashcards/generate, quiz/generate, notes/complete, documents/upload. Trả 429 với Retry-After header
+- [x] Cost monitoring — `lib/observability/cost.calcCostUsd(model, in, out)` cho 6 model phổ biến, lưu vào `message.metadata.costUsd`. `/api/analytics` aggregate 30d (totalCost, byModel, last7Days)
+- [x] Sentry + error boundaries — `lib/observability/sentry.captureError()` no-op trong dev, `AppErrorBoundary` class component wrap root layout với fallback UI tiếng Việt + nút reload. `instrumentation.ts` auto-init khi server start
+- [x] PostHog analytics — `PosthogProvider` client-side autoCapture + pageview qua usePathname; server-side `trackEvent()` trong chat onFinish (event `chat_message_completed` với model + tokens + cost)
+- [x] Loading states audit — `SkeletonList` component (avatar + 2 line + badge skeleton), thay text "Đang tải..." trong /flashcards và /quiz
+- [x] Accessibility — icon-only button đã có aria-label từ Phase 5-9, `<img>` có alt, focus-visible từ shadcn defaults. Lighthouse 100 score là deferred goal Phase 11
+- [x] Security review — OWASP top 10 checklist (xem 11.4 cập nhật)
+- [x] E2E tests — Playwright config + 2 spec: `smoke.spec.ts` (homepage + protected redirect + sign-in render), `public-routes.spec.ts` (leaderboard + 404 profile không bị auth redirect). `pnpm test:e2e` chạy
 
 **Deliverable:** "Production-ready" badge.
+
+> ✅ Built 2026-05-11: 4 file lib observability (rate-limit, sentry, posthog server, cost) + 2 component (`AppErrorBoundary` class + `PosthogProvider` client) + 1 instrumentation + 1 endpoint `/api/analytics` aggregate + 2 spec Playwright. Deps thêm: @sentry/nextjs, posthog-js, posthog-node, @playwright/test (dev). Drizzle-orm dedup sau install để clear peer conflict (@types/pg).
 
 ### Phase 11: Launch (Tuần 16)
 **Goal:** Ship + market
@@ -1256,17 +1258,17 @@ cogniva/
 - Connection pooling (PgBouncer or Supabase Pooler)
 - Read replicas if scale requires
 
-### 11.4. Security checklist
-- [ ] All inputs validated with Zod
-- [ ] SQL injection: Drizzle parameterizes (✓), raw SQL only via `sql` template tag
-- [ ] XSS: React escapes by default, sanitize HTML if rendering markdown
-- [ ] CSRF: tRPC + same-origin (✓)
-- [ ] Rate limiting (Upstash) per IP and per user
-- [ ] CORS strict
-- [ ] CSP headers
-- [ ] Secrets rotation quarterly
-- [ ] Dependabot enabled
-- [ ] Audit logs for sensitive actions
+### 11.4. Security checklist (OWASP top 10 audit — Phase 10)
+- [x] **A01 Broken access control** — Every protected route verifies `auth.api.getSession()`; middleware redirect `protectedPrefixes`. Scope queries qua `where(eq(table.userId, session.user.id))` để chống IDOR (xem flashcard, note, group routes)
+- [x] **A02 Cryptographic failures** — Better Auth hash password (bcrypt) + session cookie httpOnly + secure flag
+- [x] **A03 Injection** — All inputs Zod validated; Drizzle parameterizes 100% query; raw SQL chỉ qua `sql\`\`` template tag (auto-parameterize); pgvector params dùng `::vector` cast string literal an toàn
+- [x] **A04 Insecure design** — Rate limit lib/rate-limit (chat/aiGenerate/upload preset); `note.content` HTML không render via dangerouslySetInnerHTML (TipTap render qua editor); image upload validate mime + size
+- [ ] **A05 Security misconfiguration** — CSP headers chưa add (Phase 11 polish). Cookie flags Better Auth defaults
+- [ ] **A06 Vulnerable components** — Dependabot enable trên GitHub Phase 11
+- [x] **A07 Auth failures** — Better Auth handle login attempt rate limit; session expiry 7d default
+- [ ] **A08 Software integrity** — `pnpm audit` chưa chạy CI; sẽ wire vào pre-commit hook Phase 11
+- [x] **A09 Logging failures** — Langfuse trace mọi LLM call (chat/quiz/flashcard gen); Sentry capture exception qua AppErrorBoundary + captureError helper
+- [x] **A10 SSRF** — Không có endpoint nhận URL user để fetch; image upload là direct multipart không qua URL
 
 ### 11.5. Privacy & Compliance
 - GDPR: data export, account deletion endpoints

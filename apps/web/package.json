@@ -9,6 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "eval:golden": "pnpm exec tsx --env-file=.env.local evals/golden-build.ts",
     "eval:run": "pnpm exec tsx --env-file=.env.local evals/run.ts",
     "extract:concepts": "pnpm exec tsx --env-file=.env.local scripts/extract-concepts.ts",
@@ -71,6 +73,7 @@
   },
   "devDependencies": {
     "@cogniva/tsconfig": "workspace:*",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

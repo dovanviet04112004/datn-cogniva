@@ -26,6 +26,9 @@ import { auth } from '@/lib/auth';
 import { getChatModel, getChatModelId } from '@/lib/ai/models';
 import { buildChatContext } from '@/lib/chat/pipeline';
 import { startTrace } from '@/lib/observability/langfuse';
+import { calcCostUsd } from '@/lib/observability/cost';
+import { trackEvent } from '@/lib/observability/posthog';
+import { checkLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -43,6 +46,15 @@ export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return new Response('Unauthorized', { status: 401 });
   const userId = session.user.id;
+
+  // ── 1b. Rate limit (30 req/phút/user cho chat) ────
+  const rl = checkLimit(`chat:${userId}`, 'chat');
+  if (!rl.allowed) {
+    return new Response('Too many requests', {
+      status: 429,
+      headers: { 'Retry-After': String(rl.retryAfter ?? 60) },
+    });
+  }
 
   // ── 2. Parse body ─────────────────────────────────
   let body: ChatRequestBody;
@@ -188,7 +200,13 @@ export async function POST(request: Request) {
           });
           await trace.end();
 
-          // Lưu assistant message + citations vào DB
+          // Lưu assistant message + citations vào DB + tính cost
+          const modelId = getChatModelId();
+          const costUsd = calcCostUsd(
+            modelId,
+            usage.promptTokens,
+            usage.completionTokens,
+          );
           await db.insert(messageTable).values({
             conversationId: convId!,
             role: 'ASSISTANT',
@@ -199,11 +217,22 @@ export async function POST(request: Request) {
               snippet: c.content.slice(0, 240),
             })),
             metadata: {
-              model: getChatModelId(),
+              model: modelId,
               promptTokens: usage.promptTokens,
               completionTokens: usage.completionTokens,
+              costUsd,
               retrievalStrategy: 'vector-top5',
             },
+          });
+
+          // Track event PostHog (no-op nếu thiếu key)
+          void trackEvent('chat_message_completed', userId, {
+            conversationId: convId,
+            model: modelId,
+            promptTokens: usage.promptTokens,
+            completionTokens: usage.completionTokens,
+            costUsd,
+            chunksRetrieved: context.chunks.length,
           });
         },
         onError: ({ error }) => {

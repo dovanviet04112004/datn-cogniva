@@ -13,6 +13,7 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { completeNote } from '@/lib/notes/complete';
+import { checkLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -24,6 +25,14 @@ const SCHEMA = z.object({
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const rl = checkLimit(`aigen:${session.user.id}`, 'aiGenerate');
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter ?? 60) } },
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const parsed = SCHEMA.safeParse(body);

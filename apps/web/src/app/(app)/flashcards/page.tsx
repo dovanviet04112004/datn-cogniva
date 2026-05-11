@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { SkeletonList } from '@/components/ui/skeleton-list';
 
 import { FlashcardForm } from '@/components/flashcards/flashcard-form';
 import { GenerateDialog } from '@/components/flashcards/generate-dialog';
@@ -86,7 +87,7 @@ export default function FlashcardsPage() {
 
       <div className="space-y-2">
         <h2 className="text-lg font-semibold">Danh sách ({cards.length})</h2>
-        {loading && <p className="text-sm text-muted-foreground">Đang tải...</p>}
+        {loading && <SkeletonList rows={5} />}
         {!loading && cards.length === 0 && (
           <Card className="p-8 text-center text-muted-foreground">
             Chưa có thẻ nào. Bấm <strong>AI generate</strong> hoặc{' '}
