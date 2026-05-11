@@ -1186,12 +1186,14 @@ cogniva/
 ### Phase 8: Voice + Multimodal (Tuần 13)
 **Goal:** Wow factor features
 
-- [ ] Voice chat (Whisper + ElevenLabs)
-- [ ] Real-time interrupt
-- [ ] Image upload Q&A
-- [ ] Math handwriting recognition
+- [x] Voice chat — **Browser Web Speech API** (webkitSpeechRecognition cho STT, speechSynthesis cho TTS) thay vì Whisper+ElevenLabs để zero cost + zero latency. Trade-off chất lượng giọng (phase 9+ swap ElevenLabs khi cần)
+- [ ] Real-time interrupt — DEFERRED Phase 9+ (cần WebRTC/LiveKit infra)
+- [x] Image upload Q&A — file attach trong chat composer, `experimental_attachments` (Vercel AI SDK) → Claude Sonnet 4.6 vision model auto-handle, multi-file (max 4) preview thumb có nút X xóa
+- [x] Math handwriting recognition — `MathCanvasDialog` HTML5 canvas (mouse + touch), export PNG → attach như image → vision model nhận dạng
 
 **Deliverable:** Demo video that wows.
+
+> ✅ Built 2026-05-11: 4 components mới (`VoiceInputButton`, `TtsButton`, `MathCanvasDialog`, file attach inline trong `ChatInterface`). Composer mở rộng: textarea + Mic + ImageAttach + PencilLine + Send. `MessageBubble` của assistant thêm `TtsButton` đọc to khi stream xong. Chat route handle content array (vision message): tách `query` text-only cho RAG retrieval, fallback `[image-only message]` khi user chỉ gửi ảnh để retrieval không crash. Real-time interrupt skip — Phase 9+ cần WebRTC stack riêng.
 
 ### Phase 9: Social + Gamification (Tuần 14)
 **Goal:** Retention features

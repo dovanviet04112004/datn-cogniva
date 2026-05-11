@@ -61,7 +61,22 @@ export async function POST(request: Request) {
   if (!lastUser?.content) {
     return new Response('No user message found', { status: 400 });
   }
-  const query = typeof lastUser.content === 'string' ? lastUser.content : '';
+  // Khi message có attachment (image), AI SDK đưa content thành array
+  // [{ type: 'text', text: '...' }, ...]. Lấy text part đầu tiên làm query.
+  let query: string;
+  if (typeof lastUser.content === 'string') {
+    query = lastUser.content;
+  } else if (Array.isArray(lastUser.content)) {
+    const textPart = (lastUser.content as Array<{ type?: string; text?: string }>).find(
+      (p) => p?.type === 'text' && typeof p.text === 'string',
+    );
+    query = textPart?.text ?? '';
+  } else {
+    query = '';
+  }
+  // Khi user chỉ gửi ảnh (không text), dùng placeholder để retrieval không crash
+  // — RAG sẽ trả 0 chunks và model trả lời thuần vision.
+  const queryForRetrieval = query.trim() || '[image-only message]';
 
   // ── 4. Tạo / load conversation ────────────────────
   let convId = rawConvId ?? undefined;
@@ -106,11 +121,11 @@ export async function POST(request: Request) {
     input: query,
     metadata: { provider: getChatModelId() },
   });
-  const retrieveSpan = trace.span({ name: 'retrieve', input: query });
+  const retrieveSpan = trace.span({ name: 'retrieve', input: queryForRetrieval });
 
   let context;
   try {
-    context = await buildChatContext({ query, userId, workspaceId });
+    context = await buildChatContext({ query: queryForRetrieval, userId, workspaceId });
   } catch (err) {
     retrieveSpan.update({ metadata: { error: String(err) } });
     retrieveSpan.end();

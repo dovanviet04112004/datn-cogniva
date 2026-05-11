@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 
 import { type CitationData } from './citation';
 import { MarkdownMessage } from './markdown-message';
+import { TtsButton } from './tts-button';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -48,7 +49,15 @@ export function MessageBubble({ role, content, citations, isStreaming }: Props) 
         {isUser ? (
           <p className="whitespace-pre-wrap text-sm">{content}</p>
         ) : (
-          <MarkdownMessage content={content} citations={citations} />
+          <>
+            <MarkdownMessage content={content} citations={citations} />
+            {/* TTS button — chỉ hiện khi đã stream xong + có content */}
+            {!isStreaming && content.trim() && (
+              <div className="mt-1 flex justify-end">
+                <TtsButton text={content} />
+              </div>
+            )}
+          </>
         )}
         {isStreaming && (
           <span
