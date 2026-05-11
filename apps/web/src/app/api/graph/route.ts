@@ -13,11 +13,15 @@
  * (chỉ concepts được link tới chunks của user). Concept là entity dùng chung
  * (không có user_id cột) nhưng pivot scope theo user.
  *
- * Phase 6 sẽ join thêm bảng mastery để tô màu node theo BKT score; hiện
- * mastery field trả về undefined.
+ * Phase 6: query bảng mastery để tô màu node theo BKT score (đỏ < 0.4,
+ * vàng 0.4-0.7, xanh ≥ 0.7). Concept chưa attempt → mastery = undefined,
+ * ConceptNode render màu xám.
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { and, eq, inArray } from 'drizzle-orm';
+
+import { db, mastery as masteryTable } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import { listConceptRelations, listConceptsForUser } from '@/lib/concepts';
@@ -29,7 +33,25 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const concepts = await listConceptsForUser(session.user.id);
-  const relations = await listConceptRelations(concepts.map((c) => c.id));
+  const conceptIds = concepts.map((c) => c.id);
+  const relations = await listConceptRelations(conceptIds);
+
+  // Lấy mastery scores cho concepts của user — gắn vào data.mastery
+  const masteryRows = conceptIds.length
+    ? await db
+        .select({
+          conceptId: masteryTable.conceptId,
+          score: masteryTable.score,
+        })
+        .from(masteryTable)
+        .where(
+          and(
+            eq(masteryTable.userId, session.user.id),
+            inArray(masteryTable.conceptId, conceptIds),
+          ),
+        )
+    : [];
+  const masteryMap = new Map(masteryRows.map((m) => [m.conceptId, m.score]));
 
   // Format nodes — React Flow yêu cầu { id, position, data }
   // Position auto-layout phía client (Dagre / ELK) → server không tính.
@@ -40,7 +62,7 @@ export async function GET() {
       name: c.name,
       description: c.description,
       domain: c.domain,
-      mastery: undefined, // Phase 6: query mastery table
+      mastery: masteryMap.get(c.id), // undefined nếu chưa attempt
     },
     // Position 0,0 — client layout sẽ override
     position: { x: 0, y: 0 },

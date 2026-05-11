@@ -1156,14 +1156,18 @@ cogniva/
 ### Phase 6: Quiz + Mastery (Tuần 11)
 **Goal:** Adaptive quizzing
 
-- [ ] Quiz generator (MCQ, short answer)
-- [ ] Quiz attempt UI
-- [ ] AI grading for short answers
-- [ ] BKT mastery update
-- [ ] Forgetting curve decay job
-- [ ] Recommendation: "what to study next"
+- [x] Quiz generator (MCQ, TRUE_FALSE, short answer) — `lib/quiz/generate.ts`
+- [x] Quiz attempt UI — `/quiz/[id]/attempt` + `QuizAttemptSession`
+- [x] AI grading for short answers — `lib/quiz/grade.ts` (LLM compare userAnswer ↔ correctAnswer)
+- [x] BKT mastery update — `lib/mastery/bkt.ts` (4-param model) + `lib/mastery/update.ts` (applyAttempt sau mỗi attempt)
+- [x] Forgetting curve decay job — `POST /api/mastery/decay` (cron-auth, half-life 14 ngày)
+- [x] Recommendation: "what to study next" — `lib/mastery/recommend.ts` (priority = weakness × prereq importance)
+- [x] /graph wire mastery — ConceptNode tô màu theo BKT score (đỏ/vàng/xanh)
+- [x] /quiz page: MasteryPanel (bar list) + RecommendationsPanel (top 5)
 
 **Deliverable:** End-to-end learning loop closed.
+
+> ✅ Built 2026-05-11: pipeline `generateQuestions(chunkContent, types, count)` sinh quiz JSON-schema chuẩn → INSERT quiz + questions. Attempt route chấm tuần tự (binary cho MCQ/T-F, LLM cho SHORT), gọi `applyAttempt(userId, conceptId, score)` để update bảng mastery theo BKT. `getRecommendations` xếp hạng concepts cần ôn dựa trên (1-mastery) × log(1+prereq_count). UI `/quiz` list + dialog AI gen + player tuần tự + ResultsView; `/graph` ConceptNode đã ring-color theo mastery.
 
 ### Phase 7: Polish + Productivity (Tuần 12)
 **Goal:** Notes, planner, search

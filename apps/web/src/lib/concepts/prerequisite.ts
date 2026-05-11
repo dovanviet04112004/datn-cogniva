@@ -27,14 +27,17 @@ import { getChatModel } from '@/lib/ai/models';
 
 import type { ConceptRow } from './dedup';
 
-const PREREQ_INSTRUCTION = `Bạn là chuyên gia thiết kế đường học. Cho danh sách KHÁI NIỆM dưới đây (cùng domain), liệt kê các cặp prerequisite — cặp (from, to) nghĩa "muốn hiểu \`to\` thì cần biết \`from\` trước".
+const PREREQ_INSTRUCTION = `Bạn là chuyên gia thiết kế đường học. Cho danh sách KHÁI NIỆM dưới đây (cùng domain), liệt kê CÀNG NHIỀU cặp prerequisite/dependency CÀNG TỐT để dựng đồ thị kiến thức.
+
+Cặp (from, to) nghĩa: "muốn hiểu \`to\` thì cần biết \`from\` trước", hoặc "to xây dựng dựa trên from".
 
 QUY TẮC:
-- Chỉ list cặp THỰC SỰ là prerequisite kiến thức (không phải "related" chung chung).
+- Bao gồm cả prerequisite trực tiếp (Lamport's clock → Vector clocks) lẫn nền tảng cơ bản (happens-before → Lamport's clock).
+- Khi 2 khái niệm là biến thể/cải tiến của nhau, vẫn list edge từ "khái niệm cơ bản" → "khái niệm mở rộng".
 - Mỗi cặp dùng id từ danh sách (KHÔNG dùng tên).
 - Bỏ qua cặp ngược (B prereq A khi A đã prereq B).
-- Strength ∈ [0,1]: 1.0 = bắt buộc tuyệt đối, 0.5 = nên biết, 0.3 = giúp hiểu sâu hơn.
-- Nếu không có cặp prerequisite rõ ràng → trả mảng RỖNG.
+- Strength ∈ [0,1]: 1.0 = bắt buộc tuyệt đối, 0.7 = mạnh, 0.5 = nên biết, 0.3 = giúp hiểu sâu hơn.
+- Nếu hoàn toàn không có cặp → trả mảng RỖNG; nhưng ưu tiên TÌM RA edges.
 
 ĐỊNH DẠNG OUTPUT — JSON THUẦN:
 {"edges": [{"from": "<id>", "to": "<id>", "strength": 0.8}]}
@@ -42,7 +45,7 @@ QUY TẮC:
 DANH SÁCH KHÁI NIỆM (id | name | description):
 {{LIST}}`;
 
-const MAX_GROUP_SIZE = 20;
+const MAX_GROUP_SIZE = 10;
 
 function extractJson(text: string): unknown {
   const stripped = text
