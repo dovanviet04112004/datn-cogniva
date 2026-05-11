@@ -24,6 +24,7 @@ import { NextResponse } from 'next/server';
 import { db, document } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
 import { ingestDocument } from '@/lib/ingest/pipeline';
 import { getStorage } from '@/lib/storage';
 import { getOrCreateDefaultWorkspace } from '@/lib/workspace';
@@ -109,6 +110,11 @@ export async function POST(request: Request) {
   // ── 5. Run ingest pipeline (synchronous) ─────────────
   try {
     await ingestDocument(created.id);
+    // Gamification: +20 XP cho mỗi upload thành công
+    await awardXp(userId, XP_AMOUNTS.DOCUMENT_UPLOAD, {
+      source: 'document',
+      totalCount: 1,
+    });
     return NextResponse.json({ id: created.id, filename: file.name, status: 'READY' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

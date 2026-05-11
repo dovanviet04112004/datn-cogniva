@@ -19,7 +19,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
-// Tất cả route bắt buộc đăng nhập
+// Tất cả route bắt buộc đăng nhập (KHÔNG bao gồm /profile/[id] và /leaderboard
+// vì public profile view có thể truy cập không login)
 const protectedPrefixes = [
   '/dashboard',
   '/workspaces',
@@ -29,9 +30,15 @@ const protectedPrefixes = [
   '/quiz',
   '/graph',
   '/analytics',
+  '/notes',
   '/study-plan',
+  '/groups',
   '/settings',
 ];
+
+// /profile (không có id) là protected — đó là profile của chính user.
+// /profile/[id] và /leaderboard là public (allow anonymous).
+const exactProtected = ['/profile'];
 
 // Route auth — đã login thì không cần xem nữa
 const publicAuthPrefixes = ['/sign-in', '/sign-up'];
@@ -40,9 +47,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = getSessionCookie(request);
 
-  const isProtected = protectedPrefixes.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  const isProtected =
+    exactProtected.includes(pathname) ||
+    protectedPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isAuthRoute = publicAuthPrefixes.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );

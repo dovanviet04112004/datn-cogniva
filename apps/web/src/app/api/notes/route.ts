@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { db, note } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
 
 export const runtime = 'nodejs';
 
@@ -69,6 +70,12 @@ export async function POST(request: Request) {
       documentId: parsed.data.documentId ?? null,
     })
     .returning();
+
+  // Gamification: +3 XP cho mỗi note tạo mới + check achievement first_note
+  await awardXp(session.user.id, XP_AMOUNTS.NOTE_CREATE, {
+    source: 'note',
+    totalCount: 1,
+  });
 
   return NextResponse.json({ note: inserted }, { status: 201 });
 }

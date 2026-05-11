@@ -19,6 +19,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/app/user-menu';
 import { CommandPaletteButton } from '@/components/app/command-palette';
 import { PomodoroWidget } from '@/components/app/pomodoro-widget';
+import { StreakBadge } from '@/components/app/streak-badge';
 
 export async function AppTopbar() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -32,6 +33,7 @@ export async function AppTopbar() {
 
       {/* ── Actions phải ─────────────────────────────── */}
       <div className="flex items-center gap-2">
+        <StreakBadge />
         <PomodoroWidget />
         <ThemeToggle />
         {session?.user && (

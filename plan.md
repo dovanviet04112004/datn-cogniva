@@ -1198,13 +1198,15 @@ cogniva/
 ### Phase 9: Social + Gamification (Tuần 14)
 **Goal:** Retention features
 
-- [ ] Streaks + XP
-- [ ] Achievements
-- [ ] Public profiles
-- [ ] Study groups (basic: shared workspace)
-- [ ] Leaderboard
+- [x] Streaks + XP — `user_stats` table, `awardXp(userId, amount, ctx)` cập nhật atomic XP + streak (today/yesterday/break → reset 1). Hook vào 4 events: flashcard review (+2/+5), quiz answer correct (+10), note create (+3), document upload (+20)
+- [x] Achievements — 10 badges hardcoded (`lib/gamification/achievements.ts`): first_upload/quiz/note/flashcard + xp_100/500/1000 + streak_3/7/30. `checkNewAchievements()` chạy sau mỗi awardXp, append vào `user_stats.achievements TEXT[]`
+- [x] Public profiles — cột `user.is_public BOOLEAN`, route `/profile/[id]` public không cần auth (middleware allow), `/profile` (chính chủ) toggle visibility
+- [x] Study groups (basic) — `study_group` + `study_group_member` schema; CRUD API; invite code 8 ký tự ABCDE-style (loại 0/O/1/I); /groups list + create + join by code + /groups/[id] detail với member list
+- [x] Leaderboard — `GET /api/leaderboard` top 20 user.is_public=true sort xp DESC, top 3 highlight gold/silver/bronze ring
 
 **Deliverable:** Sticky product.
+
+> ✅ Built 2026-05-11: 3 bảng mới (`user_stats` PK userId, `study_group` + `study_group_member` với uniqueIndex `group_id × user_id`); thêm cột `user.is_public`. Gamification: 6 file lib + 7 API endpoints + 5 UI pages + `StreakBadge` topbar (Flame icon + currentStreak + xp). Middleware: tách `exactProtected` cho `/profile` để `/profile/[id]` public truy cập được; sidebar group "Social" mới gom 3 link Profile/Leaderboard/Groups.
 
 ### Phase 10: Production Hardening (Tuần 15)
 **Goal:** Scale-ready

@@ -135,6 +135,8 @@ export const user = pgTable('user', {
   image: text('image'),
   // Mở rộng cho Cogniva — Better Auth bỏ qua những cột nó không biết
   plan: planEnum('plan').notNull().default('FREE'),
+  /** Profile có public hay không — control leaderboard + profile visibility. */
+  isPublic: boolean('is_public').notNull().default(false),
   preferences: jsonb('preferences').$type<UserPreferences>().default({}).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -583,6 +585,83 @@ export const studyPlanItem = pgTable(
   (t) => ({
     userStatusIdx: index('study_plan_user_status_idx').on(t.userId, t.status),
     dueIdx: index('study_plan_due_idx').on(t.userId, t.dueDate),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// Domain — Gamification (Phase 9)
+// ──────────────────────────────────────────────────────────
+/**
+ * userStats — 1 dòng / user, lưu XP + streak + achievements.
+ *
+ * Tách bảng riêng (thay vì cột trong `user`) để:
+ *   - Tránh đụng schema user (Better Auth managed).
+ *   - Truy vấn leaderboard nhanh hơn (index trên xp).
+ *
+ * `achievements`: text[] chứa các achievement ID đã unlock (vd 'first_quiz',
+ * 'streak_7'). Hardcoded list trong `lib/gamification/achievements.ts`.
+ *
+ * `lastActivityDate` = ngày Y-M-D của activity gần nhất (timezone server).
+ * Streak break khi gap > 1 ngày.
+ */
+export const userStats = pgTable(
+  'user_stats',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    xp: integer('xp').notNull().default(0),
+    currentStreak: integer('current_streak').notNull().default(0),
+    longestStreak: integer('longest_streak').notNull().default(0),
+    lastActivityDate: text('last_activity_date'), // YYYY-MM-DD
+    achievements: text('achievements').array().notNull().default(sql`'{}'::text[]`),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    xpIdx: index('user_stats_xp_idx').on(t.xp),
+  }),
+);
+
+/**
+ * Nhóm học — shared workspace cho nhiều user.
+ * Phase 9 v1: chỉ list members + invite code. Phase 10+ thực sự share data.
+ */
+export const studyGroup = pgTable(
+  'study_group',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    name: text('name').notNull(),
+    description: text('description'),
+    ownerUserId: text('owner_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Token random — share với người khác để họ join. */
+    inviteCode: text('invite_code').notNull().unique(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    inviteIdx: index('study_group_invite_idx').on(t.inviteCode),
+  }),
+);
+
+export const groupRoleEnum = pgEnum('group_role', ['OWNER', 'MEMBER']);
+
+export const studyGroupMember = pgTable(
+  'study_group_member',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: groupRoleEnum('role').notNull().default('MEMBER'),
+    joinedAt: timestamp('joined_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('study_group_member_uniq').on(t.groupId, t.userId),
+    userIdx: index('study_group_member_user_idx').on(t.userId),
   }),
 );
 

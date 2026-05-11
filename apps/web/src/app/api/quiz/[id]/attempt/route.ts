@@ -33,6 +33,7 @@ import {
   type GradeResult,
 } from '@/lib/quiz/grade';
 import { applyAttempt } from '@/lib/mastery/update';
+import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // SHORT grading có LLM call
@@ -152,8 +153,21 @@ export async function POST(
     },
   });
 
+  // Gamification: cộng XP theo số câu đúng (score ≥ 0.5)
+  const correctCount = results.filter((r) => r.score >= 0.5).length;
+  const xpAmount = correctCount * XP_AMOUNTS.QUIZ_ANSWER_CORRECT;
+  let newAchievements: string[] = [];
+  if (xpAmount > 0) {
+    const awarded = await awardXp(session.user.id, xpAmount, {
+      source: 'quiz',
+      totalCount: 1, // 1 quiz hoàn thành
+    });
+    newAchievements = awarded.newAchievements;
+  }
+
   return NextResponse.json({
     results,
     summary: { totalScore, maxScore, percentage },
+    xp: { awarded: xpAmount, newAchievements },
   });
 }

@@ -21,6 +21,7 @@ import { db, flashcard, review } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import { applyReview } from '@/lib/flashcards/fsrs';
+import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
 
 export const runtime = 'nodejs';
 
@@ -84,10 +85,21 @@ export async function POST(
     duration: parsed.data.duration,
   });
 
+  // Gamification: award XP + check achievement (best-effort, không block)
+  const xpAmount =
+    parsed.data.rating >= 3
+      ? XP_AMOUNTS.FLASHCARD_REVIEW_PASS
+      : XP_AMOUNTS.FLASHCARD_REVIEW_FAIL;
+  const { newAchievements } = await awardXp(session.user.id, xpAmount, {
+    source: 'flashcard',
+    totalCount: 1, // chỉ check "first_flashcard"
+  });
+
   return NextResponse.json({
     flashcard: {
       ...card,
       ...next,
     },
+    xp: { awarded: xpAmount, newAchievements },
   });
 }

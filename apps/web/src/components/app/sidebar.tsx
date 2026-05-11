@@ -34,6 +34,9 @@ import {
   Network,
   NotebookPen,
   Settings,
+  Trophy,
+  User as UserIcon,
+  Users,
   X,
 } from 'lucide-react';
 
@@ -66,6 +69,14 @@ const navGroups = [
       { href: '/flashcards', label: 'Flashcards', icon: BrainCircuit },
       { href: '/quiz', label: 'Quizzes', icon: ListChecks },
       { href: '/study-plan', label: 'Study Plan', icon: GraduationCap },
+    ],
+  },
+  {
+    label: 'Social',
+    items: [
+      { href: '/profile', label: 'Profile', icon: UserIcon },
+      { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+      { href: '/groups', label: 'Study Groups', icon: Users },
     ],
   },
 ] as const;
