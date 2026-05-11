@@ -58,7 +58,7 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { messages, input, setInput, handleSubmit, status, data } = useChat({
+  const { messages, input, setInput, handleSubmit, append, status, data } = useChat({
     api: '/api/chat',
     id: conversationId,
     initialMessages,
@@ -115,7 +115,11 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
   };
 
   /** Submit kèm attachments — chuyển File[] → FileList qua DataTransfer
-   *  vì useChat expect FileList | Attachment[]. */
+   *  vì useChat expect FileList | Attachment[].
+   *
+   *  AI SDK v4 `handleSubmit` skip nếu input.trim() empty. Workaround:
+   *  khi user chỉ gửi ảnh (không text), dùng `append()` trực tiếp với
+   *  message placeholder để bypass logic check empty input. */
   const submitWithAttachments = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim().length === 0 && attachments.length === 0) return;
@@ -125,9 +129,17 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
       for (const f of attachments) dt.items.add(f);
       fileList = dt.files;
     }
-    handleSubmit(e, {
-      experimental_attachments: fileList,
-    });
+    // Nhánh "chỉ có ảnh, không text" → append thay vì handleSubmit
+    if (input.trim().length === 0 && fileList && fileList.length > 0) {
+      append(
+        { role: 'user', content: 'Phân tích nội dung trong ảnh.' },
+        { experimental_attachments: fileList },
+      );
+      setAttachments([]);
+      return;
+    }
+    // Có text (kèm hoặc không kèm ảnh) → handleSubmit chuẩn
+    handleSubmit(e, { experimental_attachments: fileList });
     setAttachments([]);
   };
 
