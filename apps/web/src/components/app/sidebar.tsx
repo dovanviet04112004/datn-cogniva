@@ -28,6 +28,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   LineChart,
+  ClipboardList,
   ListChecks,
   Menu,
   MessageSquare,
@@ -69,6 +70,7 @@ const navGroups = [
     items: [
       { href: '/flashcards', label: 'Flashcards', icon: BrainCircuit },
       { href: '/quiz', label: 'Quizzes', icon: ListChecks },
+      { href: '/exams', label: 'Exams', icon: ClipboardList },
       { href: '/study-plan', label: 'Study Plan', icon: GraduationCap },
     ],
   },

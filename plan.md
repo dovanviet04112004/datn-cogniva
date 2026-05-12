@@ -1742,6 +1742,89 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 - 20:00 VN cover hầu hết VN user (target chính); EU/US user nhận giờ kỳ lạ — accept trade-off MVP
 - Stage 3 sẽ thêm `user.timezone` + UI Settings "Giờ nhắc nhở mong muốn" + cron mỗi giờ filter theo TZ
 
+#### Phase 16 — Exam System Core (2026-05-12) — ✅ done
+
+> Chi tiết §Phase 16 ở `plan-rooms-and-exam.md`. Phase 16 build core exam — Practice + Timed mode, auto-grade + AI grade. Phase 17 (Live Kahoot) + Phase 18 (Adaptive IRT) + Phase 19 (Anti-cheat) sẽ build sau.
+>
+> Naming convention thay đổi từ plan-rooms-and-exam.md: dùng `exam` + `examQuestion` + `examAttempt` + `examResponse` + `examViolation` (singular) thay vì plural cho consistent với `user` / `document` / `flashcard` / `quiz` / `question` của Cogniva.
+
+**Schema (`packages/db/`):**
+- [x] 5 bảng: `exam`, `exam_question`, `exam_attempt`, `exam_response`, `exam_violation` + 3 enum (`exam_mode`, `exam_status`, `attempt_status`)
+- [x] Schema sẵn cột cho Phase 17 (`liveCode`, `currentQuestionIndex`), Phase 18 (`difficulty`/`discrimination`/`guessing` IRT params + `estimatedTheta`/`thetaSE`/`minQuestions`/`maxQuestions`/`targetSE`), Phase 19 (`antiCheat` jsonb + `violations`/`cheatRiskScore`/`flagged`/`webcamRecordingUrl`/`browserFingerprint`)
+- [x] `examQuestion.type` plain text (không enum) — dễ thêm loại mới không cần ALTER TYPE. Hỗ trợ: MCQ_SINGLE / MCQ_MULTI / TRUE_FALSE / SHORT / ESSAY / FILL_BLANK / MATCHING / ORDERING / CODE / MATH / DRAWING
+- [x] `examResponse` UNIQUE (attempt_id, question_id) cho upsert auto-save
+- [x] Migration `0008_exam_system.sql` idempotent (CREATE TYPE qua DO block + CREATE TABLE IF NOT EXISTS) — applied to dev DB
+- [x] Drizzle relations + 12 type exports
+
+**Grading logic (`apps/web/src/lib/`):**
+- [x] `exam/grade.ts` — `gradeResponse(question, answer)` dispatch theo type, 7 auto-grade types: MCQ_SINGLE / MCQ_MULTI / TRUE_FALSE / FILL_BLANK / SHORT / ORDERING / MATCHING. Hỗ trợ partial credit (MCQ_MULTI / ORDERING / MATCHING) qua flag `partialCredit`
+- [x] Unicode NFC normalize + case-insensitive + trim cho FILL_BLANK/SHORT. Accept alts từ `acceptableAnswers` array
+- [x] SHORT exact-match fail → cờ `needsAiGrading=true` → caller chạy AI semantic
+- [x] `ai/grade-essay.ts` — `aiGradeShortAnswer` + `aiGradeEssay` qua `routedGenerateText(useCase: 'reasoning')` (Anthropic Opus primary, Sonnet fallback). JSON output zod-validate, clamp score [0, maxPoints]. Fail-open: AI lỗi → flagForReview=true, manual grade sau
+
+**Backend API (`apps/web/src/app/api/`):**
+- [x] `exams/route.ts` — GET list owned + POST create (auto-gen liveCode cho LIVE mode)
+- [x] `exams/[id]/route.ts` — GET detail (strip correctAnswer/explanation cho student) + PUT update (DRAFT only) + DELETE
+- [x] `exams/[id]/publish/route.ts` — DRAFT → PUBLISHED + aggregate maxScore từ sum points
+- [x] `exams/[id]/questions/route.ts` — POST add manual (auto orderIndex)
+- [x] `exams/[id]/questions/[qId]/route.ts` — PUT update + DELETE + reorder remaining
+- [x] `exams/[id]/generate-questions/route.ts` — AI gen từ document chunks (tái dùng `generateQuestions` của quiz V1), MAP `MCQ → MCQ_SINGLE` cho exam schema
+- [x] `exams/[id]/attempts/route.ts` — student POST start attempt, idempotent (return existing IN_PROGRESS nếu có), pre-check maxAttempts + ASYNC window
+- [x] `attempts/[id]/route.ts` — GET attempt + responses + questions (reveal correctAnswer khi submitted + showResults!=AFTER_ALL_DONE)
+- [x] `attempts/[id]/responses/route.ts` — POST upsert response (auto-save). Practice mode `?grade=1` → grade ngay + AI fallback cho SHORT
+- [x] `attempts/[id]/submit/route.ts` — finalize: grade tất cả responses (parallel concurrency=5 cho AI batch), update attempt status=SUBMITTED + score + percentage + passed + timeSpent
+
+**UI (`apps/web/src/app/(app)/exams/`):**
+- [x] `page.tsx` — list owner's exams với status badge + mode label + button "Tạo exam"
+- [x] `new/page.tsx` — form tạo exam (title/description/mode/duration/maxAttempts/shuffle toggles)
+- [x] `[id]/page.tsx` — builder cho owner DRAFT (add manual + AI gen + publish) + start page cho student PUBLISHED. Preview question với highlight correctAnswer cho owner
+- [x] `[id]/take/[attemptId]/page.tsx` — taking interface 1 câu/màn, deterministic shuffle theo attemptId seed, countdown TIMED mode auto-submit khi hết giờ, Practice mode IMMEDIATE feedback
+- [x] `[id]/results/[attemptId]/page.tsx` — score summary + per-question breakdown với AI feedback + breakdown rubric (ESSAY)
+- [x] `components/exams/add-question-dialog.tsx` — modal 4 type (MCQ_SINGLE/MCQ_MULTI/TRUE_FALSE/SHORT) với dynamic options + correctAnswer pickers
+- [x] `components/exams/ai-generate-dialog.tsx` — AI gen từ document, multi-type selector, count slider
+- [x] Sidebar `/exams` link (icon ClipboardList) trong group "Practice"
+
+**Files mới Phase 16:**
+```
+packages/db/src/schema.ts                                        # +exam/examQuestion/examAttempt/examResponse/examViolation +3 enum +5 relations +12 types
+packages/db/migrations/0008_exam_system.sql                      # NEW (idempotent migration)
+apps/web/src/lib/exam/grade.ts                                   # NEW (7-type auto-grade dispatcher)
+apps/web/src/lib/ai/grade-essay.ts                               # NEW (aiGradeShortAnswer + aiGradeEssay)
+apps/web/src/app/api/exams/route.ts                              # NEW (GET list + POST create)
+apps/web/src/app/api/exams/[id]/route.ts                         # NEW (GET/PUT/DELETE)
+apps/web/src/app/api/exams/[id]/publish/route.ts                 # NEW
+apps/web/src/app/api/exams/[id]/questions/route.ts               # NEW
+apps/web/src/app/api/exams/[id]/questions/[qId]/route.ts         # NEW
+apps/web/src/app/api/exams/[id]/generate-questions/route.ts      # NEW (AI gen)
+apps/web/src/app/api/exams/[id]/attempts/route.ts                # NEW
+apps/web/src/app/api/attempts/[id]/route.ts                      # NEW
+apps/web/src/app/api/attempts/[id]/responses/route.ts            # NEW
+apps/web/src/app/api/attempts/[id]/submit/route.ts               # NEW
+apps/web/src/app/(app)/exams/page.tsx                            # NEW
+apps/web/src/app/(app)/exams/new/page.tsx                        # NEW
+apps/web/src/app/(app)/exams/[id]/page.tsx                       # NEW (owner builder + student start)
+apps/web/src/app/(app)/exams/[id]/take/[attemptId]/page.tsx      # NEW
+apps/web/src/app/(app)/exams/[id]/results/[attemptId]/page.tsx   # NEW
+apps/web/src/components/exams/add-question-dialog.tsx            # NEW
+apps/web/src/components/exams/ai-generate-dialog.tsx             # NEW
+apps/web/src/components/app/sidebar.tsx                          # +/exams link
+```
+
+**Acceptance (live test pending — khi user QA):**
+- [ ] Apply migration: `psql $DATABASE_URL -f packages/db/migrations/0008_exam_system.sql`
+- [ ] /exams page render danh sách rỗng + button "Tạo exam"
+- [ ] Tạo exam Practice mode → redirect /exams/[id]
+- [ ] Add 3 câu manual (1 MCQ_SINGLE + 1 TRUE_FALSE + 1 SHORT) → publish → status=PUBLISHED
+- [ ] AI gen 5 câu từ document READY → exam.maxScore += 5
+- [ ] Student start attempt → /take/[attemptId] → trả lời cả 8 câu → Practice mode show feedback ngay
+- [ ] Submit → /results/[attemptId] hiện điểm + breakdown
+- [ ] Timed mode 1 phút → countdown chạy → khi 0 auto-submit
+
+**Pending Phase 17-19 (chưa làm):**
+- [ ] Phase 17 Live Exam (Kahoot-style) — realtime presenter view + leaderboard + Soketi broadcast currentQuestionIndex
+- [ ] Phase 18 Adaptive Testing — IRT/CAT engine pick next question theo theta estimate + AI essay grading nâng cao
+- [ ] Phase 19 Anti-cheat + Production Polish — fullscreen lock + tab focus listener + Selenium-detect + AI proctor webcam analysis
+
 **Why local scaffold trước:**
 - Wrangler dev emulate Workers runtime LOCAL (`workerd` binary, DO + KV in-memory) → KHÔNG cần CF account hay domain để code + test logic
 - Khi user mua domain + CF account → chỉ cần `wrangler login` + `wrangler kv namespace create FLAGS_KV` + paste id + `wrangler deploy`. Code 100% production-ready.

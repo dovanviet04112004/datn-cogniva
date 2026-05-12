@@ -1117,6 +1117,325 @@ export const notificationLog = pgTable(
 );
 
 // ──────────────────────────────────────────────────────────
+// Exam System (Phase 16) — exam, examQuestion, examAttempt, examResponse, examViolation
+// ──────────────────────────────────────────────────────────
+/**
+ * Bảng `exam` — bài kiểm tra do teacher/user tạo.
+ *
+ * Khác với `quiz` (Phase 6 V1):
+ *   - quiz: AI sinh từ concept đơn, free-form, không có lifecycle phức tạp
+ *   - exam: có lifecycle DRAFT → PUBLISHED → IN_PROGRESS → ENDED, hỗ trợ
+ *     nhiều mode (Practice / Timed / Live / Adaptive), anti-cheat config
+ *
+ * Schema có sẵn cột cho Phase 17 (Live) + Phase 18 (Adaptive) để migration
+ * sau không phải breaking:
+ *   - Live: `liveCode` UNIQUE, `currentQuestionIndex` (broadcast tới students)
+ *   - Adaptive: `minQuestions/maxQuestions/targetSE` (IRT termination criteria)
+ *   - Anti-cheat: jsonb config block, evaluated client-side
+ */
+export const examModeEnum = pgEnum('exam_mode', [
+  'PRACTICE',   // không giới hạn thời gian, show explanation ngay
+  'TIMED',      // countdown global, auto-submit khi hết giờ
+  'LIVE',       // Phase 17 — Kahoot style, teacher điều khiển
+  'ASYNC',      // open trong khoảng thời gian, mỗi student có timer riêng
+  'ADAPTIVE',   // Phase 18 — IRT/CAT, độ khó adapt theo theta
+  'TOURNAMENT', // V4 — bracket competitive
+]);
+
+export const examStatusEnum = pgEnum('exam_status', [
+  'DRAFT',       // owner đang soạn, student chưa thấy
+  'PUBLISHED',   // student có thể start attempt
+  'IN_PROGRESS', // Live mode đang chạy
+  'ENDED',       // đã đóng, chỉ xem result được
+]);
+
+export const attemptStatusEnum = pgEnum('attempt_status', [
+  'IN_PROGRESS',    // student đang làm
+  'SUBMITTED',      // student bấm Submit chủ động
+  'TIMED_OUT',      // hết thời gian, auto-submit
+  'AUTO_SUBMITTED', // backend cron submit (vd page reload mất state)
+  'DISQUALIFIED',   // bị anti-cheat flag + owner reject
+]);
+
+export const exam = pgTable(
+  'exam',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    mode: examModeEnum('mode').notNull().default('PRACTICE'),
+    status: examStatusEnum('status').notNull().default('DRAFT'),
+
+    /** Timer cho TIMED/LIVE mode (giây). NULL nghĩa unlimited (PRACTICE). */
+    durationSeconds: integer('duration_seconds'),
+    /** ASYNC mode — exam available trong window. NULL = bất kỳ lúc nào. */
+    startsAt: timestamp('starts_at'),
+    endsAt: timestamp('ends_at'),
+
+    /** Ngưỡng điểm pass (0..1). NULL = không có pass/fail concept. */
+    passingScore: real('passing_score'),
+    /** Tổng điểm tối đa (sum points của examQuestion). Cache để tránh aggregate. */
+    maxScore: real('max_score').notNull().default(0),
+    /** Khi nào hiện result: IMMEDIATE (xong câu show ngay), AFTER_SUBMIT, AFTER_ALL_DONE (teacher unlock). */
+    showResults: text('show_results').notNull().default('IMMEDIATE'),
+
+    shuffleQuestions: boolean('shuffle_questions').notNull().default(true),
+    shuffleOptions: boolean('shuffle_options').notNull().default(true),
+    allowReview: boolean('allow_review').notNull().default(true),
+    maxAttempts: integer('max_attempts').notNull().default(1),
+
+    // ── Live (Phase 17 sẽ wire fully) ──────────────────────
+    /** Code 6 ký tự cho student join LIVE exam (Kahoot style). UNIQUE để dedupe. */
+    liveCode: text('live_code').unique(),
+    /** Index câu đang broadcast cho students trong LIVE mode. */
+    currentQuestionIndex: integer('current_question_index'),
+
+    // ── Adaptive (Phase 18) ─────────────────────────────────
+    minQuestions: integer('min_questions').default(10),
+    maxQuestions: integer('max_questions').default(30),
+    /** Target standard error of theta — termination criterion IRT. */
+    targetSE: real('target_se').default(0.3),
+
+    // ── Anti-cheat config (Phase 19 wire fully) ─────────────
+    /** JSONB config: { requireFullscreen, blockTabSwitch, blockCopyPaste, blockContextMenu, detectDevtools, requireWebcam, aiProctor } */
+    antiCheat: jsonb('anti_cheat').$type<{
+      requireFullscreen?: boolean;
+      blockTabSwitch?: boolean;
+      blockCopyPaste?: boolean;
+      blockContextMenu?: boolean;
+      detectDevtools?: boolean;
+      requireWebcam?: boolean;
+      aiProctor?: boolean;
+    }>().default({}),
+
+    /** Liên kết classroom (V4 — Phase 9 social) nếu exam thuộc lớp học. */
+    classroomId: text('classroom_id'),
+    /** Concept tag để analytics + adaptive engine biết exam test gì. */
+    conceptIds: jsonb('concept_ids').$type<string[]>(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    publishedAt: timestamp('published_at'),
+  },
+  (t) => ({
+    ownerStatusIdx: index('exam_owner_status_idx').on(t.ownerId, t.status),
+    liveCodeIdx: uniqueIndex('exam_live_code_idx').on(t.liveCode),
+  }),
+);
+
+/**
+ * Bảng `exam_question` — câu hỏi trong exam.
+ *
+ * Tên dài để rõ ràng không lẫn `question` (Phase 6 quiz). Sống song song với
+ * `question` trong thời gian dài, eventual deprecation khi quiz V1 migrate.
+ *
+ * `type` dùng plain text (không enum) để dễ thêm loại mới mà không cần
+ * migration ALTER TYPE. Validate ở app layer. Giá trị hiện tại:
+ *   MCQ_SINGLE | MCQ_MULTI | TRUE_FALSE | SHORT | ESSAY | FILL_BLANK |
+ *   MATCHING | ORDERING | CODE | MATH | DRAWING
+ *
+ * `correctAnswer` jsonb format theo type:
+ *   - MCQ_SINGLE: number (index của correct option)
+ *   - MCQ_MULTI: number[] (mảng index)
+ *   - TRUE_FALSE: boolean
+ *   - SHORT/FILL_BLANK: string (canonical) + acceptableAnswers (alt)
+ *   - ORDERING: string[] (đúng thứ tự)
+ *   - MATCHING: { [leftKey: string]: string } (right value)
+ *   - ESSAY: null (graded bằng AI/manual qua rubric)
+ */
+export const examQuestion = pgTable(
+  'exam_question',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    examId: text('exam_id')
+      .notNull()
+      .references(() => exam.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+
+    prompt: text('prompt').notNull(),
+    /** Render HTML/markdown cho math + code blocks. NULL = plain text. */
+    promptHtml: text('prompt_html'),
+    /** [{ type: 'image'|'audio'|'video', url, alt? }] */
+    attachments: jsonb('attachments').$type<Array<{ type: string; url: string; alt?: string }>>(),
+
+    /** Lựa chọn cho MCQ/MATCHING. NULL với type khác. */
+    options: jsonb('options').$type<string[] | Record<string, string> | null>(),
+    correctAnswer: jsonb('correct_answer'),
+    /** Mảng đáp án thay thế chấp nhận (FILL_BLANK, SHORT) — case-insensitive match. */
+    acceptableAnswers: jsonb('acceptable_answers').$type<string[] | null>(),
+    /** Rubric ESSAY: [{ criterion, weight, descriptors: {excellent, good, needs_work} }] */
+    rubric: jsonb('rubric'),
+    /** Phase 18 — test cases cho CODE type. */
+    testCases: jsonb('test_cases'),
+
+    points: real('points').notNull().default(1),
+    partialCredit: boolean('partial_credit').notNull().default(false),
+
+    // ── IRT (Phase 18) ──────────────────────────────────────
+    difficulty: real('difficulty').notNull().default(0),
+    discrimination: real('discrimination').notNull().default(1),
+    /** Pseudo-guessing parameter (3PL IRT). */
+    guessing: real('guessing').notNull().default(0),
+
+    /** Concept liên kết — analytics + adaptive item selection. */
+    conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
+    explanation: text('explanation'),
+    hint: text('hint'),
+    /** Per-question timer (giây) — Phase 17 Kahoot mode. NULL = không giới hạn riêng. */
+    timeLimitSeconds: integer('time_limit_seconds'),
+    /** Thứ tự câu trong exam (1-indexed). Owner reorder qua drag-drop. */
+    orderIndex: integer('order_index').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // Query "all questions của exam X theo order" — hot path
+    examOrderIdx: index('exam_question_exam_order_idx').on(t.examId, t.orderIndex),
+  }),
+);
+
+/**
+ * Bảng `exam_attempt` — 1 phiên làm exam của user.
+ *
+ * 1 user có thể có nhiều attempt cùng 1 exam (nếu `exam.maxAttempts > 1`).
+ * Pre-check ở API: count attempts trước khi insert mới.
+ *
+ * Lifecycle:
+ *   IN_PROGRESS → SUBMITTED (user bấm Submit)
+ *   IN_PROGRESS → TIMED_OUT (cron khi quá durationSeconds)
+ *   IN_PROGRESS → AUTO_SUBMITTED (backend force-close khi student vắng)
+ *   * → DISQUALIFIED (anti-cheat flag + owner manual)
+ */
+export const examAttempt = pgTable(
+  'exam_attempt',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    examId: text('exam_id')
+      .notNull()
+      .references(() => exam.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: attemptStatusEnum('status').notNull().default('IN_PROGRESS'),
+
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    submittedAt: timestamp('submitted_at'),
+
+    /** Tổng điểm đã đạt (sum pointsEarned). NULL khi chưa grade xong. */
+    score: real('score'),
+    maxScore: real('max_score'),
+    /** % = score/maxScore. Cache để leaderboard query nhanh không phải divide. */
+    percentage: real('percentage'),
+    passed: boolean('passed'),
+
+    // ── Adaptive (Phase 18) ─────────────────────────────────
+    estimatedTheta: real('estimated_theta'),
+    thetaSE: real('theta_se'),
+
+    /** Tổng thời gian làm bài (s). Tính khi submit. */
+    timeSpentSeconds: integer('time_spent_seconds'),
+    questionsAnswered: integer('questions_answered').notNull().default(0),
+
+    // ── Anti-cheat (Phase 19 fully wire) ────────────────────
+    /** [{ type: 'tab_switch'|'paste'|'fullscreen_exit', timestamp, metadata? }] */
+    violations: jsonb('violations').$type<Array<{ type: string; timestamp: string; metadata?: unknown }>>(),
+    /** 0..1 — AI cheat detection score (Phase 19). */
+    cheatRiskScore: real('cheat_risk_score'),
+    flagged: boolean('flagged').notNull().default(false),
+    flagReason: text('flag_reason'),
+
+    /** Webcam recording URL (R2 key) nếu requireWebcam. */
+    webcamRecordingUrl: text('webcam_recording_url'),
+    /** Note manual của teacher review. */
+    proctorNotes: text('proctor_notes'),
+
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    browserFingerprint: text('browser_fingerprint'),
+  },
+  (t) => ({
+    examUserIdx: index('exam_attempt_exam_user_idx').on(t.examId, t.userId),
+    userStatusIdx: index('exam_attempt_user_status_idx').on(t.userId, t.status),
+  }),
+);
+
+/**
+ * Bảng `exam_response` — câu trả lời của user cho 1 câu hỏi cụ thể.
+ *
+ * Auto-save: client POST response mỗi khi user trả lời/đổi đáp án →
+ * upsert theo (attemptId, questionId). Khi attempt SUBMITTED, grade lại tất cả.
+ *
+ * `answer` jsonb format theo questionType (xem comment ở exam_question).
+ */
+export const examResponse = pgTable(
+  'exam_response',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => examAttempt.id, { onDelete: 'cascade' }),
+    questionId: text('question_id')
+      .notNull()
+      .references(() => examQuestion.id, { onDelete: 'cascade' }),
+    answer: jsonb('answer'),
+    isCorrect: boolean('is_correct'),
+    pointsEarned: real('points_earned').notNull().default(0),
+
+    startedAt: timestamp('started_at'),
+    submittedAt: timestamp('submitted_at'),
+    /** Thời gian từ khi câu hiện ra đến khi submit (ms). Phase 18 analytics. */
+    responseTimeMs: integer('response_time_ms'),
+    /** Phase 17 — rank lúc submit (Kahoot scoring time-bonus). */
+    rankAtSubmit: integer('rank_at_submit'),
+
+    // ── AI/manual grading (cho ESSAY/SHORT) ──────────────────
+    /** { score, feedback, breakdown: {criterion: score} } */
+    aiGrading: jsonb('ai_grading'),
+    /** Teacher override hoặc bổ sung. Cùng shape với aiGrading. */
+    manualGrading: jsonb('manual_grading'),
+    needsReview: boolean('needs_review').notNull().default(false),
+    reviewedBy: text('reviewed_by').references(() => user.id, { onDelete: 'set null' }),
+    reviewedAt: timestamp('reviewed_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // Upsert key (attemptId, questionId) — 1 response per question per attempt
+    attemptQuestionIdx: uniqueIndex('exam_response_attempt_question_idx').on(t.attemptId, t.questionId),
+  }),
+);
+
+/**
+ * Bảng `exam_violation` — log từng sự kiện vi phạm trong exam.
+ *
+ * Phase 16 chỉ insert log; Phase 19 sẽ:
+ *   - Aggregate violations → cheatRiskScore
+ *   - AI proctor (webcam frame analysis) ghi log type='ai_suspicious'
+ *   - Auto-flag attempt khi cheatRiskScore > threshold
+ *
+ * Type ví dụ: 'tab_switch', 'paste', 'copy', 'fullscreen_exit', 'devtools',
+ * 'multiple_faces', 'no_face', 'looking_away', 'phone_detected'.
+ *
+ * Severity: 'low' (warn UI), 'medium' (log + notify proctor), 'high' (auto-flag).
+ */
+export const examViolation = pgTable(
+  'exam_violation',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => examAttempt.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    /** 'low' | 'medium' | 'high' */
+    severity: text('severity').notNull(),
+    metadata: jsonb('metadata'),
+    timestamp: timestamp('timestamp').notNull().defaultNow(),
+  },
+  (t) => ({
+    attemptIdx: index('exam_violation_attempt_idx').on(t.attemptId),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
 // Relations — khai báo cho Drizzle để hỗ trợ join type-safe
 // ──────────────────────────────────────────────────────────
 // `relations()` không tạo cột mới — chỉ là metadata để Drizzle suy luận
@@ -1140,6 +1459,36 @@ export const pushTokenRelations = relations(pushToken, ({ one }) => ({
 
 export const notificationLogRelations = relations(notificationLog, ({ one }) => ({
   user: one(user, { fields: [notificationLog.userId], references: [user.id] }),
+}));
+
+// ── Phase 16 Exam System ──────────────────────────────────
+export const examRelations = relations(exam, ({ one, many }) => ({
+  owner: one(user, { fields: [exam.ownerId], references: [user.id] }),
+  questions: many(examQuestion),
+  attempts: many(examAttempt),
+}));
+
+export const examQuestionRelations = relations(examQuestion, ({ one, many }) => ({
+  exam: one(exam, { fields: [examQuestion.examId], references: [exam.id] }),
+  concept: one(concept, { fields: [examQuestion.conceptId], references: [concept.id] }),
+  responses: many(examResponse),
+}));
+
+export const examAttemptRelations = relations(examAttempt, ({ one, many }) => ({
+  exam: one(exam, { fields: [examAttempt.examId], references: [exam.id] }),
+  user: one(user, { fields: [examAttempt.userId], references: [user.id] }),
+  responses: many(examResponse),
+  violations: many(examViolation),
+}));
+
+export const examResponseRelations = relations(examResponse, ({ one }) => ({
+  attempt: one(examAttempt, { fields: [examResponse.attemptId], references: [examAttempt.id] }),
+  question: one(examQuestion, { fields: [examResponse.questionId], references: [examQuestion.id] }),
+  reviewer: one(user, { fields: [examResponse.reviewedBy], references: [user.id] }),
+}));
+
+export const examViolationRelations = relations(examViolation, ({ one }) => ({
+  attempt: one(examAttempt, { fields: [examViolation.attemptId], references: [examAttempt.id] }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -1291,3 +1640,13 @@ export type PushToken = typeof pushToken.$inferSelect;
 export type NewPushToken = typeof pushToken.$inferInsert;
 export type NotificationLog = typeof notificationLog.$inferSelect;
 export type NewNotificationLog = typeof notificationLog.$inferInsert;
+export type Exam = typeof exam.$inferSelect;
+export type NewExam = typeof exam.$inferInsert;
+export type ExamQuestion = typeof examQuestion.$inferSelect;
+export type NewExamQuestion = typeof examQuestion.$inferInsert;
+export type ExamAttempt = typeof examAttempt.$inferSelect;
+export type NewExamAttempt = typeof examAttempt.$inferInsert;
+export type ExamResponse = typeof examResponse.$inferSelect;
+export type NewExamResponse = typeof examResponse.$inferInsert;
+export type ExamViolation = typeof examViolation.$inferSelect;
+export type NewExamViolation = typeof examViolation.$inferInsert;
