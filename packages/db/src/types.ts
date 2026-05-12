@@ -61,12 +61,18 @@ export type Citation = {
 /** Metadata gắn vào mỗi message để truy vết hiệu năng + chi phí. */
 export type MessageMetadata = {
   model?: string;
+  /** Provider sử dụng (anthropic | openrouter | openai) — track fallback chain. */
+  provider?: string;
   promptTokens?: number;
   completionTokens?: number;
   latencyMs?: number;
   costUsd?: number;
   /** Tên chiến lược retrieval đã dùng (basic | hyde | hybrid…) — phục vụ A/B test. */
   retrievalStrategy?: string;
+  /** Số chunk retrieve được — analytics RAG quality. */
+  chunkCount?: number;
+  /** True nếu hit semantic cache (Stage 1 W6). */
+  cacheHit?: boolean;
 };
 
 /** Cấu hình quiz lúc tạo — sau khi tạo các question đã sinh là cố định. */

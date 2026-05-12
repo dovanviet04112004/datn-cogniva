@@ -1,0 +1,30 @@
+{
+  "name": "@cogniva/edge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Workers edge gateway — JWT verify, rate limit (Durable Objects), geo-IP, feature flags, CSRF. Proxy origin Vercel.",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "tail": "wrangler tail",
+    "kv:flag:dev": "wrangler kv key put --binding=FLAGS_KV --local",
+    "clean": "rm -rf .wrangler node_modules"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@cogniva/tsconfig": "workspace:*",
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "wrangler": "^4.0.0"
+  }
+}

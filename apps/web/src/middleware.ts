@@ -7,6 +7,9 @@
  *     login user được đẩy về đúng trang đang muốn vào.
  *  2. Khi user ĐÃ đăng nhập mà còn cố vào /sign-in hoặc /sign-up → redirect
  *     thẳng về /dashboard (tránh hiển thị form thừa).
+ *  3. Gen + propagate trace_id (W3C Trace Context) cho request correlation —
+ *     header `x-trace-id` set vào cả request (forward backend) lẫn response
+ *     (client thấy được để correlate Sentry replay với server log).
  *
  * Lưu ý quan trọng:
  *  - Middleware chỉ kiểm tra **sự tồn tại** của session cookie qua
@@ -15,6 +18,8 @@
  *    đầy đủ chạy ở server component / route handler.
  *  - matcher loại trừ asset tĩnh + /api/auth (Better Auth tự xử lý cookie
  *    set/clear ở handler).
+ *  - trace_id reuse khi client gửi header (vd Sentry distributed tracing),
+ *    chỉ gen mới nếu chưa có. Tránh fragment trace giữa client + server.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
@@ -33,6 +38,7 @@ const protectedPrefixes = [
   '/notes',
   '/study-plan',
   '/groups',
+  '/rooms',
   '/settings',
 ];
 
@@ -43,9 +49,66 @@ const exactProtected = ['/profile'];
 // Route auth — đã login thì không cần xem nữa
 const publicAuthPrefixes = ['/sign-in', '/sign-up'];
 
+/**
+ * Generate trace_id format `cogniva-{16hex}-{8hex}` cho dễ recognize trong log.
+ * KHÔNG dùng UUID v4 vì:
+ *  - Lengthy (36 char)
+ *  - Khó skim eye trên log line
+ *  - Edge runtime crypto.randomUUID() OK nhưng có overhead nhỏ
+ */
+function generateTraceId(): string {
+  // crypto.getRandomValues có sẵn ở Edge runtime
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `cog-${hex.slice(0, 16)}-${hex.slice(16, 24)}`;
+}
+
+/**
+ * Anti-bypass check (Stage 2 M4 W3) — production reject request KHÔNG qua edge.
+ *
+ * Edge gateway (Cloudflare Workers) set header `x-edge-verified=<EDGE_SHARED_SECRET>`
+ * khi forward request tới origin. Nếu request hit origin trực tiếp (skip edge)
+ * → KHÔNG có header → 403.
+ *
+ * Bypass điều kiện:
+ *   - Dev / staging (NODE_ENV !== 'production')
+ *   - EDGE_SHARED_SECRET KHÔNG set → coi như anti-bypass disabled
+ *   - Path bắt đầu /api/health, /__health (uptime check trực tiếp Vercel)
+ *
+ * Production deploy: BẮT BUỘC set EDGE_SHARED_SECRET trên cả edge + origin.
+ */
+const ANTI_BYPASS_EXEMPT_PREFIXES = ['/api/health', '/__health', '/api/inngest'];
+function checkEdgeVerified(request: NextRequest): boolean {
+  if (process.env.NODE_ENV !== 'production') return true;
+  const secret = process.env.EDGE_SHARED_SECRET;
+  if (!secret) return true; // chưa cấu hình → skip
+  const { pathname } = request.nextUrl;
+  if (ANTI_BYPASS_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  return request.headers.get('x-edge-verified') === secret;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = getSessionCookie(request);
+
+  // Anti-bypass: reject 403 nếu production + secret set + KHÔNG đến từ edge.
+  if (!checkEdgeVerified(request)) {
+    return new NextResponse(
+      JSON.stringify({
+        error: 'edge_bypass_blocked',
+        message: 'Direct origin access not allowed. Requests must go through edge gateway.',
+      }),
+      { status: 403, headers: { 'content-type': 'application/json' } },
+    );
+  }
+
+  // Reuse upstream trace_id nếu client gửi (Sentry distributed trace, curl test)
+  // Khác Sentry — header này tự định nghĩa cho Cogniva, không phải W3C traceparent.
+  const traceId = request.headers.get('x-trace-id') ?? generateTraceId();
+
+  // Region tag từ edge (Stage 2 M4 W3) — forward để route handler chọn DB replica.
+  // Default 'us' nếu request không qua edge (dev local hoặc anti-bypass disabled).
+  const region = request.headers.get('x-cogniva-region') ?? 'us';
 
   const isProtected =
     exactProtected.includes(pathname) ||
@@ -58,15 +121,31 @@ export function middleware(request: NextRequest) {
   if (isProtected && !sessionCookie) {
     const url = new URL('/sign-in', request.url);
     url.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set('x-trace-id', traceId);
+    return response;
   }
 
   // Trường hợp 2: đã login mà còn xem trang sign-in/sign-up → vào dashboard
   if (isAuthRoute && sessionCookie) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const response = NextResponse.redirect(new URL('/dashboard', request.url));
+    response.headers.set('x-trace-id', traceId);
+    return response;
   }
 
-  return NextResponse.next();
+  // Forward trace_id + region tới backend route handler qua header rewrite.
+  // Route handler đọc qua `headers().get('x-trace-id')` / 'x-cogniva-region'.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-trace-id', traceId);
+  requestHeaders.set('x-cogniva-region', region);
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  // Set vào response để client (browser, Sentry SDK) thấy được
+  response.headers.set('x-trace-id', traceId);
+  response.headers.set('x-cogniva-region', region);
+  return response;
 }
 
 // matcher: regex Next.js dùng để quyết định middleware có chạy với path nào.

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const rl = checkLimit(`aigen:${session.user.id}`, 'aiGenerate');
+  const rl = await checkLimit(`aigen:${session.user.id}`, 'aiGenerate');
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many requests' },

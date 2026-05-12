@@ -1,0 +1,63 @@
+# Caddy reverse proxy — production.
+#
+# Auto Let's Encrypt cert renewal cho từng domain.
+# Cogniva domains:
+#   - app.cogniva.com    → Next.js (port 3000)
+#   - soketi.cogniva.com → Soketi WS (port 6001)
+#   - hocus.cogniva.com  → Hocuspocus WS (port 1234)
+#
+# KHÔNG proxy livekit.* và turn.* — WebRTC media qua Cloudflare CDN sẽ fail
+# vì Cloudflare không support arbitrary UDP. Hai service đó listen trực tiếp
+# port (LiveKit signaling qua wss tự signed của LiveKit, coturn qua TLS cert).
+
+(common_headers) {
+    header {
+        # Bảo mật cơ bản
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=*, microphone=*, display-capture=*"
+        # Loại Server header để giảm fingerprint
+        -Server
+    }
+}
+
+# ── Next.js app (Cloudflare có thể proxy thêm trước Caddy) ──
+app.cogniva.com {
+    import common_headers
+    encode gzip zstd
+    reverse_proxy localhost:3000 {
+        # Health check
+        health_uri /api/health
+        health_interval 30s
+    }
+}
+
+# ── Soketi WebSocket pub/sub ────────────────────────
+soketi.cogniva.com {
+    import common_headers
+    reverse_proxy localhost:6001 {
+        # WS upgrade headers
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        # Soketi cần long-lived WS — timeout dài
+        flush_interval -1
+        transport http {
+            keepalive 5m
+        }
+    }
+}
+
+# ── Hocuspocus Yjs server (Phase 14+) ───────────────
+hocus.cogniva.com {
+    import common_headers
+    reverse_proxy localhost:1234 {
+        header_up Host {host}
+        flush_interval -1
+        transport http {
+            keepalive 5m
+        }
+    }
+}

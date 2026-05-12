@@ -1,0 +1,7 @@
+# Secrets — KHÔNG commit
+.env
+livekit/livekit.prod.yaml
+coturn/turnserver.conf
+
+# Logs từ container
+**/*.log

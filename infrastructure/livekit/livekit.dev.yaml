@@ -1,0 +1,33 @@
+# LiveKit dev config — chạy trong Docker compose local.
+#
+# Khác prod ở:
+#   - `keys` hard-code dev (KHÔNG dùng prod).
+#   - Không webhook (dev không có public URL gửi event về).
+#   - Không egress (recording — Phase 15).
+#   - Không TURN config (local không cần).
+#   - Range UDP hẹp 50000-50100 (đủ test 10-20 participant local).
+#
+# Khi muốn test webhook local, dùng ngrok/cloudflared expose Next.js dev
+# server: `ngrok http 3000` → set webhook.urls về https://xxx.ngrok.io.
+port: 7880
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: false        # Dev local — không cần resolve external IP
+
+redis:
+  address: redis:6379           # Tên service trong docker-compose network
+
+# Dev API key/secret — viết HẰNG vào code dev, KHÔNG dùng cho prod.
+# Match với env vars trong apps/web/.env.local:
+#   LIVEKIT_API_KEY=devkey
+#   LIVEKIT_API_SECRET=devsecret_at_least_32_chars_long_xxx
+keys:
+  devkey: devsecret_at_least_32_chars_long_xxx
+
+# Logging verbose cho dev
+logging:
+  level: debug
+  json: false

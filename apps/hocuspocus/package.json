@@ -1,0 +1,27 @@
+{
+  "name": "@cogniva/hocuspocus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Yjs WebSocket server cho collaborative whiteboard + notes trong Cogniva rooms.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../web/.env.local src/server.ts",
+    "build": "tsc",
+    "start": "node --env-file=.env dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.13.7",
+    "@hocuspocus/extension-database": "^2.13.7",
+    "jsonwebtoken": "^9.0.2",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@cogniva/tsconfig": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

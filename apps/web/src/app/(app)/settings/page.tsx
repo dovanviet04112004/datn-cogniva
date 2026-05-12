@@ -23,6 +23,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { authClient } from '@/lib/auth-client';
+import { AiUsageCard } from '@/components/settings/ai-usage-card';
+import { DeleteAccountCard } from '@/components/settings/delete-account-card';
 
 type ProfileData = {
   user: {
@@ -160,6 +162,9 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* ── AI Usage section (Stage 1 W6) ───────────── */}
+      <AiUsageCard />
+
       {/* ── Privacy section ─────────────────────────── */}
       <Card className="space-y-3 p-5">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -221,37 +226,22 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* ── Danger zone ─────────────────────────────── */}
-      <Card className="space-y-3 border-destructive/40 p-5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-destructive">
-          <AlertTriangle className="h-4 w-4" />
-          Danger zone
-        </h2>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-medium">Đăng xuất</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Kết thúc phiên hiện tại. Dữ liệu được giữ nguyên.
-            </p>
-          </div>
-          <Button onClick={signOut} variant="destructive" size="sm">
-            <LogOut className="mr-1 h-3.5 w-3.5" />
-            Đăng xuất
-          </Button>
+      {/* ── Sign out ─────────────────────────────────── */}
+      <Card className="flex items-center justify-between gap-3 p-5">
+        <div className="flex-1">
+          <p className="text-sm font-medium">Đăng xuất</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Kết thúc phiên hiện tại. Dữ liệu được giữ nguyên.
+          </p>
         </div>
-        <div className="flex items-start justify-between gap-3 opacity-60">
-          <div className="flex-1">
-            <p className="text-sm font-medium">Xoá tài khoản</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Xoá vĩnh viễn account + mọi dữ liệu (documents, flashcards,
-              quizzes…). Tính năng này sẽ có ở Phase 11.
-            </p>
-          </div>
-          <Button variant="destructive" size="sm" disabled>
-            Sẽ ra mắt
-          </Button>
-        </div>
+        <Button onClick={signOut} variant="outline" size="sm">
+          <LogOut className="mr-1 h-3.5 w-3.5" />
+          Đăng xuất
+        </Button>
       </Card>
+
+      {/* ── Danger zone: GDPR Article 17/20 (Stage 1 W9-10) ── */}
+      <DeleteAccountCard />
     </div>
   );
 }

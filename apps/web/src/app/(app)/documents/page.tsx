@@ -6,6 +6,7 @@
  * router.refresh() để re-render server và lấy list mới nhất.
  */
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { count, desc, eq, sql } from 'drizzle-orm';
 
@@ -81,23 +82,35 @@ export default async function DocumentsPage() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {rows.map((doc) => (
-            <Card key={doc.id} className="transition-colors hover:bg-muted/30">
-              <CardContent className="flex items-center justify-between gap-4 py-4">
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <p className="truncate text-sm font-medium">{doc.filename}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatBytes(doc.size)}
-                    {doc.pageCount ? ` · ${doc.pageCount} pages` : ''}
-                    {doc.chunks > 0 ? ` · ${doc.chunks} chunks` : ''}
-                    {' · '}
-                    {formatRelativeTime(doc.createdAt)}
-                  </p>
-                </div>
-                <StatusBadge status={doc.status} />
-              </CardContent>
-            </Card>
-          ))}
+          {rows.map((doc) => {
+            const isReady = doc.status === 'READY';
+            // Khi PROCESSING/FAILED, vẫn cho click vào để xem trạng thái + chunks (nếu có)
+            return (
+              <Link
+                key={doc.id}
+                href={`/documents/${doc.id}`}
+                className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={`Mở tài liệu ${doc.filename}`}
+              >
+                <Card className="cursor-pointer transition-colors hover:bg-muted/30 hover:border-primary/30">
+                  <CardContent className="flex items-center justify-between gap-4 py-4">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <p className="truncate text-sm font-medium">{doc.filename}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatBytes(doc.size)}
+                        {doc.pageCount ? ` · ${doc.pageCount} pages` : ''}
+                        {doc.chunks > 0 ? ` · ${doc.chunks} chunks` : ''}
+                        {' · '}
+                        {formatRelativeTime(doc.createdAt)}
+                        {!isReady && ' · click để xem trạng thái'}
+                      </p>
+                    </div>
+                    <StatusBadge status={doc.status} />
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

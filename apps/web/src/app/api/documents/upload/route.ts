@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   }
   const userId = session.user.id;
 
-  const rl = checkLimit(`upload:${userId}`, 'upload');
+  const rl = await checkLimit(`upload:${userId}`, 'upload');
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many uploads' },

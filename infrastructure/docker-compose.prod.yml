@@ -1,0 +1,108 @@
+# Cogniva — Production realtime stack.
+#
+# Khác `docker-compose.dev.yml`:
+#   - LiveKit dùng host network (cần cho UDP range 50000-60000 trên Linux).
+#   - coturn relay cho 10-15% user behind symmetric NAT.
+#   - 2 instance Soketi sau Caddy load balance (sticky session qua Redis).
+#   - Caddy front: TLS auto + reverse proxy WS.
+#   - Hocuspocus cho Yjs collab (Phase 14+).
+#
+# Deploy:
+#   cp infrastructure/.env.example infrastructure/.env
+#   # Điền giá trị thật cho LIVEKIT_API_KEY, SOKETI_SECRET, R2_*, etc.
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Lưu ý host network: LiveKit + coturn không expose ports qua bridge,
+# bind trực tiếp host. UFW firewall đã được cấu hình bởi
+# `scripts/provision-server.sh` cho từng role.
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --save 60 1000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.prod.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  coturn:
+    image: coturn/coturn:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/turnserver.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+  soketi:
+    image: quay.io/soketi/soketi:1.6-16-debian
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6001:6001"     # Chỉ bind localhost, Caddy proxy ra ngoài qua 443
+      - "127.0.0.1:9601:9601"
+    environment:
+      # Soketi 1.6+ require prefix SOKETI_ cho mọi env (xem note dev compose)
+      SOKETI_DEFAULT_APP_ID: ${SOKETI_APP_ID}
+      SOKETI_DEFAULT_APP_KEY: ${SOKETI_KEY}
+      SOKETI_DEFAULT_APP_SECRET: ${SOKETI_SECRET}
+      SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES: "false"
+      SOKETI_ADAPTER_DRIVER: redis
+      SOKETI_DB_REDIS_HOST: redis
+      SOKETI_DB_REDIS_PORT: "6379"
+      SOKETI_METRICS_SERVER_PORT: "9601"
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"             # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [soketi]
+
+  # Hocuspocus (Phase 14) — uncomment khi build whiteboard/notes collab
+  # hocuspocus:
+  #   image: cogniva/hocuspocus:latest
+  #   build: ./hocuspocus
+  #   restart: unless-stopped
+  #   ports:
+  #     - "127.0.0.1:1234:1234"
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: redis://redis:6379
+  #     JWT_SECRET: ${JWT_SECRET}
+  #   depends_on: [redis]
+
+  # Egress (Phase 15) — uncomment khi build recording
+  # livekit-egress:
+  #   image: livekit/egress:latest
+  #   restart: unless-stopped
+  #   cap_add: [SYS_ADMIN]
+  #   network_mode: host
+  #   volumes:
+  #     - ./livekit/egress.yaml:/etc/egress.yaml:ro
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:

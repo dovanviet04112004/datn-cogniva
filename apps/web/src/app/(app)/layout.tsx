@@ -12,6 +12,7 @@
  */
 import { AppSidebar } from '@/components/app/sidebar';
 import { AppTopbar } from '@/components/app/topbar';
+import { CoppaBanner } from '@/components/consent/coppa-banner';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +20,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppTopbar />
+        {/* COPPA banner ngay dưới topbar — show khi user PENDING/REJECTED */}
+        <CoppaBanner />
         {/* main có overflow-y-auto để chỉ phần nội dung scroll, sidebar/topbar đứng yên */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>

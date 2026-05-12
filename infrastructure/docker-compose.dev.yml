@@ -1,0 +1,74 @@
+# Cogniva — Local dev stack cho realtime infrastructure.
+#
+# Mục tiêu: chạy LiveKit + Soketi + Redis trên localhost để dev Phase 13+
+# mà không cần VPS thật. Khác `docker-compose.prod.yml` ở:
+#   - Không có coturn (local NAT thường không cần TURN relay).
+#   - Không có Caddy (không TLS — chỉ ws://, không wss://).
+#   - LiveKit dev key/secret (không sensitive, OK commit).
+#   - Soketi DEBUG=1 để log verbose khi develop.
+#   - Không Hocuspocus (Phase 14+ mới cần).
+#
+# Sau khi `docker compose up -d`:
+#   - LiveKit signaling : ws://localhost:7880
+#   - Soketi (Pusher)   : ws://localhost:6001
+#   - Redis             : localhost:6379 (cho cả LiveKit + Soketi pub/sub)
+#
+# Lưu ý: trên Windows/Mac, Docker Desktop bridge mode hoạt động OK cho
+# LiveKit dev (không cần host network). Trên Linux prod thì PHẢI host
+# network mode vì UDP range 50000-60000 nhiều port.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: cogniva-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: cogniva-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --dev
+    ports:
+      - "7880:7880"               # WebSocket signaling
+      - "7881:7881"               # WebRTC over TCP fallback
+      - "50000-50100:50000-50100/udp"  # Dev: chỉ 100 port UDP, prod range rộng hơn
+    volumes:
+      - ./livekit/livekit.dev.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  soketi:
+    image: quay.io/soketi/soketi:1.6-16-debian
+    container_name: cogniva-soketi
+    restart: unless-stopped
+    ports:
+      - "6001:6001"               # WebSocket cho client
+      - "9601:9601"               # Prometheus metrics endpoint
+    environment:
+      # Soketi 1.6+ prefix MỌI env vars với SOKETI_ — KHÔNG dùng DEFAULT_APP_*
+      # trực tiếp (Docker hub README sai!). Xem /app/dist/cli/cli.js:133:
+      #   process.env[`SOKETI_${envVar}`]
+      SOKETI_DEFAULT_APP_ID: cogniva
+      SOKETI_DEFAULT_APP_KEY: app-key-dev
+      SOKETI_DEFAULT_APP_SECRET: app-secret-dev
+      SOKETI_DEFAULT_APP_ENABLE_CLIENT_MESSAGES: "true"
+      SOKETI_DEBUG: "1"
+      SOKETI_ADAPTER_DRIVER: redis        # WS pub/sub giữa instances
+      SOKETI_DB_REDIS_HOST: redis
+      SOKETI_DB_REDIS_PORT: "6379"
+      SOKETI_METRICS_SERVER_PORT: "9601"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:

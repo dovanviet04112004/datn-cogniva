@@ -1,0 +1,14 @@
+# ──────────────────────────────────────────────────────────────────────
+# .dev.vars — secrets cho local wrangler dev (KHÔNG commit, đã .gitignore).
+# Copy thành `.dev.vars` rồi điền giá trị thật.
+#
+# Production: dùng `wrangler secret put NAME` thay vì file này.
+# ──────────────────────────────────────────────────────────────────────
+
+# Optional shared secret giữa edge ↔ origin để verify request đã qua edge guard.
+# Origin Vercel reject request KHÔNG có header này (chống bypass edge).
+EDGE_SHARED_SECRET=dev-edge-secret-change-me
+
+# Optional: nếu Better Auth JWT plugin dùng HS256 (symmetric) thay vì RS256+JWKS.
+# Khuyến nghị RS256 + JWKS → KHÔNG share secret giữa edge và origin.
+# BETTER_AUTH_JWT_SECRET=dev-jwt-hs256-secret

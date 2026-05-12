@@ -44,11 +44,19 @@ export function PdfViewer({ src, initialPage }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  // Đọc hash ban đầu (ví dụ #page-3) để jump tới trang đúng
+  // Đọc hash (ví dụ #page-3) để jump tới trang đúng.
+  // - Lần đầu mount: parse hash hiện tại.
+  // - Sau mount: listen `hashchange` để chunk list (panel phải) hoặc citation
+  //   trong chat có thể trigger jump qua window.location.hash mà PdfViewer phản ứng.
   useEffect(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    const match = hash.match(/^#page-(\d+)$/);
-    if (match) setCurrentPage(parseInt(match[1]!, 10));
+    if (typeof window === 'undefined') return;
+    const readHash = () => {
+      const match = window.location.hash.match(/^#page-(\d+)$/);
+      if (match) setCurrentPage(parseInt(match[1]!, 10));
+    };
+    readHash();
+    window.addEventListener('hashchange', readHash);
+    return () => window.removeEventListener('hashchange', readHash);
   }, []);
 
   // Khi đổi currentPage → scroll smooth tới page đó
@@ -107,8 +115,10 @@ export function PdfViewer({ src, initialPage }: Props) {
         </div>
       </div>
 
-      {/* ── PDF area ─────────────────────────────────── */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto bg-muted/30 px-4 py-4">
+      {/* ── PDF area ───────────────────────────────────
+          overscroll-contain: khi scroll PDF đến cuối, KHÔNG chain ra ngoài
+          (tránh main page scroll theo) — hợp với chunks panel độc lập. */}
+      <div ref={containerRef} className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 px-4 py-4">
         <Document
           file={src}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}

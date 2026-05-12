@@ -1,0 +1,17 @@
+// tsconfig cho @cogniva/hocuspocus — Node.js ESM service.
+// Emit tới dist/ cho prod (`pnpm build` → `node dist/server.js`).
+// Module: NodeNext để dùng dynamic import + .js path resolution chuẩn Node.
+{
+  "extends": "@cogniva/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

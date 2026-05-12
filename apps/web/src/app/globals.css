@@ -114,4 +114,63 @@
     background-color: hsl(var(--border));
     border-radius: 3px;
   }
+
+  /*
+   * Animation cho ReactionsLayer trong room — emoji bay từ dưới lên 2s.
+   * Phase 14: simple translate + fade, không cần Framer Motion.
+   */
+  @keyframes float-up {
+    from {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(-280px) scale(1.4);
+      opacity: 0;
+    }
+  }
+  .animate-float-up {
+    animation: float-up 2s ease-out forwards;
+  }
+
+  /*
+   * TipTap CollaborationCaret (v3 rename từ CollaborationCursor) — class
+   * `collaboration-carets__caret` + `__label`. Color set qua inline style
+   * `border-color` + `background-color` từ extension render function.
+   */
+  .ProseMirror .collaboration-carets__caret {
+    border-left: 1px solid;
+    border-right: 1px solid;
+    margin-left: -1px;
+    margin-right: -1px;
+    pointer-events: none;
+    position: relative;
+    word-break: normal;
+  }
+  .ProseMirror .collaboration-carets__label {
+    border-radius: 3px 3px 3px 0;
+    color: #fff;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 500;
+    left: -1px;
+    line-height: normal;
+    padding: 0.1rem 0.3rem;
+    position: absolute;
+    top: -1.4em;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  /*
+   * ProseMirror placeholder — hiển thị khi editor rỗng.
+   * Cần `is-editor-empty` class do extension Placeholder add.
+   */
+  .ProseMirror p.is-editor-empty:first-child::before {
+    color: hsl(var(--muted-foreground));
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
 }

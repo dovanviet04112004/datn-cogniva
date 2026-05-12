@@ -1,0 +1,99 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy Edge Gateway — @cogniva/edge → Cloudflare Workers.
+#
+# Stage 2 M4 W4. Workflow này:
+#   1. Trigger trên push main khi `apps/edge/**` hoặc `packages/shared/**` đổi
+#   2. Cài deps + typecheck riêng edge package
+#   3. wrangler deploy bằng `cloudflare/wrangler-action@v3`
+#
+# Required secrets (Settings → Secrets and variables → Actions):
+#   - CLOUDFLARE_API_TOKEN  — Token có scope "Workers Scripts:Edit" + "Workers Routes:Edit"
+#                             (tạo tại dash.cloudflare.com/profile/api-tokens)
+#   - CLOUDFLARE_ACCOUNT_ID — Account id (dash.cloudflare.com → sidebar bên phải)
+#   - EDGE_SHARED_SECRET    — Anti-bypass marker, MATCH với origin Vercel env
+#                             (generate qua `openssl rand -base64 32`)
+#
+# Environment deploy:
+#   - main branch → production (cogniva-edge worker)
+#   - manual dispatch với env=staging → staging worker
+#
+# Lần deploy đầu cần làm thủ công:
+#   wrangler kv namespace create FLAGS_KV
+#   wrangler kv namespace create FLAGS_KV --preview
+#   → paste id vào wrangler.toml
+#   wrangler secret put EDGE_SHARED_SECRET
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy Edge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/edge/**'
+      - 'packages/shared/**'
+      - '.github/workflows/deploy-edge.yml'
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Deploy environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: deploy-edge-${{ github.ref }}
+  cancel-in-progress: false   # KHÔNG cancel deploy đang chạy
+
+jobs:
+  deploy:
+    name: Deploy edge to Cloudflare Workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ inputs.env || 'production' }}
+      url: ${{ inputs.env == 'staging' && 'https://cogniva-edge-staging.workers.dev' || 'https://cogniva-edge.workers.dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        # Filter chỉ install scope cần thiết — edge + transitive deps
+        run: pnpm install --frozen-lockfile --filter @cogniva/edge...
+
+      - name: Typecheck edge
+        run: pnpm --filter @cogniva/edge typecheck
+
+      - name: Wrangler deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/edge
+          # Pass env per dispatch input. Default = production. wrangler.toml
+          # đã có [env.production] + [env.staging] config riêng.
+          command: deploy --env ${{ inputs.env || 'production' }}
+          # Secrets cần available trên worker — set thủ công lần đầu qua CLI,
+          # rotate qua workflow này bằng cách thêm step `wrangler secret put`.
+          secrets: |
+            EDGE_SHARED_SECRET
+        env:
+          EDGE_SHARED_SECRET: ${{ secrets.EDGE_SHARED_SECRET }}
+
+      - name: Health check
+        # Đợi 10s rồi ping /__edge/health để confirm deploy ok.
+        # Nếu fail → workflow đỏ + trigger Slack alert (nếu wire).
+        run: |
+          sleep 10
+          URL="${{ inputs.env == 'staging' && 'https://cogniva-edge-staging.workers.dev' || 'https://cogniva-edge.workers.dev' }}/__edge/health"
+          curl -fsS "$URL" || (echo "Health check failed" && exit 1)

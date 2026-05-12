@@ -1,0 +1,76 @@
+# ───────────────────────────────────────────────────────────────────────
+# Cloudflare Workers config — @cogniva/edge gateway.
+#
+# Local dev:  pnpm --filter @cogniva/edge dev
+#             → wrangler dev port 8787 (emulate Workers runtime + DO + KV)
+# Deploy:     pnpm --filter @cogniva/edge deploy
+#             → cần CLOUDFLARE_API_TOKEN env + account_id điền dưới
+#
+# Bindings:
+#   - RATE_LIMIT_DO : Durable Object class RateLimitDO (per-user token bucket)
+#   - FLAGS_KV      : KV namespace cho feature flag (eventually consistent)
+#   - ORIGIN_URL    : URL Vercel origin (forward request sau khi guard)
+#   - JWKS_URL      : URL Better Auth JWKS endpoint (verify JWT)
+#   - JWT_ISSUER    : "cogniva" — match Better Auth JWT plugin issuer
+#   - JWT_AUDIENCE  : "cogniva-app"
+# ───────────────────────────────────────────────────────────────────────
+
+name = "cogniva-edge"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]  # cần cho jose (Buffer polyfill)
+
+# account_id = "FILL_AFTER_CF_SIGNUP"  # uncomment khi có CF account
+
+workers_dev = true                      # *.workers.dev subdomain (free, no domain needed)
+
+# ─── Default env vars (override per env bên dưới) ─────────────────────
+[vars]
+ORIGIN_URL    = "http://localhost:3000"
+JWKS_URL      = "http://localhost:3000/api/auth/jwks"
+JWT_ISSUER    = "cogniva"
+JWT_AUDIENCE  = "cogniva-app"
+ENV           = "local"
+
+# ─── Durable Objects (rate limit) ─────────────────────────────────────
+[[durable_objects.bindings]]
+name       = "RATE_LIMIT_DO"
+class_name = "RateLimitDO"
+
+# Migration block — cần khi declare DO class lần đầu.
+[[migrations]]
+tag         = "v1"
+new_classes = ["RateLimitDO"]
+
+# ─── KV namespace cho feature flags ───────────────────────────────────
+# Local dev: wrangler tự tạo namespace ảo (.wrangler/state/v3/kv).
+# Production: tạo qua `wrangler kv namespace create FLAGS_KV` rồi paste id vào.
+[[kv_namespaces]]
+binding = "FLAGS_KV"
+id      = "local-flags-kv"        # placeholder cho local — replace bằng UUID khi deploy
+
+# ─── Staging env (preview) ────────────────────────────────────────────
+[env.staging]
+name = "cogniva-edge-staging"
+
+[env.staging.vars]
+ORIGIN_URL = "https://cogniva-staging.vercel.app"
+JWKS_URL   = "https://cogniva-staging.vercel.app/api/auth/jwks"
+ENV        = "staging"
+
+# ─── Production env ───────────────────────────────────────────────────
+[env.production]
+name = "cogniva-edge"
+routes = [
+  # { pattern = "api.cogniva.com/*", zone_name = "cogniva.com" },  # uncomment khi có domain
+]
+
+[env.production.vars]
+ORIGIN_URL = "https://cogniva.com"
+JWKS_URL   = "https://cogniva.com/api/auth/jwks"
+ENV        = "production"
+
+# ─── Observability ────────────────────────────────────────────────────
+[observability]
+enabled = true
+head_sampling_rate = 1.0  # 100% sample local/staging; giảm xuống 0.1 ở prod sau

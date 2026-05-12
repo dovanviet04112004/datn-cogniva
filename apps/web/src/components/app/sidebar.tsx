@@ -37,6 +37,7 @@ import {
   Trophy,
   User as UserIcon,
   Users,
+  Video,
   X,
 } from 'lucide-react';
 
@@ -69,6 +70,12 @@ const navGroups = [
       { href: '/flashcards', label: 'Flashcards', icon: BrainCircuit },
       { href: '/quiz', label: 'Quizzes', icon: ListChecks },
       { href: '/study-plan', label: 'Study Plan', icon: GraduationCap },
+    ],
+  },
+  {
+    label: 'Spaces',
+    items: [
+      { href: '/rooms', label: 'Study Rooms', icon: Video },
     ],
   },
   {

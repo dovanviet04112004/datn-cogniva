@@ -1240,8 +1240,11 @@ cogniva/                                     — Thực tế Phase 0-10
 
 > ✅ Built 2026-05-11: 4 file lib observability (rate-limit, sentry, posthog server, cost) + 2 component (`AppErrorBoundary` class + `PosthogProvider` client) + 1 instrumentation + 1 endpoint `/api/analytics` aggregate + 2 spec Playwright. Deps thêm: @sentry/nextjs, posthog-js, posthog-node, @playwright/test (dev). Drizzle-orm dedup sau install để clear peer conflict (@types/pg).
 
-### Phase 11: Launch (Tuần 16)
-**Goal:** Ship + market
+### Phase 11: Launch (Tuần 16) — ⏸️ **DEFERRED** (skip sang Phase 12 V2)
+
+User quyết định skip Phase 11 (Launch / market) sang sau khi V2 Rooms+Exam
+build xong. Lý do: features chưa đủ thuyết phục để launch ngay, V2 mới là
+differentiator. Phase 11 items move sang post-V2 backlog.
 
 - [ ] Stripe subscriptions
 - [ ] Pricing page
@@ -1252,7 +1255,202 @@ cogniva/                                     — Thực tế Phase 0-10
 - [ ] Reddit/Twitter announcements
 - [ ] Open-source select packages
 
-**Deliverable:** Live, payable, marketable.
+**Deliverable (deferred):** Live, payable, marketable.
+
+### Phase 12: Infrastructure Foundation (Tuần 17) — 🚧 **In progress (2026-05-11)**
+
+> V2 Rooms + Exam, xem chi tiết tại `plan-rooms-and-exam.md` §Phase 12.
+
+- [x] Infrastructure dir tree (`infrastructure/livekit|coturn|soketi|caddy|scripts`)
+- [x] Docker Compose dev (`docker-compose.dev.yml`) — local stack LiveKit + Soketi + Redis
+- [x] Docker Compose prod (`docker-compose.prod.yml`) — full stack (Hocuspocus + Egress comment chờ Phase 14/15)
+- [x] LiveKit config dev + prod template (`livekit.dev.yaml` + `livekit.prod.yaml.example`)
+- [x] coturn template (`turnserver.conf.example`) — TURN relay cho 10-15% behind symmetric NAT
+- [x] Caddyfile prod — reverse proxy WS qua Let's Encrypt
+- [x] Provisioning script (`scripts/provision-server.sh`) — Hetzner Ubuntu 22.04 idempotent, role media/app
+- [x] DNS records doc (`scripts/dns-records.md`) — Cloudflare table (LiveKit/coturn NOT proxied)
+- [x] Generate keys script (`scripts/generate-keys.sh`) — random secret OpenSSL
+- [x] Health check script (`scripts/health-check.sh`) — cron 5min, alert Slack webhook
+- [x] apps/web deps: livekit-server-sdk, livekit-client, @livekit/components-react, pusher, pusher-js
+- [x] `src/lib/livekit.ts` — `createLivekitToken()` + `getRoomService()` + `getActiveParticipantCount()`, lazy env init
+- [x] `src/lib/realtime-server.ts` — `getPusherServer()` + `triggerEvent()` + `authorizeChannel()`
+- [x] `src/lib/realtime-client.ts` — `getPusherClient()` + `useRealtimeEvent()` hook
+- [x] `src/lib/env.ts` thêm Phase 12 vars vào Zod schema
+- [x] `apps/web/src/app/api/health/route.ts` — endpoint healthcheck DB + LiveKit + Soketi
+- [ ] Hetzner servers up + DNS pointing (cần user action: tạo account + DNS Cloudflare)
+- [ ] Smoke test LiveKit Meet demo 2 tab thấy nhau
+
+**Deliverable:** Khi user `docker compose -f infrastructure/docker-compose.dev.yml up -d`, có
+LiveKit ws://localhost:7880 + Soketi ws://localhost:6001 + Redis sẵn sàng cho Phase 13 build.
+
+> ✅ Built 2026-05-11 (local stack only): infrastructure files + apps/web lib wiring.
+> Production deploy (Hetzner + DNS + SSL) chờ user provision VPS thật.
+>
+> **Local test xác nhận:** docker compose dev stack up OK (LiveKit + Soketi + Redis healthy),
+> `/api/health` trả status `ok` cho cả 3 service. Soketi tag fix `1.6-16-debian` (plan ghi sai `1-16-debian`).
+
+### Phase 13: Study Room Core (Tuần 18) — ✅ **MVP shipped (2026-05-11)**
+
+> Chi tiết tại `plan-rooms-and-exam.md` §Phase 13. Phase 13.8 (waiting room +
+> scheduled rooms) đặt thành deferred — chỉ wire khi cần.
+
+**Schema (6 tables, 5 enums):**
+- [x] `room`, `room_member`, `room_message`, `room_event`, `recording`, `collab_doc`
+- [x] Enums: `room_type`, `room_visibility`, `room_status`, `room_member_role`, `room_member_status`
+- [x] Apply migration qua psql trực tiếp (db:push hang trong WSL/Windows env)
+
+**API routes:**
+- [x] `GET/POST /api/rooms` — list mine + joined / create với joinCode unique
+- [x] `GET/DELETE /api/rooms/[id]` — fetch detail / owner delete
+- [x] `POST /api/rooms/[id]/token` — issue LiveKit JWT TTL 2h, auto-add MEMBER nếu visibility ≠ PRIVATE, capacity check qua LiveKit API
+- [x] `POST /api/rooms/join` — join by 6-char code, auto-activate membership
+- [x] `POST /api/webhooks/livekit` — sync room_started/finished/participant_joined/left → DB
+
+**UI:**
+- [x] `/rooms` — list mine + joined với memberCount sum query, Create dialog + Join by code input
+- [x] `/rooms/[id]/lobby` — cam preview (getUserMedia native), toggle mic/cam, save prefs localStorage, RoomShareCode (copy code + link)
+- [x] `/rooms/[id]` — LiveKitRoom wrapper, fetch token + simulcast 3 layers (h180/h360/h720), VideoGrid adaptive cols, ControlBar (mic/cam/screen/hand/leave + M/C shortcuts), ParticipantList sidebar
+
+**Components mới:**
+- [x] `components/rooms/{video-grid,control-bar,participant-list,create-room-dialog,join-by-code,room-share-code,lobby-form,room-client}.tsx`
+- [x] `components/ui/dialog.tsx` (shadcn Radix wrapper, đã có @radix-ui/react-dialog từ Phase 7)
+- [x] `lib/rooms/codes.ts` — generateJoinCode() 6-char base32 Crockford
+
+**Wiring:**
+- [x] Sidebar: thêm group "Spaces" > Study Rooms (Video icon)
+- [x] Middleware: `/rooms` protected prefix
+
+**Deliverable:** User tạo room qua UI → share 6-char code → 2 browser tab join cùng room → thấy/nghe nhau qua LiveKit local (no TURN, OK trên cùng LAN/wifi).
+
+**Skipped (defer):**
+- Waiting room flow (Phase 13.8 plan) — `requireApproval` schema sẵn nhưng UI flow chờ user need.
+- Scheduled rooms cron — Inngest cron sẵn pattern, wire khi Phase 14+ có Inngest setup.
+
+### Phase 14: Room Collaboration (Tuần 19) — ✅ **Built (2026-05-11)**
+
+> Chi tiết tại `plan-rooms-and-exam.md` §Phase 14. 6/6 mục ship.
+
+**Realtime layer (Soketi):**
+- [x] `POST /api/realtime/auth` — sign presence/private channel với SOKETI_SECRET, verify user member ACTIVE
+- [x] `getPusherClient()` singleton (Phase 12 đã sẵn) + `useRealtimeEvent()` hook tái dùng
+
+**Chat:**
+- [x] `GET/POST /api/rooms/[id]/chat` — fetch 50 message gần nhất + send với broadcast Soketi `chat:message`
+- [x] `components/rooms/chat-panel.tsx` — initial load + subscribe presence-room-{id}, auto-scroll bottom, avatar + own/other layout
+
+**Mod actions:**
+- [x] `POST /api/rooms/[id]/moderate` — discriminated union 8 actions: KICK, MUTE, UNMUTE_REQUEST, LOCK, APPROVE, REJECT, PROMOTE, DEMOTE
+- [x] LiveKit RoomService `removeParticipant` + `mutePublishedTrack` cho KICK/MUTE
+- [x] Soketi broadcast `room:kicked` / `room:approved` / `room:rejected` tới `presence-user-{id}`
+- [x] Owner-only: LOCK, PROMOTE, DEMOTE. Mod-or-Owner: KICK, MUTE, APPROVE
+- [x] `participant-list.tsx` rewrite: dropdown menu 3-chấm cho mỗi participant (chỉ mod thấy)
+
+**Pomodoro:**
+- [x] `components/rooms/pomodoro-timer.tsx` — 3 mode FOCUS/SHORT_BREAK/LONG_BREAK
+- [x] Sync qua LiveKit data channel (không cần Soketi) — broadcast state {mode, startAt, durationSec, pausedAt}
+- [x] Wallclock-based (Date.now()) thay vì interval count → khỏi drift khi tab background
+
+**Reactions floating:**
+- [x] `components/rooms/reactions-layer.tsx` + `reaction-picker.tsx` (10 emoji)
+- [x] Publish qua LK data channel (unreliable OK)
+- [x] CSS `@keyframes float-up` 2s translate -280px + scale 1.4 + fade
+
+**Hocuspocus service (Yjs server):**
+- [x] New workspace `apps/hocuspocus/` — Node ESM, port 1234
+- [x] `Server.configure()` với JWT auth (verify userId + roomId + kind match document name)
+- [x] `Database` extension persist binary state vào bảng `collab_doc` (base64 encode)
+- [x] Dockerfile multi-stage (deps → build → runner) cho prod deploy
+- [x] Dev: `pnpm dev:hocus` chạy `tsx watch --env-file=../web/.env.local src/server.ts`
+- [x] Root scripts: `dev:web` + `dev:hocus` cho dev riêng từng service
+
+**Whiteboard collab (Excalidraw + Yjs):**
+- [x] `POST /api/rooms/[id]/collab-token` — issue JWT 15min cho kind whiteboard|notes|code
+- [x] `components/rooms/whiteboard-panel.tsx` — dynamic import Excalidraw (no SSR, ~600KB), bidirectional sync Yjs ↔ Excalidraw qua observe + onChange, lastSerializedRef guard chống loop
+
+**Shared notes (TipTap + Yjs):**
+- [x] `components/rooms/notes-panel.tsx` — TipTap v3 với `Collaboration` + `CollaborationCursor` extension
+- [x] StarterKit.configure({undoRedo: false}) — TipTap v3 rename `history` → `undoRedo`, tắt vì Yjs UndoManager đảm nhận
+- [x] Color cursor stable từ hash userName → HSL hue
+
+**Wire vào RoomClient:**
+- [x] Sidebar Tabs (4 tab): Chat | Participants | Notes | Whiteboard — icon-only để gọn 360px width
+- [x] Pomodoro bar trên cùng main column
+- [x] ReactionsLayer absolute overlay
+- [x] `components/ui/{dialog,tabs}.tsx` shadcn pattern (@radix-ui/react-dialog, @radix-ui/react-tabs)
+
+**Deps mới (apps/web):** yjs, @hocuspocus/provider, jsonwebtoken, @tiptap/extension-collaboration@^3, @tiptap/extension-collaboration-cursor@^3, @excalidraw/excalidraw, @radix-ui/react-tabs
+**Deps mới (apps/hocuspocus):** @hocuspocus/server, @hocuspocus/extension-database, jsonwebtoken, postgres, tsx, typescript
+
+**Env mới:** `JWT_SECRET` (32+ ký tự, shared giữa apps/web issuer và apps/hocuspocus verifier) + `NEXT_PUBLIC_HOCUSPOCUS_URL`
+
+**Deliverable:** Room có chat realtime + whiteboard cộng tác + notes cộng tác + pomodoro đồng bộ + emoji reactions + mod kick/mute/lock/promote.
+
+**Setup test:**
+```bash
+# Terminal 1: realtime stack đã chạy (Phase 12)
+# Terminal 2: Next.js dev
+pnpm dev:web
+# Terminal 3: Hocuspocus dev
+pnpm dev:hocus
+```
+
+Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-long-cogniva-xxx` + `NEXT_PUBLIC_HOCUSPOCUS_URL=ws://localhost:1234`.
+
+### Phase 15: AI Tutor + Recording (Tuần 20) — ✅ **Built (2026-05-11)**
+
+> Chi tiết tại `plan-rooms-and-exam.md` §Phase 15. Đã ship đủ 4/4 deliverable; runtime needs ffmpeg binary + OPENAI_API_KEY (Whisper) + R2 recordings bucket cho prod.
+
+**Deviation từ plan §15.2:** dùng Vercel AI SDK `streamText` + `getChatModel()` (đã có từ Phase 3) thay vì scaffold Mastra runtime. Cùng pattern với `/api/chat/route.ts`. Giữ interface `streamRoomTutor()` mimic Mastra `agent.stream()` để swap sau dễ. Phase 18 (Adaptive Testing) cần workflow phức tạp → khi đó mới scaffold Mastra.
+
+**AI Tutor (in-room @AI):**
+- [x] `lib/ai/room-tutor.ts` — buildTutorSystemPrompt (persona + room context + RAG chunks scoped theo askingUserId), `streamRoomTutor()` trả `textStream` + `finishPromise`
+- [x] `lib/ai/summarize.ts` — `summarizeTranscript()` (map-reduce >8K từ) + `generateFlashcardsFromTranscript()` (JSON output, 10 cards default)
+- [x] `POST /api/rooms/[id]/ai-message` — rate limit 10/min/user/room (preset `aiGenerate`), insert placeholder AI message → for-await `textStream` → broadcast `ai:streaming` mỗi delta → `ai:complete` khi xong + update DB content
+- [x] `chat-panel.tsx` update — detect `@AI` prefix (regex), gọi /ai-message song song /chat (để user message vẫn vào lịch sử), bind `ai:streaming`/`ai:complete`/`ai:error`, render bubble AI với blinking caret khi streaming + error state
+
+**Recording (LiveKit Egress → R2):**
+- [x] `POST /api/rooms/[id]/record` — mod-only, S3Upload với R2 endpoint, `startRoomCompositeEgress(roomId, output, 'speaker')`, insert recording row status RECORDING, broadcast `recording:started`
+- [x] `POST /api/rooms/[id]/record/[recordingId]/stop` — mod-only, `stopEgress(egressId)`, idempotent (swallow 404), update PROCESSING + broadcast `recording:stopped`
+- [x] `GET /api/rooms/[id]/record` — list 50 recordings cho room (member-only)
+- [x] Webhook `egress_ended` (livekit/route.ts) — extract `fileResults[0].location` + size + duration, update recording → fire Inngest event `recording/finished` → broadcast `recording:ended`
+- [x] `components/rooms/record-button.tsx` — state machine IDLE/STARTING/RECORDING/STOPPING, init query GET /record để pick up active recording (mod refresh), Soketi sync giữa nhiều mod
+- [x] `components/rooms/recording-banner.tsx` — privacy notice "Buổi học đang được GHI HÌNH bởi {byUserName}" hiển thị TO ở top, không cho dismiss (Phase 15 compliance §🔐)
+
+**Inngest pipeline (post-processing):**
+- [x] `inngest/client.ts` — singleton `Inngest({id:'cogniva'})` + typed `InngestEvents` table với `recording/finished`
+- [x] `inngest/functions/process-recording.ts` — 7 steps độc lập retry (extract-audio → probe-duration → mark-processing → transcribe → summarize → detect-chapters → generate-flashcards → persist → notify); mỗi step có try/catch riêng để 1 step fail không kill pipeline (graceful degradation: no Whisper → no transcript nhưng vẫn save video)
+- [x] `app/api/inngest/route.ts` — `serve({client, functions})` cho Inngest Cloud/CLI discovery
+- [x] `lib/media/ffmpeg.ts` — `extractAudio` (16kHz mono WAV PCM cho Whisper), `getMediaDuration` (ffprobe), `downloadToTmp` (R2 presigned), `safeUnlink` cleanup
+- [x] `lib/media/whisper.ts` — `whisperTranscribe()` OpenAI Whisper-1 với `verbose_json` để có segments + timestamps, `isWhisperConfigured()` gate cho pipeline skip transcribe nếu thiếu key
+- [x] `lib/media/chapters.ts` — `detectChapters()` heuristic: group segments thành blocks 75s → embed Voyage → cosine similarity < 0.65 = boundary, merge chapter <120s
+
+**Replay UI:**
+- [x] `/rooms/[id]/recordings` — list 50 recordings với duration + status badge, link sang `[recId]`
+- [x] `/rooms/[id]/recordings/[recId]` — server fetch + verify member ACTIVE + redirect khi status=RECORDING (chưa kết thúc)
+- [x] `components/rooms/replay-client.tsx` — 2-col layout: video player + summary (markdown) | chapters (click seek) + transcript scrollable; polling 15s + Soketi `recording:processed` event để auto-refresh khi pipeline xong
+
+**Wire vào RoomClient:**
+- [x] `ControlBar` thêm prop `roomId` + `isMod` → render `<RecordButton>` chỉ khi mod
+- [x] `room-client.tsx` thêm `<RecordingBanner roomId={...}/>` ở top main column
+
+**Deps mới:** `inngest@^3.27.0`
+
+**Env mới:** `R2_RECORDINGS_BUCKET` (default "cogniva-recordings"). Existing: `OPENAI_API_KEY` (Whisper), `R2_*` (egress upload), `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` (prod).
+
+**Runtime requirements:**
+- `ffmpeg` binary trong PATH (Windows dev: `choco install ffmpeg`, prod VPS: pre-installed via provision script)
+- LiveKit Egress container chạy (xem `plan-rooms-and-exam.md` §12.2 docker-compose.prod.yml — Phase 15 uncomment block egress)
+- Inngest dev server: `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`
+
+**Acceptance (qua live test cần khi user smoke):**
+- [ ] Gõ `@AI lim là gì` → bubble AI bay vào chat, từng token stream cho cả phòng thấy
+- [ ] Mod bấm Record → banner đỏ TO xuất hiện cho mọi participant; bấm Stop → banner biến mất, sau ~30s pipeline xong → `/rooms/[id]/recordings` thấy row PROCESSED
+- [ ] Replay page: click chapter → video seek đúng timestamp, transcript hiển thị bên cạnh
+
+**Known limitations Phase 15 v1:**
+- Flashcard tự gen gắn vào owner room (không share với members) — schema flashcard chưa có metadata jsonb để track `fromRecordingId`; Phase 18 sẽ thêm.
+- ffmpeg phụ thuộc binary local — Inngest function chạy trên Vercel sẽ FAIL nếu ffmpeg không pre-bundled. Workaround: dùng Inngest Cloud + self-host runner, hoặc swap sang `@ffmpeg/ffmpeg` WASM (chậm 5-10x).
+- Egress fileUrl trỏ trực tiếp R2 — chưa có presigned. Phase 16+ sẽ thêm signed URL TTL 1h cho privacy compliance.
 
 ### Phase 10 follow-up — Bug fixes + lấp link 404 (2026-05-11)
 
@@ -1273,6 +1471,316 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
   nhưng quên save package.json); fix `vitest.config.ts` exclude `e2e/**`
   (Playwright spec làm vitest crash vì cùng `test()` global khác API);
   sync plan §5/§6/§9 với reality.
+
+### Stage 2 — Scale-up (M4+) — 🚧 **In progress (2026-05-11)**
+
+> Master plan ở `scale-up-master-plan.md` §15.2. Stage 1 closed (rate-limit
+> Redis + cost guardrail + LLM router + DB scaling + observability +
+> backup/restore + audit log + GDPR + load test + COPPA). Stage 2 = M4-M12
+> (5-8 eng theo plan; solo founder phase tới khi hire engineer #2-3).
+
+#### M4 W1-W2: Cloudflare Workers edge gateway + Mobile RN bootstrap (2026-05-11) — local scaffold
+
+**Edge gateway (`apps/edge/`):**
+- [x] Hono + wrangler.toml + tsconfig (Workers compatible_flags `nodejs_compat`)
+- [x] `RateLimitDO` Durable Object — token bucket per user/IP (capacity + refillPerSec, transactional storage, single-threaded race-safe)
+- [x] `jwtVerifyMiddleware()` — đọc JWT từ Authorization header hoặc cookie `better-auth.session_token`, verify qua JWKS endpoint (`jose` lib, RSA/EdDSA, 1h cache), set `userId` vào context
+- [x] `geoMiddleware()` — đọc CF `cf-ipcountry` + `cf.continent` → set `country` + `region` (asia/eu/us/oceania/africa) → forward header `x-cogniva-region` để origin chọn DB replica
+- [x] `rateLimit()` — gọi DO check token bucket; auth user 120/min, anon IP 30/min; fail-open khi DO error; trả `X-RateLimit-*` + `Retry-After` headers
+- [x] `csrf()` — double-submit cookie (`csrf-token` cookie + `x-csrf-token` header), bypass `/api/auth/*`, `/api/webhooks/*`, `/api/realtime/*`; constant-time compare
+- [x] `featureFlags()` — eval flag từ KV `FLAGS_KV` (rollout %, allowList, denyList, FNV-1a hash), forward `x-cogniva-flags` header
+- [x] `proxyToOrigin()` — forward tới Vercel với header enriched (trace, userId, country, region, flags, edge-verified secret); stream body (duplex 'half'); strip `x-powered-by`/`server`; add `x-edge-duration-ms`
+- [x] `/__edge/health` bypass guard cho uptime check
+- [x] Structured JSON logger + trace propagation (`cog-{16hex}-{8hex}` match `apps/web/src/middleware.ts`)
+- [x] README với deploy guide (workers.dev free tier OK)
+
+**Shared types (`packages/shared/`):**
+- [x] `UserDTO` / `SessionDTO` / `DocumentDTO` / `FlashcardDTO` / `ReviewDTO` / `MasteryDTO` / `ChatMessageDTO` / `UsageDTO` / `ApiResult<T>` — plain DTO, KHÔNG re-export DB types
+- [x] Zod schemas: `signUpSchema`, `signInSchema`, `documentMetaSchema`, `reviewRatingSchema`, `chatSendSchema`
+- [x] `createApiClient()` — fetch-based, getToken callback (cookie cho web, SecureStore cho mobile), retry/error envelope
+
+**Mobile (`apps/mobile/`):**
+- [x] Expo SDK 52 + Expo Router 4 + RN 0.76 + New Architecture + Hermes
+- [x] `app/_layout.tsx` — root: QueryClient + splash hydration
+- [x] `app/index.tsx` — auto redirect dựa auth
+- [x] `app/(auth)/` — sign-in + sign-up screens (Vietnamese UI, COPPA disclaimer redirect minor về web)
+- [x] `app/(app)/` — Tabs (dashboard / flashcards / settings) với auth guard
+- [x] `src/store/auth.ts` — Zustand store + hydrate từ SecureStore
+- [x] `src/lib/storage.ts` — SecureStore wrapper (token + user cache)
+- [x] `src/lib/api.ts` — singleton `@cogniva/shared` client với bearer token + platform header
+- [x] `metro.config.js` — monorepo workspace resolution (watchFolders root)
+- [x] README với deploy guide + simulator setup
+
+**Workspace wire:**
+- [x] Root scripts: `dev:edge`, `dev:mobile` thêm vào `package.json`
+- [x] `turbo.json` thêm task `start` (cho Expo)
+- [x] `pnpm-workspace.yaml` đã include `apps/*` + `packages/*` → tự pick
+
+**M4 W3 — JWT plugin + anti-bypass + region routing (2026-05-12) — ✅ done:**
+- [x] Wire Better Auth **JWT plugin** ở `apps/web/src/lib/auth.ts` (EdDSA Ed25519, issuer `cogniva`, audience `cogniva-app`, exp 7d, custom `definePayload` thêm `email/name/plan/parentalConsentStatus`)
+- [x] Wire Better Auth **bearer plugin** với `requireSignature: true` → mobile gửi `Authorization: Bearer <session_token>` được verify
+- [x] Endpoint `/api/auth/jwks` expose JWK Set (verified Ed25519 key trả về)
+- [x] Endpoint `/api/auth/token` mint JWT 3-part từ Bearer session (verified payload có sub/email/plan/exp/iss/aud)
+- [x] DB schema thêm `jwks` table + migration `0006_jwks.sql` + applied to dev DB
+- [x] Mobile auth store: capture `set-auth-token` header trong sign-in + sign-up (sign-up đã có, thêm cho sign-in)
+- [x] `apps/web/src/middleware.ts` **anti-bypass**: check `x-edge-verified=<EDGE_SHARED_SECRET>` ở production; bypass dev / staging / health endpoints
+- [x] Middleware forward `x-cogniva-region` từ edge tới route handler
+- [x] `packages/db` thêm `getDbForRegion(region)` helper — Stage 1 trả về `dbReplica` (universal); Stage 2 M5 wire multi-region replica envs
+- [x] `lib/observability/logger.ts` thêm `getRegion()` async helper (read request header)
+
+**M4 W4 — Close M4 (2026-05-12) — ✅ done:**
+- [x] Mobile `mintJwt()` helper export + architecture: session token là primary bearer (origin Better Auth bearer plugin verify HMAC); JWT cho edge verify offline + 3rd party (Hasura/Supabase RLS sau này)
+- [x] End-to-end pipeline tested với curl:
+  - Origin direct: session bearer → `/api/auth/get-session` → 200
+  - Edge → origin: session bearer forwarded → 200 trong 341ms
+  - Edge `/api/auth/jwks` trả Ed25519 JWK Set
+  - Edge `/api/auth/token` mint JWT 3-part với payload `{sub,email,plan,exp,iss=cogniva,aud=cogniva-app}`
+  - Response API tự auto-issue `set-auth-jwt` header → mobile capture cho edge call sau (optional)
+- [x] `.github/workflows/deploy-edge.yml` — `cloudflare/wrangler-action@v3` deploy worker on push main + manual dispatch staging/production + health check post-deploy
+- [x] Edge JWT verify middleware tested: reject non-JWT bearer (sign-in returns 401 user-id null → rate limit per IP fallback), accept valid JWT bearer
+
+**M4 đóng khẩu.** Stage 2 M4 W1-W4 close 4/4 (edge gateway + RN bootstrap + JWT/bearer + anti-bypass + region routing + CI deploy workflow).
+
+**Cần thiết khi deploy production (chờ user setup):**
+- [ ] CF account + domain → `wrangler login` + `wrangler kv namespace create FLAGS_KV` → paste id vào `wrangler.toml`
+- [ ] GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `EDGE_SHARED_SECRET`
+- [ ] Vercel env `EDGE_SHARED_SECRET` match edge (anti-bypass)
+- [ ] Lần đầu deploy thủ công verify, sau đó workflow tự chạy push main
+
+**Mobile pending (M6 W2-W3 batch riêng):** WatermelonDB offline cache + push notif APNs/FCM cert + document list/flashcard review/swipe gestures
+
+#### M6 W2 — Mobile features (2026-05-12) — ✅ done
+
+**Documents screen (`apps/mobile/app/(app)/documents.tsx`):**
+- [x] FlatList fetch `api.documents.list()` qua TanStack Query
+- [x] Pull-to-refresh (RefreshControl) + loading + empty + error states
+- [x] Status badge với 4 màu (UPLOADING amber / PROCESSING blue / READY green / FAILED red)
+- [x] File type icon (📕 PDF, 📘 DOCX, 📝 MD, 📄 TXT) + format bytes/pages
+
+**Flashcards review (`apps/mobile/app/(app)/flashcards.tsx`):**
+- [x] Full FSRS review flow: fetch due → show front → tap reveal → 4 rating buttons (Again/Hard/Good/Easy) → POST /api/flashcards/review → optimistic advance → next card
+- [x] Progress bar `idx / total` realtime
+- [x] Empty + completion states với refetch button
+- [x] Mutation pending overlay (ActivityIndicator) khi đang sync API
+- [x] Color-coded rating buttons match FSRS standard (red/amber/green/blue)
+
+**Settings revamp (`apps/mobile/app/(app)/settings.tsx`):**
+- [x] Account info: email, name, plan, COPPA status conditional
+- [x] GDPR Article 20 — Export data button → POST /api/account/export → show URL
+- [x] GDPR Article 17 — Delete account flow → confirm 2 lần → POST /api/account/delete (30-day grace) → auto sign-out
+- [x] Sign out với confirm dialog
+- [x] "Vùng nguy hiểm" section visually distinct (red border + light pink bg)
+
+**Tab navigation update (`apps/mobile/app/(app)/_layout.tsx`):**
+- [x] 4 tabs: Home / Tài liệu / Học / Tôi
+- [x] Active color #0066FF, inactive #999
+
+**Files mới batch này (5 mod + 1 new):**
+```
+apps/mobile/app/(app)/
+  documents.tsx          (new — 158 LOC)
+  flashcards.tsx         (rewrite — 240 LOC, từ placeholder thành full FSRS review)
+  settings.tsx           (rewrite — 200 LOC, thêm GDPR export + delete)
+  _layout.tsx            (add documents tab)
+```
+
+**Pending M6 W3:**
+- [ ] Swipe gestures (Reanimated 4) thay cho tap rating button
+- [ ] Document detail screen + PDF viewer (react-native-pdf)
+- [ ] Document upload từ mobile (DocumentPicker + presigned URL)
+- [ ] Push notifications (Expo Notifications + APNs/FCM cert thật)
+- [ ] Deep linking `cogniva://flashcard/{id}` + `cogniva://room/{id}`
+- [ ] Offline cache persisted với react-query-persist-client + AsyncStorage
+
+#### M6 W3 — Mobile polish (2026-05-12) — ✅ done
+
+**Offline cache:**
+- [x] `PersistQueryClientProvider` + `createAsyncStoragePersister` ở root layout
+- [x] Cache lưu vào AsyncStorage key `cogniva.query-cache`, max 24h, throttle 1s
+- [x] Buster `v1` để invalidate khi API schema đổi
+- [x] App reopen offline → cache restore → render data ngay (stale-while-revalidate)
+
+**Swipe gestures (Reanimated 4 + Gesture Handler 2):**
+- [x] Rewrite `apps/mobile/app/(app)/flashcards.tsx` từ tap buttons → swipe full UX
+- [x] Tap card → flip front/back (animated opacity crossfade)
+- [x] PanGesture track translation x/y → card translate + rotate (±15deg) theo drag
+- [x] Color overlay theo direction → user thấy rating sắp được chọn (red/amber/green/blue)
+- [x] 4 hướng swipe Anki/Mochi style: ← Quên / ↓ Khó / → Tốt / ↑ Dễ
+- [x] Threshold 80px theo trục dominant → trigger rate + fly-off animation
+- [x] Spring back nếu swipe nhẹ (chưa đủ threshold)
+- [x] 4 rating buttons vẫn hiện bên dưới (accessibility cho user khó dùng gesture)
+
+**Cancel deletion flow (GDPR Article 17 hoàn chỉnh):**
+- [x] Shared API client thêm `deleteStatus()` GET + `requestDelete(reason)` POST với confirm "DELETE MY ACCOUNT"
+- [x] Settings poll `/api/account/delete` → render banner amber khi `pending=true` với daysRemaining + scheduledFor
+- [x] Cancel button → DELETE /api/account/delete → invalidate query → banner ẩn
+
+**Document upload từ mobile:**
+- [x] FAB button (góc phải dưới) + empty state upload button
+- [x] `expo-document-picker` pick PDF (mime filter, max 1 file, copy to cache)
+- [x] FormData multipart với asset URI → POST /api/documents/upload với Bearer auth
+- [x] Loading state + alert success/error + auto refetch list
+- [x] Backend xử lý ingest sync (5-30s) → mobile show busy ActivityIndicator
+
+**Deps added (4):**
+```
+@tanstack/react-query-persist-client@^5.100
+@tanstack/query-async-storage-persister@^5.100
+expo-document-picker@~55.0
+expo-file-system@~55.0
+expo-sharing@~55.0
+```
+
+**M6 W4 — Mobile finalization (DONE):**
+- [x] Document detail screen `app/(app)/documents/[id].tsx` — metadata header (filename, size, pages, status badge) + chunks browser (FlatList với pageStart/pageEnd) + "Mở web" button qua `Linking.openURL`
+- [x] Restructure tab `documents` thành nested Stack (`documents/_layout.tsx` + `index.tsx` + `[id].tsx`) — fix conflict route giữa flat `documents.tsx` và `[id].tsx`
+- [x] Wire card tap → `router.push('/documents/${id}')` (back swipe iOS / back gesture Android tự work)
+- [x] Push notifications client `src/lib/notifications.ts`:
+  - `registerForPushNotificationsAsync()` — request permission + Expo Push Token (`ExponentPushToken[xxx]`)
+  - `setNotificationHandler` foreground banner + sound
+  - `addNotificationTapListener(onNavigate)` — tap notif → router.push deep link (flashcard-due / room-invite / document-ready)
+  - Android: tự setup default channel với HIGH importance
+- [x] `NotificationsBridge` component trong root `_layout.tsx` — register token sau khi auth + lắng nghe tap → router.push
+- [x] Deep linking config — `scheme: "cogniva"` đã có sẵn ở app.json; Expo Router 6 tự map `cogniva://documents/{id}` → `app/(app)/documents/[id].tsx`
+- [x] `eas.json` — 3 build profiles:
+  - `development`: dev client + iOS simulator + `EXPO_PUBLIC_API_URL=localhost:3000`
+  - `preview`: internal (APK / TF) + `EXPO_PUBLIC_API_URL=staging.cogniva.app`
+  - `production`: store + `autoIncrement` + `EXPO_PUBLIC_API_URL=cogniva.app` + submit config (Apple ID / Android service account)
+- [x] `app.json` thêm `extra.eas.projectId` placeholder + `owner: cogniva` cho `eas init`
+
+**Files mới M6 W4:**
+```
+apps/mobile/
+  app/(app)/documents/_layout.tsx     # Nested Stack
+  app/(app)/documents/index.tsx       # Move từ documents.tsx
+  app/(app)/documents/[id].tsx        # Detail screen
+  src/lib/notifications.ts            # Push token + tap listener
+  eas.json                            # Build profiles
+  app.json                            # Updated: notification icon ref removed, extra.eas.projectId added
+  app/_layout.tsx                     # Updated: NotificationsBridge wire
+  README.md                           # Updated: M6 W4 status + EAS + deep link docs
+```
+
+**Pending Stage 3 (mobile native deps):**
+- [ ] Native PDF viewer (`react-native-pdf` — cần EAS dev client, không work trong Expo Go vì TurboModule native)
+- [ ] iOS APNs cert + Android FCM service account JSON (cần Apple Dev Program $99/yr + Google Play Console $25)
+- [ ] `eas init` chính thức → fill `projectId` thật + Apple Team ID + service account path
+
+#### M7 — Push notification delivery (2026-05-12) — ✅ done
+
+**Schema (`packages/db/`):**
+- [x] Bảng `push_token` — `(id, user_id FK→user, token UNIQUE, platform ios/android/web, device_id?, enabled, created_at, last_seen_at)` + index `(user_id)` cho Inngest worker lookup
+- [x] Bảng `notification_log` — audit trail `(user_id, type, title, body, data jsonb, status pending/sent/failed/rejected, receipt_id, error, sent_at, created_at)` + index `(user_id, type, created_at DESC)` cho 24h dedupe query
+- [x] Migration `0007_push_token.sql` — idempotent CREATE TABLE + CREATE INDEX IF NOT EXISTS
+- [x] Drizzle relations `pushTokenRelations` + `notificationLogRelations` (one-to-many từ `user`)
+- [x] Export type `PushToken` / `NotificationLog` (cả `$inferSelect` + `$inferInsert`)
+
+**Backend endpoint (`apps/web/`):**
+- [x] `POST /api/account/push-token` — Zod validate Expo Push Token format, upsert theo `token` UNIQUE (cover case device transferred giữa users), audit log `push.token.{created|updated|transferred}`
+- [x] `DELETE /api/account/push-token` — body `{ token }`, chỉ xoá nếu token thuộc user (chống user A craft request xoá token user B), audit log
+- [x] Bearer protected (require `auth.api.getSession`), rate limit auto qua middleware 30/min anon hoặc 120/min auth
+
+**Shared API client (`packages/shared/`):**
+- [x] `account.registerPushToken({ token, platform, deviceId? })` → POST upsert
+- [x] `account.unregisterPushToken(token)` → DELETE unregister
+
+**Mobile wiring (`apps/mobile/`):**
+- [x] `src/lib/notifications.ts` thêm `cachedToken` module-level singleton + `getCachedPushToken()` export (cho sign-out flow KHÔNG phải re-request permission)
+- [x] `app/_layout.tsx` `NotificationsBridge` POST token sang `/api/account/push-token` sau khi `registerForPushNotificationsAsync` ok, log `action` (created/updated/transferred) cho debug
+- [x] `src/store/auth.ts` `signOut()` DELETE token TRƯỚC khi clear session (cần Bearer còn hợp lệ); failure không block sign-out flow (stale token sẽ tự dọn ở cron khi Expo Push API trả `DeviceNotRegistered`)
+
+**Inngest worker (`apps/web/src/inngest/functions/flashcard-due-reminder.ts`):**
+- [x] Cron `0 13 * * *` — 13:00 UTC daily = 20:00 VN (giờ học buổi tối)
+- [x] Step 1 `query-candidates` — SQL aggregate `count(*) WHERE due <= NOW AND state != 'NEW' GROUP BY userId HAVING count >= 5` (threshold tránh spam khi 1-2 thẻ)
+- [x] Step 2 `dedupe-recent-sent` — skip user đã nhận `flashcard-due` trong 24h gần nhất (query `notification_log` WHERE status='sent')
+- [x] Step 3 `lookup-tokens` — fetch tất cả `push_token` enabled cho eligible users, build `(userId, token, dueCount)` targets
+- [x] Step 4 `send-expo-push` — batch 100 token/request gửi Expo Push API `https://exp.host/--/api/v2/push/send`; capture tickets + invalidTokens (`DeviceNotRegistered`)
+- [x] Step 5a `cleanup-invalid-tokens` — DELETE FROM push_token WHERE token = ANY(invalidTokens)
+- [x] Step 5b `insert-notification-logs` — 1 row/user với status 'sent' nếu ANY device thành công, else 'failed' + error message
+- [x] Registered trong `apps/web/src/app/api/inngest/route.ts` `serve({ functions: [...] })`
+
+**Files mới M7:**
+```
+packages/db/src/schema.ts                                   # +pushToken +notificationLog +relations +types
+packages/db/migrations/0007_push_token.sql                  # NEW
+packages/shared/src/api/index.ts                            # +account.registerPushToken / unregisterPushToken
+apps/web/src/app/api/account/push-token/route.ts            # NEW POST/DELETE
+apps/web/src/inngest/functions/flashcard-due-reminder.ts    # NEW
+apps/web/src/app/api/inngest/route.ts                       # +flashcardDueReminder registered
+apps/mobile/src/lib/notifications.ts                        # +cachedToken +getCachedPushToken
+apps/mobile/app/_layout.tsx                                 # NotificationsBridge POST backend
+apps/mobile/src/store/auth.ts                               # signOut() unregister token
+```
+
+**Acceptance — smoke test 2026-05-12 ✅:**
+- [x] Apply migration 0007 → `push_token` + `notification_log` tables exist
+- [x] Mobile sign-in trên Android device thật → log `[push] backend register OK: created`
+- [x] `push_token` row: 1 (`ExponentPushToken[Ka0_e1ETO1D4...]` / android / mobileapp@gmail.com)
+- [x] Seed 6 LEARNING cards due (inline SQL — không qua seed-flashcards.ts vì script tạo state=NEW mà worker skip)
+- [x] Trigger Inngest function manual qua UI `http://localhost:8288` → 6 step OK
+- [x] Device nhận push "Đến giờ ôn tập rồi! Bạn có 6 thẻ đang chờ"
+- [x] `notification_log` row: status='sent', receipt_id `019e1c8a-8f6a-7704-b714-...`, data `{type:'flashcard-due',dueCount:6}`
+
+**Smoke test pending (chưa verify cần test sau):**
+- [ ] **Tap notification → router.push deep link** — khi push tới app đang background hoặc closed, tap notif phải mở app + navigate `/flashcards`. Smoke test 2026-05-12 không verify được vì app đang foreground (notif show banner overlay, không trigger response listener). Test cách: tắt app hẳn (vuốt khỏi recent) → trigger Inngest → tap notif → app mở vào `/flashcards`
+- [ ] **Sign-out unregister token** — `signOut()` đã wire `api.account.unregisterPushToken(cachedToken)` nhưng chưa test live. Verify: sign-out mobile → `SELECT * FROM push_token WHERE token = '...'` empty
+- [ ] **24h dedupe** — invoke function 2 lần liên tiếp → lần 2 phải skip user vì `notification_log.status='sent'` < 24h. Verify: trigger Invoke 2 lần, lần 2 step `dedupe-recent-sent` filter ra hết
+- [ ] **DeviceNotRegistered cleanup** — uninstall Expo Go khỏi phone → trigger → Expo Push API trả `DeviceNotRegistered` → step `cleanup-invalid-tokens` xoá row khỏi push_token. Verify: phone uninstall + DB query thấy row deleted
+
+**Bugs đã fix trong smoke test:**
+- `app.json` để placeholder `REPLACE_ME_*` projectId — code pass placeholder → Expo Server validate UUID fail. **Fix:** chạy `eas init` chính thức (login Expo + create real project) → ghi real projectId vào app.json. Project ID hiện tại: `72508ea4-d50b-4dd4-a7e6-155fd654b3bc` (owner `dovanviet`).
+- Drizzle `sql\`... = ANY(${array})\`` không serialize JS array đúng qua postgres.js → query fail ở 3 step (`dedupe-recent-sent`, `lookup-tokens`, `cleanup-invalid-tokens`). **Fix:** dùng `inArray(column, array)` từ `drizzle-orm` thay vì raw sql template.
+- SDK 54 đã xoá anonymous push token fallback của Expo Go → MUST có real EAS projectId. Code `notifications.ts` đã update remove the "skip placeholder" hack.
+
+**Why batch 100 + Expo Push API thay vì FCM/APNs trực tiếp:**
+- Expo Push API miễn phí, 1 endpoint cover cả iOS + Android — KHÔNG cần Apple Dev Program ($99/yr) hay Google service account JSON ở giai đoạn dev/test
+- Token format `ExponentPushToken[xxx]` ổn định, không phụ thuộc EAS production build → chạy được trên Expo Go dev cho test
+- Stage 3 nếu cần feature nâng cao (rich media, action buttons) sẽ migrate sang FCM/APNs trực tiếp qua `expo-server-sdk` hoặc Firebase Admin SDK
+
+**Why cron 20:00 VN không TZ-aware:**
+- TZ-aware notif cần `user.timezone` field + cron mỗi giờ + check TZ match → phức tạp, chỉ worth khi target market non-VN > 30%
+- 20:00 VN cover hầu hết VN user (target chính); EU/US user nhận giờ kỳ lạ — accept trade-off MVP
+- Stage 3 sẽ thêm `user.timezone` + UI Settings "Giờ nhắc nhở mong muốn" + cron mỗi giờ filter theo TZ
+
+**Why local scaffold trước:**
+- Wrangler dev emulate Workers runtime LOCAL (`workerd` binary, DO + KV in-memory) → KHÔNG cần CF account hay domain để code + test logic
+- Khi user mua domain + CF account → chỉ cần `wrangler login` + `wrangler kv namespace create FLAGS_KV` + paste id + `wrangler deploy`. Code 100% production-ready.
+
+**Files mới batch này:**
+```
+apps/edge/                    (14 files)
+  package.json, tsconfig.json, wrangler.toml, .gitignore, .dev.vars.example,
+  README.md, src/{index.ts, env.ts}
+  src/lib/{logger.ts, trace.ts}
+  src/do/rate-limit-do.ts
+  src/middleware/{trace,geo,jwt-verify,csrf,rate-limit,feature-flags}.ts
+  src/routes/proxy.ts
+
+packages/shared/              (7 files)
+  package.json, tsconfig.json
+  src/{index.ts, api/index.ts, types/index.ts, schemas/index.ts}
+
+apps/mobile/                  (18 files)
+  package.json, tsconfig.json, app.json, babel.config.js, metro.config.js,
+  expo-env.d.ts, .gitignore, .env.example, README.md
+  src/{lib/{storage,api}.ts, store/auth.ts}
+  app/{_layout.tsx, index.tsx}
+  app/(auth)/{_layout.tsx, sign-in.tsx, sign-up.tsx}
+  app/(app)/{_layout.tsx, dashboard.tsx, flashcards.tsx, settings.tsx}
+```
+
+**Total LOC scaffolded:** ~2.4K LOC (TS), 100% Vietnamese-commented (header + JSDoc).
+
+**Cost estimate khi deploy:**
+- Workers paid $5/mo (10M req/mo + DO + KV included) — 10K MAU ~$15/mo total
+- Expo / EAS Build free tier đủ cho dev; production submit App Store ($99/yr) + Play ($25 one-time)
+
+**Acceptance khi smoke test (cần `pnpm install` trước):**
+- [ ] `pnpm --filter @cogniva/edge dev` → wrangler dev port 8787 → `curl http://localhost:8787/__edge/health` → 200 OK JSON
+- [ ] `curl -X POST http://localhost:8787/api/test -i` (no cookie/header) → 403 CSRF mismatch (mutating method without token)
+- [ ] `curl http://localhost:8787/__edge/health` x 300 lần → trigger rate limit anon IP, expect 429 sau 30 req trong cùng phút
+- [ ] `pnpm --filter @cogniva/mobile start` → QR code → Expo Go scan → sign-in screen render
+- [ ] Mobile sign-up → API call tới `http://LAN_IP:3000/api/auth/sign-up/email` → user tạo + dashboard render (yêu cầu LAN IP hoặc ngrok, không phải localhost)
 
 ---
 

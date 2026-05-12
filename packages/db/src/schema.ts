@@ -80,6 +80,27 @@ const vector = (name: string, dim: number) =>
 /** Gói cước người dùng: FREE (mặc định), PRO ($12/tháng), TEAM ($25/user/tháng). */
 export const planEnum = pgEnum('plan', ['FREE', 'PRO', 'TEAM']);
 
+/**
+ * Parental consent status — COPPA (Children's Online Privacy Protection Act).
+ *
+ * Plan v2 §3.7.2 + §15.1 W9-10.
+ *
+ * Flow:
+ *   - NOT_REQUIRED: user ≥ 13 tuổi (hoặc DOB chưa nhập — Stage 1 legacy user).
+ *     Account full functional.
+ *   - PENDING: user < 13, đã nhập parent email, đang đợi parent verify.
+ *     Account LIMITED — gate AI, upload, room, chat.
+ *   - VERIFIED: parent đã click link + confirm. Account full functional.
+ *   - REJECTED: parent click link nhưng từ chối. Account vĩnh viễn limited
+ *     (admin có thể delete sau 30 ngày).
+ */
+export const parentalConsentStatusEnum = pgEnum('parental_consent_status', [
+  'NOT_REQUIRED',
+  'PENDING',
+  'VERIFIED',
+  'REJECTED',
+]);
+
 /** Trạng thái xử lý của tài liệu sau upload. UPLOADING → PROCESSING → READY/FAILED. */
 export const docStatusEnum = pgEnum('doc_status', [
   'UPLOADING',
@@ -119,6 +140,39 @@ export const sessionTypeEnum = pgEnum('session_type', [
   'READING',
 ]);
 
+// Phase 13 — Study Rooms (realtime video call + collab)
+export const roomTypeEnum = pgEnum('room_type', [
+  'STUDY',         // học nhóm tự do
+  'CLASSROOM',     // giáo viên dạy nhiều học sinh
+  'EXAM',          // phòng làm bài (Phase 17 live exam)
+  'OFFICE_HOURS',  // hỗ trợ 1-1 / Q&A
+]);
+
+export const roomVisibilityEnum = pgEnum('room_visibility', [
+  'PRIVATE',   // chỉ member được mời mới join
+  'UNLISTED',  // ai có link/joinCode đều join được, không list public
+  'PUBLIC',    // hiện trên explore page (Phase 14+)
+]);
+
+export const roomStatusEnum = pgEnum('room_status', [
+  'IDLE',    // tạo xong, chưa ai vào
+  'ACTIVE',  // đang có người trong room
+  'ENDED',   // session kết thúc (mọi người leave)
+]);
+
+export const roomMemberRoleEnum = pgEnum('room_member_role', [
+  'OWNER',      // người tạo room, full quyền
+  'MODERATOR',  // có thể kick/mute, không xoá room
+  'MEMBER',     // tham gia bình thường
+]);
+
+export const roomMemberStatusEnum = pgEnum('room_member_status', [
+  'ACTIVE',   // đang là member hợp lệ
+  'PENDING',  // chờ approve (room có requireApproval)
+  'KICKED',   // bị mod kick, không vào lại được tới khi unban
+  'BANNED',   // permanent ban
+]);
+
 // ──────────────────────────────────────────────────────────
 // Better Auth — bảng do thư viện auth quản lý
 // (cấu trúc cột phải khớp better-auth/adapters/drizzle)
@@ -138,6 +192,21 @@ export const user = pgTable('user', {
   /** Profile có public hay không — control leaderboard + profile visibility. */
   isPublic: boolean('is_public').notNull().default(false),
   preferences: jsonb('preferences').$type<UserPreferences>().default({}).notNull(),
+  // ── COPPA (Plan v2 §3.7.2) ─────────────────────────────
+  /**
+   * Ngày sinh — required cho user mới. Legacy user trước migration: NULL,
+   * treat as NOT_REQUIRED (giả định adult).
+   */
+  dateOfBirth: timestamp('date_of_birth', { mode: 'date' }),
+  /** Status parental consent — driven bởi age tại signup. */
+  parentalConsentStatus: parentalConsentStatusEnum('parental_consent_status')
+    .notNull()
+    .default('NOT_REQUIRED'),
+  /** Email cha mẹ — chỉ set nếu age < 13. KHÔNG verify cha mẹ là Cogniva user. */
+  parentEmail: text('parent_email'),
+  /** Khi parent verify thành công (status → VERIFIED). */
+  parentalConsentAt: timestamp('parental_consent_at'),
+  // ─────────────────────────────────────────────────────────
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -186,6 +255,24 @@ export const verification = pgTable('verification', {
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * jwks — JSON Web Key Set storage cho Better Auth JWT plugin (Stage 2 M4 W3).
+ *
+ * JWT plugin tự generate keypair (Ed25519 default) khi server start lần đầu,
+ * lưu vào table này. Public key expose qua /api/auth/jwks (edge gateway +
+ * mobile app verify JWT). Private key encrypted-at-rest bằng BETTER_AUTH_SECRET.
+ *
+ * Rotation: optional, set qua plugin `rotationInterval`. Khi rotate, key cũ
+ * giữ trong grace period 30 ngày để JWT đã issue vẫn verify được.
+ */
+export const jwks = pgTable('jwks', {
+  id: text('id').primaryKey(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at'),
 });
 
 // ──────────────────────────────────────────────────────────
@@ -666,6 +753,370 @@ export const studyGroupMember = pgTable(
 );
 
 // ──────────────────────────────────────────────────────────
+// Domain — Study Rooms (Phase 13)
+// ──────────────────────────────────────────────────────────
+/**
+ * Room = 1 phòng học/làm việc nhóm realtime.
+ *
+ * Field chính:
+ *   - `joinCode`: 6-char random base32, share qua link `/rooms/join/{code}`.
+ *     UNLISTED/PUBLIC: ai có code đều join. PRIVATE: phải là member ACTIVE.
+ *   - `livekitRoomName`: tên room ở phía LiveKit SFU. Convention = id (text)
+ *     để khớp 1-1, dễ debug. Cột riêng phòng trường hợp sau này tách logic
+ *     room ↔ livekit (vd 1 logical room map vào 2 livekit room song song).
+ *   - `features`: JSONB toggle bật/tắt chat/whiteboard/notes/aiTutor/...
+ *     Default mở hết trừ recording (cần consent).
+ *   - `requireApproval`: nếu TRUE, user khác phải được mod approve mới join.
+ *   - `scheduledStart` + `recurringPattern`: Phase 13.8 (cron auto-start
+ *     + clone occurrence kế tiếp cho recurring).
+ *
+ * Status lifecycle:
+ *   IDLE → ACTIVE (LiveKit webhook room_started) → ENDED (room_finished).
+ */
+export const room = pgTable(
+  'room',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    type: roomTypeEnum('type').notNull().default('STUDY'),
+    visibility: roomVisibilityEnum('visibility').notNull().default('PRIVATE'),
+    joinCode: text('join_code').unique(),
+    maxMembers: integer('max_members').notNull().default(10),
+    requireApproval: boolean('require_approval').notNull().default(false),
+    /**
+     * Toggle feature theo room. Default mở chat/notes/AI; recording off
+     * vì cần explicit consent + R2 setup.
+     */
+    features: jsonb('features').notNull().default({
+      video: true,
+      chat: true,
+      whiteboard: true,
+      notes: true,
+      aiTutor: true,
+      pomodoro: true,
+      recording: false,
+    }),
+    livekitRoomName: text('livekit_room_name'),
+    scheduledStart: timestamp('scheduled_start'),
+    scheduledEnd: timestamp('scheduled_end'),
+    /** {freq: 'WEEKLY'|'DAILY', days: number[], until?: string ISO} — Phase 13.8 */
+    recurringPattern: jsonb('recurring_pattern'),
+    status: roomStatusEnum('status').notNull().default('IDLE'),
+    startedAt: timestamp('started_at'),
+    endedAt: timestamp('ended_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    ownerIdx: index('room_owner_idx').on(t.ownerId),
+    joinCodeIdx: index('room_join_code_idx').on(t.joinCode),
+    statusIdx: index('room_status_idx').on(t.status),
+    scheduledIdx: index('room_scheduled_idx').on(t.scheduledStart),
+  }),
+);
+
+/**
+ * Membership của user trong room. Unique (roomId, userId).
+ *
+ * Status flow:
+ *   PENDING → (mod approve) → ACTIVE
+ *           ↘ (mod reject)  → BANNED
+ *   ACTIVE  → (mod kick)    → KICKED  (có thể unban sau)
+ *           → (mod ban)     → BANNED  (permanent)
+ */
+export const roomMember = pgTable(
+  'room_member',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => room.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: roomMemberRoleEnum('role').notNull().default('MEMBER'),
+    status: roomMemberStatusEnum('status').notNull().default('ACTIVE'),
+    joinedAt: timestamp('joined_at').notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at'),
+  },
+  (t) => ({
+    uniq: uniqueIndex('room_member_uniq').on(t.roomId, t.userId),
+    userIdx: index('room_member_user_idx').on(t.userId),
+    statusIdx: index('room_member_status_idx').on(t.roomId, t.status),
+  }),
+);
+
+/**
+ * Lịch sử chat trong room (text/file/AI/system).
+ *
+ * `userId` = 'AI_TUTOR' cho AI message (Phase 15). KHÔNG FK để tránh
+ * cascade phức tạp khi AI message stay sau khi user xoá account.
+ * Filter `userId !== 'AI_TUTOR'` khi cần join với user table.
+ */
+export const roomMessage = pgTable(
+  'room_message',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => room.id, { onDelete: 'cascade' }),
+    userId: text('user_id').notNull(),
+    content: text('content').notNull(),
+    /** TEXT | FILE | SYSTEM | AI | POLL — string thường, không enum vì add type mới hay */
+    type: text('type').notNull().default('TEXT'),
+    metadata: jsonb('metadata'),
+    replyToId: text('reply_to_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    roomTimeIdx: index('room_message_room_time_idx').on(t.roomId, t.createdAt),
+  }),
+);
+
+/**
+ * Audit log sự kiện trong room (JOINED, LEFT, SCREEN_SHARE_STARTED, ...).
+ * Phục vụ analytics + replay timeline cho recording (Phase 15).
+ * LiveKit webhook (Phase 13.4) ghi vào đây.
+ */
+export const roomEvent = pgTable(
+  'room_event',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => room.id, { onDelete: 'cascade' }),
+    userId: text('user_id'),
+    type: text('type').notNull(),
+    metadata: jsonb('metadata'),
+    timestamp: timestamp('timestamp').notNull().defaultNow(),
+  },
+  (t) => ({
+    roomTimeIdx: index('room_event_room_time_idx').on(t.roomId, t.timestamp),
+  }),
+);
+
+/**
+ * Recording metadata (Phase 15 sẽ wire egress + transcribe).
+ * Schema sẵn từ Phase 13 để migration không phải breaking change sau.
+ */
+export const recording = pgTable(
+  'recording',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => room.id, { onDelete: 'cascade' }),
+    egressId: text('egress_id').unique(),
+    fileUrl: text('file_url'),
+    duration: integer('duration_seconds'),
+    fileSize: integer('file_size_bytes'),
+    /** RECORDING | PROCESSING | PROCESSED | FAILED */
+    status: text('status').notNull().default('RECORDING'),
+    transcript: text('transcript'),
+    summary: text('summary'),
+    chapters: jsonb('chapters'),
+    highlights: jsonb('highlights'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    endedAt: timestamp('ended_at'),
+  },
+  (t) => ({
+    roomIdx: index('recording_room_idx').on(t.roomId),
+  }),
+);
+
+/**
+ * Yjs binary state cho whiteboard/notes/code editor (Phase 14).
+ * - `id` format: `room:{roomId}:whiteboard` / `room:{roomId}:notes`.
+ * - `state`: base64 encode binary từ Yjs `encodeStateAsUpdate(doc)`.
+ * - Hocuspocus server fetch/store qua bảng này.
+ *
+ * Không reference room.id qua FK vì Hocuspocus chạy service riêng và auth
+ * theo JWT, không qua Drizzle. Cascade khi xoá room qua Inngest job.
+ */
+export const collabDoc = pgTable('collab_doc', {
+  id: text('id').primaryKey(),
+  /** WHITEBOARD | NOTES | CODE */
+  type: text('type').notNull(),
+  state: text('state').notNull(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// ──────────────────────────────────────────────────────────
+// Audit log (Plan v2 §15.1 W9-10 / §10.8 — compliance + security)
+// ──────────────────────────────────────────────────────────
+/**
+ * Audit log — immutable record của mọi action security/compliance-relevant.
+ *
+ * Use cases:
+ *   - Authentication events (login, logout, failed attempts)
+ *   - PII access (who saw whose data)
+ *   - Admin actions (role change, user delete)
+ *   - GDPR actions (export, deletion)
+ *   - Security events (rate limit hit, suspicious geo)
+ *   - Financial events (payment, refund, plan upgrade)
+ *
+ * Retention 7 năm (FERPA + SOC2 minimum). Phân vùng theo tháng (xem
+ * partition runbook 0003_partition_runbook.md) khi > 50M row.
+ *
+ * KHÔNG có UPDATE/DELETE từ app — chỉ INSERT. Enforce qua DB trigger ở
+ * migration nếu cần strict.
+ *
+ * actor_type:
+ *   - 'user' (action do end-user thực hiện)
+ *   - 'system' (cron, Inngest job, scheduled task)
+ *   - 'admin' (Cogniva staff support)
+ *   - 'webhook' (LiveKit, Stripe, etc.)
+ */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    /** Ai thực hiện. NULL nếu anonymous (vd failed login trước khi biết user). */
+    actorId: text('actor_id'),
+    /** 'user' | 'system' | 'admin' | 'webhook' */
+    actorType: text('actor_type').notNull(),
+    /** Action format `{domain}.{verb}` — vd 'auth.login', 'gdpr.export.requested'. */
+    action: text('action').notNull(),
+    /** 'success' | 'denied' | 'error' */
+    result: text('result').notNull(),
+    /** Loại tài nguyên bị tác động ('user', 'document', 'flashcard', ...). NULL cho event không gắn resource. */
+    resourceType: text('resource_type'),
+    /** ID tài nguyên. */
+    resourceId: text('resource_id'),
+    /** IP của requester (anonymized last octet cho EU PII compliance nếu cần). */
+    ipAddress: text('ip_address'),
+    /** User-Agent string (trim < 500 char). */
+    userAgent: text('user_agent'),
+    /** Trace ID từ middleware — correlate với Sentry, log. */
+    traceId: text('trace_id'),
+    /** Metadata bổ sung (action-specific). */
+    metadata: jsonb('metadata'),
+    timestamp: timestamp('timestamp').notNull().defaultNow(),
+  },
+  (t) => ({
+    actorTimeIdx: index('audit_log_actor_time_idx').on(t.actorId, t.timestamp),
+    actionTimeIdx: index('audit_log_action_time_idx').on(t.action, t.timestamp),
+    resourceIdx: index('audit_log_resource_idx').on(t.resourceType, t.resourceId),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// GDPR — deletion grace queue
+// ──────────────────────────────────────────────────────────
+/**
+ * Deletion request — user yêu cầu xoá account → soft delete 30 ngày grace
+ * trước khi hard delete data.
+ *
+ * Status flow:
+ *   PENDING (user request) → CANCELLED (user undo trong 30d)
+ *                          ↘ PROCESSING (Inngest job picked up)
+ *                          ↘ COMPLETED (hard delete done)
+ *                          ↘ FAILED (job error, retry manual)
+ *
+ * Cố ý KHÔNG FK tới user — sau khi user.id xoá, vẫn giữ record cho audit.
+ */
+export const deletionRequest = pgTable('deletion_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull(),
+  /** 'PENDING' | 'CANCELLED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' */
+  status: text('status').notNull().default('PENDING'),
+  /** Lý do user nêu (optional). */
+  reason: text('reason'),
+  /** Khi hard delete sẽ chạy (request + 30 ngày). */
+  scheduledFor: timestamp('scheduled_for').notNull(),
+  /** Khi job thực sự complete. */
+  completedAt: timestamp('completed_at'),
+  /** Error message nếu FAILED. */
+  errorMessage: text('error_message'),
+  requestedAt: timestamp('requested_at').notNull().defaultNow(),
+});
+
+// ──────────────────────────────────────────────────────────
+// Push notification token (Stage 2 M7 — mobile push delivery)
+// ──────────────────────────────────────────────────────────
+/**
+ * Push notification token — lưu Expo Push Token / FCM / APNs token cho từng
+ * thiết bị của user. Backend Inngest worker query bảng này để gửi notif qua
+ * Expo Push API (`https://exp.host/--/api/v2/push/send`).
+ *
+ * Mỗi user có thể có NHIỀU token (multi-device: phone + tablet + web push).
+ * Token unique trên toàn hệ thống — nếu cùng token đã đăng ký bởi user khác
+ * (case rất hiếm: user A bán phone cho user B, B sign-in lại) → upsert
+ * theo `token` (unique) thay vì `(userId, token)`.
+ *
+ * Cleanup strategy:
+ *   - Cron daily xoá token có `lastSeenAt` > 90 ngày (device không mở app)
+ *   - Expo Push API trả `DeviceNotRegistered` → xoá ngay (token revoked)
+ */
+export const pushToken = pgTable(
+  'push_token',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Expo format `ExponentPushToken[xxx]`. Unique để dedupe khi user reinstall app. */
+    token: text('token').notNull().unique(),
+    /** 'ios' | 'android' | 'web' */
+    platform: text('platform').notNull(),
+    /** Identifier device (nếu có) — phân biệt iPhone vs iPad cùng user. */
+    deviceId: text('device_id'),
+    /** Đánh dấu disabled tạm thời (user opt-out, nhưng giữ row cho audit). */
+    enabled: boolean('enabled').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** Update mỗi lần app khởi động + register lại → biết token còn active. */
+    lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // Query "all tokens of user X" cho Inngest worker — index quan trọng
+    userIdx: index('push_token_user_idx').on(t.userId),
+    // Lookup theo token để upsert + verify ownership trên DELETE endpoint
+    tokenIdx: uniqueIndex('push_token_token_idx').on(t.token),
+  }),
+);
+
+/**
+ * Notification log — audit trail cho notif đã gửi. Phục vụ:
+ *   - Dedupe: không gửi 2 lần cùng FSRS reminder trong 24h
+ *   - Analytics: open rate, click-through (mobile chưa wire click webhook)
+ *   - Compliance: GDPR — user yêu cầu export notif đã nhận
+ *
+ * Retention 90 ngày — sau đó cron xoá để giảm size. KHÔNG critical data nên
+ * không cần audit_log-grade retention.
+ */
+export const notificationLog = pgTable(
+  'notification_log',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Type khớp payload `data.type` mà mobile client switch để deep link.
+     *  'flashcard-due' | 'room-invite' | 'document-ready' | 'streak-warning' */
+    type: text('type').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Deep link payload (cardId, roomId, …) — JSON gửi kèm push notification. */
+    data: jsonb('data'),
+    /** 'pending' | 'sent' | 'failed' | 'rejected' (DeviceNotRegistered) */
+    status: text('status').notNull().default('pending'),
+    /** Expo Push API receipt id (để query delivery status sau). */
+    receiptId: text('receipt_id'),
+    /** Error message từ Expo Push API nếu failed. */
+    error: text('error'),
+    sentAt: timestamp('sent_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    // Dedupe query: SELECT WHERE userId + type + createdAt > now() - 24h
+    userTypeIdx: index('notification_log_user_type_idx').on(t.userId, t.type, t.createdAt),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
 // Relations — khai báo cho Drizzle để hỗ trợ join type-safe
 // ──────────────────────────────────────────────────────────
 // `relations()` không tạo cột mới — chỉ là metadata để Drizzle suy luận
@@ -679,6 +1130,16 @@ export const userRelations = relations(user, ({ many }) => ({
   studySessions: many(studySession),
   sessions: many(session),
   accounts: many(account),
+  pushTokens: many(pushToken),
+  notificationLogs: many(notificationLog),
+}));
+
+export const pushTokenRelations = relations(pushToken, ({ one }) => ({
+  user: one(user, { fields: [pushToken.userId], references: [user.id] }),
+}));
+
+export const notificationLogRelations = relations(notificationLog, ({ one }) => ({
+  user: one(user, { fields: [notificationLog.userId], references: [user.id] }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -779,6 +1240,31 @@ export const studySessionRelations = relations(studySession, ({ one }) => ({
   user: one(user, { fields: [studySession.userId], references: [user.id] }),
 }));
 
+export const roomRelations = relations(room, ({ one, many }) => ({
+  owner: one(user, { fields: [room.ownerId], references: [user.id] }),
+  members: many(roomMember),
+  messages: many(roomMessage),
+  events: many(roomEvent),
+  recordings: many(recording),
+}));
+
+export const roomMemberRelations = relations(roomMember, ({ one }) => ({
+  room: one(room, { fields: [roomMember.roomId], references: [room.id] }),
+  user: one(user, { fields: [roomMember.userId], references: [user.id] }),
+}));
+
+export const roomMessageRelations = relations(roomMessage, ({ one }) => ({
+  room: one(room, { fields: [roomMessage.roomId], references: [room.id] }),
+}));
+
+export const roomEventRelations = relations(roomEvent, ({ one }) => ({
+  room: one(room, { fields: [roomEvent.roomId], references: [room.id] }),
+}));
+
+export const recordingRelations = relations(recording, ({ one }) => ({
+  room: one(room, { fields: [recording.roomId], references: [room.id] }),
+}));
+
 // ──────────────────────────────────────────────────────────
 // Kiểu dòng đã suy luận — dùng trong app code để type response
 // ──────────────────────────────────────────────────────────
@@ -792,3 +1278,16 @@ export type Flashcard = typeof flashcard.$inferSelect;
 export type Quiz = typeof quiz.$inferSelect;
 export type Conversation = typeof conversation.$inferSelect;
 export type Message = typeof message.$inferSelect;
+export type Room = typeof room.$inferSelect;
+export type NewRoom = typeof room.$inferInsert;
+export type RoomMember = typeof roomMember.$inferSelect;
+export type RoomMessage = typeof roomMessage.$inferSelect;
+export type Recording = typeof recording.$inferSelect;
+export type AuditLog = typeof auditLog.$inferSelect;
+export type NewAuditLog = typeof auditLog.$inferInsert;
+export type DeletionRequest = typeof deletionRequest.$inferSelect;
+export type NewDeletionRequest = typeof deletionRequest.$inferInsert;
+export type PushToken = typeof pushToken.$inferSelect;
+export type NewPushToken = typeof pushToken.$inferInsert;
+export type NotificationLog = typeof notificationLog.$inferSelect;
+export type NewNotificationLog = typeof notificationLog.$inferInsert;

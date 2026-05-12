@@ -20,6 +20,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { PosthogProvider } from '@/components/posthog-provider';
+import { CookieBanner } from '@/components/consent/cookie-banner';
 
 import './globals.css';
 
@@ -73,6 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </AppErrorBoundary>
           {/* Toaster dùng chung cho mọi route — đặt ngoài để tránh re-mount khi navigate */}
           <Toaster richColors closeButton />
+          {/* GDPR cookie consent — chỉ show 1 lần per user, persist qua localStorage */}
+          <CookieBanner />
         </ThemeProvider>
       </body>
     </html>

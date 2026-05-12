@@ -1,0 +1,23 @@
+// ─────────────────────────────────────────────────────────────────────
+// tsconfig cho @cogniva/edge — Cloudflare Workers runtime.
+//
+// Khác apps/web:
+//   - target ES2022 + lib ES2022,WebWorker (Workers KHÔNG có DOM, Node API).
+//   - types: @cloudflare/workers-types thay vì @types/node.
+//   - module Bundler vì wrangler build = esbuild.
+//
+// KHÔNG dùng moduleResolution NodeNext ở đây vì Workers runtime tự bundle.
+// ─────────────────────────────────────────────────────────────────────
+{
+  "extends": "@cogniva/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "types": ["@cloudflare/workers-types"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".wrangler"]
+}

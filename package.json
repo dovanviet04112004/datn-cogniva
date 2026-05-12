@@ -11,6 +11,11 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@cogniva/web",
+    "dev:hocus": "turbo run dev --filter=@cogniva/hocuspocus",
+    "dev:edge": "turbo run dev --filter=@cogniva/edge",
+    "dev:mobile": "turbo run start --filter=@cogniva/mobile",
+    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -29,5 +34,20 @@
     "prettier-plugin-tailwindcss": "^0.6.9",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "drizzle-orm": "0.45.2",
+      "@types/react": "19.1.0",
+      "@types/react-dom": "19.1.0"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@opentelemetry/api"
+      ],
+      "allowedVersions": {
+        "@types/react": "18 || 19"
+      }
+    }
   }
 }
