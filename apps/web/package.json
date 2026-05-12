@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.6",
+    "@ai-sdk/google": "^1.2.22",
+    "@ai-sdk/groq": "^1.2.9",
     "@ai-sdk/openai": "^1.0.13",
     "@ai-sdk/react": "^1.0.7",
     "@cogniva/db": "workspace:*",
@@ -56,6 +58,7 @@
     "dagre": "^0.8.5",
     "drizzle-orm": "^0.45.2",
     "inngest": "^3.27.0",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "konva": "^9.3.18",
     "langfuse": "^3.34.0",

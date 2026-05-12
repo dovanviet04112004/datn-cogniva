@@ -104,6 +104,12 @@ Hãy chấm và trả JSON.`;
       maxOutputTokens: 300,
       feature: 'exam-grade-short',
       timeoutMs: 30_000,
+      // Cache hit khi nhiều student trả cùng đáp án (vd "Hà Nội") — scope
+      // shared vì grading rubric không user-specific. TTL 1h vì rubric đã
+      // đóng (exam published → KHÔNG edit question)
+      enableSemanticCache: true,
+      cacheScope: 'shared',
+      cacheTtlSec: 3600,
     });
     return parseGradingResponse(result.text, question.points);
   } catch (err) {

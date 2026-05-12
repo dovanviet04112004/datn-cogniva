@@ -29,9 +29,14 @@ type Props = {
   numbers: number[];
   /** Map đầy đủ citation theo n từ message annotation. */
   citations: CitationData[];
+  /**
+   * Callback khi user click "Xem trong chat" — open inline side panel thay vì
+   * navigate sang /documents/[id]. Nếu undefined, fallback link `<a href>`.
+   */
+  onOpenDocPreview?: (citation: CitationData) => void;
 };
 
-export function CitationBadge({ numbers, citations }: Props) {
+export function CitationBadge({ numbers, citations, onOpenDocPreview }: Props) {
   // Filter ra citation match với numbers; nếu không có (ví dụ Claude
   // hallucinate ref) thì hiển thị nguyên text [N] không clickable.
   const matched = numbers
@@ -41,6 +46,26 @@ export function CitationBadge({ numbers, citations }: Props) {
     return <sup className="text-muted-foreground">[{numbers.join(',')}]</sup>;
   }
 
+  // Single citation + callback: click thẳng vào số → open inline panel (skip
+  // popover). Nhanh hơn cho UX phổ biến.
+  if (matched.length === 1 && onOpenDocPreview) {
+    const c = matched[0]!;
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenDocPreview(c)}
+        title={`${c.filename}${c.page ? ` · trang ${c.page}` : ''}`}
+        className={cn(
+          'mx-0.5 inline-flex cursor-pointer items-center rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary align-super',
+          'hover:bg-primary/20 transition-colors',
+        )}
+      >
+        [{numbers.join(',')}]
+      </button>
+    );
+  }
+
+  // Multi-citation `[1,2]` hoặc không có callback → giữ popover để user chọn.
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -68,13 +93,26 @@ export function CitationBadge({ numbers, citations }: Props) {
                 </span>
               </div>
               <p className="line-clamp-4 text-xs text-muted-foreground">{c.snippet}</p>
-              <a
-                href={`/documents/${c.documentId}${c.page ? `#page-${c.page}` : ''}`}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                Mở tài liệu
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              <div className="flex items-center gap-3">
+                {onOpenDocPreview && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenDocPreview(c)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    Xem cạnh chat
+                  </button>
+                )}
+                <a
+                  href={`/documents/${c.documentId}${c.page ? `#page-${c.page}` : ''}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Mở trang mới
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             </div>
           ))}
         </div>

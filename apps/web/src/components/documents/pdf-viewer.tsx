@@ -30,6 +30,14 @@ import 'react-pdf/dist/Page/TextLayer.css';
 // Worker từ unpkg CDN — match version với pdfjs-dist trong package.json
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+/**
+ * PDF.js options — `withCredentials: true` để fetch PDF bằng cookie session
+ * (endpoint /api/documents/[id]/file verify session.userId). Module-level
+ * const để tránh React re-render trigger reload PDF (mỗi object literal mới
+ * sẽ trigger react-pdf reload — Documentation cảnh báo).
+ */
+const pdfOptions = { withCredentials: true } as const;
+
 type Props = {
   /** URL stream file (ví dụ /api/documents/<id>/file). */
   src: string;
@@ -41,8 +49,49 @@ export function PdfViewer({ src, initialPage }: Props) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(initialPage ?? 1);
   const [scale, setScale] = useState(1.1);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  /**
+   * Fetch PDF trên main thread (có cookie tự động cho same-origin) → blob URL.
+   *
+   * Trước đây pass `src` URL trực tiếp vào `<Document file={src}>` → react-pdf
+   * gửi xuống pdfjs worker → worker tự fetch → KHÔNG có cookie → endpoint trả
+   * 401. `options.withCredentials` chỉ hoạt động với XHR cũ, pdfjs v5+ dùng
+   * fetch API mặc định `credentials: 'same-origin'` thay vì 'include' khi
+   * worker call.
+   *
+   * Bypass: main-thread fetch, blob URL pass vào worker. Worker chỉ parse.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    let createdUrl: string | null = null;
+    setPdfBlobUrl(null);
+    setFetchError(null);
+
+    fetch(src, { credentials: 'include' })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        createdUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(createdUrl);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        console.error('[pdf-viewer] fetch fail:', err.message);
+        setFetchError(err.message);
+      });
+
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [src]);
 
   // Đọc hash (ví dụ #page-3) để jump tới trang đúng.
   // - Lần đầu mount: parse hash hiện tại.
@@ -59,11 +108,24 @@ export function PdfViewer({ src, initialPage }: Props) {
     return () => window.removeEventListener('hashchange', readHash);
   }, []);
 
-  // Khi đổi currentPage → scroll smooth tới page đó
+  // Sync `initialPage` prop → `currentPage` state khi prop đổi (không phải
+  // remount). Use case: user click citation [1] sang [3] cùng document →
+  // DocPreviewPanel re-render với citation.page mới, prop initialPage đổi,
+  // PdfViewer KHÔNG remount (vì key={documentId} không đổi). useState(init)
+  // chỉ chạy lần mount đầu → cần useEffect để pick up prop change.
+  useEffect(() => {
+    if (initialPage !== undefined) setCurrentPage(initialPage);
+  }, [initialPage]);
+
+  // Khi đổi currentPage HOẶC pages mới render → scroll smooth tới page đó.
+  // Dependency `numPages` quan trọng: lần đầu render, pages chưa mount khi
+  // currentPage = initialPage. Effect chạy lúc currentPage set xong nhưng
+  // pageRefs.current.get(currentPage) = undefined → no-op. Khi numPages
+  // resolve (pdf load xong) → effect chạy lại → ref có → scroll.
   useEffect(() => {
     const el = pageRefs.current.get(currentPage);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [currentPage]);
+  }, [currentPage, numPages]);
 
   return (
     <div className="flex h-full flex-col">
@@ -119,9 +181,24 @@ export function PdfViewer({ src, initialPage }: Props) {
           overscroll-contain: khi scroll PDF đến cuối, KHÔNG chain ra ngoài
           (tránh main page scroll theo) — hợp với chunks panel độc lập. */}
       <div ref={containerRef} className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 px-4 py-4">
+        {fetchError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
+            Không tải được PDF: {fetchError}
+          </div>
+        ) : !pdfBlobUrl ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
         <Document
-          file={src}
+          // pdfBlobUrl = blob: URL từ main-thread fetch — pdfjs worker
+          // chỉ parse, không network fetch nữa
+          file={pdfBlobUrl}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          onLoadError={(err) => {
+            // Log chi tiết để debug — error UI ngắn nhưng console giữ full
+            console.error('[pdf-viewer] parse fail:', err);
+          }}
           loading={
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -129,7 +206,7 @@ export function PdfViewer({ src, initialPage }: Props) {
           }
           error={
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-              Không tải được PDF. Có thể file đã bị xoá hoặc storage lỗi.
+              PDF parse lỗi — file có thể corrupt.
             </div>
           }
           className="flex flex-col items-center gap-4"
@@ -160,6 +237,7 @@ export function PdfViewer({ src, initialPage }: Props) {
               );
             })}
         </Document>
+        )}
       </div>
     </div>
   );

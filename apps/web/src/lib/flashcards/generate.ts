@@ -16,6 +16,13 @@
 import { generateText } from 'ai';
 
 import { getChatModel } from '@/lib/ai/models';
+import { routedGenerateText } from '@/lib/ai/router';
+import type { Plan } from '@/lib/observability/cost-guardrail';
+
+export interface GenerateContext {
+  userId: string;
+  plan: Plan;
+}
 
 const BASIC_INSTRUCTION = `Bạn là chuyên gia tạo flashcard ôn thi. Đọc đoạn văn và tạo 1-3 thẻ flashcard ngắn gọn để học sinh ôn lại NỘI DUNG CỐT LÕI.
 
@@ -65,15 +72,36 @@ function extractJson(text: string): unknown {
 }
 
 /** Generate cards BASIC từ 1 chunk content. */
-export async function generateBasicCards(content: string): Promise<GeneratedCard[]> {
+export async function generateBasicCards(
+  content: string,
+  ctx?: GenerateContext,
+): Promise<GeneratedCard[]> {
   if (content.length < 50) return [];
   try {
-    const { text } = await generateText({
-      model: getChatModel(),
-      prompt: BASIC_INSTRUCTION.replace('{{CONTENT}}', content),
-      temperature: 0.5,
-      maxTokens: 600,
-    });
+    let text: string;
+    if (ctx) {
+      const result = await routedGenerateText({
+        useCase: 'flashcardGen',
+        userId: ctx.userId,
+        plan: ctx.plan,
+        system: BASIC_INSTRUCTION.split('{{CONTENT}}')[0]!.trim(),
+        messages: [{ role: 'user', content: `ĐOẠN VĂN:\n"""\n${content}\n"""` }],
+        maxOutputTokens: 600,
+        feature: 'flashcard-basic-gen',
+        enableSemanticCache: true,
+        cacheScope: 'shared',
+        cacheTtlSec: 3600,
+      });
+      text = result.text;
+    } else {
+      const result = await generateText({
+        model: getChatModel(),
+        prompt: BASIC_INSTRUCTION.replace('{{CONTENT}}', content),
+        temperature: 0.5,
+        maxTokens: 600,
+      });
+      text = result.text;
+    }
     const obj = extractJson(text) as { cards?: unknown };
     if (!Array.isArray(obj.cards)) return [];
     return obj.cards
@@ -94,15 +122,36 @@ export async function generateBasicCards(content: string): Promise<GeneratedCard
 }
 
 /** Generate cards CLOZE từ 1 chunk content. */
-export async function generateClozeCards(content: string): Promise<GeneratedCard[]> {
+export async function generateClozeCards(
+  content: string,
+  ctx?: GenerateContext,
+): Promise<GeneratedCard[]> {
   if (content.length < 50) return [];
   try {
-    const { text } = await generateText({
-      model: getChatModel(),
-      prompt: CLOZE_INSTRUCTION.replace('{{CONTENT}}', content),
-      temperature: 0.5,
-      maxTokens: 600,
-    });
+    let text: string;
+    if (ctx) {
+      const result = await routedGenerateText({
+        useCase: 'flashcardGen',
+        userId: ctx.userId,
+        plan: ctx.plan,
+        system: CLOZE_INSTRUCTION.split('{{CONTENT}}')[0]!.trim(),
+        messages: [{ role: 'user', content: `ĐOẠN VĂN:\n"""\n${content}\n"""` }],
+        maxOutputTokens: 600,
+        feature: 'flashcard-cloze-gen',
+        enableSemanticCache: true,
+        cacheScope: 'shared',
+        cacheTtlSec: 3600,
+      });
+      text = result.text;
+    } else {
+      const result = await generateText({
+        model: getChatModel(),
+        prompt: CLOZE_INSTRUCTION.replace('{{CONTENT}}', content),
+        temperature: 0.5,
+        maxTokens: 600,
+      });
+      text = result.text;
+    }
     const obj = extractJson(text) as { cards?: unknown };
     if (!Array.isArray(obj.cards)) return [];
     return obj.cards

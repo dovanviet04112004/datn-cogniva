@@ -22,8 +22,12 @@ type Props = {
 
 export function TtsButton({ text, lang = 'vi-VN' }: Props) {
   const [speaking, setSpeaking] = React.useState(false);
-  const supported =
-    typeof window !== 'undefined' && 'speechSynthesis' in window;
+  // `supported` evaluate `typeof window` → server = false, client = true →
+  // hydration mismatch. Defer detection sang useEffect để first paint match SSR.
+  const [supported, setSupported] = React.useState(false);
+  React.useEffect(() => {
+    setSupported(typeof window !== 'undefined' && 'speechSynthesis' in window);
+  }, []);
 
   const speak = () => {
     if (!supported || !text.trim()) return;

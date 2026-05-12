@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
 import { type CitationData } from './citation';
+import { DocPreviewPanel } from './doc-preview-panel';
 import { MathCanvasDialog } from './math-canvas-dialog';
 import { MessageBubble, type ChatRole } from './message-bubble';
 import { VoiceInputButton } from './voice-input-button';
@@ -55,6 +56,8 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
   const [createdConvId, setCreatedConvId] = useState<string | undefined>(conversationId);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [showCanvas, setShowCanvas] = useState(false);
+  // Inline doc preview — set khi user click citation badge
+  const [docPreview, setDocPreview] = useState<CitationData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,34 +147,37 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Message list ───────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
-          {messages.length === 0 ? (
-            <Card className="border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Bắt đầu hội thoại</p>
-              <p className="mt-1">
-                Đặt câu hỏi về tài liệu bạn đã upload. Cogniva sẽ retrieve top-5 chunk
-                liên quan rồi trả lời kèm citation.
-              </p>
-            </Card>
-          ) : (
-            messages.map((msg, idx) => (
-              <MessageBubble
-                key={msg.id}
-                role={msg.role as ChatRole}
-                content={msg.content}
-                citations={getCitations(msg)}
-                isStreaming={
-                  isLoading && idx === messages.length - 1 && msg.role === 'assistant'
-                }
-              />
-            ))
-          )}
-          <div ref={messagesEndRef} />
+    <div className="flex h-full">
+      {/* ── Chat column ───────────────────────────────────────── */}
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        {/* ── Message list ───────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
+            {messages.length === 0 ? (
+              <Card className="border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Bắt đầu hội thoại</p>
+                <p className="mt-1">
+                  Đặt câu hỏi về tài liệu bạn đã upload. Cogniva sẽ retrieve top-5 chunk
+                  liên quan rồi trả lời kèm citation.
+                </p>
+              </Card>
+            ) : (
+              messages.map((msg, idx) => (
+                <MessageBubble
+                  key={msg.id}
+                  role={msg.role as ChatRole}
+                  content={msg.content}
+                  citations={getCitations(msg)}
+                  onOpenDocPreview={setDocPreview}
+                  isStreaming={
+                    isLoading && idx === messages.length - 1 && msg.role === 'assistant'
+                  }
+                />
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
-      </div>
 
       {/* ── Composer ───────────────────────────────── */}
       <div className="border-t bg-background/80 backdrop-blur">
@@ -263,6 +269,15 @@ export function ChatInterface({ conversationId, initialMessages = [] }: Props) {
           </div>
         </form>
       </div>
+      </div>
+      {/* ── End chat column ─────────────────────────────────── */}
+
+      {/* ── Doc preview side panel (citation click) ──────────────────── */}
+      {docPreview && (
+        <div className="hidden h-full w-full max-w-[50%] shrink-0 md:block md:w-1/2">
+          <DocPreviewPanel citation={docPreview} onClose={() => setDocPreview(null)} />
+        </div>
+      )}
 
       {/* ── Math canvas dialog ─────────────────────── */}
       <MathCanvasDialog

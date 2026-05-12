@@ -27,6 +27,14 @@
 import { generateText } from 'ai';
 
 import { getChatModel } from '@/lib/ai/models';
+import { routedGenerateText } from '@/lib/ai/router';
+import type { Plan } from '@/lib/observability/cost-guardrail';
+
+/** Context tuỳ chọn — khi cung cấp, gen qua router (cost guardrail + cache + fallback). */
+export interface GenerateContext {
+  userId: string;
+  plan: Plan;
+}
 
 /** Bộ loại quiz Phase 6 hỗ trợ. */
 export type QuestionType = 'MCQ' | 'TRUE_FALSE' | 'SHORT';
@@ -166,17 +174,50 @@ export async function generateQuestions(
   content: string,
   types: QuestionType[] = ['MCQ', 'TRUE_FALSE', 'SHORT'],
   count = 3,
+  ctx?: GenerateContext,
 ): Promise<GeneratedQuestion[]> {
   if (content.length < 80) return [];
+  const prompt = INSTRUCTION.replace('{{CONTENT}}', content)
+    .replace('{{TYPES}}', types.join(', '))
+    .replace('{{COUNT}}', String(count));
+
   try {
-    const { text } = await generateText({
-      model: getChatModel(),
-      prompt: INSTRUCTION.replace('{{CONTENT}}', content)
-        .replace('{{TYPES}}', types.join(', '))
-        .replace('{{COUNT}}', String(count)),
-      temperature: 0.5,
-      maxTokens: 1200,
-    });
+    let text: string;
+    if (ctx) {
+      // Router path — có cache + cost guardrail + fallback chain
+      // Scope shared vì cùng chunk → cùng output (deterministic), không
+      // user-specific. TTL 1h để cache hit cho user khác cùng đọc chunk này.
+      const result = await routedGenerateText({
+        useCase: 'quizGen',
+        userId: ctx.userId,
+        plan: ctx.plan,
+        // Hệ thống prompt cố định (không có {{CONTENT}}/{{TYPES}}/{{COUNT}}) —
+        // tách phần thay thế vào user message để cache key đúng theo content
+        system: INSTRUCTION_SYSTEM,
+        messages: [
+          {
+            role: 'user',
+            content: `LOẠI: ${types.join(', ')}\nSỐ CÂU: ${count}\n\nĐOẠN VĂN:\n"""\n${content}\n"""`,
+          },
+        ],
+        maxOutputTokens: 1200,
+        feature: 'quiz-gen',
+        enableSemanticCache: true,
+        cacheScope: 'shared',
+        cacheTtlSec: 3600,
+      });
+      text = result.text;
+    } else {
+      // Legacy path — direct getChatModel(), không cache/router
+      const result = await generateText({
+        model: getChatModel(),
+        prompt,
+        temperature: 0.5,
+        maxTokens: 1200,
+      });
+      text = result.text;
+    }
+
     const obj = extractJson(text) as { questions?: unknown };
     if (!Array.isArray(obj.questions)) return [];
     return obj.questions
@@ -187,3 +228,31 @@ export async function generateQuestions(
     return [];
   }
 }
+
+/**
+ * System prompt cố định cho router path — tách khỏi INSTRUCTION variable
+ * để cache key build từ user message (chứa content) ổn định, không phụ
+ * thuộc replace order.
+ */
+const INSTRUCTION_SYSTEM = `Bạn là chuyên gia ra đề ôn tập. Đọc đoạn văn và sinh số câu hỏi yêu cầu để học sinh kiểm tra hiểu biết.
+
+QUY TẮC:
+- Tập trung vào CONCEPT cốt lõi (định nghĩa, nguyên lý, công thức, mối quan hệ), tránh hỏi chi tiết vụn vặt.
+- Tránh trùng nội dung giữa các câu.
+- Đa dạng độ khó: easy=0.3, medium=0.6, hard=0.85. Cố gắng phủ cả 3 mức.
+- Trả lời CÙNG NGÔN NGỮ với đoạn văn.
+
+LOẠI MCQ: tạo đúng 4 lựa chọn, ĐÁP ÁN ĐÚNG chỉ 1; correctAnswer là CHỈ SỐ 0-3.
+LOẠI TRUE_FALSE: prompt là 1 mệnh đề; correctAnswer là true hoặc false.
+LOẠI SHORT: prompt là 1 câu hỏi mở; correctAnswer là câu trả lời mẫu 1-3 câu (sẽ dùng làm tham chiếu chấm điểm AI).
+
+MỖI CÂU PHẢI CÓ "explanation" 1-2 câu giải thích vì sao đáp án đó đúng.
+
+ĐỊNH DẠNG OUTPUT — JSON THUẦN, KHÔNG MARKDOWN, KHÔNG BACKTICK:
+{
+  "questions": [
+    {"type": "MCQ", "prompt": "...", "options": ["a","b","c","d"], "correctAnswer": 0, "explanation": "...", "difficulty": 0.3},
+    {"type": "TRUE_FALSE", "prompt": "...", "correctAnswer": true, "explanation": "...", "difficulty": 0.5},
+    {"type": "SHORT", "prompt": "...", "correctAnswer": "...", "explanation": "...", "difficulty": 0.8}
+  ]
+}`;

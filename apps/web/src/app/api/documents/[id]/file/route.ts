@@ -6,7 +6,7 @@
  * stream về browser với content-type đúng.
  */
 import { headers } from 'next/headers';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import { db, document } from '@cogniva/db';
 
@@ -24,12 +24,24 @@ export async function GET(
 
   const { id } = await params;
 
-  const [doc] = await db
-    .select()
-    .from(document)
-    .where(and(eq(document.id, id), eq(document.userId, session.user.id)))
-    .limit(1);
-  if (!doc) return new Response('Not found', { status: 404 });
+  // Load doc qua id thuần để debug ownership mismatch
+  const [doc] = await db.select().from(document).where(eq(document.id, id)).limit(1);
+
+  if (!doc) {
+    console.warn('[api/documents/file] doc not in DB', {
+      reqDocId: id,
+      sessionUserId: session.user.id,
+    });
+    return new Response('Document not found', { status: 404 });
+  }
+  if (doc.userId !== session.user.id) {
+    console.warn('[api/documents/file] ownership mismatch', {
+      reqDocId: id,
+      sessionUserId: session.user.id,
+      docOwnerId: doc.userId,
+    });
+    return new Response('Forbidden — document belongs to another user', { status: 403 });
+  }
 
   try {
     const buffer = await getStorage().get(doc.storageKey);

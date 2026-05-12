@@ -144,17 +144,22 @@ export default function NewExamPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="maxAttempts">Số lần làm tối đa</Label>
-            <Input
-              id="maxAttempts"
-              type="number"
-              min="1"
-              max="10"
-              value={maxAttempts}
-              onChange={(e) => setMaxAttempts(e.target.value)}
-            />
-          </div>
+          {mode !== 'PRACTICE' && (
+            <div className="space-y-2">
+              <Label htmlFor="maxAttempts">Số lần làm tối đa</Label>
+              <Input
+                id="maxAttempts"
+                type="number"
+                min="1"
+                max="10"
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                TIMED/LIVE/ASYNC giới hạn lượt. Luyện tập (PRACTICE) luôn unlimited.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-3 rounded-md border p-3">
             <label className="flex cursor-pointer items-start gap-2">

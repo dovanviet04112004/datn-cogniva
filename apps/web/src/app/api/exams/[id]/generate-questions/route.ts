@@ -29,6 +29,7 @@ import {
   type QuestionType,
 } from '@/lib/quiz/generate';
 import { checkLimit } from '@/lib/rate-limit';
+import type { Plan } from '@/lib/observability/cost-guardrail';
 
 export const runtime = 'nodejs';
 
@@ -130,11 +131,14 @@ export async function POST(request: Request, ctx: RouteContext) {
     if (!chunkToConcept.has(row.chunkId)) chunkToConcept.set(row.chunkId, row.conceptId);
   }
 
-  // Gen tuần tự (free-tier rate limit)
+  // Gen tuần tự (free-tier rate limit). Pass ctx để bật router cache —
+  // cùng chunk + cùng types/count → cache hit shared scope.
+  const plan = ((session.user as { plan?: string }).plan ?? 'FREE') as Plan;
+  const genCtx = { userId: session.user.id, plan };
   const generated: Array<GeneratedQuestion & { chunkId: string }> = [];
   for (const ch of chunks) {
     if (generated.length >= count) break;
-    const qs = await generateQuestions(ch.content, types as QuestionType[], perChunk);
+    const qs = await generateQuestions(ch.content, types as QuestionType[], perChunk, genCtx);
     for (const q of qs) {
       generated.push({ ...q, chunkId: ch.id });
       if (generated.length >= count) break;

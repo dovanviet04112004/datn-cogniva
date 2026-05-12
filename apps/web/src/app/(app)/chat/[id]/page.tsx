@@ -8,10 +8,10 @@
  */
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Message as AIMessage } from 'ai';
 
-import { conversation, db, message } from '@cogniva/db';
+import { chunk, conversation, db, document, message } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import { ChatInterface } from '@/components/chat/chat-interface';
@@ -24,26 +24,74 @@ type Props = {
 };
 
 /**
- * Map citation DB schema → CitationData UI. DB lưu chunkId + score +
- * snippet thôi (compact); cần re-hydrate filename + page bằng query
- * thêm. Phase 2 v1 đơn giản — Phase 3 sẽ JOIN sẵn để 1 query.
+ * Map citation DB schema → CitationData UI.
+ *
+ * DB jsonb chỉ lưu `{ chunkId, score, snippet }` (compact). Sau reload chat
+ * page cần JOIN chunk + document để re-hydrate `documentId`, `filename`,
+ * `page` — nếu thiếu, UI click citation sẽ fail (URL `/api/documents//file`
+ * = 404).
+ *
+ * 1 query batch cho tất cả message của conversation thay vì N+1.
  */
-async function loadCitationsForMessage(
-  rawCitations: unknown,
-): Promise<CitationData[]> {
-  if (!Array.isArray(rawCitations) || rawCitations.length === 0) return [];
+async function loadCitationsForMessages(
+  rawCitationsList: Array<unknown>,
+): Promise<CitationData[][]> {
+  // Gom tất cả chunkId từ tất cả message → 1 query JOIN
+  const allChunkIds = new Set<string>();
+  for (const raw of rawCitationsList) {
+    if (!Array.isArray(raw)) continue;
+    for (const c of raw) {
+      if (typeof c === 'object' && c !== null && 'chunkId' in c) {
+        const id = String(c.chunkId);
+        if (id) allChunkIds.add(id);
+      }
+    }
+  }
 
-  // Tạm thời chỉ trả lại data có sẵn trong jsonb; UI vẫn render đủ snippet
-  // nhưng filename/page sẽ trống. Phase 3 sẽ JOIN với chunk + document.
-  return rawCitations.map((c, i) => ({
-    n: i + 1,
-    chunkId: typeof c === 'object' && c !== null && 'chunkId' in c ? String(c.chunkId) : '',
-    documentId: '',
-    filename: '',
-    page: null,
-    score: typeof c === 'object' && c !== null && 'score' in c ? Number(c.score) : 0,
-    snippet: typeof c === 'object' && c !== null && 'snippet' in c ? String(c.snippet) : '',
-  }));
+  // Lookup map chunkId → { documentId, filename, page }
+  const lookup = new Map<string, { documentId: string; filename: string; page: number | null }>();
+  if (allChunkIds.size > 0) {
+    const rows = await db
+      .select({
+        chunkId: chunk.id,
+        documentId: chunk.documentId,
+        metadata: chunk.metadata,
+        filename: document.filename,
+      })
+      .from(chunk)
+      .innerJoin(document, eq(document.id, chunk.documentId))
+      .where(inArray(chunk.id, Array.from(allChunkIds)));
+
+    for (const r of rows) {
+      const page = typeof r.metadata === 'object' && r.metadata && 'page' in r.metadata
+        ? Number((r.metadata as { page: unknown }).page) || null
+        : null;
+      lookup.set(r.chunkId, {
+        documentId: r.documentId,
+        filename: r.filename,
+        page,
+      });
+    }
+  }
+
+  return rawCitationsList.map((raw) => {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw.map((c, i) => {
+      const chunkId =
+        typeof c === 'object' && c !== null && 'chunkId' in c ? String(c.chunkId) : '';
+      const hydrated = lookup.get(chunkId);
+      return {
+        n: i + 1,
+        chunkId,
+        documentId: hydrated?.documentId ?? '',
+        filename: hydrated?.filename ?? '',
+        page: hydrated?.page ?? null,
+        score: typeof c === 'object' && c !== null && 'score' in c ? Number(c.score) : 0,
+        snippet:
+          typeof c === 'object' && c !== null && 'snippet' in c ? String(c.snippet) : '',
+      };
+    });
+  });
 }
 
 export default async function ChatDetailPage({ params }: Props) {
@@ -64,20 +112,20 @@ export default async function ChatDetailPage({ params }: Props) {
     .where(eq(message.conversationId, id))
     .orderBy(asc(message.createdAt));
 
-  // Map DB message → AI SDK Message format
-  const initialMessages: AIMessage[] = await Promise.all(
-    dbMessages.map(async (m) => {
-      const citations = await loadCitationsForMessage(m.citations);
-      const role = (m.role.toLowerCase() as AIMessage['role']) ?? 'user';
-      return {
-        id: m.id,
-        role,
-        content: m.content,
-        createdAt: m.createdAt,
-        annotations: citations.length > 0 ? [{ type: 'citations', citations }] : undefined,
-      };
-    }),
-  );
+  // Hydrate citations cho TẤT CẢ message qua 1 query JOIN — tránh N+1
+  const citationsArrays = await loadCitationsForMessages(dbMessages.map((m) => m.citations));
+
+  const initialMessages: AIMessage[] = dbMessages.map((m, idx) => {
+    const citations = citationsArrays[idx] ?? [];
+    const role = (m.role.toLowerCase() as AIMessage['role']) ?? 'user';
+    return {
+      id: m.id,
+      role,
+      content: m.content,
+      createdAt: m.createdAt,
+      annotations: citations.length > 0 ? [{ type: 'citations', citations }] : undefined,
+    };
+  });
 
   return <ChatInterface conversationId={id} initialMessages={initialMessages} />;
 }

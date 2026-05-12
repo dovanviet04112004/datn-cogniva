@@ -33,8 +33,13 @@ export type ExtractStats = {
  * Trích concepts cho 1 list chunk_id và lưu pivot links.
  *
  * @param chunkIds - Mảng chunk.id cần xử lý (thường là chunks của 1 document)
+ * @param ctx - Optional, khi cung cấp dùng router cache (shared scope, 24h TTL).
+ *              Cùng chunk content → cùng concepts. Tăng tốc re-ingest.
  */
-export async function extractConceptsForChunks(chunkIds: string[]): Promise<ExtractStats> {
+export async function extractConceptsForChunks(
+  chunkIds: string[],
+  ctx?: { userId: string; plan: import('@/lib/observability/cost-guardrail').Plan },
+): Promise<ExtractStats> {
   if (chunkIds.length === 0) {
     return { chunksProcessed: 0, conceptsExtracted: 0, linksCreated: 0 };
   }
@@ -49,7 +54,7 @@ export async function extractConceptsForChunks(chunkIds: string[]): Promise<Extr
   let linksCreated = 0;
 
   for (const ch of chunks) {
-    const extracted = await extractConceptsFromChunk(ch.content);
+    const extracted = await extractConceptsFromChunk(ch.content, ctx);
     conceptsExtracted += extracted.length;
 
     // Dedup tuần tự để không gọi Voyage embed song song (rate limit)

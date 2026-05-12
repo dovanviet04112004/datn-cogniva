@@ -36,6 +36,8 @@ import { streamText, generateText, type LanguageModel, type CoreMessage } from '
 type StreamTextResult = ReturnType<typeof streamText>;
 import { anthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGroq } from '@ai-sdk/groq';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 import {
   checkCostGuardrail,
@@ -64,7 +66,7 @@ import {
 // Provider configs
 // ────────────────────────────────────────────────────────────
 
-type ProviderId = 'anthropic' | 'openrouter' | 'openai';
+type ProviderId = 'anthropic' | 'openrouter' | 'openai' | 'groq' | 'google';
 type ModelId = string;
 
 type ProviderModel = {
@@ -114,6 +116,39 @@ const PROVIDERS: Record<string, ProviderModel> = {
     outputPerM: 0,
     isAvailable: () => !!process.env.OPENROUTER_API_KEY,
   },
+  // ── Groq (free 30 req/min, ~800 tok/s tốc độ cao nhất hiện tại) ──
+  // Pricing chỉ cho production paid tier — free tier inputPerM=0
+  'groq:llama-3.3-70b': {
+    provider: 'groq',
+    model: 'llama-3.3-70b-versatile',
+    inputPerM: 0,
+    outputPerM: 0,
+    isAvailable: () => !!process.env.GROQ_API_KEY,
+  },
+  'groq:llama-3.1-8b': {
+    provider: 'groq',
+    model: 'llama-3.1-8b-instant',
+    inputPerM: 0,
+    outputPerM: 0,
+    isAvailable: () => !!process.env.GROQ_API_KEY,
+  },
+  // ── Gemini (free 15 req/min, 1M token/day) ──
+  // Gemini 2.5 Flash — latest 2026-05, multimodal + 1M context, default cho gen
+  'google:gemini-2.5-flash': {
+    provider: 'google',
+    model: 'gemini-2.5-flash',
+    inputPerM: 0,
+    outputPerM: 0,
+    isAvailable: () => !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
+  // 2.0 Flash Lite — siêu nhanh + rẻ hơn, dùng cho classify/noteComplete
+  'google:gemini-2.0-flash-lite': {
+    provider: 'google',
+    model: 'gemini-2.0-flash-lite',
+    inputPerM: 0,
+    outputPerM: 0,
+    isAvailable: () => !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
 };
 
 // ────────────────────────────────────────────────────────────
@@ -137,45 +172,56 @@ type Route = {
   maxOutputTokens: number;
 };
 
+/**
+ * Fallback chain strategy (cập nhật 2026-05 — thêm Groq + Gemini free):
+ *   Production path: Anthropic primary → Anthropic cheaper fallback → free tier
+ *   Dev path: chỉ cần 1 free key bất kỳ (OpenRouter/Groq/Gemini) là chạy được
+ *
+ * Thứ tự fallback free:
+ *   1. Groq (nhanh nhất 800 tok/s, 30 req/min free) — first fallback cho task cần latency
+ *   2. Gemini Flash (1M ctx, 15 req/min free) — fallback cho task cần long context
+ *   3. OpenRouter gpt-oss-20b (50 req/day free) — last resort, hay 429
+ */
 const ROUTES: Record<UseCase, Route> = {
   ragChat: {
     primary: 'anthropic:sonnet-4-6',
-    fallback: ['openrouter:gpt-oss-20b'],
+    fallback: ['groq:llama-3.3-70b', 'google:gemini-2.5-flash', 'openrouter:gpt-oss-20b'],
     maxOutputTokens: 1500,
   },
   reasoning: {
     primary: 'anthropic:opus-4-7',
-    fallback: ['anthropic:sonnet-4-6'],
+    fallback: ['anthropic:sonnet-4-6', 'groq:llama-3.3-70b', 'google:gemini-2.5-flash'],
     maxOutputTokens: 4000,
   },
   classify: {
     primary: 'anthropic:haiku-4-5',
-    fallback: ['openrouter:gpt-oss-20b'],
+    fallback: ['groq:llama-3.1-8b', 'google:gemini-2.0-flash-lite', 'openrouter:gpt-oss-20b'],
     maxOutputTokens: 500,
   },
   roomTutor: {
     primary: 'anthropic:sonnet-4-6',
-    fallback: ['anthropic:haiku-4-5', 'openrouter:gpt-oss-20b'],
+    fallback: ['anthropic:haiku-4-5', 'groq:llama-3.3-70b', 'openrouter:gpt-oss-20b'],
     maxOutputTokens: 800,
   },
   flashcardGen: {
     primary: 'anthropic:sonnet-4-6',
-    fallback: ['anthropic:haiku-4-5'],
+    fallback: ['anthropic:haiku-4-5', 'groq:llama-3.3-70b', 'google:gemini-2.5-flash'],
     maxOutputTokens: 2000,
   },
   quizGen: {
     primary: 'anthropic:sonnet-4-6',
-    fallback: ['anthropic:haiku-4-5'],
+    fallback: ['anthropic:haiku-4-5', 'groq:llama-3.3-70b', 'google:gemini-2.5-flash'],
     maxOutputTokens: 3000,
   },
   noteComplete: {
+    // Latency-sensitive — Groq nhanh nhất phù hợp
     primary: 'anthropic:haiku-4-5',
-    fallback: ['openrouter:gpt-oss-20b'],
+    fallback: ['groq:llama-3.1-8b', 'google:gemini-2.0-flash-lite', 'openrouter:gpt-oss-20b'],
     maxOutputTokens: 300,
   },
   summarize: {
     primary: 'anthropic:sonnet-4-6',
-    fallback: ['anthropic:haiku-4-5'],
+    fallback: ['anthropic:haiku-4-5', 'groq:llama-3.3-70b', 'google:gemini-2.5-flash'],
     maxOutputTokens: 1000,
   },
 };
@@ -199,6 +245,22 @@ function getOpenRouterFactory() {
   return _openrouter;
 }
 
+let _groq: ReturnType<typeof createGroq> | undefined;
+function getGroqFactory() {
+  if (_groq) return _groq;
+  _groq = createGroq({ apiKey: process.env.GROQ_API_KEY! });
+  return _groq;
+}
+
+let _google: ReturnType<typeof createGoogleGenerativeAI> | undefined;
+function getGoogleFactory() {
+  if (_google) return _google;
+  _google = createGoogleGenerativeAI({
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+  });
+  return _google;
+}
+
 /**
  * Resolve LanguageModel cho provider:model. Throw nếu provider thiếu env.
  */
@@ -208,6 +270,10 @@ function getModel(pm: ProviderModel): LanguageModel {
       return anthropic(pm.model);
     case 'openrouter':
       return getOpenRouterFactory()(pm.model);
+    case 'groq':
+      return getGroqFactory()(pm.model);
+    case 'google':
+      return getGoogleFactory()(pm.model);
     case 'openai':
       // Future: native OpenAI provider khi cần GPT
       throw new Error('OpenAI direct provider chưa implement');
@@ -630,6 +696,33 @@ export async function routedGenerateText(
     outputPerMUsd: primary.outputPerM,
   });
 
+  // ── Semantic cache lookup (TRƯỚC guardrail vì hit = free) ─────────
+  // Khác routedStreamText: result trả full text 1 lần (không stream chunk)
+  if (opts.enableSemanticCache && opts.system) {
+    const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
+    const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+    if (queryText) {
+      const cached = await getCachedResponse({
+        useCase: opts.useCase,
+        query: queryText,
+        systemPrompt: opts.system,
+        scope: opts.cacheScope ?? 'user',
+        userId: opts.userId,
+      });
+      await recordCacheStat(opts.useCase, !!cached);
+      if (cached) {
+        return {
+          text: cached.text,
+          promptTokens: cached.promptTokens,
+          completionTokens: cached.completionTokens,
+          modelId: cached.modelId,
+          providerId: cached.providerId as ProviderId,
+          costUsd: 0, // cache hit = free
+        };
+      }
+    }
+  }
+
   const guard = await checkCostGuardrail({
     userId: opts.userId,
     plan: opts.plan,
@@ -676,6 +769,32 @@ export async function routedGenerateText(
           cost_usd: costUsd,
           user_id: opts.userId,
         });
+
+        // Save vào cache nếu opt-in. Best-effort, không block return.
+        if (opts.enableSemanticCache && opts.system) {
+          const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
+          const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+          if (queryText) {
+            void setCachedResponse({
+              useCase: opts.useCase,
+              query: queryText,
+              systemPrompt: opts.system,
+              scope: opts.cacheScope ?? 'user',
+              userId: opts.userId,
+              response: {
+                text: result.text,
+                modelId: pm.model,
+                providerId: pm.provider,
+                promptTokens: result.usage.promptTokens,
+                completionTokens: result.usage.completionTokens,
+                originalCostUsd: costUsd,
+                cachedAt: new Date().toISOString(),
+              },
+              ttlSec: opts.cacheTtlSec,
+            });
+          }
+        }
+
         return {
           text: result.text,
           promptTokens: result.usage.promptTokens,

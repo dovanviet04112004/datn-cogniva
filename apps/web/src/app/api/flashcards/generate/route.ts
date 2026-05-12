@@ -23,6 +23,7 @@ import { chunk, db, document, flashcard } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import { generateBasicCards, generateClozeCards } from '@/lib/flashcards/generate';
+import type { Plan } from '@/lib/observability/cost-guardrail';
 import { initFsrsFields } from '@/lib/flashcards/fsrs';
 import { checkLimit } from '@/lib/rate-limit';
 
@@ -78,11 +79,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ created: 0, cards: [] });
   }
 
-  // Generate tuần tự (free model rate limit) — collect tất cả cards
+  // Generate tuần tự (free model rate limit) — collect tất cả cards. Pass
+  // ctx để bật router cache (cùng chunk → cùng cards, scope shared).
+  const plan = ((session.user as { plan?: string }).plan ?? 'FREE') as Plan;
+  const genCtx = { userId: session.user.id, plan };
   const allCards: { type: 'BASIC' | 'CLOZE'; front: string; back: string; sourceChunkId: string }[] = [];
   for (const ch of chunks) {
     const generator = type === 'BASIC' ? generateBasicCards : generateClozeCards;
-    const cards = await generator(ch.content);
+    const cards = await generator(ch.content, genCtx);
     for (const c of cards) {
       if (c.type === 'BASIC') {
         allCards.push({ type: 'BASIC', front: c.front, back: c.back, sourceChunkId: ch.id });

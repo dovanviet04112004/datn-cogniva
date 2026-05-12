@@ -21,9 +21,11 @@ type Props = {
   citations: CitationData[];
   /** Tin nhắn đang stream — render với cursor đang gõ. */
   isStreaming?: boolean;
+  /** Callback khi user click citation badge — open inline doc preview. */
+  onOpenDocPreview?: (citation: CitationData) => void;
 };
 
-export function MessageBubble({ role, content, citations, isStreaming }: Props) {
+export function MessageBubble({ role, content, citations, isStreaming, onOpenDocPreview }: Props) {
   const isUser = role === 'user';
 
   return (
@@ -50,7 +52,11 @@ export function MessageBubble({ role, content, citations, isStreaming }: Props) 
           <p className="whitespace-pre-wrap text-sm">{content}</p>
         ) : (
           <>
-            <MarkdownMessage content={content} citations={citations} />
+            <MarkdownMessage
+              content={content}
+              citations={citations}
+              onOpenDocPreview={onOpenDocPreview}
+            />
             {/* TTS button — chỉ hiện khi đã stream xong + có content */}
             {!isStreaming && content.trim() && (
               <div className="mt-1 flex justify-end">

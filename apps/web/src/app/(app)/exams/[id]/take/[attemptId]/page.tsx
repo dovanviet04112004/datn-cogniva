@@ -87,8 +87,12 @@ export default function TakeExamPage() {
   const [draftAnswer, setDraftAnswer] = React.useState<unknown>(null);
   const [loading, setLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
   const [remainingSec, setRemainingSec] = React.useState<number | null>(null);
   const [feedback, setFeedback] = React.useState<{ isCorrect: boolean; points: number } | null>(null);
+  // Ref giữ timeout id để continueAfterFeedback có thể cancel khi user
+  // click "Câu sau →" sớm trước khi auto-advance fire
+  const advanceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load initial data
   React.useEffect(() => {
@@ -145,6 +149,9 @@ export default function TakeExamPage() {
     setFeedback(null);
   }, [currentIdx, questions, responses]);
 
+  // Auto-advance giờ làm INLINE trong onNext (setTimeout sau setFeedback) —
+  // tránh useEffect closure issue + simpler timing control
+
   const saveAnswer = async (questionId: string, answer: unknown, grade = false): Promise<{ isCorrect: boolean | null; pointsEarned: number } | null> => {
     try {
       const url = `/api/attempts/${attemptId}/responses${grade ? '?grade=1' : ''}`;
@@ -193,25 +200,47 @@ export default function TakeExamPage() {
   };
 
   const onNext = async () => {
+    if (busy) return; // chống double-click race
     const q = questions[currentIdx];
     if (!q) return;
-    // Save trước khi sang
+    setBusy(true);
     const isPractice = exam?.mode === 'PRACTICE';
-    if (draftAnswer !== null && draftAnswer !== '' && draftAnswer !== undefined) {
-      const result = await saveAnswer(q.id, draftAnswer, isPractice);
-      if (isPractice && result) {
-        setFeedback({ isCorrect: result.isCorrect ?? false, points: result.pointsEarned });
-        // Đợi user thấy feedback rồi mới chuyển
-        return;
+    try {
+      if (draftAnswer !== null && draftAnswer !== '' && draftAnswer !== undefined) {
+        const result = await saveAnswer(q.id, draftAnswer, isPractice);
+        if (isPractice && result) {
+          // Practice: hiện feedback + auto-advance sau 2.5s (cancel-able)
+          setFeedback({ isCorrect: result.isCorrect ?? false, points: result.pointsEarned });
+          if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+          advanceTimerRef.current = setTimeout(() => {
+            advanceTimerRef.current = null;
+            setFeedback(null);
+            setCurrentIdx((i) => Math.min(i + 1, questions.length - 1));
+            setBusy(false);
+          }, 2500);
+          return;
+        }
       }
-    }
-    if (currentIdx < questions.length - 1) {
-      setCurrentIdx((i) => i + 1);
+      // Timed mode hoặc no answer: advance ngay
+      if (currentIdx < questions.length - 1) {
+        setCurrentIdx((i) => i + 1);
+      }
+    } catch (err) {
+      toast.error('Có lỗi: ' + (err as Error).message);
+    } finally {
+      // Chỉ unset busy nếu không trong Practice timer (setTimeout đã handle)
+      if (!isPractice) setBusy(false);
     }
   };
 
   const continueAfterFeedback = () => {
+    // Cancel auto-advance timer + clear busy + advance ngay
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
     setFeedback(null);
+    setBusy(false);
     if (currentIdx < questions.length - 1) {
       setCurrentIdx((i) => i + 1);
     }
@@ -314,23 +343,31 @@ export default function TakeExamPage() {
           )}
         </div>
 
-        {/* Practice mode feedback */}
+        {/* Practice mode feedback — auto-advance sau 2.5s */}
         {feedback && (
           <div
-            className={`flex items-center gap-2 rounded-md p-3 text-sm ${
-              feedback.isCorrect ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-900'
+            className={`flex items-center gap-3 rounded-md border-2 p-4 text-base ${
+              feedback.isCorrect
+                ? 'border-green-300 bg-green-50 text-green-900'
+                : 'border-red-300 bg-red-50 text-red-900'
             }`}
           >
             {feedback.isCorrect ? (
-              <CheckCircle className="h-4 w-4" />
+              <CheckCircle className="h-6 w-6 shrink-0" />
             ) : (
-              <XCircle className="h-4 w-4" />
+              <XCircle className="h-6 w-6 shrink-0" />
             )}
-            <span>
-              {feedback.isCorrect ? 'Đúng!' : 'Sai'} · {feedback.points}/{q.points} điểm
+            <span className="font-semibold">
+              {feedback.isCorrect ? 'Đúng!' : 'Sai'} ·{' '}
+              {feedback.points}/{q.points} điểm
             </span>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={continueAfterFeedback}>
-              Tiếp →
+            <Button
+              size="default"
+              variant={feedback.isCorrect ? 'default' : 'outline'}
+              className="ml-auto"
+              onClick={continueAfterFeedback}
+            >
+              Câu sau <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
         )}
@@ -349,11 +386,12 @@ export default function TakeExamPage() {
           {currentIdx + 1}/{questions.length}
         </div>
         {!isLast ? (
-          <Button onClick={onNext} disabled={!!feedback}>
-            Câu sau <ChevronRight className="ml-1 h-4 w-4" />
+          <Button onClick={onNext} disabled={busy || !!feedback}>
+            {busy && !feedback ? 'Đang lưu...' : 'Câu sau'}
+            <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         ) : (
-          <Button onClick={submitAttempt} disabled={submitting || !!feedback}>
+          <Button onClick={submitAttempt} disabled={submitting || busy || !!feedback}>
             <Send className="mr-1 h-4 w-4" />
             {submitting ? 'Đang nộp...' : 'Nộp bài'}
           </Button>

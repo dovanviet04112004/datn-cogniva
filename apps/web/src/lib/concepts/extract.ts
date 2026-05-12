@@ -59,17 +59,42 @@ function extractJson(text: string): unknown {
 /**
  * Trích concept từ 1 chunk content. Trả mảng rỗng khi LLM lỗi/empty —
  * chunk đó skip silent thay vì crash batch.
+ *
+ * @param ctx - Khi cung cấp, dùng router (cache + cost guardrail + fallback).
+ *              Cùng content → cùng concepts (deterministic) → cache hit shared.
  */
-export async function extractConceptsFromChunk(content: string): Promise<ExtractedConcept[]> {
+export async function extractConceptsFromChunk(
+  content: string,
+  ctx?: { userId: string; plan: import('@/lib/observability/cost-guardrail').Plan },
+): Promise<ExtractedConcept[]> {
   if (content.length < 50) return []; // chunk quá ngắn không có concept
 
   try {
-    const { text } = await generateText({
-      model: getChatModel(),
-      prompt: EXTRACT_INSTRUCTION.replace('{{CONTENT}}', content),
-      temperature: 0.2, // ổn định, không cần creative
-      maxTokens: 500,
-    });
+    let text: string;
+    if (ctx) {
+      const { routedGenerateText } = await import('@/lib/ai/router');
+      const result = await routedGenerateText({
+        useCase: 'classify',
+        userId: ctx.userId,
+        plan: ctx.plan,
+        system: EXTRACT_INSTRUCTION.split('{{CONTENT}}')[0]!.trim(),
+        messages: [{ role: 'user', content: `ĐOẠN VĂN:\n"""\n${content}\n"""` }],
+        maxOutputTokens: 500,
+        feature: 'concept-extract',
+        enableSemanticCache: true,
+        cacheScope: 'shared',
+        cacheTtlSec: 86400, // 24h — concept extraction deterministic, có thể cache dài
+      });
+      text = result.text;
+    } else {
+      const result = await generateText({
+        model: getChatModel(),
+        prompt: EXTRACT_INSTRUCTION.replace('{{CONTENT}}', content),
+        temperature: 0.2,
+        maxTokens: 500,
+      });
+      text = result.text;
+    }
     const obj = extractJson(text) as { concepts?: unknown };
     if (!Array.isArray(obj.concepts)) return [];
     return obj.concepts

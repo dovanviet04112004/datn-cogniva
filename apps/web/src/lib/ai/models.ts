@@ -31,6 +31,8 @@
  */
 import { anthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGroq } from '@ai-sdk/groq';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import type { LanguageModel } from 'ai';
 
 /** ID model mặc định khi user dùng Anthropic key — alias trỏ tới Sonnet 4.6 mới nhất. */
@@ -39,29 +41,47 @@ const ANTHROPIC_DEFAULT = 'claude-sonnet-4-6';
 /** ID model OpenRouter free — gpt-oss-20b ổn định nhất 2026-05 (xem comment đầu file). */
 const OPENROUTER_DEFAULT = 'openai/gpt-oss-20b:free';
 
-export type ChatProvider = 'anthropic' | 'openrouter';
+/** Groq free — Llama 3.3 70B tốc độ ~800 tok/s. */
+const GROQ_DEFAULT = 'llama-3.3-70b-versatile';
+
+/** Gemini free — 2.5 Flash latest 2026, 1M context, 15 req/min free. */
+const GOOGLE_DEFAULT = 'gemini-2.5-flash';
+
+export type ChatProvider = 'anthropic' | 'openrouter' | 'groq' | 'google';
 
 /**
  * Quyết định provider dựa trên env. Thứ tự ưu tiên:
- *   1. LLM_PROVIDER env var ép cứng (anthropic | openrouter)
- *   2. ANTHROPIC_API_KEY → anthropic (production path)
- *   3. OPENROUTER_API_KEY → openrouter (free testing path)
- *   4. Throw lỗi rõ ràng
+ *   1. LLM_PROVIDER env var ép cứng (anthropic | openrouter | groq | google)
+ *   2. ANTHROPIC_API_KEY → anthropic (production path, paid)
+ *   3. GROQ_API_KEY → groq (free, fastest)
+ *   4. GOOGLE_GENERATIVE_AI_API_KEY → google (free, 1M ctx)
+ *   5. OPENROUTER_API_KEY → openrouter (free, hay 429)
+ *   6. Throw lỗi rõ ràng
+ *
+ * Routing thông minh hơn xem `router.ts` — `routedStreamText/routedGenerateText`
+ * có fallback chain + circuit breaker + cost guardrail. `getChatModel()` ở đây
+ * legacy cho legacy code chưa migrate (room-tutor, summarize, flashcardGen).
  */
 export function pickChatProvider(): ChatProvider {
   const forced = process.env.LLM_PROVIDER as ChatProvider | undefined;
-  if (forced === 'anthropic' || forced === 'openrouter') return forced;
+  if (forced && ['anthropic', 'openrouter', 'groq', 'google'].includes(forced)) return forced;
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (process.env.GROQ_API_KEY) return 'groq';
+  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) return 'google';
   if (process.env.OPENROUTER_API_KEY) return 'openrouter';
   throw new Error(
-    '[ai] Không tìm thấy ANTHROPIC_API_KEY hoặc OPENROUTER_API_KEY. ' +
-      'Free testing: signup tại https://openrouter.ai (không cần thẻ) → set OPENROUTER_API_KEY trong apps/web/.env.local. ' +
-      'Production: dùng ANTHROPIC_API_KEY từ console.anthropic.com.',
+    '[ai] Không tìm thấy AI provider key. Setup ít nhất 1 cái:\n' +
+      '  - ANTHROPIC_API_KEY (paid, production-grade) — console.anthropic.com\n' +
+      '  - GROQ_API_KEY (free, ~800 tok/s) — console.groq.com\n' +
+      '  - GOOGLE_GENERATIVE_AI_API_KEY (free, 1M ctx) — aistudio.google.com\n' +
+      '  - OPENROUTER_API_KEY (free, multi-model) — openrouter.ai (không cần thẻ)\n',
   );
 }
 
 // Singleton OpenRouter client — createOpenAI tạo HTTP client + base URL config
 let _openrouter: ReturnType<typeof createOpenAI> | undefined;
+let _groq: ReturnType<typeof createGroq> | undefined;
+let _google: ReturnType<typeof createGoogleGenerativeAI> | undefined;
 
 /**
  * Tạo OpenAI-compatible client trỏ vào OpenRouter. Tận dụng tính ổn định
@@ -85,6 +105,22 @@ function getOpenRouterFactory() {
   return _openrouter;
 }
 
+function getGroqFactory() {
+  if (_groq) return _groq;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('[ai] GROQ_API_KEY missing');
+  _groq = createGroq({ apiKey });
+  return _groq;
+}
+
+function getGoogleFactory() {
+  if (_google) return _google;
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) throw new Error('[ai] GOOGLE_GENERATIVE_AI_API_KEY missing');
+  _google = createGoogleGenerativeAI({ apiKey });
+  return _google;
+}
+
 /**
  * Trả về `LanguageModel` của Vercel AI SDK đã cấu hình sẵn provider.
  *
@@ -93,17 +129,29 @@ function getOpenRouterFactory() {
  */
 export function getChatModel(modelId?: string): LanguageModel {
   const provider = pickChatProvider();
-  if (provider === 'anthropic') {
-    return anthropic(modelId ?? ANTHROPIC_DEFAULT);
+  switch (provider) {
+    case 'anthropic':
+      return anthropic(modelId ?? ANTHROPIC_DEFAULT);
+    case 'groq':
+      return getGroqFactory()(modelId ?? GROQ_DEFAULT);
+    case 'google':
+      return getGoogleFactory()(modelId ?? GOOGLE_DEFAULT);
+    case 'openrouter':
+      return getOpenRouterFactory()(modelId ?? OPENROUTER_DEFAULT);
   }
-  // openrouter qua OpenAI-compat client
-  const factory = getOpenRouterFactory();
-  return factory(modelId ?? OPENROUTER_DEFAULT);
 }
 
 /** Model id đang dùng (cho metadata/log). */
 export function getChatModelId(): string {
   const provider = pickChatProvider();
-  if (provider === 'anthropic') return process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT;
-  return process.env.OPENROUTER_MODEL ?? OPENROUTER_DEFAULT;
+  switch (provider) {
+    case 'anthropic':
+      return process.env.ANTHROPIC_MODEL ?? ANTHROPIC_DEFAULT;
+    case 'groq':
+      return process.env.GROQ_MODEL ?? GROQ_DEFAULT;
+    case 'google':
+      return process.env.GOOGLE_MODEL ?? GOOGLE_DEFAULT;
+    case 'openrouter':
+      return process.env.OPENROUTER_MODEL ?? OPENROUTER_DEFAULT;
+  }
 }

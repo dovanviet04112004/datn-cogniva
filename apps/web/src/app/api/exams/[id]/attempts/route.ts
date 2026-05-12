@@ -51,16 +51,20 @@ export async function POST(request: Request, ctx: RouteContext) {
     }
   }
 
-  // Check attempt count
-  const [cnt] = await db
-    .select({ n: count() })
-    .from(examAttempt)
-    .where(and(eq(examAttempt.examId, id), eq(examAttempt.userId, userId)));
-  if (cnt && cnt.n >= parent.maxAttempts) {
-    return NextResponse.json(
-      { error: `Đã đạt giới hạn ${parent.maxAttempts} lần làm bài` },
-      { status: 409 },
-    );
+  // Check attempt count — Practice mode bypass (luyện tập = unlimited).
+  // TIMED/LIVE/ASYNC/ADAPTIVE/TOURNAMENT enforce maxAttempts để đảm bảo
+  // fairness khi chấm điểm có ý nghĩa.
+  if (parent.mode !== 'PRACTICE') {
+    const [cnt] = await db
+      .select({ n: count() })
+      .from(examAttempt)
+      .where(and(eq(examAttempt.examId, id), eq(examAttempt.userId, userId)));
+    if (cnt && cnt.n >= parent.maxAttempts) {
+      return NextResponse.json(
+        { error: `Đã đạt giới hạn ${parent.maxAttempts} lần làm bài` },
+        { status: 409 },
+      );
+    }
   }
 
   // Tránh tạo attempt mới khi đang có 1 attempt IN_PROGRESS — return cái cũ
