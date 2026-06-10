@@ -1,0 +1,2058 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model account {
+  id                       String    @id
+  user_id                  String
+  account_id               String
+  provider_id              String
+  access_token             String?
+  refresh_token            String?
+  id_token                 String?
+  access_token_expires_at  DateTime? @db.Timestamp(6)
+  refresh_token_expires_at DateTime? @db.Timestamp(6)
+  scope                    String?
+  password                 String?
+  created_at               DateTime  @default(now()) @db.Timestamp(6)
+  updated_at               DateTime  @default(now()) @db.Timestamp(6)
+  user                     user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "account_user_id_user_id_fk")
+}
+
+model admin_audit_log {
+  id          String   @id
+  admin_id    String
+  action      String
+  target_type String
+  target_id   String
+  payload     Json     @default("{}")
+  ip          String?  @db.Inet
+  user_agent  String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  user        user     @relation(fields: [admin_id], references: [id], onUpdate: NoAction)
+
+  @@index([action, created_at(sort: Desc)], map: "idx_audit_action")
+  @@index([admin_id, created_at(sort: Desc)], map: "idx_audit_admin")
+  @@index([target_type, target_id], map: "idx_audit_target")
+}
+
+model ai_usage_log {
+  id         String   @id
+  user_id    String?
+  plan       String?
+  provider   String
+  model      String
+  feature    String?
+  tokens_in  Int      @default(0)
+  tokens_out Int      @default(0)
+  cost_usd   Float    @default(0) @db.Real
+  latency_ms Int?
+  cached     Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  user       user?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([provider, created_at(sort: Desc)], map: "idx_ai_usage_provider_time")
+  @@index([created_at(sort: Desc)], map: "idx_ai_usage_time")
+  @@index([user_id, created_at(sort: Desc)], map: "idx_ai_usage_user_time")
+}
+
+model audit_log {
+  id            String   @id
+  actor_id      String?
+  actor_type    String
+  action        String
+  result        String
+  resource_type String?
+  resource_id   String?
+  ip_address    String?
+  user_agent    String?
+  trace_id      String?
+  metadata      Json?
+  timestamp     DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([action, timestamp(sort: Desc)], map: "audit_log_action_time_idx")
+  @@index([actor_id, timestamp(sort: Desc)], map: "audit_log_actor_time_idx")
+  @@index([resource_type, resource_id], map: "audit_log_resource_idx")
+  @@index([timestamp], map: "audit_log_time_brin_idx", type: Brin)
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model chunk {
+  id            String                 @id
+  document_id   String
+  content       String
+  embedding     Unsupported("vector")?
+  metadata      Json
+  tokens        Int
+  document      document               @relation(fields: [document_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chunk_document_id_document_id_fk")
+  chunk_concept chunk_concept[]
+  flashcard     flashcard[]
+
+  @@index([document_id], map: "chunk_doc_idx")
+  @@index([embedding])
+}
+
+model chunk_concept {
+  chunk_id   String
+  concept_id String
+  strength   Float   @default(1) @db.Real
+  chunk      chunk   @relation(fields: [chunk_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chunk_concept_chunk_id_chunk_id_fk")
+  concept    concept @relation(fields: [concept_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "chunk_concept_concept_id_concept_id_fk")
+
+  @@id([chunk_id, concept_id])
+  @@index([concept_id], map: "chunk_concept_concept_idx")
+}
+
+model collab_doc {
+  id         String   @id
+  type       String
+  state      String
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+}
+
+model concept {
+  id                                                 String                 @id
+  name                                               String
+  description                                        String?
+  domain                                             String
+  embedding                                          Unsupported("vector")?
+  examples                                           Json                   @default("[]")
+  difficulty                                         Float?                 @db.Real
+  preview_question                                   String?
+  preview_answer                                     String?
+  chunk_concept                                      chunk_concept[]
+  concept_relation_concept_relation_from_idToconcept concept_relation[]     @relation("concept_relation_from_idToconcept")
+  concept_relation_concept_relation_to_idToconcept   concept_relation[]     @relation("concept_relation_to_idToconcept")
+  exam_question                                      exam_question[]
+  flashcard                                          flashcard[]
+  mastery                                            mastery[]
+  note                                               note[]
+  question                                           question[]
+  study_plan_item                                    study_plan_item[]
+
+  @@index([difficulty])
+  @@index([embedding])
+}
+
+model concept_relation {
+  id                                        String  @id
+  from_id                                   String
+  to_id                                     String
+  relation_type                             String
+  strength                                  Float   @default(1) @db.Real
+  concept_concept_relation_from_idToconcept concept @relation("concept_relation_from_idToconcept", fields: [from_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "concept_relation_from_id_concept_id_fk")
+  concept_concept_relation_to_idToconcept   concept @relation("concept_relation_to_idToconcept", fields: [to_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "concept_relation_to_id_concept_id_fk")
+
+  @@unique([from_id, to_id, relation_type], map: "concept_relation_uniq")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model content_report {
+  id                                    String    @id
+  reporter_id                           String
+  target_type                           String
+  target_id                             String
+  reason                                String
+  status                                String    @default("PENDING")
+  resolved_by                           String?
+  resolved_at                           DateTime? @db.Timestamptz(6)
+  resolution                            String?
+  created_at                            DateTime  @default(now()) @db.Timestamptz(6)
+  user_content_report_reporter_idTouser user      @relation("content_report_reporter_idTouser", fields: [reporter_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_content_report_resolved_byTouser user?     @relation("content_report_resolved_byTouser", fields: [resolved_by], references: [id], onUpdate: NoAction)
+
+  @@index([target_type, target_id], map: "idx_report_target")
+}
+
+model conversation {
+  id           String     @id
+  user_id      String
+  workspace_id String?
+  title        String?
+  created_at   DateTime   @default(now()) @db.Timestamp(6)
+  user         user       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "conversation_user_id_user_id_fk")
+  workspace    workspace? @relation(fields: [workspace_id], references: [id], onUpdate: NoAction, map: "conversation_workspace_id_workspace_id_fk")
+  message      message[]
+
+  @@index([user_id, created_at], map: "conversation_user_created_idx")
+}
+
+model deletion_request {
+  id            String    @id
+  user_id       String
+  status        String    @default("PENDING")
+  reason        String?
+  scheduled_for DateTime  @db.Timestamp(6)
+  completed_at  DateTime? @db.Timestamp(6)
+  error_message String?
+  requested_at  DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([user_id, requested_at(sort: Desc)], map: "deletion_request_user_idx")
+}
+
+model dm_message {
+  id          String    @id
+  thread_id   String
+  author_id   String
+  content     String
+  reply_to_id String?
+  attachments Json?
+  reactions   Json?
+  edited_at   DateTime? @db.Timestamp(6)
+  deleted_at  DateTime? @db.Timestamp(6)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  user        user      @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  dm_thread   dm_thread @relation(fields: [thread_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([thread_id, created_at], map: "dm_message_thread_time_idx")
+}
+
+model dm_read_state {
+  user_id              String
+  thread_id            String
+  last_read_message_id String?
+  updated_at           DateTime  @default(now()) @db.Timestamp(6)
+  dm_thread            dm_thread @relation(fields: [thread_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                 user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, thread_id])
+}
+
+model dm_thread {
+  id                            String          @id
+  user1_id                      String
+  user2_id                      String
+  created_at                    DateTime        @default(now()) @db.Timestamp(6)
+  last_message_at               DateTime        @default(now()) @db.Timestamp(6)
+  dm_message                    dm_message[]
+  dm_read_state                 dm_read_state[]
+  user_dm_thread_user1_idTouser user            @relation("dm_thread_user1_idTouser", fields: [user1_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_dm_thread_user2_idTouser user            @relation("dm_thread_user2_idTouser", fields: [user2_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user1_id, user2_id], map: "dm_thread_users_uniq")
+  @@index([user1_id, last_message_at(sort: Desc)], map: "dm_thread_user1_last_idx")
+  @@index([user2_id, last_message_at(sort: Desc)], map: "dm_thread_user2_last_idx")
+}
+
+model document {
+  id                 String               @id
+  user_id            String
+  workspace_id       String
+  filename           String
+  mime_type          String
+  size               Int
+  storage_key        String
+  status             doc_status           @default(PROCESSING)
+  metadata           Json                 @default("{}")
+  created_at         DateTime             @default(now()) @db.Timestamp(6)
+  chunk              chunk[]
+  user               user                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "document_user_id_user_id_fk")
+  workspace          workspace            @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "document_workspace_id_workspace_id_fk")
+  library_doc_import library_doc_import[]
+  note               note[]
+
+  @@index([user_id, workspace_id], map: "document_user_workspace_idx")
+}
+
+model exam {
+  id                     String          @id
+  owner_id               String
+  title                  String
+  description            String?
+  mode                   exam_mode       @default(PRACTICE)
+  status                 exam_status     @default(DRAFT)
+  duration_seconds       Int?
+  starts_at              DateTime?       @db.Timestamp(6)
+  ends_at                DateTime?       @db.Timestamp(6)
+  passing_score          Float?          @db.Real
+  max_score              Float           @default(0) @db.Real
+  show_results           String          @default("IMMEDIATE")
+  shuffle_questions      Boolean         @default(true)
+  shuffle_options        Boolean         @default(true)
+  allow_review           Boolean         @default(true)
+  max_attempts           Int             @default(1)
+  live_code              String?         @unique
+  current_question_index Int?
+  min_questions          Int?            @default(10)
+  max_questions          Int?            @default(30)
+  target_se              Float?          @default(0.3) @db.Real
+  anti_cheat             Json?           @default("{}")
+  classroom_id           String?
+  concept_ids            Json?
+  created_at             DateTime        @default(now()) @db.Timestamp(6)
+  published_at           DateTime?       @db.Timestamp(6)
+  workspace_id           String?
+  user                   user            @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspace              workspace?      @relation(fields: [workspace_id], references: [id], onUpdate: NoAction, map: "exam_workspace_id_workspace_id_fk")
+  exam_attempt           exam_attempt[]
+  exam_question          exam_question[]
+
+  @@index([owner_id, status], map: "exam_owner_status_idx")
+  @@index([owner_id, workspace_id], map: "exam_owner_workspace_idx")
+}
+
+model exam_attempt {
+  id                   String           @id
+  exam_id              String
+  user_id              String
+  status               attempt_status   @default(IN_PROGRESS)
+  started_at           DateTime         @default(now()) @db.Timestamp(6)
+  submitted_at         DateTime?        @db.Timestamp(6)
+  score                Float?           @db.Real
+  max_score            Float?           @db.Real
+  percentage           Float?           @db.Real
+  passed               Boolean?
+  estimated_theta      Float?           @db.Real
+  theta_se             Float?           @db.Real
+  time_spent_seconds   Int?
+  questions_answered   Int              @default(0)
+  violations           Json?
+  cheat_risk_score     Float?           @db.Real
+  flagged              Boolean          @default(false)
+  flag_reason          String?
+  webcam_recording_url String?
+  proctor_notes        String?
+  ip_address           String?
+  user_agent           String?
+  browser_fingerprint  String?
+  exam                 exam             @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                 user             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  exam_response        exam_response[]
+  exam_violation       exam_violation[]
+
+  @@index([exam_id, user_id], map: "exam_attempt_exam_user_idx")
+  @@index([user_id, status], map: "exam_attempt_user_status_idx")
+}
+
+model exam_question {
+  id                 String          @id
+  exam_id            String
+  type               String
+  prompt             String
+  prompt_html        String?
+  attachments        Json?
+  options            Json?
+  correct_answer     Json?
+  acceptable_answers Json?
+  rubric             Json?
+  test_cases         Json?
+  points             Float           @default(1) @db.Real
+  partial_credit     Boolean         @default(false)
+  difficulty         Float           @default(0) @db.Real
+  discrimination     Float           @default(1) @db.Real
+  guessing           Float           @default(0) @db.Real
+  concept_id         String?
+  explanation        String?
+  hint               String?
+  time_limit_seconds Int?
+  order_index        Int             @default(0)
+  created_at         DateTime        @default(now()) @db.Timestamp(6)
+  concept            concept?        @relation(fields: [concept_id], references: [id], onUpdate: NoAction)
+  exam               exam            @relation(fields: [exam_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  exam_response      exam_response[]
+
+  @@index([exam_id, order_index], map: "exam_question_exam_order_idx")
+}
+
+model exam_response {
+  id               String        @id
+  attempt_id       String
+  question_id      String
+  answer           Json?
+  is_correct       Boolean?
+  points_earned    Float         @default(0) @db.Real
+  started_at       DateTime?     @db.Timestamp(6)
+  submitted_at     DateTime?     @db.Timestamp(6)
+  response_time_ms Int?
+  rank_at_submit   Int?
+  ai_grading       Json?
+  manual_grading   Json?
+  needs_review     Boolean       @default(false)
+  reviewed_by      String?
+  reviewed_at      DateTime?     @db.Timestamp(6)
+  created_at       DateTime      @default(now()) @db.Timestamp(6)
+  exam_attempt     exam_attempt  @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  exam_question    exam_question @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user             user?         @relation(fields: [reviewed_by], references: [id], onUpdate: NoAction)
+
+  @@unique([attempt_id, question_id], map: "exam_response_attempt_question_idx")
+}
+
+model exam_violation {
+  id           String       @id
+  attempt_id   String
+  type         String
+  severity     String
+  metadata     Json?
+  timestamp    DateTime     @default(now()) @db.Timestamp(6)
+  exam_attempt exam_attempt @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([attempt_id], map: "exam_violation_attempt_idx")
+}
+
+model flashcard {
+  id              String     @id
+  user_id         String
+  concept_id      String?
+  front           String
+  back            String
+  card_type       card_type  @default(BASIC)
+  source_chunk_id String?
+  difficulty      Float      @default(0) @db.Real
+  stability       Float      @default(0) @db.Real
+  retrievability  Float      @default(0) @db.Real
+  state           fsrs_state @default(NEW)
+  due             DateTime   @default(now()) @db.Timestamp(6)
+  last_review     DateTime?  @db.Timestamp(6)
+  workspace_id    String?
+  concept         concept?   @relation(fields: [concept_id], references: [id], onUpdate: NoAction, map: "flashcard_concept_id_concept_id_fk")
+  chunk           chunk?     @relation(fields: [source_chunk_id], references: [id], onUpdate: NoAction, map: "flashcard_source_chunk_id_chunk_id_fk")
+  user            user       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "flashcard_user_id_user_id_fk")
+  workspace       workspace? @relation(fields: [workspace_id], references: [id], onUpdate: NoAction, map: "flashcard_workspace_id_workspace_id_fk")
+  review          review[]
+
+  @@index([user_id, due], map: "flashcard_user_due_idx")
+  @@index([user_id, workspace_id], map: "flashcard_user_workspace_idx")
+}
+
+model jwks {
+  id          String    @id
+  public_key  String
+  private_key String
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  expires_at  DateTime? @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model library_course {
+  id                 String              @id
+  university_id      String?
+  code               String?
+  name               String
+  slug               String
+  subject_area       String?
+  doc_count          Int                 @default(0)
+  created_by         String?
+  created_at         DateTime            @default(now()) @db.Timestamp(6)
+  user               user?               @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  library_university library_university? @relation(fields: [university_id], references: [id], onUpdate: NoAction)
+  library_doc        library_doc[]
+
+  @@index([subject_area], map: "library_course_subject_idx")
+  @@index([university_id, doc_count(sort: Desc)], map: "library_course_university_idx")
+}
+
+model library_creator_karma {
+  user_id       String    @id
+  points        Int       @default(0)
+  rank          Int?
+  last_event_at DateTime? @db.Timestamp(6)
+  updated_at    DateTime  @default(now()) @db.Timestamp(6)
+  user          user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([points(sort: Desc)])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
+model library_doc {
+  id                      String                    @id
+  uploader_id             String
+  title                   String
+  description             String?
+  subject_slug            String
+  level                   String
+  grade                   Int?
+  doc_type                String                    @default("other")
+  exam_type               String?
+  school_year             String?
+  region                  String?                   @default("national")
+  language                String?                   @default("vi")
+  tags                    String[]                  @default([])
+  difficulty              String?
+  prerequisite_atom_slugs String[]                  @default([])
+  file_format             String
+  file_size_bytes         Int
+  file_url                String
+  file_hash               String
+  page_count              Int?
+  preview_thumb_url       String?
+  ai_summary              String?
+  ai_summary_at           DateTime?                 @db.Timestamp(6)
+  preview_text            String?
+  title_embedding         Unsupported("vector")?
+  license                 String?                   @default("CC-BY-4.0")
+  status                  String?                   @default("PROCESSING")
+  hidden_at               DateTime?                 @db.Timestamp(6)
+  hidden_reason           String?
+  view_count              Int?                      @default(0)
+  download_count          Int?                      @default(0)
+  workspace_import_count  Int?                      @default(0)
+  rating_avg              Decimal?                  @db.Decimal(3, 2)
+  rating_count            Int?                      @default(0)
+  quality_score           Decimal?                  @db.Decimal(5, 2)
+  quality_breakdown       Json?
+  badges                  String[]                  @default([])
+  is_premium              Boolean?                  @default(false)
+  price_vnd               Int?
+  creator_share_pct       Int?                      @default(80)
+  created_at              DateTime                  @default(now()) @db.Timestamp(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamp(6)
+  parent_remix_doc_ids    String[]                  @default([])
+  remix_count             Int                       @default(0)
+  course_id               String?
+  university_id           String?
+  course_name_cache       String?
+  university_name_cache   String?
+  search_vec              Unsupported("tsvector")?  @default(dbgenerated("(((((setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(course_name_cache, ''::text))), 'A'::\"char\")) || setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(university_name_cache, ''::text))), 'B'::\"char\")) || setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(description, ''::text))), 'B'::\"char\")) || setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(ai_summary, ''::text))), 'C'::\"char\")) || setweight(to_tsvector('simple'::regconfig, immutable_unaccent(COALESCE(preview_text, ''::text))), 'D'::\"char\"))"))
+  library_course          library_course?           @relation(fields: [course_id], references: [id], onUpdate: NoAction)
+  library_university      library_university?       @relation(fields: [university_id], references: [id], onUpdate: NoAction)
+  user                    user                      @relation(fields: [uploader_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  library_doc_annotation  library_doc_annotation[]
+  library_doc_atom        library_doc_atom[]
+  library_doc_chunk       library_doc_chunk[]
+  library_doc_endorsement library_doc_endorsement[]
+  library_doc_import      library_doc_import[]
+  library_doc_outcome     library_doc_outcome[]
+  library_doc_purchase    library_doc_purchase[]
+  library_doc_report      library_doc_report[]
+  library_doc_review      library_doc_review[]
+  library_doc_view        library_doc_view[]
+  library_karma_event     library_karma_event[]
+
+  @@index([course_id, status], map: "library_doc_course_idx")
+  @@index([parent_remix_doc_ids], map: "library_doc_parent_remix_gin", type: Gin)
+  @@index([quality_score(sort: Desc)], map: "library_doc_quality_idx")
+  @@index([search_vec], map: "library_doc_search_vec_gin", type: Gin)
+  @@index([subject_slug, grade, status], map: "library_doc_subject_grade_idx")
+  @@index([subject_slug, level, status], map: "library_doc_subject_level_idx")
+  @@index([tags], map: "library_doc_tags_gin", type: Gin)
+  @@index([doc_type, status], map: "library_doc_type_idx")
+  @@index([university_id, status], map: "library_doc_university_idx")
+  @@index([uploader_id], map: "library_doc_uploader_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model library_doc_annotation {
+  id                          String                        @id
+  doc_id                      String
+  author_id                   String
+  page_num                    Int
+  note                        String
+  visibility                  String                        @default("public")
+  helpful_count               Int                           @default(0)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  selected_text               String?
+  selection_rect              Json?
+  user                        user                          @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  library_doc                 library_doc                   @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  library_doc_annotation_vote library_doc_annotation_vote[]
+
+  @@index([author_id, created_at(sort: Desc)], map: "library_doc_annotation_author_idx")
+  @@index([doc_id, page_num], map: "library_doc_annotation_doc_idx")
+  @@index([doc_id, helpful_count(sort: Desc)], map: "library_doc_annotation_helpful_idx")
+}
+
+model library_doc_annotation_vote {
+  id                     String                 @id
+  annotation_id          String
+  user_id                String
+  created_at             DateTime               @default(now()) @db.Timestamp(6)
+  library_doc_annotation library_doc_annotation @relation(fields: [annotation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                   user                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([annotation_id, user_id])
+  @@index([user_id], map: "library_doc_annotation_vote_user_idx")
+}
+
+model library_doc_atom {
+  id          String                 @id
+  doc_id      String
+  atom_text   String
+  atom_slug   String
+  page_nums   Int[]
+  difficulty  String?
+  embedding   Unsupported("vector")?
+  library_doc library_doc            @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([doc_id], map: "library_doc_atom_doc_idx")
+  @@index([atom_slug], map: "library_doc_atom_slug_idx")
+}
+
+model library_doc_chunk {
+  id          String                   @id
+  doc_id      String
+  page_num    Int
+  chunk_index Int
+  content     String
+  content_vec Unsupported("vector")?
+  search_vec  Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, COALESCE(content, ''::text))"))
+  library_doc library_doc              @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([doc_id, page_num], map: "library_doc_chunk_doc_idx")
+  @@index([search_vec], map: "library_doc_chunk_fts_idx", type: Gin)
+}
+
+model library_doc_endorsement {
+  id            String        @id
+  doc_id        String
+  tutor_id      String
+  note          String?
+  created_at    DateTime      @default(now()) @db.Timestamp(6)
+  library_doc   library_doc   @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_profile tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([doc_id, tutor_id])
+  @@index([doc_id, created_at(sort: Desc)], map: "library_doc_endorsement_doc_idx")
+  @@index([tutor_id, created_at(sort: Desc)], map: "library_doc_endorsement_tutor_idx")
+}
+
+model library_doc_import {
+  id           String      @id
+  doc_id       String
+  importer_id  String
+  workspace_id String?
+  document_id  String?
+  imported_at  DateTime    @default(now()) @db.Timestamp(6)
+  library_doc  library_doc @relation(fields: [doc_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  document     document?   @relation(fields: [document_id], references: [id], onUpdate: NoAction)
+  user         user        @relation(fields: [importer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  workspace    workspace?  @relation(fields: [workspace_id], references: [id], onUpdate: NoAction)
+
+  @@index([doc_id, imported_at], map: "library_doc_import_doc_idx")
+  @@index([importer_id, imported_at], map: "library_doc_import_user_idx")
+}
+
+model library_doc_outcome {
+  id          String      @id
+  doc_id      String
+  user_id     String
+  metric      String
+  value       Decimal     @db.Decimal
+  context     Json?
+  recorded_at DateTime    @default(now()) @db.Timestamp(6)
+  library_doc library_doc @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        user        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([doc_id, metric], map: "library_doc_outcome_doc_idx")
+  @@index([user_id], map: "library_doc_outcome_user_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model library_doc_purchase {
+  id                 String      @id
+  doc_id             String
+  buyer_id           String
+  price_vnd          Int
+  creator_share_vnd  Int
+  platform_share_vnd Int
+  wallet_txn_id      String?
+  created_at         DateTime    @default(now()) @db.Timestamp(6)
+  user               user        @relation(fields: [buyer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  library_doc        library_doc @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([doc_id, buyer_id], map: "library_doc_purchase_unique")
+  @@index([buyer_id, created_at(sort: Desc)], map: "library_doc_purchase_buyer_idx")
+  @@index([doc_id, created_at(sort: Desc)], map: "library_doc_purchase_doc_idx")
+}
+
+model library_doc_report {
+  id                                        String      @id
+  doc_id                                    String
+  reporter_id                               String
+  reason                                    String
+  detail                                    String?
+  status                                    String?     @default("PENDING")
+  admin_id                                  String?
+  actioned_at                               DateTime?   @db.Timestamp(6)
+  created_at                                DateTime    @default(now()) @db.Timestamp(6)
+  user_library_doc_report_admin_idTouser    user?       @relation("library_doc_report_admin_idTouser", fields: [admin_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  library_doc                               library_doc @relation(fields: [doc_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_library_doc_report_reporter_idTouser user        @relation("library_doc_report_reporter_idTouser", fields: [reporter_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status, created_at], map: "library_doc_report_status_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model library_doc_review {
+  id            String      @id
+  doc_id        String
+  reviewer_id   String
+  rating        Int
+  comment       String?
+  helpful_count Int?        @default(0)
+  created_at    DateTime    @default(now()) @db.Timestamp(6)
+  library_doc   library_doc @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          user        @relation(fields: [reviewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([doc_id, reviewer_id])
+  @@index([doc_id, created_at(sort: Desc)], map: "library_doc_review_doc_idx")
+}
+
+model library_doc_view {
+  id          String      @id
+  user_id     String
+  doc_id      String
+  viewed_at   DateTime    @default(now()) @db.Timestamp(6)
+  library_doc library_doc @relation(fields: [doc_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user        user        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, doc_id])
+  @@index([user_id, viewed_at(sort: Desc)], map: "library_doc_view_user_recent_idx")
+}
+
+model library_karma_event {
+  id          String       @id
+  user_id     String
+  event_type  String
+  points      Int
+  doc_id      String?
+  context     Json?
+  created_at  DateTime     @default(now()) @db.Timestamp(6)
+  library_doc library_doc? @relation(fields: [doc_id], references: [id], onUpdate: NoAction)
+  user        user         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event_type, created_at(sort: Desc)], map: "library_karma_event_type_idx")
+  @@index([user_id, created_at(sort: Desc)], map: "library_karma_event_user_idx")
+}
+
+model library_saved_search {
+  id            String    @id
+  user_id       String
+  name          String
+  query_params  Json
+  notify_on_new Boolean   @default(false)
+  last_run_at   DateTime? @db.Timestamp(6)
+  created_at    DateTime  @default(now()) @db.Timestamp(6)
+  user          user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "library_saved_search_user_idx")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model library_university {
+  id             String           @id
+  slug           String           @unique
+  name           String
+  short_name     String?
+  country        String           @default("VN")
+  logo_url       String?
+  doc_count      Int              @default(0)
+  created_at     DateTime         @default(now()) @db.Timestamp(6)
+  library_course library_course[]
+  library_doc    library_doc[]
+}
+
+model mastery {
+  id                String    @id
+  user_id           String
+  concept_id        String
+  score             Float     @default(0) @db.Real
+  attempts          Int       @default(0)
+  correct           Int       @default(0)
+  last_seen_at      DateTime? @db.Timestamp(6)
+  decayed_at        DateTime? @db.Timestamp(6)
+  last_quiz_at      DateTime? @db.Timestamp(6)
+  last_flashcard_at DateTime? @db.Timestamp(6)
+  last_exam_at      DateTime? @db.Timestamp(6)
+  concept           concept   @relation(fields: [concept_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mastery_concept_id_concept_id_fk")
+  user              user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mastery_user_id_user_id_fk")
+
+  @@unique([user_id, concept_id], map: "mastery_user_concept_uniq")
+}
+
+model message {
+  id              String       @id
+  conversation_id String
+  role            message_role
+  content         String
+  citations       Json         @default("[]")
+  metadata        Json         @default("{}")
+  created_at      DateTime     @default(now()) @db.Timestamp(6)
+  conversation    conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "message_conversation_id_conversation_id_fk")
+
+  @@index([conversation_id, created_at], map: "message_conv_created_idx")
+}
+
+model note {
+  id           String     @id
+  user_id      String
+  title        String
+  content      String
+  concept_id   String?
+  document_id  String?
+  created_at   DateTime   @default(now()) @db.Timestamp(6)
+  updated_at   DateTime   @default(now()) @db.Timestamp(6)
+  workspace_id String?
+  concept      concept?   @relation(fields: [concept_id], references: [id], onUpdate: NoAction, map: "note_concept_id_concept_id_fk")
+  document     document?  @relation(fields: [document_id], references: [id], onUpdate: NoAction, map: "note_document_id_document_id_fk")
+  user         user       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspace    workspace? @relation(fields: [workspace_id], references: [id], onUpdate: NoAction, map: "note_workspace_id_workspace_id_fk")
+
+  @@index([user_id, updated_at], map: "note_updated_idx")
+  @@index([user_id], map: "note_user_idx")
+  @@index([user_id, workspace_id], map: "note_user_workspace_idx")
+}
+
+model notification_log {
+  id         String    @id
+  user_id    String
+  type       String
+  title      String
+  body       String
+  data       Json?
+  status     String    @default("pending")
+  receipt_id String?
+  error      String?
+  sent_at    DateTime? @db.Timestamp(6)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  read_at    DateTime? @db.Timestamp(6)
+  user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, type, created_at(sort: Desc)], map: "notification_log_user_type_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model promo_code {
+  code                                                               String                  @id
+  type                                                               String
+  value                                                              Int
+  max_uses                                                           Int?
+  uses_count                                                         Int                     @default(0)
+  per_user_limit                                                     Int                     @default(1)
+  min_purchase_vnd                                                   Int?
+  valid_from                                                         DateTime?               @db.Timestamp(6)
+  valid_until                                                        DateTime?               @db.Timestamp(6)
+  created_at                                                         DateTime                @default(now()) @db.Timestamp(6)
+  promo_code_redemption_promo_code_redemption_promo_codeTopromo_code promo_code_redemption[] @relation("promo_code_redemption_promo_codeTopromo_code")
+}
+
+model promo_code_redemption {
+  promo_code                                              String
+  user_id                                                 String
+  amount_vnd                                              Int        @default(0)
+  redeemed_at                                             DateTime   @default(now()) @db.Timestamp(6)
+  promo_code_promo_code_redemption_promo_codeTopromo_code promo_code @relation("promo_code_redemption_promo_codeTopromo_code", fields: [promo_code], references: [code], onDelete: Cascade, onUpdate: NoAction)
+  user                                                    user       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([promo_code, user_id])
+}
+
+model push_token {
+  id           String   @id
+  user_id      String
+  token        String   @unique(map: "push_token_token_idx")
+  platform     String
+  device_id    String?
+  enabled      Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamp(6)
+  last_seen_at DateTime @default(now()) @db.Timestamp(6)
+  user         user     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "push_token_user_idx")
+}
+
+model question {
+  id             String          @id
+  quiz_id        String
+  type           question_type
+  prompt         String
+  options        Json?
+  correct_answer Json
+  explanation    String
+  concept_id     String?
+  difficulty     Float           @db.Real
+  concept        concept?        @relation(fields: [concept_id], references: [id], onUpdate: NoAction, map: "question_concept_id_concept_id_fk")
+  quiz           quiz            @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "question_quiz_id_quiz_id_fk")
+  quiz_response  quiz_response[]
+}
+
+model quiz {
+  id                        String                      @id
+  user_id                   String
+  title                     String
+  config                    Json                        @default("{}")
+  created_at                DateTime                    @default(now()) @db.Timestamp(6)
+  workspace_id              String?
+  question                  question[]
+  user                      user                        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_user_id_user_id_fk")
+  workspace                 workspace?                  @relation(fields: [workspace_id], references: [id], onUpdate: NoAction, map: "quiz_workspace_id_workspace_id_fk")
+  quiz_attempt              quiz_attempt[]
+  tutor_subject_verify_quiz tutor_subject_verify_quiz[]
+
+  @@index([user_id, workspace_id], map: "quiz_user_workspace_idx")
+}
+
+model quiz_attempt {
+  id            String          @id
+  quiz_id       String
+  user_id       String
+  started_at    DateTime        @default(now()) @db.Timestamp(6)
+  submitted_at  DateTime?       @db.Timestamp(6)
+  score         Float?          @db.Real
+  max_score     Float?          @db.Real
+  percentage    Float?          @db.Real
+  quiz          quiz            @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_attempt_quiz_id_quiz_id_fk")
+  user          user            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_attempt_user_id_user_id_fk")
+  quiz_response quiz_response[]
+
+  @@index([quiz_id, user_id], map: "quiz_attempt_quiz_user_idx")
+  @@index([user_id], map: "quiz_attempt_user_idx")
+}
+
+model quiz_response {
+  id           String        @id
+  attempt_id   String?
+  question_id  String
+  user_id      String
+  answer       Json?
+  is_correct   Boolean?
+  answered_at  DateTime      @default(now()) @db.Timestamp(6)
+  quiz_attempt quiz_attempt? @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_response_attempt_id_quiz_attempt_id_fk")
+  question     question      @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_response_question_id_question_id_fk")
+  user         user          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "quiz_response_user_id_user_id_fk")
+
+  @@unique([attempt_id, question_id], map: "quiz_response_attempt_question_idx")
+  @@index([user_id, question_id], map: "quiz_response_user_question_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recording {
+  id                     String               @id
+  room_id                String?
+  egress_id              String?              @unique(map: "recording_egress_id_unique")
+  file_url               String?
+  duration_seconds       Int?
+  file_size_bytes        Int?
+  status                 String               @default("RECORDING")
+  transcript             String?
+  summary                String?
+  chapters               Json?
+  highlights             Json?
+  started_at             DateTime             @default(now()) @db.Timestamp(6)
+  ended_at               DateTime?            @db.Timestamp(6)
+  study_group_channel_id String?
+  created_by             String?
+  storage_key            String?
+  user                   user?                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  room                   room?                @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "recording_room_id_room_id_fk")
+  study_group_channel    study_group_channel? @relation(fields: [study_group_channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([study_group_channel_id, started_at(sort: Desc)], map: "recording_channel_idx")
+  @@index([room_id], map: "recording_room_idx")
+}
+
+model review {
+  id           String    @id
+  flashcard_id String
+  rating       Int
+  duration     Int
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  flashcard    flashcard @relation(fields: [flashcard_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "review_flashcard_id_flashcard_id_fk")
+}
+
+model room {
+  id                String          @id
+  owner_id          String
+  name              String
+  description       String?
+  type              room_type       @default(STUDY)
+  visibility        room_visibility @default(PRIVATE)
+  join_code         String?         @unique(map: "room_join_code_unique")
+  max_members       Int             @default(10)
+  require_approval  Boolean         @default(false)
+  features          Json            @default("{\"chat\": true, \"notes\": true, \"video\": true, \"aiTutor\": true, \"pomodoro\": true, \"recording\": false, \"whiteboard\": true}")
+  livekit_room_name String?
+  scheduled_start   DateTime?       @db.Timestamp(6)
+  scheduled_end     DateTime?       @db.Timestamp(6)
+  recurring_pattern Json?
+  status            room_status     @default(IDLE)
+  started_at        DateTime?       @db.Timestamp(6)
+  ended_at          DateTime?       @db.Timestamp(6)
+  created_at        DateTime        @default(now()) @db.Timestamp(6)
+  recording         recording[]
+  user              user            @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "room_owner_id_user_id_fk")
+  room_event        room_event[]
+  room_member       room_member[]
+  room_message      room_message[]
+
+  @@index([join_code])
+  @@index([owner_id], map: "room_owner_idx")
+  @@index([scheduled_start], map: "room_scheduled_idx")
+  @@index([status])
+}
+
+model room_event {
+  id        String   @id
+  room_id   String
+  user_id   String?
+  type      String
+  metadata  Json?
+  timestamp DateTime @default(now()) @db.Timestamp(6)
+  room      room     @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "room_event_room_id_room_id_fk")
+
+  @@index([room_id, timestamp], map: "room_event_room_time_idx")
+}
+
+model room_member {
+  id           String             @id
+  room_id      String
+  user_id      String
+  role         room_member_role   @default(MEMBER)
+  status       room_member_status @default(ACTIVE)
+  joined_at    DateTime           @default(now()) @db.Timestamp(6)
+  last_seen_at DateTime?          @db.Timestamp(6)
+  room         room               @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "room_member_room_id_room_id_fk")
+  user         user               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "room_member_user_id_user_id_fk")
+
+  @@unique([room_id, user_id], map: "room_member_uniq")
+  @@index([room_id, status], map: "room_member_status_idx")
+  @@index([user_id], map: "room_member_user_idx")
+}
+
+model room_message {
+  id          String   @id
+  room_id     String
+  user_id     String
+  content     String
+  type        String   @default("TEXT")
+  metadata    Json?
+  reply_to_id String?
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+  room        room     @relation(fields: [room_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "room_message_room_id_room_id_fk")
+
+  @@index([room_id, created_at], map: "room_message_room_time_idx")
+}
+
+model session {
+  id         String   @id
+  user_id    String
+  token      String   @unique(map: "session_token_unique")
+  expires_at DateTime @db.Timestamp(6)
+  ip_address String?
+  user_agent String?
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+  user       user     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "session_user_id_user_id_fk")
+}
+
+model study_group {
+  id                                                                            String                 @id
+  name                                                                          String
+  description                                                                   String?
+  owner_user_id                                                                 String
+  invite_code                                                                   String                 @unique
+  created_at                                                                    DateTime               @default(now()) @db.Timestamp(6)
+  icon_url                                                                      String?
+  banner_url                                                                    String?
+  is_public                                                                     Boolean                @default(false)
+  max_members                                                                   Int                    @default(100)
+  recording_log_channel_id                                                      String?
+  suspended_at                                                                  DateTime?              @db.Timestamptz(6)
+  suspend_reason                                                                String?
+  user                                                                          user                   @relation(fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_channel_study_group_recording_log_channel_idTostudy_group_channel study_group_channel?   @relation("study_group_recording_log_channel_idTostudy_group_channel", fields: [recording_log_channel_id], references: [id], onUpdate: NoAction)
+  study_group_category                                                          study_group_category[]
+  study_group_channel_study_group_channel_group_idTostudy_group                 study_group_channel[]  @relation("study_group_channel_group_idTostudy_group")
+  study_group_invite                                                            study_group_invite[]
+  study_group_member                                                            study_group_member[]
+  study_group_role                                                              study_group_role[]
+  tutoring_booking                                                              tutoring_booking[]
+  tutoring_class                                                                tutoring_class[]
+
+  @@index([invite_code], map: "study_group_invite_idx")
+}
+
+model study_group_category {
+  id                  String                @id
+  group_id            String
+  name                String
+  position            Int                   @default(0)
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  study_group         study_group           @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_channel study_group_channel[]
+
+  @@index([group_id, position], map: "study_group_category_group_pos_idx")
+}
+
+model study_group_channel {
+  id                                                                    String                           @id
+  group_id                                                              String
+  name                                                                  String
+  type                                                                  channel_type
+  topic                                                                 String?
+  position                                                              Int                              @default(0)
+  is_private                                                            Boolean                          @default(false)
+  slow_mode_seconds                                                     Int?
+  created_by                                                            String?
+  created_at                                                            DateTime                         @default(now()) @db.Timestamp(6)
+  livekit_room_name                                                     String?
+  voice_max_participants                                                Int?
+  category_id                                                           String?
+  available_tags                                                        Json?
+  recording                                                             recording[]
+  study_group_study_group_recording_log_channel_idTostudy_group_channel study_group[]                    @relation("study_group_recording_log_channel_idTostudy_group_channel")
+  study_group_category                                                  study_group_category?            @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+  user                                                                  user?                            @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  study_group_study_group_channel_group_idTostudy_group                 study_group                      @relation("study_group_channel_group_idTostudy_group", fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_channel_permission                                        study_group_channel_permission[]
+  study_group_message                                                   study_group_message[]
+  study_group_read_state                                                study_group_read_state[]
+  study_group_stage_role                                                study_group_stage_role[]
+  study_group_voice_state                                               study_group_voice_state[]
+
+  @@index([category_id, position], map: "study_group_channel_category_idx")
+  @@index([group_id, position], map: "study_group_channel_group_pos_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model study_group_channel_permission {
+  id                  String              @id
+  channel_id          String
+  role_id             String?
+  user_id             String?
+  overrides           Json                @default("{}")
+  created_at          DateTime            @default(now()) @db.Timestamp(6)
+  study_group_channel study_group_channel @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_role    study_group_role?   @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                user?               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([channel_id], map: "study_group_chperm_channel_idx")
+}
+
+model study_group_invite {
+  id          String      @id
+  group_id    String
+  code        String      @unique(map: "study_group_invite_code_key1")
+  created_by  String
+  max_uses    Int?
+  uses_count  Int         @default(0)
+  expires_at  DateTime?   @db.Timestamp(6)
+  created_at  DateTime    @default(now()) @db.Timestamp(6)
+  user        user        @relation(fields: [created_by], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group study_group @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([group_id], map: "study_group_invite_group_idx")
+}
+
+model study_group_member {
+  id                      String                    @id
+  group_id                String
+  user_id                 String
+  role                    group_role                @default(MEMBER)
+  joined_at               DateTime                  @default(now()) @db.Timestamp(6)
+  nickname                String?
+  muted_until             DateTime?                 @db.Timestamp(6)
+  last_seen_at            DateTime?                 @db.Timestamp(6)
+  study_group             study_group               @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                    user                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_member_role study_group_member_role[]
+
+  @@unique([group_id, user_id], map: "study_group_member_uniq")
+  @@index([user_id], map: "study_group_member_user_idx")
+}
+
+model study_group_member_role {
+  member_id          String
+  role_id            String
+  assigned_at        DateTime           @default(now()) @db.Timestamp(6)
+  study_group_member study_group_member @relation(fields: [member_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_role   study_group_role   @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([member_id, role_id])
+  @@index([role_id], map: "study_group_member_role_role_idx")
+}
+
+model study_group_message {
+  id                           String                         @id
+  channel_id                   String
+  author_id                    String
+  content                      String
+  content_type                 String                         @default("markdown")
+  reply_to_id                  String?
+  attachments                  Json?
+  reactions                    Json?
+  pinned                       Boolean                        @default(false)
+  mentions                     Json?
+  edited_at                    DateTime?                      @db.Timestamp(6)
+  deleted_at                   DateTime?                      @db.Timestamp(6)
+  created_at                   DateTime                       @default(now()) @db.Timestamp(6)
+  thread_root_id               String?
+  thread_count                 Int                            @default(0)
+  thread_last_at               DateTime?                      @db.Timestamp(6)
+  title                        String?
+  tags                         Json?
+  search_vec                   Unsupported("tsvector")?       @default(dbgenerated("to_tsvector('simple'::regconfig, COALESCE(content, ''::text))"))
+  is_solution                  Boolean                        @default(false)
+  archived_at                  DateTime?                      @db.Timestamp(6)
+  user                         user                           @relation(fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_channel          study_group_channel            @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group_message_revision study_group_message_revision[]
+
+  @@index([author_id], map: "study_group_message_author_idx")
+  @@index([channel_id, created_at], map: "study_group_message_channel_time_idx")
+  @@index([search_vec], map: "study_group_message_search_idx", type: Gin)
+}
+
+model study_group_message_revision {
+  id                  String              @id
+  message_id          String
+  content             String
+  edited_at           DateTime            @default(now()) @db.Timestamp(6)
+  study_group_message study_group_message @relation(fields: [message_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([message_id, edited_at(sort: Desc)], map: "study_group_message_revision_msg_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model study_group_read_state {
+  user_id              String
+  channel_id           String
+  last_read_message_id String?
+  muted                Boolean             @default(false)
+  updated_at           DateTime            @default(now()) @db.Timestamp(6)
+  notification_setting String              @default("all")
+  study_group_channel  study_group_channel @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                 user                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, channel_id])
+}
+
+model study_group_role {
+  id                             String                           @id
+  group_id                       String
+  name                           String
+  color                          String                           @default("#9aa3af")
+  position                       Int                              @default(0)
+  permissions                    Json                             @default("{}")
+  hoisted                        Boolean                          @default(false)
+  mentionable                    Boolean                          @default(false)
+  is_managed                     Boolean                          @default(false)
+  legacy_role                    String?
+  created_at                     DateTime                         @default(now()) @db.Timestamp(6)
+  study_group_channel_permission study_group_channel_permission[]
+  study_group_member_role        study_group_member_role[]
+  study_group                    study_group                      @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([group_id, name], map: "study_group_role_group_name_uniq")
+  @@index([group_id, position], map: "study_group_role_group_position_idx")
+}
+
+model study_group_stage_role {
+  user_id             String
+  channel_id          String
+  role                String              @default("AUDIENCE")
+  raised_at           DateTime?           @db.Timestamp(6)
+  promoted_at         DateTime?           @db.Timestamp(6)
+  study_group_channel study_group_channel @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                user                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, channel_id])
+  @@index([channel_id, role], map: "study_group_stage_role_channel_idx")
+}
+
+model study_group_voice_state {
+  user_id             String              @id
+  channel_id          String
+  joined_at           DateTime            @default(now()) @db.Timestamp(6)
+  self_muted          Boolean             @default(false)
+  server_muted        Boolean             @default(false)
+  camera              Boolean             @default(false)
+  screen_share        Boolean             @default(false)
+  study_group_channel study_group_channel @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                user                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([channel_id], map: "study_group_voice_state_channel_idx")
+}
+
+model study_plan_item {
+  id           String            @id
+  user_id      String
+  title        String
+  description  String?
+  concept_id   String?
+  status       study_plan_status @default(PENDING)
+  due_date     DateTime?         @db.Timestamp(6)
+  created_at   DateTime          @default(now()) @db.Timestamp(6)
+  completed_at DateTime?         @db.Timestamp(6)
+  kind         study_plan_kind   @default(manual)
+  metadata     Json              @default("{}")
+  concept      concept?          @relation(fields: [concept_id], references: [id], onUpdate: NoAction, map: "study_plan_item_concept_id_concept_id_fk")
+  user         user              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, due_date], map: "study_plan_due_idx")
+  @@index([user_id, status], map: "study_plan_user_status_idx")
+}
+
+model study_session {
+  id           String       @id
+  user_id      String
+  started_at   DateTime     @default(now()) @db.Timestamp(6)
+  ended_at     DateTime?    @db.Timestamp(6)
+  session_type session_type
+  metadata     Json         @default("{}")
+  user         user         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "study_session_user_id_user_id_fk")
+}
+
+model system_config {
+  key        String   @id
+  value      Json
+  updated_by String?
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  user       user?    @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
+model tutor_application {
+  id                String        @id
+  request_id        String
+  tutor_id          String
+  message           String
+  proposed_rate_vnd Int
+  status            String        @default("PENDING")
+  created_at        DateTime      @default(now()) @db.Timestamp(6)
+  tutor_request     tutor_request @relation(fields: [request_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_profile     tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([request_id, tutor_id], map: "tutor_application_uniq")
+  @@index([tutor_id, created_at], map: "tutor_application_tutor_idx")
+}
+
+model tutor_availability {
+  id            String        @id
+  tutor_id      String
+  day_of_week   Int
+  start_time    String
+  end_time      String
+  timezone      String        @default("Asia/Ho_Chi_Minh")
+  tutor_profile tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tutor_id], map: "tutor_availability_tutor_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutor_blocked_time {
+  id            String        @id
+  tutor_id      String
+  start_at      DateTime      @db.Timestamp(6)
+  end_at        DateTime      @db.Timestamp(6)
+  reason        String?
+  created_at    DateTime      @default(now()) @db.Timestamp(6)
+  tutor_profile tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tutor_id, start_at], map: "tutor_blocked_time_tutor_idx")
+}
+
+model tutor_favorite {
+  user_id       String
+  tutor_id      String
+  created_at    DateTime      @default(now()) @db.Timestamp(6)
+  tutor_profile tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          user          @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, tutor_id])
+  @@index([user_id, created_at(sort: Desc)], map: "tutor_favorite_user_idx")
+}
+
+model tutor_kyc_document {
+  id            String        @id
+  tutor_id      String
+  doc_type      String
+  storage_key   String
+  mime_type     String
+  size_bytes    Int
+  original_name String
+  status        String        @default("PENDING")
+  reviewed_by   String?
+  review_note   String?
+  created_at    DateTime      @default(now()) @db.Timestamp(6)
+  reviewed_at   DateTime?     @db.Timestamp(6)
+  user          user?         @relation(fields: [reviewed_by], references: [id], onUpdate: NoAction)
+  tutor_profile tutor_profile @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status])
+  @@index([tutor_id, created_at], map: "tutor_kyc_document_tutor_idx")
+}
+
+model tutor_payout {
+  id              String        @id
+  tutor_id        String
+  amount_vnd      Int
+  status          String        @default("REQUESTED")
+  method          String        @default("BANK_TRANSFER")
+  account_details Json?
+  processed_by    String?
+  note            String?
+  requested_at    DateTime      @default(now()) @db.Timestamp(6)
+  processed_at    DateTime?     @db.Timestamp(6)
+  user            user?         @relation(fields: [processed_by], references: [id], onUpdate: NoAction)
+  tutor_profile   tutor_profile @relation(fields: [tutor_id], references: [id], onUpdate: NoAction)
+
+  @@index([status])
+  @@index([tutor_id, requested_at], map: "tutor_payout_tutor_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutor_profile {
+  id                       String                    @id
+  user_id                  String                    @unique
+  headline                 String
+  bio                      String
+  hourly_rate_vnd          Int
+  modality                 String                    @default("ONLINE")
+  avatar_url               String?
+  banner_url               String?
+  sessions_completed       Int                       @default(0)
+  rating_avg               Decimal?                  @db.Decimal(3, 2)
+  rating_count             Int                       @default(0)
+  verification_status      String                    @default("NONE")
+  bio_embedding            Unsupported("vector")?
+  status                   String                    @default("DRAFT")
+  created_at               DateTime                  @default(now()) @db.Timestamp(6)
+  updated_at               DateTime                  @default(now()) @db.Timestamp(6)
+  search_vec               Unsupported("tsvector")?  @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(bio, ''::text) || ' '::text) || COALESCE(headline, ''::text)))"))
+  bio_embedding_updated_at DateTime?                 @db.Timestamp(6)
+  instant_book_enabled     Boolean                   @default(false)
+  trial_session_enabled    Boolean                   @default(true)
+  avg_response_minutes     Int?
+  response_rate_pct        Int?
+  ical_token               String?
+  intro_video_url          String?
+  intro_video_thumb_url    String?
+  library_doc_endorsement  library_doc_endorsement[]
+  tutor_application        tutor_application[]
+  tutor_availability       tutor_availability[]
+  tutor_blocked_time       tutor_blocked_time[]
+  tutor_favorite           tutor_favorite[]
+  tutor_kyc_document       tutor_kyc_document[]
+  tutor_payout             tutor_payout[]
+  user                     user                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_review             tutor_review[]
+  tutor_subject            tutor_subject[]
+  tutoring_booking         tutoring_booking[]
+  tutoring_class           tutoring_class[]
+  tutoring_pack            tutoring_pack[]
+
+  @@index([bio_embedding])
+  @@index([modality, status], map: "tutor_profile_modality_idx")
+  @@index([search_vec], map: "tutor_profile_search_idx", type: Gin)
+  @@index([status])
+}
+
+model tutor_request {
+  id                   String                   @id
+  student_id           String
+  title                String
+  description          String
+  subject_slug         String
+  level                String
+  budget_vnd           Int?
+  modality             String                   @default("ONLINE")
+  urgency              String                   @default("FLEXIBLE")
+  status               String                   @default("OPEN")
+  embedding            Unsupported("vector")?
+  created_at           DateTime                 @default(now()) @db.Timestamp(6)
+  expires_at           DateTime?                @db.Timestamp(6)
+  search_vec           Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, COALESCE(description, ''::text)), 'B'::\"char\"))"))
+  embedding_updated_at DateTime?                @db.Timestamp(6)
+  tutor_application    tutor_application[]
+  user                 user                     @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([embedding])
+  @@index([search_vec], map: "tutor_request_search_vec_gin", type: Gin)
+  @@index([student_id, created_at], map: "tutor_request_student_idx")
+  @@index([subject_slug, level, status], map: "tutor_request_subject_idx")
+}
+
+model tutor_review {
+  id                                  String                 @id
+  booking_id                          String                 @unique
+  reviewer_id                         String
+  tutor_id                            String
+  rating                              Int
+  comment                             String?
+  created_at                          DateTime               @default(now()) @db.Timestamp(6)
+  hidden_at                           DateTime?              @db.Timestamptz(6)
+  hidden_reason                       String?
+  hidden_by                           String?
+  tags                                String[]               @default([])
+  helpful_count                       Int                    @default(0)
+  attachments                         Json?
+  tutoring_booking                    tutoring_booking       @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_tutor_review_hidden_byTouser   user?                  @relation("tutor_review_hidden_byTouser", fields: [hidden_by], references: [id], onUpdate: NoAction)
+  user_tutor_review_reviewer_idTouser user                   @relation("tutor_review_reviewer_idTouser", fields: [reviewer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_profile                       tutor_profile          @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_review_helpful                tutor_review_helpful[]
+
+  @@index([tutor_id, created_at], map: "tutor_review_tutor_idx")
+}
+
+model tutor_review_helpful {
+  review_id    String
+  user_id      String
+  created_at   DateTime     @default(now()) @db.Timestamp(6)
+  tutor_review tutor_review @relation(fields: [review_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user         user         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([review_id, user_id])
+}
+
+model tutor_saved_search {
+  id               String    @id
+  user_id          String
+  name             String
+  filters          Json
+  alert_enabled    Boolean   @default(false)
+  last_notified_at DateTime? @db.Timestamp(6)
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+  user             user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "tutor_saved_search_user_idx")
+}
+
+model tutor_subject {
+  id                        String                      @id
+  tutor_id                  String
+  subject_slug              String
+  level                     String
+  verified_at               DateTime?                   @db.Timestamp(6)
+  verify_score              Int?
+  tutor_profile             tutor_profile               @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_subject_verify_quiz tutor_subject_verify_quiz[]
+
+  @@unique([tutor_id, subject_slug, level], map: "tutor_subject_uniq")
+  @@index([subject_slug, level], map: "tutor_subject_subject_idx")
+}
+
+model tutor_subject_verify_quiz {
+  id               String        @id
+  tutor_subject_id String
+  quiz_id          String
+  status           String        @default("PENDING")
+  score            Int?
+  pass_threshold   Int           @default(80)
+  created_at       DateTime      @default(now()) @db.Timestamp(6)
+  completed_at     DateTime?     @db.Timestamp(6)
+  quiz             quiz          @relation(fields: [quiz_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutor_subject    tutor_subject @relation(fields: [tutor_subject_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tutor_subject_id], map: "tutor_subject_verify_quiz_subject_idx")
+}
+
+model tutoring_booking {
+  id                     String                  @id
+  tutor_id               String
+  student_id             String
+  study_group_id         String?
+  subject_slug           String
+  level                  String
+  start_at               DateTime                @db.Timestamp(6)
+  end_at                 DateTime                @db.Timestamp(6)
+  rate_vnd               Int
+  status                 String                  @default("PENDING_TUTOR")
+  student_message        String?
+  session_notes          String?
+  recording_id           String?
+  created_at             DateTime                @default(now()) @db.Timestamp(6)
+  confirmed_at           DateTime?               @db.Timestamp(6)
+  completed_at           DateTime?               @db.Timestamp(6)
+  cancelled_at           DateTime?               @db.Timestamp(6)
+  cancelled_by           String?
+  cancel_reason          String?
+  is_trial               Boolean                 @default(false)
+  original_start_at      DateTime?               @db.Timestamp(6)
+  reschedule_count       Int                     @default(0)
+  pack_purchase_id       String?
+  tutor_review           tutor_review?
+  tutoring_pack_purchase tutoring_pack_purchase? @relation(fields: [pack_purchase_id], references: [id], onUpdate: NoAction)
+  user                   user                    @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  study_group            study_group?            @relation(fields: [study_group_id], references: [id], onUpdate: NoAction)
+  tutor_profile          tutor_profile           @relation(fields: [tutor_id], references: [id], onUpdate: NoAction)
+  tutoring_payment       tutoring_payment?
+
+  @@index([status])
+  @@index([student_id, start_at], map: "tutoring_booking_student_time_idx")
+  @@index([tutor_id, start_at], map: "tutoring_booking_tutor_time_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutoring_class {
+  id                        String                      @id
+  tutor_id                  String
+  title                     String
+  description               String?
+  subject_slug              String
+  level                     String
+  max_students              Int
+  enrolled_count            Int                         @default(0)
+  rate_per_student_vnd      Int
+  duration_min              Int                         @default(90)
+  total_sessions            Int                         @default(1)
+  schedule_type             String
+  schedule_slots            Json
+  start_date                DateTime                    @db.Date
+  study_group_id            String?
+  status                    String                      @default("OPEN")
+  created_at                DateTime                    @default(now()) @db.Timestamp(6)
+  study_group               study_group?                @relation(fields: [study_group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tutor_profile             tutor_profile               @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutoring_class_enrollment tutoring_class_enrollment[]
+
+  @@index([status, start_date], map: "tutoring_class_status_idx")
+  @@index([tutor_id, status], map: "tutoring_class_tutor_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutoring_class_enrollment {
+  id               String            @id
+  class_id         String
+  student_id       String
+  status           String            @default("ENROLLED")
+  payment_id       String?
+  enrolled_at      DateTime          @default(now()) @db.Timestamp(6)
+  tutoring_class   tutoring_class    @relation(fields: [class_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutoring_payment tutoring_payment? @relation(fields: [payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user             user              @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([class_id, student_id])
+  @@index([class_id, status], map: "tutoring_class_enrollment_class_idx")
+  @@index([student_id, status], map: "tutoring_class_enrollment_student_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutoring_concierge_message {
+  id                        String                    @id
+  thread_id                 String
+  role                      String
+  content                   String
+  metadata                  Json?
+  created_at                DateTime                  @default(now()) @db.Timestamp(6)
+  tutoring_concierge_thread tutoring_concierge_thread @relation(fields: [thread_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([thread_id, created_at], map: "tutoring_concierge_message_thread_time_idx")
+}
+
+model tutoring_concierge_thread {
+  id                         String                       @id
+  user_id                    String
+  title                      String?
+  last_message_at            DateTime                     @default(now()) @db.Timestamp(6)
+  extracted_filters          Json?
+  created_at                 DateTime                     @default(now()) @db.Timestamp(6)
+  tutoring_concierge_message tutoring_concierge_message[]
+  user                       user                         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, last_message_at(sort: Desc)], map: "tutoring_concierge_thread_user_time_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutoring_pack {
+  id                     String                   @id
+  tutor_id               String
+  subject_slug           String
+  level                  String
+  session_count          Int
+  duration_min           Int                      @default(60)
+  rate_per_session_vnd   Int
+  total_vnd              Int
+  discount_pct           Int                      @default(0)
+  status                 String                   @default("ACTIVE")
+  description            String?
+  created_at             DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamp(6)
+  tutor_profile          tutor_profile            @relation(fields: [tutor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tutoring_pack_purchase tutoring_pack_purchase[]
+
+  @@index([tutor_id, status], map: "tutoring_pack_tutor_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tutoring_pack_purchase {
+  id                        String             @id
+  pack_id                   String
+  student_id                String
+  total_vnd                 Int
+  remaining_sessions        Int
+  installment_total_periods Int?
+  installment_paid_periods  Int                @default(0)
+  recurring_schedule        String?
+  status                    String             @default("ACTIVE")
+  expires_at                DateTime?          @db.Timestamp(6)
+  created_at                DateTime           @default(now()) @db.Timestamp(6)
+  tutoring_booking          tutoring_booking[]
+  tutoring_pack             tutoring_pack      @relation(fields: [pack_id], references: [id], onUpdate: NoAction)
+  user                      user               @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([student_id, status], map: "tutoring_pack_purchase_student_idx")
+}
+
+model tutoring_payment {
+  id                        String                      @id
+  booking_id                String                      @unique
+  amount_vnd                Int
+  fee_vnd                   Int                         @default(0)
+  provider                  String                      @default("STUB")
+  provider_ref              String?
+  order_code                String                      @unique
+  status                    String                      @default("CREATED")
+  escrow_release_at         DateTime?                   @db.Timestamp(6)
+  raw_response              Json?
+  created_at                DateTime                    @default(now()) @db.Timestamp(6)
+  captured_at               DateTime?                   @db.Timestamp(6)
+  refunded_at               DateTime?                   @db.Timestamp(6)
+  tutoring_class_enrollment tutoring_class_enrollment[]
+  tutoring_booking          tutoring_booking            @relation(fields: [booking_id], references: [id], onUpdate: NoAction)
+
+  @@index([booking_id], map: "tutoring_payment_booking_idx")
+  @@index([status])
+}
+
+model two_factor {
+  id           String  @id
+  user_id      String
+  secret       String
+  backup_codes String
+  verified     Boolean @default(true)
+  user         user    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([secret], map: "idx_two_factor_secret")
+  @@index([user_id], map: "idx_two_factor_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model user {
+  id                                                      String                           @id
+  email                                                   String                           @unique(map: "user_email_unique")
+  email_verified                                          Boolean                          @default(false)
+  name                                                    String?
+  image                                                   String?
+  plan                                                    plan                             @default(FREE)
+  preferences                                             Json                             @default("{}")
+  created_at                                              DateTime                         @default(now()) @db.Timestamp(6)
+  updated_at                                              DateTime                         @default(now()) @db.Timestamp(6)
+  is_public                                               Boolean                          @default(false)
+  date_of_birth                                           DateTime?                        @db.Timestamp(6)
+  parental_consent_status                                 parental_consent_status          @default(NOT_REQUIRED)
+  parent_email                                            String?
+  parental_consent_at                                     DateTime?                        @db.Timestamp(6)
+  admin_role                                              String?
+  suspended_at                                            DateTime?                        @db.Timestamptz(6)
+  suspend_reason                                          String?
+  two_factor_enabled                                      Boolean                          @default(false)
+  status                                                  String                           @default("online")
+  status_text                                             String?
+  status_emoji                                            String?
+  status_expires_at                                       DateTime?                        @db.Timestamp(6)
+  booking_ical_token                                      String?
+  pro_until_at                                            DateTime?                        @db.Timestamp(6)
+  account                                                 account[]
+  admin_audit_log                                         admin_audit_log[]
+  ai_usage_log                                            ai_usage_log[]
+  content_report_content_report_reporter_idTouser         content_report[]                 @relation("content_report_reporter_idTouser")
+  content_report_content_report_resolved_byTouser         content_report[]                 @relation("content_report_resolved_byTouser")
+  conversation                                            conversation[]
+  dm_message                                              dm_message[]
+  dm_read_state                                           dm_read_state[]
+  dm_thread_dm_thread_user1_idTouser                      dm_thread[]                      @relation("dm_thread_user1_idTouser")
+  dm_thread_dm_thread_user2_idTouser                      dm_thread[]                      @relation("dm_thread_user2_idTouser")
+  document                                                document[]
+  exam                                                    exam[]
+  exam_attempt                                            exam_attempt[]
+  exam_response                                           exam_response[]
+  flashcard                                               flashcard[]
+  library_course                                          library_course[]
+  library_creator_karma                                   library_creator_karma?
+  library_doc                                             library_doc[]
+  library_doc_annotation                                  library_doc_annotation[]
+  library_doc_annotation_vote                             library_doc_annotation_vote[]
+  library_doc_import                                      library_doc_import[]
+  library_doc_outcome                                     library_doc_outcome[]
+  library_doc_purchase                                    library_doc_purchase[]
+  library_doc_report_library_doc_report_admin_idTouser    library_doc_report[]             @relation("library_doc_report_admin_idTouser")
+  library_doc_report_library_doc_report_reporter_idTouser library_doc_report[]             @relation("library_doc_report_reporter_idTouser")
+  library_doc_review                                      library_doc_review[]
+  library_doc_view                                        library_doc_view[]
+  library_karma_event                                     library_karma_event[]
+  library_saved_search                                    library_saved_search[]
+  mastery                                                 mastery[]
+  note                                                    note[]
+  notification_log                                        notification_log[]
+  promo_code_redemption                                   promo_code_redemption[]
+  push_token                                              push_token[]
+  quiz                                                    quiz[]
+  quiz_attempt                                            quiz_attempt[]
+  quiz_response                                           quiz_response[]
+  recording                                               recording[]
+  room                                                    room[]
+  room_member                                             room_member[]
+  session                                                 session[]
+  study_group                                             study_group[]
+  study_group_channel                                     study_group_channel[]
+  study_group_channel_permission                          study_group_channel_permission[]
+  study_group_invite                                      study_group_invite[]
+  study_group_member                                      study_group_member[]
+  study_group_message                                     study_group_message[]
+  study_group_read_state                                  study_group_read_state[]
+  study_group_stage_role                                  study_group_stage_role[]
+  study_group_voice_state                                 study_group_voice_state?
+  study_plan_item                                         study_plan_item[]
+  study_session                                           study_session[]
+  system_config                                           system_config[]
+  tutor_favorite                                          tutor_favorite[]
+  tutor_kyc_document                                      tutor_kyc_document[]
+  tutor_payout                                            tutor_payout[]
+  tutor_profile                                           tutor_profile?
+  tutor_request                                           tutor_request[]
+  tutor_review_tutor_review_hidden_byTouser               tutor_review[]                   @relation("tutor_review_hidden_byTouser")
+  tutor_review_tutor_review_reviewer_idTouser             tutor_review[]                   @relation("tutor_review_reviewer_idTouser")
+  tutor_review_helpful                                    tutor_review_helpful[]
+  tutor_saved_search                                      tutor_saved_search[]
+  tutoring_booking                                        tutoring_booking[]
+  tutoring_class_enrollment                               tutoring_class_enrollment[]
+  tutoring_concierge_thread                               tutoring_concierge_thread[]
+  tutoring_pack_purchase                                  tutoring_pack_purchase[]
+  two_factor                                              two_factor[]
+  user_stats                                              user_stats?
+  user_wallet                                             user_wallet?
+  user_wallet_txn                                         user_wallet_txn[]
+  workspace                                               workspace[]
+  workspace_cached_output                                 workspace_cached_output[]
+}
+
+model user_stats {
+  user_id            String   @id
+  xp                 Int      @default(0)
+  current_streak     Int      @default(0)
+  longest_streak     Int      @default(0)
+  last_activity_date String?
+  achievements       String[] @default([])
+  updated_at         DateTime @default(now()) @db.Timestamp(6)
+  user               user     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([xp])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_wallet {
+  user_id                  String    @id
+  balance_vnd              Int       @default(0)
+  promo_balance_vnd        Int       @default(0)
+  promo_expires_at         DateTime? @db.Timestamp(6)
+  auto_topup_threshold_vnd Int?
+  auto_topup_amount_vnd    Int?
+  created_at               DateTime  @default(now()) @db.Timestamp(6)
+  updated_at               DateTime  @default(now()) @db.Timestamp(6)
+  user                     user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_wallet_txn {
+  id                String   @id
+  user_id           String
+  type              String
+  amount_vnd        Int
+  balance_after_vnd Int
+  related_id        String?
+  related_type      String?
+  description       String?
+  created_at        DateTime @default(now()) @db.Timestamp(6)
+  user              user     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)], map: "user_wallet_txn_user_time_idx")
+}
+
+model verification {
+  id         String   @id
+  identifier String
+  value      String
+  expires_at DateTime @db.Timestamp(6)
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+}
+
+model workspace {
+  id                      String                    @id
+  user_id                 String
+  name                    String
+  description             String?
+  created_at              DateTime                  @default(now()) @db.Timestamp(6)
+  conversation            conversation[]
+  document                document[]
+  exam                    exam[]
+  flashcard               flashcard[]
+  library_doc_import      library_doc_import[]
+  note                    note[]
+  quiz                    quiz[]
+  user                    user                      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "workspace_user_id_user_id_fk")
+  workspace_cached_output workspace_cached_output[]
+
+  @@index([user_id], map: "workspace_user_idx")
+}
+
+model workspace_cached_output {
+  id           String                @id
+  workspace_id String
+  user_id      String
+  kind         workspace_cached_kind
+  markdown     String
+  meta         Json                  @default("{}")
+  generated_at DateTime              @default(now()) @db.Timestamp(6)
+  user         user                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspace    workspace             @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([workspace_id, user_id, kind], map: "workspace_cached_uniq")
+  @@index([workspace_id, user_id, kind], map: "workspace_cached_lookup_idx")
+}
+
+enum attempt_status {
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+  AUTO_SUBMITTED
+  DISQUALIFIED
+}
+
+enum card_type {
+  BASIC
+  CLOZE
+  IMAGE_OCCLUSION
+}
+
+enum channel_type {
+  TEXT
+  VOICE
+  ANNOUNCEMENT
+  STAGE
+  FORUM
+}
+
+enum doc_status {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum exam_mode {
+  PRACTICE
+  TIMED
+  LIVE
+  ASYNC
+  ADAPTIVE
+  TOURNAMENT
+}
+
+enum exam_status {
+  DRAFT
+  PUBLISHED
+  IN_PROGRESS
+  ENDED
+}
+
+enum fsrs_state {
+  NEW
+  LEARNING
+  REVIEW
+  RELEARNING
+}
+
+enum group_role {
+  OWNER
+  MEMBER
+  ADMIN
+  MODERATOR
+}
+
+enum message_role {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum parental_consent_status {
+  NOT_REQUIRED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum question_type {
+  MCQ
+  TRUE_FALSE
+  SHORT
+  ESSAY
+  FILL_BLANK
+}
+
+enum room_member_role {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum room_member_status {
+  ACTIVE
+  PENDING
+  KICKED
+  BANNED
+}
+
+enum room_status {
+  IDLE
+  ACTIVE
+  ENDED
+}
+
+enum room_type {
+  STUDY
+  CLASSROOM
+  EXAM
+  OFFICE_HOURS
+}
+
+enum room_visibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+enum session_type {
+  CHAT
+  FLASHCARD
+  QUIZ
+  READING
+}
+
+enum study_plan_kind {
+  manual
+  review
+  new
+  practice
+}
+
+enum study_plan_status {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+enum workspace_cached_kind {
+  atom_guide @map("atom-guide")
+  briefing
+}

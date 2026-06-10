@@ -11,8 +11,33 @@
  *
  * @type {import('next').NextConfig}
  */
+/**
+ * Strangler-fig proxy (docs/plans/nestjs-migration.md §2.2): các prefix đã
+ * migrate sang NestJS (:4000) được rewrite TRƯỚC filesystem route (beforeFiles
+ * thắng cả route.ts còn tồn tại) → cutover an toàn, rollback = xoá 1 dòng.
+ * Prod VPS dùng rule tương đương ở Caddy — danh sách này chỉ phục vụ dev.
+ */
+const NEST_ORIGIN = process.env.NEST_API_ORIGIN ?? 'http://localhost:4000';
+const NEST_MIGRATED_PREFIXES = [
+  'healthz', // Wave 0 — health của NestJS
+  '_spike', // Wave 0 — XÓA Ở WAVE 1 cùng SpikeModule
+];
+
 const nextConfig = {
   reactStrictMode: true,
+  async rewrites() {
+    return {
+      beforeFiles: NEST_MIGRATED_PREFIXES.map((p) => ({
+        source: `/api/${p}/:path*`,
+        destination: `${NEST_ORIGIN}/api/${p}/:path*`,
+      })).concat(
+        NEST_MIGRATED_PREFIXES.map((p) => ({
+          source: `/api/${p}`,
+          destination: `${NEST_ORIGIN}/api/${p}`,
+        })),
+      ),
+    };
+  },
   // ESLint KHÔNG chặn `next build`. Các warning hiện tại (unused-var,
   // consistent-type-imports) thuần style, 0 ảnh hưởng runtime — nhưng nếu để mặc
   // định, `next build` FAIL trên chúng → VPS không build/deploy được. Lint vẫn chạy

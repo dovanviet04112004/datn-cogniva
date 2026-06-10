@@ -1,0 +1,23 @@
+// tsconfig cho @cogniva/api — NestJS chạy Node, build bằng Nest CLI (tsc).
+// Override base (ESM/Bundler) sang CommonJS + decorator metadata vì NestJS DI
+// resolve dependency theo type lúc runtime (reflect-metadata) — tsx/esbuild
+// không emit metadata nên không dùng được như apps/realtime.
+{
+  "extends": "@cogniva/tsconfig/base.json",
+  "compilerOptions": {
+    "module": "node16",
+    "moduleResolution": "node16",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "declaration": false,
+    "declarationMap": false,
+    "removeComments": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "types": ["node"],
+    "incremental": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

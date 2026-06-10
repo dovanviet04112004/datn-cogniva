@@ -1,0 +1,5 @@
+// Build config cho `nest build` — loại test ra khỏi dist.
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+}

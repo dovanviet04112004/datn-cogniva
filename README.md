@@ -20,7 +20,11 @@ This repository follows the master plan in [`docs/plans/master.md`](./docs/plans
 | Tooling      | pnpm workspaces + Turborepo + Vitest + Playwright     |
 | Hosting      | Vercel (web) · self-hosted Postgres or Neon (db)      |
 
-See [`docs/plans/master.md`](./docs/plans/master.md) §3 for the full rationale, including why Drizzle over Prisma, Mastra over LangGraph, and Better Auth over Clerk.
+See [`docs/plans/master.md`](./docs/plans/master.md) §3 for the original rationale.
+
+> ⚠️ **Backend pivot 2026-06-10:** backend đang migrate sang **NestJS (`apps/api`,
+> Prisma, JWT)** theo [`docs/plans/nestjs-migration.md`](./docs/plans/nestjs-migration.md)
+> — strangler fig, route chuyển dần từ Next API sang `:4000` qua rewrites.
 
 ---
 
@@ -29,7 +33,9 @@ See [`docs/plans/master.md`](./docs/plans/master.md) §3 for the full rationale,
 ```
 cogniva/
 ├── apps/
-│   ├── web/                 — Next.js app (UI + API routes + auth handler)
+│   ├── web/                 — Next.js app (UI + API routes cũ + auth handler)
+│   ├── api/                 — NestJS backend (:4000, Prisma + JWT) — đích migrate
+│   ├── realtime/            — Socket.IO gateway self-host
 │   ├── edge/                — Cloudflare Worker edge gateway
 │   ├── mobile/              — Expo mobile app
 │   └── hocuspocus/          — Yjs collaboration server
