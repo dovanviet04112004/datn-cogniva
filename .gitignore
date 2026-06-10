@@ -76,3 +76,6 @@ playwright-report/
 
 # Claude Code — settings ca nhan, khong commit
 .claude/settings.local.json
+
+# Backup PATH local (machine-specific)
+.path-backup-*.txt
