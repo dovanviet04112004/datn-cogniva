@@ -23,6 +23,18 @@
 
 ---
 
+> ⚠️ **PIVOT BACKEND 2026-06-10 — NestJS.** Backend đang được tách khỏi Next.js
+> API routes sang NestJS chuẩn (`apps/api`: controllers/services/DI/guards/Swagger),
+> migrate strangler fig theo 3 giai đoạn: **GĐ1** modular monolith (JWT tự triển
+> khai access 15'/refresh 30d thay Better Auth · **Prisma** thay Drizzle) →
+> **GĐ2** Qdrant (vectors) + Kafka/Redpanda (event bus) → **GĐ3** tách
+> microservices + apps/gateway. Mobile vẫn **React Native Expo** (không Flutter).
+> Kế hoạch chi tiết: **[docs/plans/nestjs-migration.md](./nestjs-migration.md)**.
+> Lưu ý số liệu hiện trạng thật 2026-06: **~270 API routes / ~95 bảng** (các con
+> số "~30 routes/21 bảng" trong §5–§6 bên dưới là snapshot Phase 0–9, đã outdated);
+> realtime = Socket.IO self-host (không phải Soketi); API = REST route handlers
+> (tRPC không dùng); Mastra không dùng (AI layer = router tự viết `lib/ai/router.ts`).
+
 ## 1. Tổng quan & Differentiators
 
 ### 1.1. Tên dự án
@@ -148,6 +160,40 @@
 - Public knowledge graphs
 - Study stats (LeetCode-style heatmap)
 
+#### F23. Workspace = Notebook (V5) — ✅ SHIPPED 2026-05-20 — xem [v5-notebooklm-layout.md](v5-notebooklm-layout.md)
+- **UX pivot (2026-05-20):** Bỏ tabs trong workspace. Mỗi workspace = 1
+  "notebook" với 3-cột layout: **Sources · Chat · Studio** (lấy cảm hứng
+  NotebookLM). Chat ở giữa là default view. Studio bên phải có 7 recipes
+  pre-built (Phiên 15p · Ôn flashcard · Quick Quiz · Tạo Exam · Atom guide
+  · Mind map · Briefing doc).
+- Trên top atom-centric backend (Phase A-D đã ship F22). Không touch
+  schema/lib, chỉ rewrite UI workspace.
+- Workflow user: vào workspace → chat/recipe 1-2 click → xong (vs 7-8
+  click nhảy trang ở V4).
+- Mobile responsive: 2 drawer toggle (Sources trái + Studio phải) ở header.
+- Effort thực tế: 4 phase trong 1 ngày (V5.1 layout, V5.2 4 recipes, V5.3
+  mind map + briefing, V5.4 mobile + atom detail UX).
+
+#### F22. Atom-centric Re-architecture (V4) — xem [atom-centric.md](atom-centric.md)
+- **Triết lý mới (2026-05-20):** Mọi feature (Flashcard / Quiz / Exam / Graph
+  / Study Plan / AI Tutor) là **view của 1 atom** kiến thức chung, không
+  phải bảng độc lập.
+- Schema cốt lõi đã có (`concept` ≈ atom, `mastery`, `chunkConcept`), chỉ
+  thiếu wiring: flashcard.conceptId luôn NULL, exam attempt không update
+  mastery. Connect lại, không rewrite.
+- UI gộp: workspace tab `Flashcards/Quizzes/Exams` → 1 tab `Practice`. AI
+  Tutor thành slide-out drawer (Cmd+J), không page riêng. Study Plan
+  auto-proposal, không todo trống.
+- Effort: ~2 tuần (5 ngày backend + 7 ngày frontend, 1 dev full-time).
+
+#### F21. Tutoring Marketplace (Phase 21+) — xem [tutoring.md](tutoring.md)
+- Tutor profile + browse + filter (subject/level/budget/modality)
+- Student post yêu cầu tìm gia sư + tutor apply
+- DM trước book (reuse Phase 20 V2)
+- V2: Booking system + auto-create study group dedicated cho session, calendar, reviews, AI matching qua embedding
+- V3: KYC + verify subject qua AI quiz + payment integration (VNPay) + payout
+- Tích hợp study tool sẵn có: voice channel + recording + transcript + flashcards auto-gen
+
 ### 2.4. Advanced AI Features (V4 — wow factor)
 
 #### F14. Voice AI Tutor
@@ -233,9 +279,9 @@ tRPC                            — type-safe API
 Drizzle ORM                     — database access (edge-ready, smaller bundle, SQL control)
 PostgreSQL 16 + pgvector        — main DB + vectors
 Redis (Upstash)                 — cache, rate limit, sessions
-Inngest / Trigger.dev           — background jobs (ingestion pipeline)
-Pusher / Ably                   — real-time (study groups)
-Supabase Realtime               — alternative for real-time
+BullMQ (Redis self-host)        — background jobs (ingestion pipeline)
+Socket.IO self-host             — real-time (gateway riêng `apps/realtime`, Redis adapter)
+LiveKit OSS                     — real-time voice/video (self-host)
 ```
 
 **Why Drizzle over Prisma:** edge runtime support out of the box, ~10x smaller client bundle, no separate generation step, and native SQL escape hatch for things like pgvector operators (`<->`, `<=>`) and recursive CTEs that Prisma awkwardly proxies through `$queryRaw`.
@@ -329,7 +375,7 @@ Promptfoo                       — prompt testing
      ├──► [tRPC API] ──► [PostgreSQL + pgvector]
      │                ──► [Redis cache]
      │
-     ├──► [Background Worker — Inngest]
+     ├──► [Background Worker — BullMQ]
      │         │
      │         ├──► [Ingestion Pipeline]
      │         │      OCR → Parse → Chunk → Embed → Store
@@ -357,7 +403,7 @@ Promptfoo                       — prompt testing
 
 Tách riêng nếu cần:
 - ML inference service (FastAPI + GPU) — chỉ cần nếu self-host model
-- Real-time collab service — nếu Pusher không đủ
+- Real-time collab service — nếu Socket.IO gateway (`apps/realtime`) không đủ
 
 ### 4.3. Request lifecycle ví dụ: "User asks a question"
 
@@ -715,7 +761,7 @@ export async function POST(req: Request) {
 
 ### 7.1. Ingestion Pipeline (background job)
 
-**Trigger:** User upload document → Inngest job fired
+**Trigger:** User upload document → BullMQ job enqueued
 
 **Steps:**
 
@@ -980,7 +1026,7 @@ components/
 - **Server state:** TanStack Query + tRPC (auto-cached, optimistic updates)
 - **Global UI state:** Zustand (sidebar open, theme, voice mode active)
 - **Form state:** React Hook Form
-- **Real-time:** Pusher subscriptions in `useEffect`, sync to TanStack Query cache
+- **Real-time:** Socket.IO subscriptions in `useEffect`, sync to TanStack Query cache
 
 ### 8.4. Performance
 
@@ -1043,7 +1089,10 @@ cogniva/                                     — Thực tế Phase 0-10
 ├── pnpm-workspace.yaml
 ├── turbo.json
 ├── package.json
-├── plan.md                        — master spec (file này)
+├── docs/
+│   ├── plans/                     — phase specs (file này: master.md)
+│   ├── deferred/                  — backlog/ý tưởng chưa làm
+│   └── operations/                — SLO, runbook
 └── README.md
 ```
 
@@ -1259,10 +1308,10 @@ differentiator. Phase 11 items move sang post-V2 backlog.
 
 ### Phase 12: Infrastructure Foundation (Tuần 17) — 🚧 **In progress (2026-05-11)**
 
-> V2 Rooms + Exam, xem chi tiết tại `plan-rooms-and-exam.md` §Phase 12.
+> V2 Rooms + Exam, xem chi tiết tại `rooms-and-exam.md` §Phase 12.
 
-- [x] Infrastructure dir tree (`infrastructure/livekit|coturn|soketi|caddy|scripts`)
-- [x] Docker Compose dev (`docker-compose.dev.yml`) — local stack LiveKit + Soketi + Redis
+- [x] Infrastructure dir tree (`infrastructure/livekit|coturn|realtime|caddy|scripts`)
+- [x] Docker Compose dev (`docker-compose.dev.yml`) — local stack LiveKit + Socket.IO gateway (`apps/realtime`) + Redis
 - [x] Docker Compose prod (`docker-compose.prod.yml`) — full stack (Hocuspocus + Egress comment chờ Phase 14/15)
 - [x] LiveKit config dev + prod template (`livekit.dev.yaml` + `livekit.prod.yaml.example`)
 - [x] coturn template (`turnserver.conf.example`) — TURN relay cho 10-15% behind symmetric NAT
@@ -1271,27 +1320,27 @@ differentiator. Phase 11 items move sang post-V2 backlog.
 - [x] DNS records doc (`scripts/dns-records.md`) — Cloudflare table (LiveKit/coturn NOT proxied)
 - [x] Generate keys script (`scripts/generate-keys.sh`) — random secret OpenSSL
 - [x] Health check script (`scripts/health-check.sh`) — cron 5min, alert Slack webhook
-- [x] apps/web deps: livekit-server-sdk, livekit-client, @livekit/components-react, pusher, pusher-js
+- [x] apps/web deps: livekit-server-sdk, livekit-client, @livekit/components-react, socket.io-client, @socket.io/redis-emitter
 - [x] `src/lib/livekit.ts` — `createLivekitToken()` + `getRoomService()` + `getActiveParticipantCount()`, lazy env init
-- [x] `src/lib/realtime-server.ts` — `getPusherServer()` + `triggerEvent()` + `authorizeChannel()`
-- [x] `src/lib/realtime-client.ts` — `getPusherClient()` + `useRealtimeEvent()` hook
+- [x] `src/lib/realtime-server.ts` — `triggerEvent()` (emit qua `@socket.io/redis-emitter`)
+- [x] `src/lib/realtime-client.ts` — `useRealtimeEvent()` + `useRealtimePresence()` hook (Socket.IO client)
 - [x] `src/lib/env.ts` thêm Phase 12 vars vào Zod schema
-- [x] `apps/web/src/app/api/health/route.ts` — endpoint healthcheck DB + LiveKit + Soketi
+- [x] `apps/web/src/app/api/health/route.ts` — endpoint healthcheck DB + LiveKit + Socket.IO gateway
 - [ ] Hetzner servers up + DNS pointing (cần user action: tạo account + DNS Cloudflare)
 - [ ] Smoke test LiveKit Meet demo 2 tab thấy nhau
 
 **Deliverable:** Khi user `docker compose -f infrastructure/docker-compose.dev.yml up -d`, có
-LiveKit ws://localhost:7880 + Soketi ws://localhost:6001 + Redis sẵn sàng cho Phase 13 build.
+LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵn sàng cho Phase 13 build.
 
 > ✅ Built 2026-05-11 (local stack only): infrastructure files + apps/web lib wiring.
 > Production deploy (Hetzner + DNS + SSL) chờ user provision VPS thật.
 >
-> **Local test xác nhận:** docker compose dev stack up OK (LiveKit + Soketi + Redis healthy),
-> `/api/health` trả status `ok` cho cả 3 service. Soketi tag fix `1.6-16-debian` (plan ghi sai `1-16-debian`).
+> **Local test xác nhận:** docker compose dev stack up OK (LiveKit + Socket.IO gateway + Redis healthy),
+> `/api/health` trả status `ok` cho cả 3 service. (Realtime nay chạy qua gateway `apps/realtime` — Socket.IO + Redis adapter, không còn container Soketi.)
 
 ### Phase 13: Study Room Core (Tuần 18) — ✅ **MVP shipped (2026-05-11)**
 
-> Chi tiết tại `plan-rooms-and-exam.md` §Phase 13. Phase 13.8 (waiting room +
+> Chi tiết tại `rooms-and-exam.md` §Phase 13. Phase 13.8 (waiting room +
 > scheduled rooms) đặt thành deferred — chỉ wire khi cần.
 
 **Schema (6 tables, 5 enums):**
@@ -1328,26 +1377,26 @@ LiveKit ws://localhost:7880 + Soketi ws://localhost:6001 + Redis sẵn sàng cho
 
 ### Phase 14: Room Collaboration (Tuần 19) — ✅ **Built (2026-05-11)**
 
-> Chi tiết tại `plan-rooms-and-exam.md` §Phase 14. 6/6 mục ship.
+> Chi tiết tại `rooms-and-exam.md` §Phase 14. 6/6 mục ship.
 
-**Realtime layer (Soketi):**
-- [x] `POST /api/realtime/auth` — sign presence/private channel với SOKETI_SECRET, verify user member ACTIVE
-- [x] `getPusherClient()` singleton (Phase 12 đã sẵn) + `useRealtimeEvent()` hook tái dùng
+**Realtime layer (Socket.IO):**
+- [x] `POST /api/realtime/auth` — verify session + authorize membership (cookie web / bearer mobile), user member ACTIVE
+- [x] Socket.IO client singleton (Phase 12 đã sẵn) + `useRealtimeEvent()` hook tái dùng
 
 **Chat:**
-- [x] `GET/POST /api/rooms/[id]/chat` — fetch 50 message gần nhất + send với broadcast Soketi `chat:message`
+- [x] `GET/POST /api/rooms/[id]/chat` — fetch 50 message gần nhất + send với broadcast Socket.IO `chat:message`
 - [x] `components/rooms/chat-panel.tsx` — initial load + subscribe presence-room-{id}, auto-scroll bottom, avatar + own/other layout
 
 **Mod actions:**
 - [x] `POST /api/rooms/[id]/moderate` — discriminated union 8 actions: KICK, MUTE, UNMUTE_REQUEST, LOCK, APPROVE, REJECT, PROMOTE, DEMOTE
 - [x] LiveKit RoomService `removeParticipant` + `mutePublishedTrack` cho KICK/MUTE
-- [x] Soketi broadcast `room:kicked` / `room:approved` / `room:rejected` tới `presence-user-{id}`
+- [x] Socket.IO broadcast `room:kicked` / `room:approved` / `room:rejected` tới `presence-user-{id}`
 - [x] Owner-only: LOCK, PROMOTE, DEMOTE. Mod-or-Owner: KICK, MUTE, APPROVE
 - [x] `participant-list.tsx` rewrite: dropdown menu 3-chấm cho mỗi participant (chỉ mod thấy)
 
 **Pomodoro:**
 - [x] `components/rooms/pomodoro-timer.tsx` — 3 mode FOCUS/SHORT_BREAK/LONG_BREAK
-- [x] Sync qua LiveKit data channel (không cần Soketi) — broadcast state {mode, startAt, durationSec, pausedAt}
+- [x] Sync qua LiveKit data channel (không cần Socket.IO) — broadcast state {mode, startAt, durationSec, pausedAt}
 - [x] Wallclock-based (Date.now()) thay vì interval count → khỏi drift khi tab background
 
 **Reactions floating:**
@@ -1398,7 +1447,7 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 
 ### Phase 15: AI Tutor + Recording (Tuần 20) — ✅ **Built (2026-05-11)**
 
-> Chi tiết tại `plan-rooms-and-exam.md` §Phase 15. Đã ship đủ 4/4 deliverable; runtime needs ffmpeg binary + OPENAI_API_KEY (Whisper) + R2 recordings bucket cho prod.
+> Chi tiết tại `rooms-and-exam.md` §Phase 15. Đã ship đủ 4/4 deliverable; runtime needs ffmpeg binary + OPENAI_API_KEY (Whisper) + R2 recordings bucket cho prod.
 
 **Deviation từ plan §15.2:** dùng Vercel AI SDK `streamText` + `getChatModel()` (đã có từ Phase 3) thay vì scaffold Mastra runtime. Cùng pattern với `/api/chat/route.ts`. Giữ interface `streamRoomTutor()` mimic Mastra `agent.stream()` để swap sau dễ. Phase 18 (Adaptive Testing) cần workflow phức tạp → khi đó mới scaffold Mastra.
 
@@ -1413,7 +1462,7 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 - [x] `POST /api/rooms/[id]/record/[recordingId]/stop` — mod-only, `stopEgress(egressId)`, idempotent (swallow 404), update PROCESSING + broadcast `recording:stopped`
 - [x] `GET /api/rooms/[id]/record` — list 50 recordings cho room (member-only)
 - [x] Webhook `egress_ended` (livekit/route.ts) — extract `fileResults[0].location` + size + duration, update recording → fire Inngest event `recording/finished` → broadcast `recording:ended`
-- [x] `components/rooms/record-button.tsx` — state machine IDLE/STARTING/RECORDING/STOPPING, init query GET /record để pick up active recording (mod refresh), Soketi sync giữa nhiều mod
+- [x] `components/rooms/record-button.tsx` — state machine IDLE/STARTING/RECORDING/STOPPING, init query GET /record để pick up active recording (mod refresh), Socket.IO sync giữa nhiều mod
 - [x] `components/rooms/recording-banner.tsx` — privacy notice "Buổi học đang được GHI HÌNH bởi {byUserName}" hiển thị TO ở top, không cho dismiss (Phase 15 compliance §🔐)
 
 **Inngest pipeline (post-processing):**
@@ -1427,7 +1476,7 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 **Replay UI:**
 - [x] `/rooms/[id]/recordings` — list 50 recordings với duration + status badge, link sang `[recId]`
 - [x] `/rooms/[id]/recordings/[recId]` — server fetch + verify member ACTIVE + redirect khi status=RECORDING (chưa kết thúc)
-- [x] `components/rooms/replay-client.tsx` — 2-col layout: video player + summary (markdown) | chapters (click seek) + transcript scrollable; polling 15s + Soketi `recording:processed` event để auto-refresh khi pipeline xong
+- [x] `components/rooms/replay-client.tsx` — 2-col layout: video player + summary (markdown) | chapters (click seek) + transcript scrollable; polling 15s + Socket.IO `recording:processed` event để auto-refresh khi pipeline xong
 
 **Wire vào RoomClient:**
 - [x] `ControlBar` thêm prop `roomId` + `isMod` → render `<RecordButton>` chỉ khi mod
@@ -1439,7 +1488,7 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 
 **Runtime requirements:**
 - `ffmpeg` binary trong PATH (Windows dev: `choco install ffmpeg`, prod VPS: pre-installed via provision script)
-- LiveKit Egress container chạy (xem `plan-rooms-and-exam.md` §12.2 docker-compose.prod.yml — Phase 15 uncomment block egress)
+- LiveKit Egress container chạy (xem `rooms-and-exam.md` §12.2 docker-compose.prod.yml — Phase 15 uncomment block egress)
 - Inngest dev server: `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`
 
 **Acceptance (qua live test cần khi user smoke):**
@@ -1474,7 +1523,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 
 ### Stage 2 — Scale-up (M4+) — 🚧 **In progress (2026-05-11)**
 
-> Master plan ở `scale-up-master-plan.md` §15.2. Stage 1 closed (rate-limit
+> Master plan ở `scale-up.md` §15.2. Stage 1 closed (rate-limit
 > Redis + cost guardrail + LLM router + DB scaling + observability +
 > backup/restore + audit log + GDPR + load test + COPPA). Stage 2 = M4-M12
 > (5-8 eng theo plan; solo founder phase tới khi hire engineer #2-3).
@@ -1744,9 +1793,9 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 
 #### Phase 16 — Exam System Core (2026-05-12) — ✅ done
 
-> Chi tiết §Phase 16 ở `plan-rooms-and-exam.md`. Phase 16 build core exam — Practice + Timed mode, auto-grade + AI grade. Phase 17 (Live Kahoot) + Phase 18 (Adaptive IRT) + Phase 19 (Anti-cheat) sẽ build sau.
+> Chi tiết §Phase 16 ở `rooms-and-exam.md`. Phase 16 build core exam — Practice + Timed mode, auto-grade + AI grade. Phase 17 (Live Kahoot) + Phase 18 (Adaptive IRT) + Phase 19 (Anti-cheat) sẽ build sau.
 >
-> Naming convention thay đổi từ plan-rooms-and-exam.md: dùng `exam` + `examQuestion` + `examAttempt` + `examResponse` + `examViolation` (singular) thay vì plural cho consistent với `user` / `document` / `flashcard` / `quiz` / `question` của Cogniva.
+> Naming convention thay đổi từ rooms-and-exam.md: dùng `exam` + `examQuestion` + `examAttempt` + `examResponse` + `examViolation` (singular) thay vì plural cho consistent với `user` / `document` / `flashcard` / `quiz` / `question` của Cogniva.
 
 **Schema (`packages/db/`):**
 - [x] 5 bảng: `exam`, `exam_question`, `exam_attempt`, `exam_response`, `exam_violation` + 3 enum (`exam_mode`, `exam_status`, `attempt_status`)
@@ -1820,10 +1869,150 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [ ] Submit → /results/[attemptId] hiện điểm + breakdown
 - [ ] Timed mode 1 phút → countdown chạy → khi 0 auto-submit
 
-**Pending Phase 17-19 (chưa làm):**
-- [ ] Phase 17 Live Exam (Kahoot-style) — realtime presenter view + leaderboard + Soketi broadcast currentQuestionIndex
-- [ ] Phase 18 Adaptive Testing — IRT/CAT engine pick next question theo theta estimate + AI essay grading nâng cao
-- [ ] Phase 19 Anti-cheat + Production Polish — fullscreen lock + tab focus listener + Selenium-detect + AI proctor webcam analysis
+**⚠️ Phase 17 (Kahoot LIVE) + Phase 18 (Adaptive IRT) đã được REMOVE 2026-05-13:**
+- User quyết định bỏ 3 mode LIVE/TOURNAMENT/ADAPTIVE — chỉ giữ PRACTICE + TIMED
+- Files đã xoá: lib/adaptive/*, lib/live-exam/*, lib/exam/tournament.ts, app/api/live-exam/*, app/api/exams/[id]/calibrate, app/api/attempts/[id]/adaptive-next, app/(app)/exams/[id]/{live,tournament,adaptive}, app/(app)/live-exam, inngest/functions/exam-question-timeout
+- DB: migration 0010_drop_tournament.sql drop bảng tournament_match (applied)
+- `examModeEnum` giữ value cũ trong DB (không ALTER TYPE) — UI/API chỉ accept PRACTICE/TIMED
+- Join code 6-char vẫn giữ — sinh khi publish, share qua `/join` page
+- Anti-cheat + Proctor (Phase 19) giữ nguyên cho TIMED mode
+
+**Phase 17 Live Exam + Tournament (đã xong batch chính) — DEPRECATED:**
+
+> Mục tiêu: Host tạo LIVE/TOURNAMENT exam → student join bằng 6-char code → Kahoot-style realtime → leaderboard top 10 + speed bonus → tournament bracket 1v1 elimination.
+
+**Schema (`packages/db/`):**
+- [x] Bảng `tournament_match` (singular) — bracket phẳng theo (round, matchIndex), index `exam_round`/`player1`/`player2`
+- [x] Migration `0009_tournament_match.sql` idempotent — applied dev DB
+- [x] Drizzle relations + type exports `TournamentMatch`/`NewTournamentMatch`
+- [x] `exam.liveCode` auto-gen khi POST /exams mode=LIVE|TOURNAMENT, fallback khi PUBLISH (cũ NULL)
+
+**Redis layer (sorted set + plain set):**
+- [x] `IoRedisAdapter` + `InMemoryRedis` thêm `zincrby` / `zrevrange` / `zrevrank` / `zscore` / `zcard` / `zrem` / `sadd` / `srem` / `scard` / `smembers`
+- [x] `del()` cover cả 3 namespace (string/zset/set) cho InMemoryRedis
+
+**Live exam helpers (`apps/web/src/lib/live-exam/`):**
+- [x] `code.ts` — `generateLiveCode()` 6-char alphabet bỏ 0/O/1/I/L (extract khỏi route)
+- [x] `state.ts` — `setCurrentQuestion/getCurrentQuestion/clearCurrentQuestion/markAnswered/clearAllLiveState` qua Redis `exam:{id}:current` + dedupe `exam:{id}:answered:{uid}:{qid}` (NX with TTL)
+- [x] `leaderboard.ts` — `awardPoints/topLeaderboard/leaderboardSize/getUserRank/markJoined/joinedCount/joinedUserIds` wrap ZSET + SET ops, normalize Upstash vs IoRedis API
+- [x] `lib/exam/tournament.ts` — `buildBracket(players)` Fisher-Yates shuffle, pad BYE (player2=null → auto-win), `nextRoundSlot()` helper advance bracket
+
+**Backend API (`apps/web/src/app/api/live-exam/`):**
+- [x] `join/route.ts` — POST { code } → resolve examId + tạo/resume attempt + SADD joined set
+- [x] `[examId]/start/route.ts` — owner DRAFT→IN_PROGRESS, clear stale Redis state, broadcast `exam:started`
+- [x] `[examId]/next-question/route.ts` — pick câu theo orderIndex, cache state Redis với correctAnswer (server-only), broadcast sanitized, schedule Inngest `exam/question-timeout`
+- [x] `[examId]/answer/route.ts` — student submit MCQ, dedupe NX, grade jsonEquals (deep), speed bonus = 1000 + 500×(1−elapsed/timeLimit), upsert examResponse, ZINCRBY leaderboard, return rank+score
+- [x] `[examId]/end/route.ts` — owner ENDED + finalize attempts SUBMITTED + aggregate score/percentage/passed + clear current question
+- [x] `[examId]/state/route.ts` — GET poll: exam meta + joinedCount + top 10 leaderboard + myRank (student) + currentQuestion sanitized (cho student reload giữa câu)
+- [x] `[examId]/tournament/start/route.ts` — owner build bracket round 1, INSERT batch tournament_match, BYE auto-DONE
+- [x] `[examId]/tournament/match/[matchId]/answer/route.ts` — player submit, race-tolerant 2-player score, winner advance bracket (update hoặc insert row round+1)
+- [x] `[examId]/tournament/bracket/route.ts` — GET full bracket với player/winner enriched + question public
+
+**Realtime auth (`apps/web/src/app/api/realtime/auth/route.ts`):**
+- [x] Add `presence-exam-{examId}` channel — owner luôn pass; student phải có examAttempt IN_PROGRESS
+
+**Inngest worker (`apps/web/src/inngest/functions/`):**
+- [x] `exam-question-timeout.ts` — `step.sleep(timeLimit+1)` durable, check state mismatch (host advance sớm → skip idempotent), aggregate stats SQL group by isCorrect, top 10 leaderboard, broadcast `question:results` với correctAnswer, clear Redis state
+- [x] Đăng ký vào `api/inngest/route.ts` functions[]
+- [x] `InngestEvents` type thêm `exam/question-timeout` payload
+
+**UI (`apps/web/src/app/(app)/`):**
+- [x] `live-exam/page.tsx` — form nhập 6-char code → POST /join → redirect `/live-exam/[code]`
+- [x] `live-exam/[code]/page.tsx` — student state machine (loading/waiting/question/feedback/results/ended), Kahoot 4-color buttons cho MCQ_SINGLE, TRUE_FALSE 2-color, MCQ_MULTI checkbox+Submit, countdown sync server `startedAt`, Socket.IO `presence-exam-{id}` subscribe + 5s poll fallback
+- [x] `exams/[id]/live/page.tsx` — host control panel (chỉ owner): liveCode + copy, joinedCount realtime poll 3s, Start/Next/End buttons, preview câu broadcasting + timer + options list, top 10 leaderboard
+- [x] `exams/[id]/tournament/page.tsx` — bracket view chia cột theo round, owner thấy "Build bracket" nút, student auto-pick activeMatch hiện form trả lời, Crown icon cho winner, Final round badge
+- [x] `exams/[id]/page.tsx` — thêm 2 nút "Host phòng thi"/"Quản lý bracket" cho owner LIVE/TOURNAMENT + show liveCode banner
+- [x] Sidebar nav thêm "Live Exam" (icon Zap) trong Practice group
+
+**Phase 17 Acceptance:**
+- [x] DB schema + migration applied
+- [x] TypeScript clean (cả `apps/web` + `packages/db` pass tsc)
+- [ ] Smoke test E2E: owner tạo LIVE → 2 trình duyệt student join code → host Next → cả 2 answer → results broadcast → leaderboard đúng → host End → final podium
+- [ ] Smoke test TOURNAMENT: owner tạo → 2-4 student join → owner Build bracket → mỗi student làm match của mình → winner advance → final winner
+
+**Phase 18 Adaptive Testing + AI Grading nâng cao (đã xong):**
+
+> Mục tiêu: AI điều chỉnh độ khó câu hỏi theo năng lực student dùng Item Response Theory (3PL) + Computerized Adaptive Testing. Test ngắn hơn 30-50% so với fixed-length mà SE θ vẫn converge.
+
+**IRT engine (`apps/web/src/lib/adaptive/`):**
+- [x] `irt.ts` — 3PL model: `p3PL(θ, a, b, c)` + `itemInformation(θ)` Fisher info + `estimateTheta()` MLE grid search 0.01 step + `shouldTerminate()` check minQ/maxQ/targetSE
+- [x] `cat.ts` — `pickNextItem()` Maximum Fisher Information picker (cold start: smallest |b|; warm: max I(θ)) + `autoCalibrate()` logit-proportion heuristic từ historical response
+
+**APIs (`apps/web/src/app/api/`):**
+- [x] `exams/[id]/calibrate/route.ts` — POST owner trigger auto-calibrate batch toàn bộ examQuestion từ examResponse history (cần >= 10 response/câu)
+- [x] `attempts/[id]/adaptive-next/route.ts` — POST trả câu kế tiếp theo θ ước lượng hiện tại HOẶC `done:true` khi terminate; cập nhật `examAttempt.estimatedTheta/thetaSE`
+- [x] `attempts/[id]/responses/route.ts` — extend: ADAPTIVE mode auto-grade ngay (cần isCorrect cho θ estimation)
+
+**AI essay grading nâng cao (`apps/web/src/lib/ai/grade-essay.ts`):**
+- [x] Thêm `confidence` per criterion (0..1) trong AI output
+- [x] Thêm `strengths` + `improvements` arrays — actionable feedback
+- [x] Auto-flag review nếu ANY criterion confidence < 0.6 (threshold cấu hình `CONFIDENCE_REVIEW_THRESHOLD`)
+- [x] System prompt cập nhật cho rubric grading + confidence guidance
+
+**UI:**
+- [x] `/exams/new` thêm option **Adaptive (IRT/CAT)**
+- [x] `ModeSwitcher` trong `/exams/[id]` thêm ADAPTIVE
+- [x] Owner button **"Auto IRT"** — bấm calibrate toàn bộ câu hỏi
+- [x] `/exams/[id]/adaptive/[attemptId]/page.tsx` — student adaptive take UI: không hiện "câu X/Y", chỉ "Câu đã làm: N" + SE convergence progress bar (1.0 → targetSE 0.3 = 100%)
+- [x] `startAttempt` redirect: ADAPTIVE → `/adaptive/[attemptId]` thay vì `/take/[attemptId]`
+
+**Phase 18 Acceptance:**
+- [x] TypeScript clean
+- [ ] Smoke test: tạo exam 20 câu MCQ → chạy TIMED nhiều lần (>= 10/câu) → bấm Auto IRT → clone sang ADAPTIVE → student làm → kết thúc trong 6-15 câu (SE ≤ 0.3)
+- [ ] Smoke test essay grading: tạo ESSAY câu có rubric 3 criterion → student trả lời → AI grade trả breakdown + confidence + strengths/improvements
+
+**Phase 19 Anti-cheat + Proctor (đã xong V1):**
+
+> Mục tiêu: TIMED exam có scheduled simultaneous start, webcam + mic check, anti-cheat detection (tab/fullscreen/copy-paste/devtools), violation log + cheatRiskScore + owner review dashboard.
+
+**Schema (KHÔNG cần migration — đã sẵn ở 0008):**
+- [x] `exam.antiCheat` jsonb thêm `requireMic` flag
+- [x] `exam.startsAt/endsAt` đã có — wire scheduled simultaneous start
+- [x] `examAttempt.violations/cheatRiskScore/flagged/flagReason` đã có — wire compute logic
+- [x] `examViolation` table đã có — wire insert path
+
+**Client detector hooks (`apps/web/src/lib/anti-cheat/detectors.ts`):**
+- [x] `useFullscreenLock` — request fullscreen, log fullscreen_exit khi user thoát
+- [x] `useTabSwitchDetection` — visibilitychange + window blur listener
+- [x] `useCopyPasteBlock` — preventDefault copy/paste/cut + log
+- [x] `useContextMenuBlock` — preventDefault contextmenu + log
+- [x] `useDevtoolsDetect` — heuristic window.outer-inner gap > 160px → log
+- [x] `useReportViolations` — batch queue + debounce 1s flush POST, retry on fail, flush-on-unmount
+
+**ProctorCamera component (`apps/web/src/components/exams/proctor-camera.tsx`):**
+- [x] getUserMedia video + audio per exam config
+- [x] Fixed bottom-right preview (200x150), LIVE badge, mic volume bar
+- [x] Snapshot capture every 30s qua canvas → JPEG q=0.6 base64 (client-side; V1 chưa upload)
+- [x] Mic silent detection — log `mic_silent` nếu mic on nhưng < 0.05 volume liên tục 30s
+- [x] Permission denied → `webcam_denied` / `mic_denied` violation severity high
+
+**APIs:**
+- [x] `attempts/[id]/violations/route.ts` — POST batch log + APPEND jsonb + recompute cheatRiskScore (sigmoid weighted: low=1, medium=3, high=10, scale=30) + auto-flag khi >0.7; GET timeline cho owner
+- [x] `attempts/[id]/disqualify/route.ts` — owner POST set status=DISQUALIFIED + score=0
+- [x] `exams/[id]/proctor/route.ts` — GET list attempts với violation count + cheat score (sort flagged desc, score desc)
+- [x] `exams/[id]/route.ts` (PUT extended) — accept `antiCheat` jsonb + `startsAt/endsAt` ISO strings, convert sang Date
+
+**Owner UI:**
+- [x] `/exams/[id]` thêm `AntiCheatConfig` card cho DRAFT — 7 toggle (fullscreen/tab/copy/context/devtools/cam/mic + aiProctor placeholder V2) + datetime-local picker cho scheduled start
+- [x] `/exams/[id]/proctor/page.tsx` — bảng attempts với cheatRiskScore bar (xanh<30%/vàng/đỏ>70%), violation count, score, action Eye (timeline modal) + Ban (disqualify confirm)
+- [x] Button "Proctor" trên header /exams/[id] cho owner non-DRAFT
+
+**Student take page integration (`/exams/[id]/take/[attemptId]/page.tsx`):**
+- [x] **Waitroom**: nếu `startsAt > now` → countdown HH:MM:SS, exam tự động bắt đầu đúng giờ (camera/mic permission có thể request sớm để check)
+- [x] **Pre-flight consent screen**: nếu có bất kỳ anti-cheat config → hiện list rule + nút "Tôi đồng ý" (cần user gesture để requestFullscreen)
+- [x] Detectors hooks chỉ active sau khi `examStarted=true` && qua waitroom && IN_PROGRESS
+- [x] ProctorCamera mount fixed bottom-right khi enabled
+- [x] Toast warning realtime cho violation severity medium/high
+
+**Phase 19 Acceptance V1:**
+- [x] TypeScript clean
+- [ ] Smoke test E2E: tạo exam TIMED + bật fullscreen/tab/cam/mic + set startsAt = 2 phút sau → student vào → waitroom countdown → 0s auto-bắt đầu → consent screen → fullscreen → làm bài → tab switch → toast warning → submit → owner /proctor xem timeline
+
+**Phase 19 V2 (defer):**
+- [ ] Snapshot upload R2 (cần env R2_*) + gallery cho owner review
+- [ ] AI proctor Gemini Vision analyze snapshot — detect no-face/multiple-faces/looking-away/phone
+- [ ] Whisper transcript mic — detect prohibited speech
+- [ ] Browser fingerprint dedup (chống multi-account 1 device)
 
 **Why local scaffold trước:**
 - Wrangler dev emulate Workers runtime LOCAL (`workerd` binary, DO + KV in-memory) → KHÔNG cần CF account hay domain để code + test logic
