@@ -6,55 +6,29 @@
  */
 'use client';
 
-import * as React from 'react';
 import { use } from 'react';
 import Link from 'next/link';
 import { Crown, Flame, Trophy, Zap } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
+import type { PublicProfileDTO } from '@cogniva/shared/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
 type PageProps = { params: Promise<{ id: string }> };
 
-type AchievementMeta = {
-  id: string;
-  label: string;
-  description: string;
-  icon: string;
-};
-
-type PublicProfile = {
-  user: {
-    id: string;
-    name: string | null;
-    image: string | null;
-    plan: string;
-    createdAt: string;
-  };
-  stats: {
-    xp: number;
-    currentStreak: number;
-    longestStreak: number;
-    achievements: string[];
-  };
-  achievementMeta: AchievementMeta[];
-};
-
 export default function PublicProfilePage({ params }: PageProps) {
   const { id } = use(params);
-  const [data, setData] = React.useState<PublicProfile | null>(null);
-  const [notFound, setNotFound] = React.useState(false);
-
-  React.useEffect(() => {
-    fetch(`/api/profile/${id}`).then(async (r) => {
-      if (r.status === 404) {
-        setNotFound(true);
-        return;
-      }
-      setData(await r.json());
-    });
-  }, [id]);
+  // React Query: cache + revalidate. Lỗi (404/private) → coi như notFound.
+  const { data, error } = useQuery({
+    queryKey: qk.publicProfile(id),
+    queryFn: () => apiGet<PublicProfileDTO>(`/api/profile/${id}`),
+    retry: false,
+  });
+  const notFound = !!error;
 
   if (notFound) {
     return (

@@ -15,7 +15,7 @@
 import * as React from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle, XCircle, ArrowLeft, Clock, Trophy, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowLeft, Trophy, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card } from '@/components/ui/card';
@@ -99,11 +99,13 @@ export default function ResultsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
+      {/* V8.24: link `/exams/[id]` giờ smart-redirect về workspace nếu exam
+          có workspaceId, else `/workspaces`. Một entry → đúng nơi. */}
       <Link
         href={`/exams/${examId}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Về exam
+        <ArrowLeft className="h-3.5 w-3.5" /> Về workspace
       </Link>
 
       {/* Summary */}
@@ -136,7 +138,10 @@ export default function ResultsPage() {
         {attempt.passed != null && (
           <div
             className={`flex items-center gap-2 rounded-md p-3 text-sm font-medium ${
-              attempt.passed ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-900'
+              // Đạt → success; chưa đạt → destructive (token semantic)
+              attempt.passed
+                ? 'bg-success/10 text-success'
+                : 'bg-destructive/10 text-destructive'
             }`}
           >
             {attempt.passed ? (
@@ -174,12 +179,12 @@ export default function ResultsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {r?.isCorrect === true && (
-                    <span className="flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
+                    <span className="flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
                       <CheckCircle className="h-3 w-3" /> Đúng
                     </span>
                   )}
                   {r?.isCorrect === false && (
-                    <span className="flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                    <span className="flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
                       <XCircle className="h-3 w-3" /> Sai
                     </span>
                   )}
@@ -204,7 +209,7 @@ export default function ResultsPage() {
                 </div>
                 {reveal && q.correctAnswer !== null && q.correctAnswer !== undefined && (
                   <div>
-                    <span className="text-xs font-semibold text-green-700">Đáp án đúng: </span>
+                    <span className="text-xs font-semibold text-success">Đáp án đúng: </span>
                     <span>{formatAnswer(q, q.correctAnswer, true)}</span>
                   </div>
                 )}
@@ -239,7 +244,7 @@ export default function ResultsPage() {
 
       <div className="flex justify-center pt-4">
         <Link href={`/exams/${examId}`}>
-          <Button variant="outline">Về exam</Button>
+          <Button variant="outline">Về workspace</Button>
         </Link>
       </div>
     </div>

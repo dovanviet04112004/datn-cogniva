@@ -74,6 +74,106 @@ export interface ReviewDTO {
   scheduledDays: number;
 }
 
+// ── Note ───────────────────────────────────────────────────────────
+export interface NoteDTO {
+  id: string;
+  title: string;
+  content: string;
+  workspaceId?: string | null;
+  createdAt?: string; // ISO
+  updatedAt?: string; // ISO
+}
+
+// ── Public profile (Wave 2) ────────────────────────────────────────
+export interface AchievementMetaDTO {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+}
+
+export interface PublicProfileDTO {
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+    plan: string;
+    createdAt: string;
+  };
+  stats: {
+    xp: number;
+    currentStreak: number;
+    longestStreak: number;
+    achievements: string[];
+  };
+  achievementMeta: AchievementMetaDTO[];
+}
+
+// ── Graph concept detail (Wave 2) ──────────────────────────────────
+export interface ConceptDetailDTO {
+  concept: {
+    id: string;
+    name: string;
+    description: string | null;
+    domain: string;
+  };
+  chunks: Array<{
+    id: string;
+    snippet: string;
+    documentId: string;
+    filename: string;
+    page: number | null;
+    strength: number;
+  }>;
+}
+
+// ── Quiz attempt (Wave 3) ──────────────────────────────────────────
+export interface QuizQuestionDTO {
+  id: string;
+  type: 'MCQ' | 'TRUE_FALSE' | 'SHORT';
+  prompt: string;
+  options: string[] | null;
+  difficulty: number;
+}
+
+export interface QuizAttemptDTO {
+  quiz: { id: string; title: string };
+  questions: QuizQuestionDTO[];
+}
+
+// ── Workspace manage (quản trị flashcard + câu hỏi) ─────────────────
+// Khớp /api/workspaces/[id]/manage. "done" = đã làm/đã ôn.
+export interface ManageFlashcardDTO {
+  id: string;
+  front: string;
+  back: string;
+  cardType: 'BASIC' | 'CLOZE' | 'IMAGE_OCCLUSION';
+  state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
+  due: string | null;
+  lastReview: string | null;
+  atomName: string | null;
+  /** Đã ôn (lastReview != null). */
+  done: boolean;
+}
+
+export interface ManageQuestionDTO {
+  id: string;
+  prompt: string;
+  type: 'MCQ' | 'TRUE_FALSE' | 'SHORT' | 'ESSAY' | 'FILL_BLANK';
+  quizTitle: string | null;
+  atomName: string | null;
+  /** Đã làm (có quiz_response của user). */
+  done: boolean;
+  /** Đúng/sai lần gần nhất (null nếu chưa làm). */
+  lastCorrect: boolean | null;
+  answeredAt: string | null;
+}
+
+export interface WorkspaceManageDTO {
+  flashcards: ManageFlashcardDTO[];
+  questions: ManageQuestionDTO[];
+}
+
 // ── Mastery ────────────────────────────────────────────────────────
 export interface MasteryDTO {
   userId: string;

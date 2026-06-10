@@ -19,63 +19,24 @@
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, eq, inArray } from 'drizzle-orm';
-
-import { db, mastery as masteryTable } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
-import { listConceptRelations, listConceptsForUser } from '@/lib/concepts';
+import { getGraphForUser } from '@/lib/graph/get-graph';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const concepts = await listConceptsForUser(session.user.id);
-  const conceptIds = concepts.map((c) => c.id);
-  const relations = await listConceptRelations(conceptIds);
+  // V5 (atom-centric): scope theo workspace nếu được pass — cho MindMap
+  // recipe trong workspace notebook chỉ render atoms của workspace đó.
+  const url = new URL(request.url);
+  const workspaceId = url.searchParams.get('workspaceId');
 
-  // Lấy mastery scores cho concepts của user — gắn vào data.mastery
-  const masteryRows = conceptIds.length
-    ? await db
-        .select({
-          conceptId: masteryTable.conceptId,
-          score: masteryTable.score,
-        })
-        .from(masteryTable)
-        .where(
-          and(
-            eq(masteryTable.userId, session.user.id),
-            inArray(masteryTable.conceptId, conceptIds),
-          ),
-        )
-    : [];
-  const masteryMap = new Map(masteryRows.map((m) => [m.conceptId, m.score]));
+  // Read dựng graph (concepts + edges + mastery) đã gom về lib-fn cache-aside
+  // (Redis TTL 1h, dbReplica). Output chuẩn React Flow — frontend dùng trực tiếp.
+  const payload = await getGraphForUser(session.user.id, workspaceId);
 
-  // Format nodes — React Flow yêu cầu { id, position, data }
-  // Position auto-layout phía client (Dagre / ELK) → server không tính.
-  const nodes = concepts.map((c) => ({
-    id: c.id,
-    type: 'concept', // ConceptNode component custom
-    data: {
-      name: c.name,
-      description: c.description,
-      domain: c.domain,
-      mastery: masteryMap.get(c.id), // undefined nếu chưa attempt
-    },
-    // Position 0,0 — client layout sẽ override
-    position: { x: 0, y: 0 },
-  }));
-
-  const edges = relations.map((r, i) => ({
-    id: `${r.fromId}->${r.toId}-${i}`,
-    source: r.fromId,
-    target: r.toId,
-    label: r.relationType,
-    data: { strength: r.strength, relationType: r.relationType },
-    // Style mặc định — frontend custom thêm theo strength
-  }));
-
-  return NextResponse.json({ nodes, edges });
+  return NextResponse.json(payload);
 }

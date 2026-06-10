@@ -21,10 +21,8 @@ echo "# LiveKit"
 echo "LIVEKIT_API_KEY=APIKey$(rand 12)"
 echo "LIVEKIT_API_SECRET=$(rand 48)"
 echo
-echo "# Soketi"
-echo "SOKETI_APP_ID=cogniva"
-echo "SOKETI_KEY=app-$(rand 20)"
-echo "SOKETI_SECRET=$(rand 48)"
+echo "# Realtime (Socket.IO gateway) — KHÔNG cần app secret (auth qua Better Auth session)."
+echo "# Chỉ cần set ở .env: INTERNAL_API_URL + APP_ORIGIN; apps/web set NEXT_PUBLIC_REALTIME_URL."
 echo
 echo "# coturn"
 echo "TURN_SECRET=$(rand 64)"

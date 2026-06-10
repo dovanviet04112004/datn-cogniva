@@ -11,7 +11,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -42,7 +41,6 @@ type FormValues = z.infer<typeof schema>;
  * @param redirectTo Path để chuyển tới sau khi đăng nhập thành công
  */
 export function SignInForm({ redirectTo }: { redirectTo: string }) {
-  const router = useRouter();
   // isPending điều khiển spinner + disabled — tránh user click lặp
   const [isPending, setIsPending] = useState(false);
 
@@ -53,22 +51,32 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
 
   const onSubmit = async (values: FormValues) => {
     setIsPending(true);
-    // signIn.email là wrapper Better Auth client — internally fetch tới
-    // /api/auth/sign-in/email và lo phần cookie
     const { error } = await signIn.email({
       email: values.email,
       password: values.password,
-      callbackURL: redirectTo,
     });
-    setIsPending(false);
 
     if (error) {
+      setIsPending(false);
       toast.error(error.message ?? 'Could not sign in. Check your credentials.');
       return;
     }
-    // router.refresh() force re-render server component → topbar nhận session
-    router.push(redirectTo);
-    router.refresh();
+
+    // Đọc lại redirect param trực tiếp từ URL hiện tại — phòng case prop
+    // `redirectTo` không nhận đúng giá trị (browser cache, RSC stale).
+    const url = new URL(window.location.href);
+    const freshRedirect = url.searchParams.get('redirect') ?? redirectTo;
+
+    // Safety: phải là path tương đối, KHÔNG cho redirect absolute URL khác
+    // domain (open redirect protection).
+    const safeRedirect = freshRedirect.startsWith('/') && !freshRedirect.startsWith('//')
+      ? freshRedirect
+      : '/dashboard';
+
+    // window.location.replace = full reload + KHÔNG add /sign-in vào history
+    // (back button không quay lại form đã submit). Cookie session từ Better
+    // Auth Set-Cookie response đã được browser process trước navigation.
+    window.location.replace(safeRedirect);
   };
 
   return (

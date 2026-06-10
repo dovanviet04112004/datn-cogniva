@@ -18,9 +18,10 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
 import { VideoPresets } from 'livekit-client';
-import { Loader2, MessageSquare, NotebookPen, PaintBucket, Users } from 'lucide-react';
+import { Loader2, Lock, MessageSquare, NotebookPen, PaintBucket, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useRealtimeEvent } from '@/lib/realtime-client';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { VideoGrid } from './video-grid';
 import { ControlBar } from './control-bar';
@@ -111,6 +112,35 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
     router.push('/rooms');
   }, [router]);
 
+  // ── Realtime moderation — sự kiện 1-1 tới chính user (presence-user) + lock phòng ──
+  // (Phase Socket.IO: lấp các handler trước đây server bắn nhưng client chưa nghe.)
+  const [locked, setLocked] = React.useState(false);
+  const meChannel = `presence-user-${currentUserId}`;
+  const roomChannel = `presence-room-${roomId}`;
+
+  useRealtimeEvent<{ roomId: string }>(meChannel, 'room:kicked', (d) => {
+    if (d.roomId !== roomId) return;
+    toast.error('Bạn đã bị mời ra khỏi phòng');
+    router.push('/rooms');
+  });
+  useRealtimeEvent<{ roomId: string }>(meChannel, 'room:unmute-request', (d) => {
+    if (d.roomId !== roomId) return;
+    toast.message('MC mời bạn bật mic');
+  });
+  useRealtimeEvent<{ roomId: string }>(meChannel, 'room:approved', (d) => {
+    if (d.roomId !== roomId) return;
+    toast.success('Bạn đã được duyệt vào phòng');
+  });
+  useRealtimeEvent<{ roomId: string }>(meChannel, 'room:rejected', (d) => {
+    if (d.roomId !== roomId) return;
+    toast.error('Yêu cầu vào phòng bị từ chối');
+    router.push('/rooms');
+  });
+  useRealtimeEvent<{ locked: boolean }>(roomChannel, 'room:lock-changed', (d) => {
+    setLocked(d.locked);
+    toast.message(d.locked ? 'Phòng đã được khoá' : 'Phòng đã được mở khoá');
+  });
+
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -165,7 +195,17 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
 
         {/* Top bar: room name + pomodoro */}
         <div className="flex items-center justify-between border-b bg-background/80 px-4 py-2 backdrop-blur">
-          <h2 className="text-sm font-semibold">{roomName}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">{roomName}</h2>
+            {locked && (
+              <span
+                className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                title="Phòng đang khoá — không nhận thành viên mới"
+              >
+                <Lock className="h-3 w-3" /> Đã khoá
+              </span>
+            )}
+          </div>
           <PomodoroTimer canControl={isMod} />
         </div>
 

@@ -22,16 +22,28 @@ import { generateText } from 'ai';
 
 import { getChatModel } from '@/lib/ai/models';
 
-const EXTRACT_INSTRUCTION = `Bạn là chuyên gia trích xuất khái niệm cho hệ thống học tập. Đọc đoạn văn dưới đây và liệt kê 1-5 KHÁI NIỆM CÓ TÊN (named concept) mà đoạn này TRỰC TIẾP nói tới.
+/**
+ * Atom-centric prompt (sau Phase A6): mỗi atom extract ra KÈM examples,
+ * difficulty, preview Q/A để dùng độc lập ở UI (atom detail card) và làm
+ * input cho flashcard/quiz/exam generation downstream.
+ *
+ * Trade-off: prompt dài hơn ~20% tokens, nhưng tránh được 2 lần gọi LLM
+ * (extract concept + sau đó gen flashcard). 1 prompt giải quyết cả 2.
+ */
+const EXTRACT_INSTRUCTION = `Bạn là chuyên gia trích xuất ATOM kiến thức (đơn vị học tập tối thiểu) cho hệ thống học tập. Đọc đoạn văn dưới đây và liệt kê 1-5 ATOM CÓ TÊN mà đoạn này TRỰC TIẾP nói tới.
 
 QUY TẮC:
 - Chỉ lấy thuật ngữ chuyên ngành, tên định lý, tên thuật toán, tên người, tên hệ thống, tên công nghệ.
 - BỎ QUA từ chung chung: "function", "system", "data", "method", "process" nếu chỉ dùng nghĩa thường.
-- Nếu đoạn không có khái niệm có tên → trả mảng RỖNG.
+- Nếu đoạn không có atom có tên → trả mảng RỖNG.
 - domain chọn 1 trong: "math", "cs", "physics", "biology", "chemistry", "history", "language", "business", "general".
+- difficulty: 0..1 (0 dễ phổ thông, 0.5 trung học, 0.8 chuyên ngành, 1 nghiên cứu).
+- strength: 0..1 — đoạn văn nói về atom này MẠNH cỡ nào (1 = chủ đề CHÍNH của đoạn, 0.5 = nói khá rõ, 0.3 = chỉ nhắc thoáng qua).
+- examples: 1-3 ví dụ NGẮN (mỗi cái <100 ký tự). Có thể rỗng nếu khái niệm trừu tượng.
+- previewQuestion + previewAnswer: 1 câu hỏi ngắn + đáp án để hiển thị "atom này là gì". Câu hỏi tự nhiên, không "Định nghĩa X là gì".
 
 ĐỊNH DẠNG OUTPUT — JSON THUẦN, KHÔNG markdown, KHÔNG backtick:
-{"concepts": [{"name": "Tên ngắn", "description": "1 câu mô tả", "domain": "..."}]}
+{"concepts": [{"name": "Tên ngắn", "description": "1 câu mô tả", "domain": "...", "difficulty": 0.5, "strength": 0.8, "examples": ["ex1", "ex2"], "previewQuestion": "...", "previewAnswer": "..."}]}
 
 ĐOẠN VĂN:
 """
@@ -42,6 +54,13 @@ export type ExtractedConcept = {
   name: string;
   description: string;
   domain: string;
+  /** Phase A6: optional vì cache cũ có thể thiếu — code path forward-compat. */
+  difficulty?: number;
+  /** Độ liên quan của chunk này tới atom (0..1) → lưu chunk_concept.strength. */
+  strength?: number;
+  examples?: string[];
+  previewQuestion?: string;
+  previewAnswer?: string;
 };
 
 /** Strip code fence + extract object JSON đầu tiên. */
@@ -67,7 +86,10 @@ export async function extractConceptsFromChunk(
   content: string,
   ctx?: { userId: string; plan: import('@/lib/observability/cost-guardrail').Plan },
 ): Promise<ExtractedConcept[]> {
-  if (content.length < 50) return []; // chunk quá ngắn không có concept
+  // Chunk quá ngắn (tiêu đề/caption) → skip extract. Hạ ngưỡng 50→30 để không
+  // bỏ sót thuật ngữ ngắn (vd "Định lý Pythagoras" ~19 ký tự vẫn là 1 chunk dài
+  // hơn 30 khi kèm ngữ cảnh); <30 thường là rác/số trang.
+  if (content.length < 30) return [];
 
   try {
     let text: string;
@@ -104,11 +126,42 @@ export async function extractConceptsFromChunk(
           typeof (c as ExtractedConcept)?.description === 'string' &&
           typeof (c as ExtractedConcept)?.domain === 'string',
       )
-      .map((c) => ({
-        name: c.name.trim(),
-        description: c.description.trim(),
-        domain: c.domain.trim().toLowerCase(),
-      }))
+      .map((c) => {
+        // Sanitize optional fields — LLM có thể trả thiếu, sai type, hoặc null.
+        const raw = c as Record<string, unknown>;
+        const examples = Array.isArray(raw.examples)
+          ? (raw.examples as unknown[])
+              .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+              .slice(0, 3)
+              .map((s) => s.trim().slice(0, 200))
+          : undefined;
+        const difficulty =
+          typeof raw.difficulty === 'number' && raw.difficulty >= 0 && raw.difficulty <= 1
+            ? raw.difficulty
+            : undefined;
+        const strength =
+          typeof raw.strength === 'number' && raw.strength >= 0 && raw.strength <= 1
+            ? raw.strength
+            : undefined;
+        const previewQuestion =
+          typeof raw.previewQuestion === 'string' && raw.previewQuestion.trim().length > 0
+            ? raw.previewQuestion.trim().slice(0, 300)
+            : undefined;
+        const previewAnswer =
+          typeof raw.previewAnswer === 'string' && raw.previewAnswer.trim().length > 0
+            ? raw.previewAnswer.trim().slice(0, 500)
+            : undefined;
+        return {
+          name: c.name.trim(),
+          description: c.description.trim(),
+          domain: c.domain.trim().toLowerCase(),
+          examples,
+          difficulty,
+          strength,
+          previewQuestion,
+          previewAnswer,
+        };
+      })
       .filter((c) => c.name.length > 0 && c.name.length < 100); // sane limit
   } catch (err) {
     console.warn('[extract-concepts] skip chunk:', (err as Error).message);

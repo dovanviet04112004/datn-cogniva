@@ -1,0 +1,202 @@
+[
+  {
+    "id": "student-math-12-explicit",
+    "input": "toán 12",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "math",
+      "level": "HIGH_SCHOOL",
+      "minResults": 5
+    }
+  },
+  {
+    "id": "student-math-11-natural",
+    "input": "Tôi muốn học Toán cho con lớp 11",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "math",
+      "level": "HIGH_SCHOOL"
+    }
+  },
+  {
+    "id": "student-math-browse",
+    "input": "top các gia sư toán có trong hệ thống",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "math",
+      "minResults": 5
+    }
+  },
+  {
+    "id": "student-english-basic",
+    "input": "kém tiếng Anh cần gia sư",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "english",
+      "minResults": 3
+    }
+  },
+  {
+    "id": "student-ielts-detailed",
+    "input": "luyện IELTS speaking band 6.5+ online dưới 350k",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "english-ielts",
+      "modality": "ONLINE",
+      "budgetMaxVnd": 350000,
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-toeic",
+    "input": "cần thầy luyện TOEIC 750+",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "english-toeic",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-physics-hs",
+    "input": "tìm gia sư Vật lý lớp 12 ôn thi đại học",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "physics",
+      "level": "HIGH_SCHOOL",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-chemistry",
+    "input": "kèm con hoá học THCS",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "chemistry",
+      "level": "SECONDARY",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-programming",
+    "input": "muốn học lập trình Python từ zero",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "cs-programming",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-japanese",
+    "input": "tìm gia sư tiếng Nhật N4",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "japanese",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "student-ambiguous-empty",
+    "input": "muốn học gia sư",
+    "expect": {
+      "role": "student",
+      "action": "clarify"
+    }
+  },
+  {
+    "id": "student-ambiguous-question",
+    "input": "?",
+    "expect": {
+      "role": "student",
+      "action": "clarify"
+    }
+  },
+  {
+    "id": "tutor-math-find-student",
+    "input": "tôi là gia sư toán cần tìm ứng viên",
+    "expect": {
+      "role": "tutor",
+      "action": "search",
+      "subjectSlug": "math",
+      "minResults": 3
+    }
+  },
+  {
+    "id": "tutor-ielts-find-student",
+    "input": "tôi là gia sư IELTS, có yêu cầu nào không?",
+    "expect": {
+      "role": "tutor",
+      "action": "search",
+      "subjectSlug": "english-ielts",
+      "minResults": 1
+    }
+  },
+  {
+    "id": "tutor-physics-find-student",
+    "input": "tôi đang dạy Lý THPT, tìm học sinh",
+    "expect": {
+      "role": "tutor",
+      "action": "search",
+      "subjectSlug": "physics",
+      "level": "HIGH_SCHOOL"
+    }
+  },
+  {
+    "id": "tutor-ambiguous",
+    "input": "tôi muốn dạy",
+    "expect": {
+      "role": "tutor",
+      "action": "clarify"
+    }
+  },
+  {
+    "id": "student-with-budget",
+    "input": "Học Toán lớp 11 dưới 200k",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "math",
+      "level": "HIGH_SCHOOL",
+      "budgetMaxVnd": 200000
+    }
+  },
+  {
+    "id": "student-with-modality-hn",
+    "input": "cần gia sư Hoá tại Hà Nội",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "chemistry",
+      "modality": "OFFLINE_HN"
+    }
+  },
+  {
+    "id": "student-english-adult",
+    "input": "tôi đi làm muốn cải thiện tiếng Anh giao tiếp",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "english",
+      "level": "ADULT"
+    }
+  },
+  {
+    "id": "student-literature",
+    "input": "tìm cô dạy Văn lớp 9 luyện thi vào 10",
+    "expect": {
+      "role": "student",
+      "action": "search",
+      "subjectSlug": "literature",
+      "level": "SECONDARY"
+    }
+  }
+]

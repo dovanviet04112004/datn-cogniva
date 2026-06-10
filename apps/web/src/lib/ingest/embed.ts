@@ -114,6 +114,25 @@ export async function embedBatch(inputs: string[]): Promise<number[][]> {
     out.push(...vectors);
   }
 
+  // VALIDATE đầu ra: provider PHẢI trả ĐÚNG số vector + ĐÚNG 1024 chiều. Nếu nó
+  // rớt vài item (partial response) hoặc đổi dimension → throw để pipeline đánh
+  // dấu document FAILED, thay vì insert vector RỖNG/sai chiều làm hỏng HNSW index
+  // + retrieval (trước đây pipeline `embeddings[i] ?? []` nuốt lỗi → chunk vector rỗng).
+  if (out.length !== inputs.length) {
+    throw new Error(
+      `[ingest/embed] provider trả ${out.length} vector cho ${inputs.length} input — abort`,
+    );
+  }
+  for (const v of out) {
+    if (!Array.isArray(v) || v.length !== EMBED_DIM) {
+      throw new Error(
+        `[ingest/embed] vector sai chiều: cần ${EMBED_DIM}, nhận ${
+          Array.isArray(v) ? v.length : typeof v
+        }`,
+      );
+    }
+  }
+
   return out;
 }
 

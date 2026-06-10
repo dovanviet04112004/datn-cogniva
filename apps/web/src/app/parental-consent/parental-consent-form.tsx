@@ -11,6 +11,7 @@ import { Check, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 type Props = {
   token: string;
@@ -28,14 +29,10 @@ export function ParentalConsentForm({ token, childName }: Props) {
   const [parentName, setParentName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<ResponseData | null>(null);
+  // Dialog xác nhận từ chối (trang công khai, ngoài ConfirmProvider → dùng local).
+  const [askReject, setAskReject] = React.useState(false);
 
   const submit = async (decision: 'VERIFY' | 'REJECT') => {
-    if (decision === 'REJECT' && !window.confirm(
-      `Từ chối sẽ khóa vĩnh viễn account của ${childName}. Tiếp tục?`,
-    )) {
-      return;
-    }
-
     setBusy(true);
     try {
       const res = await fetch('/api/parental-consent/respond', {
@@ -112,7 +109,7 @@ export function ParentalConsentForm({ token, childName }: Props) {
           Đồng ý — Tôi là cha mẹ / người giám hộ
         </Button>
         <Button
-          onClick={() => submit('REJECT')}
+          onClick={() => setAskReject(true)}
           disabled={busy}
           variant="destructive"
         >
@@ -120,6 +117,16 @@ export function ParentalConsentForm({ token, childName }: Props) {
           Từ chối
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={askReject}
+        onOpenChange={setAskReject}
+        title={`Từ chối consent cho ${childName}?`}
+        description="Từ chối sẽ khoá vĩnh viễn account của con bạn — không thể hoàn tác."
+        confirmLabel="Từ chối"
+        variant="destructive"
+        onConfirm={() => submit('REJECT')}
+      />
 
       <p className="text-xs text-muted-foreground">
         Bằng cách click &ldquo;Đồng ý&rdquo;, bạn xác nhận là cha mẹ hoặc người giám

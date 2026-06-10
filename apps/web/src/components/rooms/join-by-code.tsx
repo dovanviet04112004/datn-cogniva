@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { apiSend } from '@cogniva/shared/api';
 import { Button } from '@/components/ui/button';
 
 export function JoinByCode() {
@@ -21,16 +22,11 @@ export function JoinByCode() {
     if (code.trim().length < 4) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/rooms/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.trim().toUpperCase() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? 'Mã không hợp lệ');
-      }
-      const { roomId } = await res.json();
+      const { roomId } = await apiSend<{ roomId: string }>(
+        '/api/rooms/join',
+        'POST',
+        { code: code.trim().toUpperCase() },
+      );
       router.push(`/rooms/${roomId}/lobby`);
     } catch (err) {
       toast.error((err as Error).message);

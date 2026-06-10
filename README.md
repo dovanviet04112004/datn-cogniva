@@ -2,7 +2,7 @@
 
 > AI-native learning platform with personal knowledge graph, multi-stage RAG, and adaptive mastery tracking.
 
-This repository follows the master plan in [`plan.md`](./plan.md). You are reading the **Phase 0 — Foundation** build.
+This repository follows the master plan in [`docs/plans/master.md`](./docs/plans/master.md). All phase specs, deferred backlog and runbooks live under [`docs/`](./docs/).
 
 ---
 
@@ -20,7 +20,7 @@ This repository follows the master plan in [`plan.md`](./plan.md). You are readi
 | Tooling      | pnpm workspaces + Turborepo + Vitest + Playwright     |
 | Hosting      | Vercel (web) · self-hosted Postgres or Neon (db)      |
 
-See [`plan.md`](./plan.md) §3 for the full rationale, including why Drizzle over Prisma, Mastra over LangGraph, and Better Auth over Clerk.
+See [`docs/plans/master.md`](./docs/plans/master.md) §3 for the full rationale, including why Drizzle over Prisma, Mastra over LangGraph, and Better Auth over Clerk.
 
 ---
 
@@ -29,17 +29,24 @@ See [`plan.md`](./plan.md) §3 for the full rationale, including why Drizzle ove
 ```
 cogniva/
 ├── apps/
-│   └── web/                 — Next.js app (UI + API routes + auth handler)
+│   ├── web/                 — Next.js app (UI + API routes + auth handler)
+│   ├── edge/                — Cloudflare Worker edge gateway
+│   ├── mobile/              — Expo mobile app
+│   └── hocuspocus/          — Yjs collaboration server
 ├── packages/
-│   └── db/                  — Drizzle schema + client (postgres.js)
+│   ├── db/                  — Drizzle schema + client (postgres.js)
+│   └── shared/              — types shared giữa apps
 ├── tooling/
 │   └── tsconfig/            — shared tsconfig presets
-├── infrastructure/
-│   └── docker/postgres/     — pgvector init.sql
+├── infrastructure/          — docker-compose, caddy, livekit, coturn, ops scripts
+├── docs/
+│   ├── plans/               — phase specs (master, admin, rooms-and-exam, …)
+│   ├── deferred/            — backlog/ý tưởng chưa làm
+│   └── operations/          — SLO, runbook
 ├── docker-compose.yml       — local Postgres 16 + pgvector
 ├── turbo.json               — Turborepo task graph
 ├── pnpm-workspace.yaml
-└── plan.md                  — master plan (16-week roadmap)
+└── README.md
 ```
 
 ---
@@ -165,7 +172,7 @@ pgvector's HNSW index supports at most 2000 dimensions. Our schema uses
 ~1% accuracy loss) or use `text-embedding-3-small` natively. To support
 the full 3072 later, switch the column to `halfvec(3072)` (HNSW supports
 up to 4000 dim) or to `vector(3072)` with an `IVFFlat` index. See
-[`plan.md`](./plan.md) §5.2.
+[`docs/plans/master.md`](./docs/plans/master.md) §5.2.
 
 **Better Auth warns about a low-entropy `BETTER_AUTH_SECRET`.**
 Regenerate one with:
@@ -207,4 +214,4 @@ on macOS) or change the host port mapping in `docker-compose.yml` to e.g.
 
 ## Roadmap
 
-This is **Phase 0**. Phases 1–11 are scoped in [`plan.md`](./plan.md) §10. The next phase (Document Ingestion) lands the upload flow, R2 storage, ingestion worker, and PDF viewer.
+This is **Phase 0**. Phases 1–11 are scoped in [`docs/plans/master.md`](./docs/plans/master.md) §10. The next phase (Document Ingestion) lands the upload flow, R2 storage, ingestion worker, and PDF viewer.

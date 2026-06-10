@@ -8,13 +8,16 @@
  *   - Recent activity feed
  */
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { realtime } from '@cogniva/shared';
 
 import { api } from '@/lib/api';
+import { useRealtimeEvent } from '@/lib/realtime';
 import { useAuth } from '@/store/auth';
 
 export default function DashboardScreen() {
   const user = useAuth((s) => s.user);
+  const qc = useQueryClient();
 
   const usage = useQuery({
     queryKey: ['account', 'usage'],
@@ -24,6 +27,15 @@ export default function DashboardScreen() {
       return r.data;
     },
   });
+
+  // Realtime: nhận notification:new trên presence-user-{me} (auth bằng bearer token) →
+  // refresh usage. Chứng minh đường realtime mobile end-to-end + tích hợp React Query.
+  useRealtimeEvent(
+    user?.id ? realtime.ch.presenceUser(user.id) : '',
+    'notification:new',
+    () => void qc.invalidateQueries({ queryKey: ['account', 'usage'] }),
+    !!user?.id,
+  );
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>

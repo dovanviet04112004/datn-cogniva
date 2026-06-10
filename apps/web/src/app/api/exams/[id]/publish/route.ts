@@ -14,6 +14,18 @@ import { eq, sql } from 'drizzle-orm';
 import { db, exam, examQuestion } from '@cogniva/db';
 import { auth } from '@/lib/auth';
 
+/**
+ * Sinh 6-char joinCode dùng cho share link. Alphabet bỏ 0/O/1/I/L dễ nhầm.
+ */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function generateJoinCode(): string {
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
 export const runtime = 'nodejs';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -51,12 +63,17 @@ export async function POST(_request: Request, ctx: RouteContext) {
     );
   }
 
+  // Sinh joinCode 6-char khi publish nếu chưa có. Student dùng code này vào
+  // /join để resolve sang /exams/[id]. Code lưu cột `live_code` (legacy naming).
+  const needsCode = !row.liveCode;
+
   const [published] = await db
     .update(exam)
     .set({
       status: 'PUBLISHED',
       publishedAt: new Date(),
       maxScore: agg.total,
+      ...(needsCode ? { liveCode: generateJoinCode() } : {}),
     })
     .where(eq(exam.id, id))
     .returning();

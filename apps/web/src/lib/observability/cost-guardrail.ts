@@ -30,6 +30,8 @@
  * KHÔNG charge estimate (vì user chưa nhận response) — chỉ check ngưỡng.
  * Record actual sau khi LLM trả về với usage thật.
  */
+import { aiUsageLog, db } from '@cogniva/db';
+
 import { getRedis } from '../redis';
 import { logger } from './logger';
 import { getUserConsentState } from '../coppa';
@@ -242,8 +244,16 @@ export async function recordCost(args: {
   model: string;
   /** Optional: tag use case cho cost breakdown analytics. */
   feature?: string;
+  /** Optional metrics — chỉ insert vào DB, không ảnh hưởng counter Redis. */
+  provider?: string;
+  tokensIn?: number;
+  tokensOut?: number;
+  latencyMs?: number;
+  cached?: boolean;
 }): Promise<void> {
-  if (args.costUsd <= 0) return;
+  // Cached call (semantic-cache hit) costUsd=0 nhưng vẫn cần ghi DB để
+  // analytics cache hit ratio. Chỉ skip nếu KHÔNG cached + cost <= 0.
+  if (args.costUsd <= 0 && !args.cached) return;
 
   const redis = getRedis();
   const userKey = userDailyKey(args.userId);
@@ -251,12 +261,38 @@ export async function recordCost(args: {
   const amount = Math.round(args.costUsd * USD_TO_INT);
 
   try {
-    const pipeline = redis.pipeline();
-    pipeline.incrby(userKey, amount);
-    pipeline.expire(userKey, 86_400 + 3600); // 25h — vượt biên ngày 1h cho timezone edge
-    pipeline.incrby(globalKey, amount);
-    pipeline.expire(globalKey, 3600 + 300); // 1h 5min
-    await pipeline.exec();
+    if (amount > 0) {
+      const pipeline = redis.pipeline();
+      pipeline.incrby(userKey, amount);
+      pipeline.expire(userKey, 86_400 + 3600); // 25h — vượt biên ngày 1h cho timezone edge
+      pipeline.incrby(globalKey, amount);
+      pipeline.expire(globalKey, 3600 + 300); // 1h 5min
+      await pipeline.exec();
+    }
+
+    // Phase 3: insert ai_usage_log để dashboard có data historical (90 ngày).
+    // KHÔNG await vào response path — fire-and-forget, fail không break user flow.
+    void db
+      .insert(aiUsageLog)
+      .values({
+        userId: args.userId,
+        plan: args.plan,
+        provider: args.provider ?? inferProvider(args.model),
+        model: args.model,
+        feature: args.feature ?? null,
+        tokensIn: args.tokensIn ?? 0,
+        tokensOut: args.tokensOut ?? 0,
+        costUsd: args.costUsd,
+        latencyMs: args.latencyMs ?? null,
+        cached: args.cached ?? false,
+      })
+      .catch((err) => {
+        logger.error('ai_usage_log.insert.failed', {
+          user_id: args.userId,
+          model: args.model,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
     // Log cost (sẽ flow vào ClickHouse Stage 2 cho dashboard)
     logger.info('cost.recorded', {
@@ -274,6 +310,21 @@ export async function recordCost(args: {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/**
+ * Infer provider từ model name nếu caller không truyền — heuristic match
+ * prefix theo convention. Default 'unknown' nếu không match.
+ */
+function inferProvider(model: string): string {
+  if (model.startsWith('gpt-') || model.startsWith('o1') || model.startsWith('o3'))
+    return 'openai';
+  if (model.startsWith('claude-')) return 'anthropic';
+  if (model.startsWith('gemini-')) return 'google';
+  if (model.startsWith('voyage-')) return 'voyage';
+  if (model.includes('cohere') || model.startsWith('rerank-')) return 'cohere';
+  if (model.includes('groq') || model.includes('llama')) return 'groq';
+  return 'unknown';
 }
 
 /**

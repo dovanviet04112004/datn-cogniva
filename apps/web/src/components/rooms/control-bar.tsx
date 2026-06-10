@@ -65,7 +65,7 @@ export function ControlBar({ onLeave, roomId, isMod }: Props) {
   };
 
   return (
-    <div className="flex items-center justify-center gap-2 border-t border-slate-800 bg-slate-900/95 p-3 backdrop-blur">
+    <div className="glass-elevated flex items-center justify-center gap-2 border-t border-divider p-3">
       <Button
         onClick={() => toggleMic()}
         variant={micOn ? 'secondary' : 'destructive'}

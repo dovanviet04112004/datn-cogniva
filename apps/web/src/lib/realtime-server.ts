@@ -1,58 +1,46 @@
 /**
- * Pusher (Soketi) server helper — trigger event từ Next.js route handler.
+ * Realtime server helper — phát event tới client qua Socket.IO gateway (apps/realtime).
  *
- * Soketi protocol-compatible với Pusher → dùng `pusher` npm package, chỉ
- * override `host` về self-hosted endpoint. App secret KHÔNG bao giờ leak ra
- * client; client dùng key public + auth endpoint signed bằng secret này.
+ * KHÔNG mở kết nối Socket.IO ở tiến trình Next. Thay vào đó dùng
+ * `@socket.io/redis-emitter`: publish event vào Redis → `@socket.io/redis-adapter` ở
+ * gateway nhận và fan-out tới mọi socket trong room (kể cả nhiều replica gateway).
+ * REDIS_URL ở đây PHẢI trùng Redis của gateway.
  *
- * Channel naming convention (Phase 13+):
- *   - `presence-room-{roomId}`     : presence channel cho room participants
- *   - `presence-user-{userId}`     : private channel cho notification 1-1
- *   - `exam-{examId}`              : public channel cho live exam broadcast
- *   - `tournament-{examId}`        : public cho tournament bracket update
+ * Quy ước domain event: `emit(event, channel, data)` — `channel` là arg #1 để client
+ * `useRealtimeEvent(channel, event, h)` lọc đúng channel (1 socket join nhiều room, tên
+ * event là global nên cần channel để phân biệt).
  *
- * Lazy init giống livekit.ts — không throw lúc import nếu env thiếu.
+ * Channel naming (xem `@cogniva/shared/realtime` → `ch`):
+ *   - `private-channel-{channelId}` · `presence-voice-{channelId}` · `presence-room-{roomId}`
+ *   - `presence-user-{userId}` · `presence-group-{groupId}` · `private-dm-{threadId}`
+ *
+ * Lazy init + fail-open: thiếu REDIS_URL hoặc lỗi → trả `{ ok:false }`, KHÔNG throw lên route.
  */
-import Pusher from 'pusher';
+import { Emitter } from '@socket.io/redis-emitter';
+import { Redis } from 'ioredis';
 
-function requireSoketiEnv() {
-  const appId = process.env.SOKETI_APP_ID;
-  const key = process.env.NEXT_PUBLIC_SOKETI_KEY;
-  const secret = process.env.SOKETI_SECRET;
-  const host = process.env.NEXT_PUBLIC_SOKETI_HOST;
-  if (!appId || !key || !secret || !host) {
-    throw new Error(
-      'Soketi env chưa cấu hình. Cần SOKETI_APP_ID + NEXT_PUBLIC_SOKETI_KEY + ' +
-        'SOKETI_SECRET + NEXT_PUBLIC_SOKETI_HOST. Xem infrastructure/README.md.',
-    );
+let _emitter: Emitter | null = null;
+let _warned = false;
+
+function getEmitter(): Emitter | null {
+  if (_emitter) return _emitter;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    if (!_warned) {
+      console.warn('[realtime] REDIS_URL trống — emit no-op (dev chưa chạy gateway/redis).');
+      _warned = true;
+    }
+    return null;
   }
-  return { appId, key, secret, host };
-}
-
-let _pusher: Pusher | null = null;
-
-/** Singleton Pusher server SDK — dev + prod auto-detect TLS. */
-export function getPusherServer(): Pusher {
-  if (!_pusher) {
-    const { appId, key, secret, host } = requireSoketiEnv();
-    // Local dev: host=localhost → port 6001 ws (no TLS).
-    // Prod: host=soketi.cogniva.com → 443 wss (qua Caddy TLS).
-    const isLocal = host === 'localhost' || host.startsWith('127.');
-    _pusher = new Pusher({
-      appId,
-      key,
-      secret,
-      host,
-      port: isLocal ? '6001' : '443',
-      useTLS: !isLocal,
-    });
-  }
-  return _pusher;
+  // Connection riêng cho emitter (chỉ publish). maxRetriesPerRequest:null tránh ném lỗi
+  // khi reconnect blip — giữ fail-open.
+  _emitter = new Emitter(new Redis(url, { maxRetriesPerRequest: null }));
+  return _emitter;
 }
 
 /**
- * Trigger 1 event tới 1 channel — wrapper an toàn (không throw lên route).
- * Trả về { ok: boolean } để caller quyết định fallback nếu Soketi down.
+ * Phát 1 event tới 1 channel (room). GIỮ NGUYÊN chữ ký + fail-open `{ ok, error }` để
+ * ~60 call-site không phải đổi và caller tự quyết fallback nếu realtime down.
  */
 export async function triggerEvent(
   channel: string,
@@ -60,23 +48,14 @@ export async function triggerEvent(
   data: unknown,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await getPusherServer().trigger(channel, event, data);
+    const em = getEmitter();
+    if (!em) return { ok: false, error: 'no-emitter' };
+    // channel = arg #1 cho client lọc; data = arg #2 (payload thật).
+    em.to(channel).emit(event, channel, data);
     return { ok: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[soketi] trigger fail: ${channel}/${event} — ${msg}`);
+    console.error(`[realtime] emit fail: ${channel}/${event} — ${msg}`);
     return { ok: false, error: msg };
   }
-}
-
-/**
- * Sign auth payload cho presence/private channel — gọi từ
- * `POST /api/realtime/auth` (Phase 14).
- */
-export function authorizeChannel(
-  socketId: string,
-  channel: string,
-  user: { user_id: string; user_info: Record<string, unknown> },
-) {
-  return getPusherServer().authorizeChannel(socketId, channel, user);
 }

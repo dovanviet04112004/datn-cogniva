@@ -21,6 +21,8 @@ import { eq } from 'drizzle-orm';
 
 import { db, userStats } from '@cogniva/db';
 
+import { onXpChanged } from '@/lib/cache/invalidate';
+
 import { checkNewAchievements, type AchievementContext } from './achievements';
 
 export type UserStatsRow = {
@@ -120,6 +122,12 @@ export async function awardXp(
     .returning();
 
   if (!updated) throw new Error('[xp] update userStats failed');
+
+  // Choke point: mọi route thưởng XP (flashcard/quiz/note/upload) đều qua awardXp.
+  // Hook 1 chỗ → bust profile + dashboard cache + cộng ZSET leaderboard cho TẤT CẢ.
+  // Fail-open (Redis lỗi không làm hỏng award). lbIncr populate sớm (Phase 3 mới đọc).
+  await onXpChanged(userId, amount);
+
   return { stats: updated, newAchievements: unlocked };
 }
 

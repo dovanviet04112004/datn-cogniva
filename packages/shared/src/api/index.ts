@@ -201,3 +201,7 @@ export function createApiClient(cfg: ApiClientConfig): ApiClient {
 }
 
 export type { ApiClient };
+
+// Fetcher tối giản cho React Query (throw on error) + config base-URL/auth.
+export * from './config';
+export * from './rq-fetcher';

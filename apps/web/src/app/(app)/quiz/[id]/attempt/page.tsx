@@ -4,52 +4,30 @@
  */
 'use client';
 
-import * as React from 'react';
 import { use } from 'react';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
+import type { QuizAttemptDTO } from '@cogniva/shared/types';
 import { QuizAttemptSession } from '@/components/quiz/quiz-attempt-session';
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-type Question = {
-  id: string;
-  type: 'MCQ' | 'TRUE_FALSE' | 'SHORT';
-  prompt: string;
-  options: string[] | null;
-  difficulty: number;
-};
-
-type Quiz = {
-  id: string;
-  title: string;
-};
-
 export default function QuizAttemptPage({ params }: PageProps) {
   const { id } = use(params);
-  const [data, setData] = React.useState<{ quiz: Quiz; questions: Question[] } | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    fetch(`/api/quiz/${id}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`status ${r.status}`);
-        return (await r.json()) as { quiz: Quiz; questions: Question[] };
-      })
-      .then(setData)
-      .catch((err: Error) => {
-        setError(err.message);
-        toast.error('Không load được quiz: ' + err.message);
-      });
-  }, [id]);
+  const { data, error } = useQuery({
+    queryKey: qk.quiz(id),
+    queryFn: () => apiGet<QuizAttemptDTO>(`/api/quiz/${id}`),
+  });
 
   if (error) {
     return (
       <div className="mx-auto max-w-2xl p-8 text-center text-sm text-muted-foreground">
-        Lỗi: {error}
+        Lỗi: {(error as Error).message}
       </div>
     );
   }

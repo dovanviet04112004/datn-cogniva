@@ -22,10 +22,18 @@
  * Tracing: bao toàn flow trong 1 Langfuse trace (no-op nếu chưa cấu hình).
  */
 import { headers } from 'next/headers';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { type Message, createDataStreamResponse } from 'ai';
 
-import { conversation, db, message as messageTable } from '@cogniva/db';
+import {
+  chunk,
+  chunkConcept,
+  concept,
+  conversation,
+  db,
+  document,
+  message as messageTable,
+} from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import {
@@ -38,6 +46,11 @@ import { startTrace } from '@/lib/observability/langfuse';
 import { trackEvent } from '@/lib/observability/posthog';
 import { logger } from '@/lib/observability/logger';
 import { checkLimit } from '@/lib/rate-limit';
+import {
+  onAnalyticsChanged,
+  onConversationsChanged,
+  onDashboardChanged,
+} from '@/lib/cache/invalidate';
 import type { Plan } from '@/lib/observability/cost-guardrail';
 
 export const runtime = 'nodejs';
@@ -49,6 +62,20 @@ type ChatRequestBody = {
   conversationId?: string | null;
   /** Optional scope retrieval theo workspace. */
   workspaceId?: string;
+  /**
+   * Optional pin tài liệu cụ thể — AI chỉ search trong subset này.
+   * Bỏ qua nếu undefined / rỗng. Forward thẳng vào buildChatContext.
+   */
+  documentIds?: string[];
+  /**
+   * Phase D (atom-centric): pin atom đang focus. Khi set:
+   *   - Atom name + description + examples được prepend vào system prompt
+   *     (luôn-có-context, KHÔNG phụ thuộc retrieval similarity)
+   *   - Chunk gốc của atom (qua chunk_concept pivot) cũng inject vào prompt
+   *     để AI có nguồn cụ thể
+   * Spec: docs/plans/atom-centric.md §4.5 + §5.3.
+   */
+  atomIds?: string[];
 };
 
 export async function POST(request: Request) {
@@ -74,7 +101,22 @@ export async function POST(request: Request) {
   } catch {
     return new Response('Invalid JSON', { status: 400 });
   }
-  const { messages, conversationId: rawConvId, workspaceId } = body;
+  const {
+    messages,
+    conversationId: rawConvId,
+    workspaceId,
+    documentIds,
+    atomIds,
+  } = body;
+  // Safety: chỉ nhận array of string, đề phòng client truyền type sai (vd object)
+  const safeDocIds =
+    Array.isArray(documentIds) && documentIds.every((id) => typeof id === 'string')
+      ? documentIds
+      : undefined;
+  const safeAtomIds =
+    Array.isArray(atomIds) && atomIds.every((id) => typeof id === 'string')
+      ? atomIds.slice(0, 5)
+      : undefined;
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response('messages required', { status: 400 });
   }
@@ -114,6 +156,11 @@ export async function POST(request: Request) {
       .returning();
     if (!created) return new Response('Failed to create conversation', { status: 500 });
     convId = created.id;
+    // Conversation mới → dashboard totalConv đổi. (Message thêm vào conv cũ KHÔNG
+    // đổi count nên chỉ bust ở đây, không bust mỗi message.)
+    await onDashboardChanged(userId);
+    // Conversations list (sidebar chat) có thêm 1 dòng mới → bust để list tươi.
+    await onConversationsChanged(userId);
   } else {
     const owned = await db
       .select({ id: conversation.id })
@@ -146,7 +193,12 @@ export async function POST(request: Request) {
 
   let context;
   try {
-    context = await buildChatContext({ query: queryForRetrieval, userId, workspaceId });
+    context = await buildChatContext({
+      query: queryForRetrieval,
+      userId,
+      workspaceId,
+      documentIds: safeDocIds,
+    });
   } catch (err) {
     retrieveSpan.update({ metadata: { error: String(err) } });
     retrieveSpan.end();
@@ -162,6 +214,85 @@ export async function POST(request: Request) {
   });
   retrieveSpan.end();
 
+  // ── 7.5. Phase D (atom-centric): pinned atom context ──────
+  // Nếu user mở AI Tutor từ atom detail / graph node → atomIds được pin.
+  // Load atom info + chunks gốc (qua chunk_concept pivot) và PREPEND vào
+  // system prompt như "must-include context", tách biệt với retrieval
+  // chunks (luôn-có, không phụ thuộc similarity).
+  let atomSystemAddition = '';
+  if (safeAtomIds && safeAtomIds.length > 0) {
+    try {
+      const atoms = await db
+        .select({
+          id: concept.id,
+          name: concept.name,
+          description: concept.description,
+          examples: concept.examples,
+          domain: concept.domain,
+          previewQuestion: concept.previewQuestion,
+          previewAnswer: concept.previewAnswer,
+        })
+        .from(concept)
+        .where(inArray(concept.id, safeAtomIds));
+
+      // Lấy 1-2 chunk gốc cho mỗi atom (top strength) để có nguồn cụ thể.
+      // `page` không phải column rời — nằm trong chunk.metadata jsonb.
+      const atomChunks = await db
+        .select({
+          atomId: chunkConcept.conceptId,
+          content: chunk.content,
+          filename: document.filename,
+          metadata: chunk.metadata,
+        })
+        .from(chunkConcept)
+        .innerJoin(chunk, eq(chunk.id, chunkConcept.chunkId))
+        .innerJoin(document, eq(document.id, chunk.documentId))
+        .where(
+          and(
+            inArray(chunkConcept.conceptId, safeAtomIds),
+            eq(document.userId, userId),
+          ),
+        )
+        .limit(safeAtomIds.length * 2);
+
+      // Build prepend block
+      const sections: string[] = [];
+      for (const atom of atoms) {
+        const examples =
+          Array.isArray(atom.examples) && atom.examples.length > 0
+            ? `\n  Ví dụ: ${(atom.examples as string[]).slice(0, 3).join('; ')}`
+            : '';
+        const preview = atom.previewQuestion
+          ? `\n  Q: ${atom.previewQuestion}${atom.previewAnswer ? `\n  A: ${atom.previewAnswer}` : ''}`
+          : '';
+        const chunks = atomChunks
+          .filter((c) => c.atomId === atom.id)
+          .map((c) => {
+            const page =
+              typeof c.metadata === 'object' && c.metadata && 'page' in c.metadata
+                ? Number((c.metadata as { page: unknown }).page)
+                : null;
+            return `  [${c.filename}${page ? `, trang ${page}` : ''}]: ${c.content.slice(0, 400)}`;
+          })
+          .join('\n');
+        sections.push(
+          `- **${atom.name}** (${atom.domain})${atom.description ? `: ${atom.description}` : ''}${examples}${preview}${chunks ? `\n  Trích nguồn:\n${chunks}` : ''}`,
+        );
+      }
+
+      if (sections.length > 0) {
+        atomSystemAddition = `\n\n## 🎯 ATOM USER ĐANG FOCUS\n\nUser mở AI Tutor từ trang atom (knowledge unit) cụ thể. Hãy trả lời TẬP TRUNG VÀO atom dưới đây — không lan man sang khái niệm khác trừ khi user hỏi:\n\n${sections.join('\n\n')}\n`;
+      }
+    } catch (err) {
+      logger.warn('chat.atom_context_failed', {
+        user_id: userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const finalSystemPrompt = context.systemPrompt + atomSystemAddition;
+
   // ── 8. Stream qua router (cost guardrail + circuit breaker tự động) ─
   // Router check guardrail trước, throw CostGuardrailError nếu deny.
   // KHÔNG await để giữ stream flow — router init nhanh nếu pass guard.
@@ -171,14 +302,14 @@ export async function POST(request: Request) {
       useCase: 'ragChat',
       userId,
       plan,
-      system: context.systemPrompt,
+      system: finalSystemPrompt,
       messages: messages.slice(-10).map((m) => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
       })),
       // Estimate input từ system prompt + 10 message gần
       estimatedInputTokens: Math.ceil(
-        (context.systemPrompt.length + messages.slice(-10).reduce((s, m) => s + (typeof m.content === 'string' ? m.content.length : 100), 0)) / 3,
+        (finalSystemPrompt.length + messages.slice(-10).reduce((s, m) => s + (typeof m.content === 'string' ? m.content.length : 100), 0)) / 3,
       ),
       maxOutputTokens: 2000,
       feature: 'chat',
@@ -225,7 +356,11 @@ export async function POST(request: Request) {
       const generation = trace.generation({
         name: 'chat-generation',
         model: routed.modelUsed,
-        input: { systemPrompt: context.systemPrompt, messages: messages.length },
+        input: {
+          systemPrompt: finalSystemPrompt,
+          messages: messages.length,
+          atomPinned: safeAtomIds?.length ?? 0,
+        },
       });
 
       // Wire onFinish qua router.finishPromise — tracking + DB save
@@ -269,6 +404,14 @@ export async function POST(request: Request) {
               cacheHit,
             },
           });
+
+          // ASSISTANT message mới (có cost trong metadata) → analytics 30 ngày của
+          // user đã cũ. Bust cache (fail-open, không chặn). Co-located tại đúng
+          // điểm ghi message để phủ-đầy-đủ-by-construction.
+          await onAnalyticsChanged(userId);
+          // messageCount + thứ tự "mới nhất" của conversations list cũng đổi theo
+          // message mới → bust list (sidebar chat). Cùng choke point ghi message.
+          await onConversationsChanged(userId);
 
           void trackEvent('chat_message_completed', userId, {
             conversationId: convId,

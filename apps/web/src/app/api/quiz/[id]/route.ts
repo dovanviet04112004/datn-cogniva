@@ -14,6 +14,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, question, quiz } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onWorkspaceContentChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
 
@@ -63,12 +64,21 @@ export async function DELETE(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Lấy kèm workspaceId từ .returning() để biết workspace nào cần bust badge stats.
   const result = await db
     .delete(quiz)
     .where(and(eq(quiz.id, id), eq(quiz.userId, session.user.id)))
-    .returning({ id: quiz.id });
+    .returning({ id: quiz.id, workspaceId: quiz.workspaceId });
   if (result.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // Quiz bị xoá đổi count quizzes của workspace → bust workspaceStats/atoms.
+  // Chỉ khi quiz thuộc workspace cụ thể (quiz có thể có workspaceId=null).
+  const deletedWorkspaceId = result[0]?.workspaceId;
+  if (deletedWorkspaceId) {
+    await onWorkspaceContentChanged(session.user.id, deletedWorkspaceId);
+  }
+
   return NextResponse.json({ deleted: true });
 }

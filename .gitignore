@@ -23,6 +23,10 @@ next-env.d.ts
 .env.*.local
 !.env.example
 
+# Neon test connection strings (chứa password — KHÔNG commit)
+.neon-url.txt
+.neon-replica-url.txt
+
 # Testing
 coverage/
 .nyc_output/
@@ -69,3 +73,6 @@ uploads/
 test-results/
 playwright-report/
 .playwright-cache/
+
+# Claude Code — settings ca nhan, khong commit
+.claude/settings.local.json

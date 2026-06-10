@@ -22,16 +22,39 @@ import { ChevronLeft, ChevronRight, Clock, Send, CheckCircle, XCircle } from 'lu
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ProctorCamera } from '@/components/exams/proctor-camera';
+import {
+  useFullscreenLock,
+  useTabSwitchDetection,
+  useCopyPasteBlock,
+  useContextMenuBlock,
+  useDevtoolsDetect,
+  useReportViolations,
+  type ViolationEvent,
+} from '@/lib/anti-cheat/detectors';
+
+interface AntiCheatConfig {
+  requireFullscreen?: boolean;
+  blockTabSwitch?: boolean;
+  blockCopyPaste?: boolean;
+  blockContextMenu?: boolean;
+  detectDevtools?: boolean;
+  requireWebcam?: boolean;
+  requireMic?: boolean;
+  aiProctor?: boolean;
+}
 
 interface ExamData {
   id: string;
   title: string;
   mode: string;
   durationSeconds: number | null;
+  startsAt: string | null;
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   allowReview: boolean;
   maxScore: number;
+  antiCheat: AntiCheatConfig | null;
 }
 
 interface QuestionData {
@@ -93,8 +116,15 @@ export default function TakeExamPage() {
   // Ref giữ timeout id để continueAfterFeedback có thể cancel khi user
   // click "Câu sau →" sớm trước khi auto-advance fire
   const advanceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Phase 19 — student bấm "Bắt đầu" để kích hoạt fullscreen (browser policy yêu cầu user gesture)
+  const [examStarted, setExamStarted] = React.useState(false);
+  // Debounce timer cho auto-save draftAnswer (reload sẽ load lại từ server)
+  const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load initial data
+  // Load initial data + RESTORE currentIdx từ sessionStorage (per tab).
+  // Key gắn attemptId → mỗi attempt giữ riêng vị trí, không nhầm khi nhiều
+  // attempt cùng user. localStorage sẽ persist xuyên session/tab → dùng
+  // sessionStorage cho phù hợp lifecycle của 1 attempt.
   React.useEffect(() => {
     fetch(`/api/attempts/${attemptId}`)
       .then(async (r) => {
@@ -116,10 +146,34 @@ export default function TakeExamPage() {
           router.replace(`/exams/${d.exam.id}/results/${d.attempt.id}`);
           return;
         }
+
+        // Restore currentIdx + examStarted từ sessionStorage
+        if (typeof window !== 'undefined') {
+          const savedIdx = sessionStorage.getItem(`exam:${attemptId}:currentIdx`);
+          if (savedIdx) {
+            const n = parseInt(savedIdx, 10);
+            if (!Number.isNaN(n) && n >= 0 && n < shuffled.length) {
+              setCurrentIdx(n);
+            }
+          }
+          // examStarted KHÔNG restore cho proctored mode (security: re-consent
+          // sau reload). Restore CHỈ khi exam không yêu cầu fullscreen.
+          const ac = d.exam.antiCheat;
+          const isProctored = ac && (ac.requireFullscreen || ac.requireWebcam || ac.requireMic);
+          if (!isProctored && sessionStorage.getItem(`exam:${attemptId}:started`) === '1') {
+            setExamStarted(true);
+          }
+        }
       })
       .catch((err) => toast.error('Load fail: ' + err.message))
       .finally(() => setLoading(false));
   }, [attemptId, router]);
+
+  // Persist currentIdx → sessionStorage mỗi khi đổi câu. Reload sẽ load lại.
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || loading) return;
+    sessionStorage.setItem(`exam:${attemptId}:currentIdx`, String(currentIdx));
+  }, [attemptId, currentIdx, loading]);
 
   // Countdown timer cho TIMED mode
   React.useEffect(() => {
@@ -148,6 +202,31 @@ export default function TakeExamPage() {
     setDraftAnswer(existing?.answer ?? defaultAnswer(q.type));
     setFeedback(null);
   }, [currentIdx, questions, responses]);
+
+  // Auto-save draftAnswer (debounce 1.5s) → reload load lại từ server.
+  // KHÔNG grade ở đây (defer cho onNext hoặc submit) — tránh AI cost spam khi
+  // user gõ từng từ trong SHORT/ESSAY. Practice mode IMMEDIATE feedback vẫn
+  // dùng onNext flow để grade.
+  React.useEffect(() => {
+    if (loading || feedback) return;
+    const q = questions[currentIdx];
+    if (!q || draftAnswer === null || draftAnswer === undefined) return;
+    // Skip nếu answer giống response đã save (tránh duplicate POST)
+    const existing = responses.get(q.id);
+    if (existing && JSON.stringify(existing.answer) === JSON.stringify(draftAnswer)) return;
+    // Skip nếu empty string (chưa nhập gì)
+    if (draftAnswer === '') return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      void saveAnswer(q.id, draftAnswer, false);
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftAnswer, currentIdx, questions]);
 
   // Auto-advance giờ làm INLINE trong onNext (setTimeout sau setFeedback) —
   // tránh useEffect closure issue + simpler timing control
@@ -246,11 +325,161 @@ export default function TakeExamPage() {
     }
   };
 
+  // ── Phase 19 — Anti-cheat hooks ─────────────────────────────
+  const antiCheat = exam?.antiCheat ?? null;
+  // Waitroom check: nếu có scheduled startsAt và chưa đến giờ → block exam
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const startsAtMs = exam?.startsAt ? new Date(exam.startsAt).getTime() : null;
+  const isWaitroom = startsAtMs !== null && now < startsAtMs;
+
+  // Persist examStarted khi true (KHÔNG cho proctored vì cần re-consent)
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !examStarted) return;
+    const ac = exam?.antiCheat;
+    const isProctored = ac && (ac.requireFullscreen || ac.requireWebcam || ac.requireMic);
+    if (!isProctored) {
+      sessionStorage.setItem(`exam:${attemptId}:started`, '1');
+    }
+  }, [attemptId, examStarted, exam?.antiCheat]);
+
+  const reportViolation = useReportViolations(attemptId);
+  const onViolation = React.useCallback(
+    (v: ViolationEvent) => {
+      // Toast warning student để họ biết bị log
+      const labels: Record<string, string> = {
+        tab_switch: 'Chuyển tab/window',
+        fullscreen_exit: 'Thoát fullscreen',
+        copy: 'Copy', paste: 'Paste', cut: 'Cut',
+        context_menu: 'Chuột phải',
+        devtools: 'DevTools mở',
+        webcam_denied: 'Camera bị chặn', webcam_missing: 'Camera không có signal',
+        mic_denied: 'Mic bị chặn', mic_silent: 'Mic im lặng',
+      };
+      const label = labels[v.type] ?? v.type;
+      if (v.severity === 'high') {
+        toast.error(`⚠️ Phát hiện: ${label}`);
+      } else if (v.severity === 'medium') {
+        toast.warning(`Phát hiện: ${label}`);
+      }
+      reportViolation(v);
+    },
+    [reportViolation],
+  );
+
+  // Chỉ enable detectors khi đã bắt đầu thực sự (qua waitroom + click Start)
+  const detectorsActive = examStarted && !isWaitroom && attempt?.status === 'IN_PROGRESS';
+  const { enter: enterFullscreen } = useFullscreenLock(
+    detectorsActive && Boolean(antiCheat?.requireFullscreen),
+    onViolation,
+  );
+  useTabSwitchDetection(detectorsActive && Boolean(antiCheat?.blockTabSwitch), onViolation);
+  useCopyPasteBlock(detectorsActive && Boolean(antiCheat?.blockCopyPaste), onViolation);
+  useContextMenuBlock(detectorsActive && Boolean(antiCheat?.blockContextMenu), onViolation);
+  useDevtoolsDetect(detectorsActive && Boolean(antiCheat?.detectDevtools), onViolation);
+
+  // Snapshot handler — V1 chỉ log timestamp + size lên violation timeline.
+  // V2 sẽ upload R2 (cần env). Hiện tại discard blob, owner xem được "đã có snapshot at X".
+  const onSnapshot = React.useCallback(
+    (_dataUrl: string, timestamp: number) => {
+      // Không log violation cho snapshot bình thường (chỉ event). Trigger
+      // chỉ khi AI detect issue (V2).
+      // V1 dummy: track tổng số snapshot qua console
+      console.debug('[proctor] snapshot captured at', new Date(timestamp).toISOString());
+    },
+    [],
+  );
+
   if (loading) {
     return <div className="p-6 text-sm text-muted-foreground">Đang tải...</div>;
   }
   if (!exam || !attempt || questions.length === 0) {
     return <div className="p-6 text-sm text-muted-foreground">Không tìm thấy exam.</div>;
+  }
+
+  // ── Waitroom screen — chờ tới startsAt ──────────────────────
+  if (isWaitroom && startsAtMs !== null) {
+    const diffSec = Math.max(0, Math.floor((startsAtMs - now) / 1000));
+    const h = Math.floor(diffSec / 3600);
+    const m = Math.floor((diffSec % 3600) / 60);
+    const s = diffSec % 60;
+    return (
+      <div className="flex min-h-[80vh] flex-col items-center justify-center gap-6 p-6">
+        <Card className="w-full max-w-md p-8 text-center">
+          <h1 className="text-2xl font-semibold">{exam.title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Phòng chờ — bắt đầu sau:</p>
+          <div className="mt-6 font-mono text-5xl font-bold tabular-nums">
+            {String(h).padStart(2, '0')}:{String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+          </div>
+          <p className="mt-6 text-xs text-muted-foreground">
+            Bài thi sẽ tự động bắt đầu đúng giờ. Vui lòng không đóng tab.
+          </p>
+        </Card>
+        {antiCheat?.requireWebcam || antiCheat?.requireMic ? (
+          <ProctorCamera
+            webcam={Boolean(antiCheat?.requireWebcam)}
+            mic={Boolean(antiCheat?.requireMic)}
+            snapshotIntervalMs={0}
+            onViolation={onViolation}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  // ── Pre-flight screen — student chưa bấm Start ──────────────
+  const hasAnyProctor =
+    antiCheat &&
+    (antiCheat.requireFullscreen ||
+      antiCheat.requireWebcam ||
+      antiCheat.requireMic ||
+      antiCheat.blockTabSwitch ||
+      antiCheat.blockCopyPaste ||
+      antiCheat.detectDevtools);
+
+  if (!examStarted && hasAnyProctor) {
+    return (
+      <div className="mx-auto max-w-xl space-y-4 p-6">
+        <Card className="p-6">
+          <h1 className="text-xl font-semibold">{exam.title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Bài thi này có giám sát chống gian lận. Vui lòng đọc + đồng ý trước khi bắt đầu:
+          </p>
+          <ul className="mt-4 space-y-2 text-sm">
+            {antiCheat?.requireFullscreen && (
+              <li>• Bài thi sẽ chạy toàn màn hình. Thoát fullscreen sẽ bị log.</li>
+            )}
+            {antiCheat?.blockTabSwitch && (
+              <li>• Chuyển sang tab/cửa sổ khác sẽ bị phát hiện và log.</li>
+            )}
+            {antiCheat?.blockCopyPaste && <li>• Copy/Paste sẽ bị chặn.</li>}
+            {antiCheat?.blockContextMenu && <li>• Chuột phải sẽ bị chặn.</li>}
+            {antiCheat?.detectDevtools && <li>• Mở DevTools sẽ bị log.</li>}
+            {antiCheat?.requireWebcam && <li>• Camera của bạn sẽ bật suốt bài thi.</li>}
+            {antiCheat?.requireMic && <li>• Microphone sẽ ghi nhận âm lượng môi trường.</li>}
+          </ul>
+          <Button
+            className="mt-6 w-full"
+            size="lg"
+            onClick={async () => {
+              // Set examStarted TRƯỚC để listener fullscreenchange đã active
+              // khi browser nhả fullscreenchange event (chống miss event đầu).
+              setExamStarted(true);
+              if (antiCheat?.requireFullscreen) {
+                // enter() vẫn nằm trong user gesture context của onClick
+                // (chưa có await pending nào trước nó) → requestFullscreen OK.
+                await enterFullscreen();
+              }
+            }}
+          >
+            Tôi đồng ý — Bắt đầu thi
+          </Button>
+        </Card>
+      </div>
+    );
   }
 
   const q = questions[currentIdx]!;
@@ -260,6 +489,17 @@ export default function TakeExamPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-6">
+      {/* Phase 19 — Proctor camera/mic fixed bottom-right */}
+      {(antiCheat?.requireWebcam || antiCheat?.requireMic) && detectorsActive && (
+        <ProctorCamera
+          webcam={Boolean(antiCheat?.requireWebcam)}
+          mic={Boolean(antiCheat?.requireMic)}
+          snapshotIntervalMs={antiCheat?.requireWebcam ? 30_000 : 0}
+          onViolation={onViolation}
+          onSnapshot={onSnapshot}
+        />
+      )}
+
       {/* Top bar: title + countdown */}
       <div className="flex items-center justify-between">
         <div>
@@ -271,7 +511,10 @@ export default function TakeExamPage() {
         {remainingSec !== null && (
           <div
             className={`flex items-center gap-1 rounded px-3 py-1 text-sm font-semibold ${
-              remainingSec < 60 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+              // Dưới 60s → cảnh báo khẩn (destructive); còn lại → tông primary bình thường
+              remainingSec < 60
+                ? 'bg-destructive/10 text-destructive'
+                : 'bg-primary/10 text-primary'
             }`}
           >
             <Clock className="h-4 w-4" />
@@ -347,9 +590,10 @@ export default function TakeExamPage() {
         {feedback && (
           <div
             className={`flex items-center gap-3 rounded-md border-2 p-4 text-base ${
+              // Đúng → success; sai → destructive (dùng token semantic)
               feedback.isCorrect
-                ? 'border-green-300 bg-green-50 text-green-900'
-                : 'border-red-300 bg-red-50 text-red-900'
+                ? 'border-success/40 bg-success/10 text-success'
+                : 'border-destructive/40 bg-destructive/10 text-destructive'
             }`}
           >
             {feedback.isCorrect ? (

@@ -218,6 +218,95 @@ export async function resetCircuit(name: string): Promise<void> {
 }
 
 /**
+ * Liệt kê toàn bộ circuit hiện có trong Redis — dùng cho admin dashboard.
+ *
+ * Phase 3 admin: scan keys `cb:state:*` (chỉ circuit khác CLOSED có entry vì
+ * setState xoá key khi CLOSED) + `cb:fail:*` (counter window). Merge thành 1
+ * list. Circuit CLOSED hoàn toàn (không state + không fail count) sẽ KHÔNG
+ * xuất hiện — vì Redis không có dấu vết của nó.
+ *
+ * Để tracking đầy đủ "all known circuits", Phase 3.1 sẽ thêm 1 Redis SET riêng
+ * push tên mỗi lần withCircuitBreaker chạy. Hiện tại chỉ show các circuit
+ * "non-healthy" hoặc đang có fail recent — đủ để ops monitor.
+ */
+export async function listCircuits(): Promise<
+  Array<{
+    name: string;
+    state: CircuitState;
+    failCount: number;
+    /** TTL còn lại trên state key (giây) — biết khi nào HALF_OPEN. -1 nếu không có TTL. */
+    stateTtl: number;
+  }>
+> {
+  const redis = getRedis();
+  try {
+    const [stateKeys, failKeys] = await Promise.all([
+      scanKeys(redis, 'cb:state:*'),
+      scanKeys(redis, 'cb:fail:*'),
+    ]);
+
+    // Merge unique circuit names
+    const names = new Set<string>();
+    for (const k of stateKeys) names.add(k.slice('cb:state:'.length));
+    for (const k of failKeys) names.add(k.slice('cb:fail:'.length));
+
+    if (names.size === 0) return [];
+
+    const sortedNames = Array.from(names).sort();
+    const results = await Promise.all(
+      sortedNames.map(async (name) => {
+        const [state, failRaw, ttl] = await Promise.all([
+          getState(name),
+          redis.get(failKey(name)),
+          // Upstash + ioredis đều support TTL; signature khác chút nhưng đều trả số
+          (redis as unknown as { ttl: (k: string) => Promise<number> }).ttl(
+            stateKey(name),
+          ),
+        ]);
+        return {
+          name,
+          state,
+          failCount: failRaw ? Number(failRaw) : 0,
+          stateTtl: typeof ttl === 'number' ? ttl : -1,
+        };
+      }),
+    );
+    return results;
+  } catch (err) {
+    logger.error('circuit.list.failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+/**
+ * SCAN abstraction — hỗ trợ cả Upstash Redis (SCAN cursor) và ioredis.
+ * Trả về tối đa 1000 keys (đủ cho admin scope; provider list nhỏ).
+ */
+async function scanKeys(redis: unknown, pattern: string): Promise<string[]> {
+  const r = redis as {
+    scan: (cursor: string | number, opts: { match: string; count: number }) => Promise<[string, string[]] | { cursor: string; keys: string[] }>;
+  };
+  const all: string[] = [];
+  let cursor: string | number = 0;
+  for (let i = 0; i < 20; i++) {
+    const res = await r.scan(cursor, { match: pattern, count: 100 });
+    // Upstash trả { cursor, keys }; ioredis trả [cursor, keys]
+    if (Array.isArray(res)) {
+      cursor = res[0];
+      all.push(...res[1]);
+    } else {
+      cursor = res.cursor;
+      all.push(...res.keys);
+    }
+    if (String(cursor) === '0') break;
+    if (all.length > 1000) break;
+  }
+  return all;
+}
+
+/**
  * Inspect state — dashboard.
  */
 export async function getCircuitState(

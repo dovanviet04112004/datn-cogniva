@@ -31,6 +31,11 @@ export interface AiGradeResult {
   feedback: string;
   /** Map criterion → score (chỉ có với ESSAY rubric). */
   breakdown?: Record<string, number>;
+  /** Phase 18 — map criterion → confidence (0..1). Confidence < 0.6 auto flag review. */
+  confidence?: Record<string, number>;
+  /** Phase 18 — actionable feedback: điểm mạnh + đề xuất cải thiện. */
+  strengths?: string[];
+  improvements?: string[];
   /** Cờ báo grading nên review tay (vd answer rỗng, off-topic, …). */
   flaggedForReview?: boolean;
   /** Error nếu AI call fail — fallback 0 điểm. */
@@ -42,8 +47,14 @@ const RESPONSE_SCHEMA = z.object({
   isCorrect: z.boolean(),
   feedback: z.string(),
   breakdown: z.record(z.string(), z.number()).optional(),
+  confidence: z.record(z.string(), z.number()).optional(),
+  strengths: z.array(z.string()).optional(),
+  improvements: z.array(z.string()).optional(),
   flaggedForReview: z.boolean().optional(),
 });
+
+/** Threshold confidence để auto-flag review. Phase 18 V1 dùng 0.6. */
+const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
 interface GradeContext {
   userId: string;
@@ -169,12 +180,20 @@ export async function aiGradeEssay(
 
   const system = `Bạn là giám khảo chấm bài tự luận. Chấm theo rubric từng tiêu chí, mỗi tiêu chí 0..1 (1 = excellent).
 
+Phase 18 yêu cầu thêm:
+- confidence per criterion (0..1): bạn TỰ TIN bao nhiêu về điểm của tiêu chí đó. Confidence < 0.6 = đề nghị giáo viên xem lại.
+- strengths: 2-3 điểm mạnh cụ thể trong bài (trích đoạn ngắn nếu có thể).
+- improvements: 2-3 đề xuất cải thiện cụ thể, actionable.
+
 Output JSON:
 {
   "score": <tổng có trọng số × ${question.points}>,
   "isCorrect": <true nếu score >= ${question.points * 0.5}>,
   "feedback": "<3-5 câu phản hồi tổng thể, tiếng Việt>",
-  "breakdown": { "<tên criterion>": <0..1> }
+  "breakdown": { "<tên criterion>": <0..1> },
+  "confidence": { "<tên criterion>": <0..1> },
+  "strengths": ["<điểm mạnh 1>", "<điểm mạnh 2>"],
+  "improvements": ["<đề xuất 1>", "<đề xuất 2>"]
 }
 
 KHÔNG so sánh với đáp án chuẩn nếu không có. Chấm dựa rubric thuần.`;
@@ -251,11 +270,24 @@ function parseGradingResponse(text: string, maxPoints: number): AiGradeResult {
   }
 
   const clamped = Math.max(0, Math.min(maxPoints, result.data.score));
+
+  // Auto-flag review nếu confidence thấp ở bất kỳ tiêu chí nào — owner phải xem lại
+  let autoFlag = result.data.flaggedForReview ?? false;
+  if (result.data.confidence) {
+    const lowConfidence = Object.values(result.data.confidence).some(
+      (c) => c < CONFIDENCE_REVIEW_THRESHOLD,
+    );
+    if (lowConfidence) autoFlag = true;
+  }
+
   return {
     score: clamped,
     isCorrect: result.data.isCorrect,
     feedback: result.data.feedback,
     breakdown: result.data.breakdown,
-    flaggedForReview: result.data.flaggedForReview,
+    confidence: result.data.confidence,
+    strengths: result.data.strengths,
+    improvements: result.data.improvements,
+    flaggedForReview: autoFlag,
   };
 }

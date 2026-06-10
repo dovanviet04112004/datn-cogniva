@@ -23,6 +23,13 @@ export type ConceptNodeData = {
   domain: string;
   /** Mastery 0..1 — undefined cho concept chưa được luyện (mặc định Phase 4). */
   mastery: number | undefined;
+  /**
+   * Render mờ + grayscale khi search/filter/select không match. Tính ở
+   * GraphCanvas qua useMemo theo searchQuery / activeDomain / selectedId.
+   */
+  dim?: boolean;
+  /** Highlight ring đặc biệt khi node là neighbor trực tiếp của selectedId. */
+  neighbor?: boolean;
 };
 
 /**
@@ -57,19 +64,55 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border-2 px-3 py-2 backdrop-blur-sm transition-all',
-        'min-w-[140px] max-w-[200px] cursor-pointer text-foreground hover:scale-105',
+        // Geometry — rounded-xl premium, soft border thay vì border-2 cứng
+        'group/node relative rounded-xl border px-3.5 py-2.5 backdrop-blur-md',
+        'min-w-[148px] max-w-[210px] cursor-pointer text-foreground',
+        // Layered surface (subtle bg + border domain-tinted)
+        'bg-surface/70 shadow-soft',
+        // Motion: lift + glow on hover
+        'transition-all duration-base ease-expo-out',
+        'hover:-translate-y-0.5 hover:shadow-elevated',
         domainStyle,
         masteryRing(d.mastery),
-        selected && 'ring-offset-2 ring-offset-background',
+        selected && 'shadow-glow ring-offset-2 ring-offset-background',
+        // Dim/neighbor highlight states — controlled bởi GraphCanvas
+        d.dim && 'opacity-25 saturate-50',
+        d.neighbor && 'ring-2 ring-primary/60 ring-offset-1 ring-offset-background',
       )}
     >
+      {/* Ambient glow halo — chỉ hover/selected mới hiện, blur-md primary */}
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute -inset-1 rounded-xl bg-primary/10 opacity-0 blur-md transition-opacity duration-base',
+          'group-hover/node:opacity-100',
+          selected && 'opacity-60',
+        )}
+      />
+
       {/* Handles ẩn — chỉ làm anchor cho edges, không hiện chấm */}
       <Handle type="target" position={Position.Top} className="!bg-transparent !border-0" />
-      <div className="text-sm font-semibold leading-tight text-foreground">{d.name}</div>
-      <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-        {d.domain}
+
+      <div className="relative space-y-0.5">
+        <div className="text-sm font-semibold leading-tight tracking-tight text-foreground">
+          {d.name}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn(
+              'h-1 w-1 rounded-full',
+              d.mastery !== undefined && d.mastery >= 0.7 && 'bg-green-500',
+              d.mastery !== undefined && d.mastery >= 0.3 && d.mastery < 0.7 && 'bg-yellow-500',
+              d.mastery !== undefined && d.mastery < 0.3 && 'bg-red-500',
+              d.mastery === undefined && 'bg-muted-foreground/40',
+            )}
+          />
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {d.domain}
+          </div>
+        </div>
       </div>
+
       <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0" />
     </div>
   );

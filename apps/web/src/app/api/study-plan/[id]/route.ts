@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { db, studyPlanItem } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onStudyPlanChanged } from '@/lib/cache/invalidate';
+import { studyPlanDayKey } from '@/lib/study-plan/materialize';
 
 export const runtime = 'nodejs';
 
@@ -61,6 +63,8 @@ export async function PATCH(
     .set(updates)
     .where(eq(studyPlanItem.id, id))
     .returning();
+
+  await onStudyPlanChanged(session.user.id, studyPlanDayKey());
   return NextResponse.json({ item: updated });
 }
 
@@ -79,5 +83,6 @@ export async function DELETE(
   if (result.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+  await onStudyPlanChanged(session.user.id, studyPlanDayKey());
   return NextResponse.json({ deleted: true });
 }

@@ -1,180 +1,85 @@
 /**
- * /groups — list groups của user + form tạo mới + join by code.
+ * /groups — group hub entry.
  *
- * Mỗi group card → /groups/[id] xem chi tiết + members.
- * Phase 9 v1: chỉ list + invite code visible; chưa share workspace.
+ * Logic:
+ *   - User có 1+ group → redirect THẲNG vào group gần nhất (kết hợp với
+ *     /groups/[id] auto pick first channel → user landing trực tiếp vào
+ *     conversation, không phải qua "list page" rồi click thêm).
+ *   - User 0 group → render onboarding (Create + Join CTA) — không có
+ *     list rỗng vô nghĩa.
+ *
+ * Trước đây có grid card liệt kê 2-3 group nhưng đó là extra click cho
+ * use case 99% (user vào group quen). Switch group qua sidebar trong
+ * group detail.
  */
-'use client';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { desc, eq } from 'drizzle-orm';
+import { Users } from 'lucide-react';
 
-import * as React from 'react';
-import Link from 'next/link';
-import { Plus, Users, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { db, studyGroup, studyGroupMember } from '@cogniva/db';
 
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { auth } from '@/lib/auth';
+import { PageShell } from '@/components/layout/page-shell';
+// Hero band CHUNG — thay onboarding header tự-chế để đồng bộ ngôn ngữ hero toàn app.
+import { PageHero } from '@/components/layout/page-hero';
+import { CreateGroupDialog } from '@/components/groups/create-group-dialog';
+import { JoinGroupDialog } from '@/components/groups/join-group-dialog';
+import { NeuralPattern } from '@/components/ui/neural-pattern';
 
-type Group = {
-  id: string;
-  name: string;
-  description: string | null;
-  inviteCode: string;
-  myRole: 'OWNER' | 'MEMBER';
-  memberCount: number;
-  createdAt: string;
-};
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export default function GroupsPage() {
-  const [groups, setGroups] = React.useState<Group[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [showCreate, setShowCreate] = React.useState(false);
-  const [name, setName] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [joinCode, setJoinCode] = React.useState('');
+export default async function GroupsHubPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>;
+}) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/sign-in?redirect=/groups');
 
-  const refresh = React.useCallback(() => {
-    setLoading(true);
-    fetch('/api/groups')
-      .then((r) => r.json())
-      .then((d: { groups: Group[] }) => setGroups(d.groups))
-      .finally(() => setLoading(false));
-  }, []);
+  // Link mời `/groups?invite=CODE` → mở sẵn dialog vào group + điền code.
+  const { invite } = await searchParams;
 
-  React.useEffect(() => {
-    refresh();
-  }, [refresh]);
+  // Lấy group gần nhất user đã join — ưu tiên theo joinedAt mới nhất.
+  // Limit 1 vì chỉ cần để redirect, không cần list.
+  const [latest] = await db
+    .select({ groupId: studyGroupMember.groupId })
+    .from(studyGroupMember)
+    .innerJoin(studyGroup, eq(studyGroup.id, studyGroupMember.groupId))
+    .where(eq(studyGroupMember.userId, session.user.id))
+    .orderBy(desc(studyGroupMember.joinedAt))
+    .limit(1);
 
-  const createGroup = async () => {
-    if (!name.trim()) {
-      toast.error('Cần tên group');
-      return;
-    }
-    try {
-      const res = await fetch('/api/groups', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() || undefined }),
-      });
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      toast.success('Tạo group thành công');
-      setName('');
-      setDescription('');
-      setShowCreate(false);
-      refresh();
-    } catch (err) {
-      toast.error('Tạo thất bại: ' + (err as Error).message);
-    }
-  };
+  // Có group → đi thẳng (group detail tự pick channel mặc định)
+  if (latest) {
+    redirect(`/groups/${latest.groupId}`);
+  }
 
-  const joinGroup = async () => {
-    if (!joinCode.trim()) return;
-    try {
-      const res = await fetch('/api/groups/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: joinCode.trim() }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? `status ${res.status}`);
-      }
-      toast.success('Joined!');
-      setJoinCode('');
-      refresh();
-    } catch (err) {
-      toast.error('Join thất bại: ' + (err as Error).message);
-    }
-  };
-
+  // 0 group → onboarding panel với Create + Join CTAs
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Users className="h-6 w-6" />
-            Study Groups
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Tham gia hoặc tạo nhóm học để cùng theo dõi tiến độ. (Phase 9: list +
-            invite; share workspace ở Phase 10+)
-          </p>
+    <PageShell size="default" padded className="space-y-8">
+      {/* Hero band CHUNG — giữ motif NeuralPattern onboarding qua decoration; CTA → children. */}
+      <PageHero
+        eyebrow="Community"
+        eyebrowIcon={Users}
+        title="Tham gia nhóm học đầu tiên"
+        description="Study Groups gom voice channels + chat realtime + share tài liệu vào một nơi. Tạo group mới cho lớp/dự án, hoặc tham gia bằng mã 6 ký tự do thành viên khác cấp."
+        decoration={
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-[0.14] [mask-image:radial-gradient(ellipse_at_center,_black_30%,_transparent_75%)]"
+          >
+            <NeuralPattern className="text-primary" />
+          </div>
+        }
+      >
+        {/* GIỮ nguyên CTA Create + Join (logic/link không đổi). */}
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+          <JoinGroupDialog initialCode={invite} />
+          <CreateGroupDialog />
         </div>
-        <Button onClick={() => setShowCreate((s) => !s)}>
-          {showCreate ? <X className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
-          {showCreate ? 'Đóng' : 'Group mới'}
-        </Button>
-      </div>
-
-      {showCreate && (
-        <Card className="space-y-3 p-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="gname">Tên group</Label>
-            <input
-              id="gname"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Vd: Lớp Hệ phân tán K65"
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="gdesc">Mô tả (optional)</Label>
-            <textarea
-              id="gdesc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-          </div>
-          <Button onClick={createGroup} className="w-full">
-            Tạo
-          </Button>
-        </Card>
-      )}
-
-      <Card className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
-        <Label htmlFor="join" className="sm:w-auto">
-          Join bằng code
-        </Label>
-        <input
-          id="join"
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-          placeholder="ABCD1234"
-          className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm font-mono uppercase"
-        />
-        <Button onClick={joinGroup} disabled={!joinCode.trim()} size="sm">
-          Join
-        </Button>
-      </Card>
-
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold">Group của bạn ({groups.length})</h2>
-        {loading && <p className="text-sm text-muted-foreground">Đang tải...</p>}
-        {!loading && groups.length === 0 && (
-          <Card className="p-8 text-center text-sm text-muted-foreground">
-            Chưa có group nào. Tạo mới hoặc join bằng invite code.
-          </Card>
-        )}
-        {groups.map((g) => (
-          <Card key={g.id} className="p-3">
-            <Link href={`/groups/${g.id}`} className="block hover:opacity-80">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {g.memberCount} thành viên · Code:{' '}
-                    <span className="font-mono">{g.inviteCode}</span> ·{' '}
-                    {g.myRole === 'OWNER' ? 'Bạn là Owner' : 'Member'}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          </Card>
-        ))}
-      </div>
-    </div>
+      </PageHero>
+    </PageShell>
   );
 }

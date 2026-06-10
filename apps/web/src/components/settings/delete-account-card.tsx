@@ -29,7 +29,10 @@
 import * as React from 'react';
 import { AlertTriangle, Loader2, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { apiGet, apiSend } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -50,25 +53,19 @@ type DeletionStatus = {
 };
 
 export function DeleteAccountCard() {
-  const [status, setStatus] = React.useState<DeletionStatus | null>(null);
+  const qc = useQueryClient();
   const [showRequestDialog, setShowRequestDialog] = React.useState(false);
   const [showCancelDialog, setShowCancelDialog] = React.useState(false);
   const [confirmText, setConfirmText] = React.useState('');
   const [reason, setReason] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
-  // Initial fetch + poll mỗi 60s (rare update)
-  React.useEffect(() => {
-    const fetchStatus = () => {
-      fetch('/api/account/delete')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: DeletionStatus | null) => d && setStatus(d))
-        .catch(() => {});
-    };
-    fetchStatus();
-    const id = setInterval(fetchStatus, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // Trạng thái xoá qua React Query — poll 60s (hiếm khi đổi).
+  const { data: status } = useQuery({
+    queryKey: qk.accountDeletion(),
+    queryFn: () => apiGet<DeletionStatus>('/api/account/delete'),
+    refetchInterval: 60_000,
+  });
 
   const requestDelete = async () => {
     if (confirmText !== 'DELETE MY ACCOUNT') {
@@ -77,6 +74,7 @@ export function DeleteAccountCard() {
     }
     setBusy(true);
     try {
+      // Giữ raw fetch — cần đọc nested error.fieldErrors.confirm từ body lỗi.
       const res = await fetch('/api/account/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,9 +94,7 @@ export function DeleteAccountCard() {
       setShowRequestDialog(false);
       setConfirmText('');
       setReason('');
-      // Refetch status
-      const statusRes = await fetch('/api/account/delete');
-      if (statusRes.ok) setStatus(await statusRes.json());
+      void qc.invalidateQueries({ queryKey: qk.accountDeletion() });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -109,12 +105,11 @@ export function DeleteAccountCard() {
   const cancelDelete = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/account/delete', { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed');
+      await apiSend('/api/account/delete', 'DELETE');
       toast.success('Đã hủy yêu cầu xoá account.');
       setShowCancelDialog(false);
-      setStatus({ pending: false });
+      qc.setQueryData<DeletionStatus>(qk.accountDeletion(), { pending: false });
+      void qc.invalidateQueries({ queryKey: qk.accountDeletion() });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

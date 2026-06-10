@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { db, room, roomMember } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onRoomChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
 
@@ -58,12 +59,16 @@ export async function POST(req: Request) {
       role: target.ownerId === uid ? 'OWNER' : 'MEMBER',
       status: 'ACTIVE',
     });
+    // Membership mới ACTIVE → list room (joined) của user đổi → bust cache.
+    await onRoomChanged(uid);
   } else if (existing.status !== 'ACTIVE') {
     // PENDING → activate (Phase 13.8 sẽ check requireApproval)
     await db
       .update(roomMember)
       .set({ status: 'ACTIVE' })
       .where(and(eq(roomMember.roomId, target.id), eq(roomMember.userId, uid)));
+    // Vừa ACTIVE → xuất hiện trong list joined → bust cache.
+    await onRoomChanged(uid);
   }
 
   return NextResponse.json({ roomId: target.id });

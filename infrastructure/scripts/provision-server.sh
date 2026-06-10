@@ -69,7 +69,7 @@ if [[ "$ROLE" == "media" ]]; then
   ufw allow 5349/udp                 comment 'coturn dtls'
   ufw allow 49152:65535/udp          comment 'coturn relay range'
 elif [[ "$ROLE" == "app" ]]; then
-  log "    App role — chỉ 80/443 (Soketi/Hocus qua Caddy)"
+  log "    App role — chỉ 80/443 (Realtime Socket.IO/Hocus qua Caddy)"
 fi
 ufw --force enable >/dev/null
 

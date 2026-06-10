@@ -13,6 +13,8 @@ import { Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
+import { REACTION_SELF_EVENT } from './reactions-layer';
+
 const EMOJIS = ['👍', '👏', '❤️', '😂', '😮', '🎉', '🔥', '🙏', '💯', '😴'];
 
 export function ReactionPicker() {
@@ -24,6 +26,9 @@ export function ReactionPicker() {
       new TextEncoder().encode(JSON.stringify({ type: 'REACTION', emoji })),
       { reliable: false },  // unreliable OK cho reaction (mất 1-2 OK)
     );
+    // LiveKit KHÔNG loopback data về local → bắn window event để CHÍNH người gửi
+    // cũng thấy emoji của mình bay (ReactionsLayer nghe cả 2 nguồn).
+    window.dispatchEvent(new CustomEvent(REACTION_SELF_EVENT, { detail: { emoji } }));
     setOpen(false);
   };
 

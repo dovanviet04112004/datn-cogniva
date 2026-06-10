@@ -5,7 +5,7 @@
  *   - db: ping Postgres
  *   - livekit: env có cấu hình không (lazy — không gọi LiveKit API mỗi check
  *     để tránh DDoS chính mình)
- *   - soketi: env có cấu hình không
+ *   - realtime: env có cấu hình không
  *
  * Caddy production dùng endpoint này (xem caddy/Caddyfile health_uri).
  * Cron `infrastructure/scripts/health-check.sh` cũng poll endpoint này
@@ -104,18 +104,13 @@ export async function GET() {
     detail: process.env.NEXT_PUBLIC_LIVEKIT_URL ?? 'not configured',
   };
 
-  // 5. Soketi env
-  checks.soketi = {
-    ok: Boolean(
-      process.env.NEXT_PUBLIC_SOKETI_HOST &&
-        process.env.NEXT_PUBLIC_SOKETI_KEY &&
-        process.env.SOKETI_SECRET &&
-        process.env.SOKETI_APP_ID,
-    ),
-    detail: process.env.NEXT_PUBLIC_SOKETI_HOST ?? 'not configured',
+  // 5. Realtime (Socket.IO gateway) env — client URL + Redis cho emitter.
+  checks.realtime = {
+    ok: Boolean(process.env.NEXT_PUBLIC_REALTIME_URL && process.env.REDIS_URL),
+    detail: process.env.NEXT_PUBLIC_REALTIME_URL ?? 'not configured',
   };
 
-  // Critical = db + redis. Replica + livekit + soketi degraded OK.
+  // Critical = db + redis. Replica + livekit + realtime degraded OK.
   const critical = ['db', 'redis'] as const;
   const criticalOk = critical.every((k) => checks[k]?.ok);
   const allOk = Object.values(checks).every((c) => c.ok);

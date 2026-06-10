@@ -1,51 +1,62 @@
 /**
  * /api/groups — list groups của user + tạo group mới.
  *
- * GET: trả mảng groups user là member kèm số thành viên.
- * POST body { name, description? }: tạo group, auto-add owner làm OWNER member.
- *   Sinh inviteCode random 8 ký tự.
+ * GET: trả mảng groups user là member kèm số thành viên + iconUrl + myRole.
+ * POST body { name, description? }: tạo group, auto:
+ *   - Owner làm OWNER member
+ *   - Tạo channel #chung TEXT default
+ *   - Tạo invite code đầu tiên (cả legacy studyGroup.inviteCode + studyGroupInvite mới)
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { db, studyGroup, studyGroupMember } from '@cogniva/db';
+import {
+  db,
+  dbReplica,
+  studyGroup,
+  studyGroupChannel,
+  studyGroupInvite,
+  studyGroupMember,
+} from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { cached } from '@/lib/cache/cache-aside';
+import { ck } from '@/lib/cache/keys';
+import { onGroupMembershipChanged } from '@/lib/cache/invalidate';
+import { generateInviteCode } from '@/lib/group/code';
 
 export const runtime = 'nodejs';
-
-/** Sinh invite code 8 ký tự A-Z0-9 (loại 0/O/1/I để tránh nhìn nhầm). */
-function genInviteCode(): string {
-  const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  for (const b of bytes) out += ALPHA[b % ALPHA.length];
-  return out;
-}
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Group user là member, kèm count thành viên
-  const rows = await db
-    .select({
-      id: studyGroup.id,
-      name: studyGroup.name,
-      description: studyGroup.description,
-      ownerUserId: studyGroup.ownerUserId,
-      inviteCode: studyGroup.inviteCode,
-      createdAt: studyGroup.createdAt,
-      myRole: studyGroupMember.role,
-      memberCount: sql<number>`(SELECT count(*)::int FROM study_group_member WHERE group_id = ${studyGroup.id})`,
-    })
-    .from(studyGroup)
-    .innerJoin(studyGroupMember, eq(studyGroupMember.groupId, studyGroup.id))
-    .where(eq(studyGroupMember.userId, session.user.id))
-    .orderBy(desc(studyGroup.createdAt));
+  // Cache-aside per-user (TTL 60s): sidebar study-groups là app-shell hot path,
+  // được fetch trên mọi route group. Invalidate khi join/leave (onGroupMembershipChanged)
+  // bust ck.groupsList(userId). Đọc qua dbReplica vì read thuần, không read-your-own-write.
+  const rows = await cached(ck.groupsList(session.user.id), 60, () =>
+    dbReplica
+      .select({
+        id: studyGroup.id,
+        name: studyGroup.name,
+        description: studyGroup.description,
+        ownerUserId: studyGroup.ownerUserId,
+        inviteCode: studyGroup.inviteCode,
+        iconUrl: studyGroup.iconUrl,
+        createdAt: studyGroup.createdAt,
+        myRole: studyGroupMember.role,
+        memberCount: sql<number>`(SELECT count(*)::int FROM study_group_member WHERE group_id = ${studyGroup.id})`,
+      })
+      .from(studyGroup)
+      .innerJoin(studyGroupMember, eq(studyGroupMember.groupId, studyGroup.id))
+      .where(eq(studyGroupMember.userId, session.user.id))
+      .orderBy(desc(studyGroup.createdAt)),
+  );
 
+  // createdAt giữ dạng string sau cache: consumer chỉ NextResponse.json (client fetch),
+  // không date-math → không cần re-hydrate Date.
   return NextResponse.json({ groups: rows });
 }
 
@@ -64,25 +75,55 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Tạo group + auto-add owner làm OWNER member
-  const [group] = await db
-    .insert(studyGroup)
-    .values({
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      ownerUserId: session.user.id,
-      inviteCode: genInviteCode(),
-    })
-    .returning();
-  if (!group) {
-    return NextResponse.json({ error: 'Tạo group thất bại' }, { status: 500 });
-  }
+  // Tạo group + auto-add owner làm OWNER member + tạo #chung TEXT channel.
+  // Dùng transaction để rollback toàn bộ nếu 1 step fail.
+  const legacyCode = generateInviteCode();
+  const inviteCode = generateInviteCode();
 
-  await db.insert(studyGroupMember).values({
-    groupId: group.id,
-    userId: session.user.id,
-    role: 'OWNER',
+  const { group, channel } = await db.transaction(async (tx) => {
+    const [g] = await tx
+      .insert(studyGroup)
+      .values({
+        name: parsed.data.name,
+        description: parsed.data.description ?? null,
+        ownerUserId: session.user.id,
+        inviteCode: legacyCode,
+      })
+      .returning();
+    if (!g) throw new Error('insert group failed');
+
+    await tx.insert(studyGroupMember).values({
+      groupId: g.id,
+      userId: session.user.id,
+      role: 'OWNER',
+    });
+
+    const [c] = await tx
+      .insert(studyGroupChannel)
+      .values({
+        groupId: g.id,
+        name: 'chung',
+        type: 'TEXT',
+        position: 0,
+        createdBy: session.user.id,
+        topic: 'Chat tổng',
+      })
+      .returning();
+
+    // Invite mặc định — unlimited use, không expires
+    await tx.insert(studyGroupInvite).values({
+      groupId: g.id,
+      code: inviteCode,
+      createdBy: session.user.id,
+    });
+
+    return { group: g, channel: c };
   });
 
-  return NextResponse.json({ group }, { status: 201 });
+  // Owner vừa được thêm làm member → bust groupsList(owner) để sidebar hiện group mới.
+  // Dùng onGroupMembershipChanged (superset: cũng bust groupDetail/groupMembers,
+  // dù 2 cache đó còn chưa tồn tại cho group vừa tạo) thay vì onGroupChanged.
+  await onGroupMembershipChanged(session.user.id, group.id);
+
+  return NextResponse.json({ group, defaultChannel: channel }, { status: 201 });
 }

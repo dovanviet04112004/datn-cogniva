@@ -15,9 +15,12 @@ import { NextResponse } from 'next/server';
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { db, room, roomMember } from '@cogniva/db';
+import { db, dbReplica, room, roomMember } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { cached } from '@/lib/cache/cache-aside';
+import { onRoomChanged } from '@/lib/cache/invalidate';
+import { ck } from '@/lib/cache/keys';
 import { generateJoinCode } from '@/lib/rooms/codes';
 
 export const runtime = 'nodejs';
@@ -28,48 +31,55 @@ export async function GET() {
 
   const uid = session.user.id;
 
-  // Mine: user là owner
-  const mine = await db
-    .select({
-      id: room.id,
-      name: room.name,
-      description: room.description,
-      type: room.type,
-      visibility: room.visibility,
-      status: room.status,
-      joinCode: room.joinCode,
-      createdAt: room.createdAt,
-      memberCount: sql<number>`(SELECT count(*)::int FROM "room_member" WHERE room_id = ${room.id} AND status = 'ACTIVE')`,
-    })
-    .from(room)
-    .where(eq(room.ownerId, uid))
-    .orderBy(desc(room.createdAt))
-    .limit(50);
+  // Cache-aside TTL 60s — list room đổi khi user create/join/leave (đã wire invalidate
+  // onRoomChanged tại các choke point đó). dbReplica: read thuần 2 query đếm/sort.
+  // Response chỉ NextResponse.json → KHÔNG re-hydrate Date (createdAt để string là đủ).
+  const { mine, joined } = await cached(ck.roomsList(uid), 60, async () => {
+    // Mine: user là owner
+    const mineRows = await dbReplica
+      .select({
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        type: room.type,
+        visibility: room.visibility,
+        status: room.status,
+        joinCode: room.joinCode,
+        createdAt: room.createdAt,
+        memberCount: sql<number>`(SELECT count(*)::int FROM "room_member" WHERE room_id = ${room.id} AND status = 'ACTIVE')`,
+      })
+      .from(room)
+      .where(eq(room.ownerId, uid))
+      .orderBy(desc(room.createdAt))
+      .limit(50);
 
-  // Joined: là member (không phải owner)
-  const joined = await db
-    .select({
-      id: room.id,
-      name: room.name,
-      description: room.description,
-      type: room.type,
-      visibility: room.visibility,
-      status: room.status,
-      role: roomMember.role,
-      createdAt: room.createdAt,
-      memberCount: sql<number>`(SELECT count(*)::int FROM "room_member" WHERE room_id = ${room.id} AND status = 'ACTIVE')`,
-    })
-    .from(roomMember)
-    .innerJoin(room, eq(roomMember.roomId, room.id))
-    .where(
-      and(
-        eq(roomMember.userId, uid),
-        eq(roomMember.status, 'ACTIVE'),
-        ne(room.ownerId, uid),
-      ),
-    )
-    .orderBy(desc(room.createdAt))
-    .limit(50);
+    // Joined: là member (không phải owner)
+    const joinedRows = await dbReplica
+      .select({
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        type: room.type,
+        visibility: room.visibility,
+        status: room.status,
+        role: roomMember.role,
+        createdAt: room.createdAt,
+        memberCount: sql<number>`(SELECT count(*)::int FROM "room_member" WHERE room_id = ${room.id} AND status = 'ACTIVE')`,
+      })
+      .from(roomMember)
+      .innerJoin(room, eq(roomMember.roomId, room.id))
+      .where(
+        and(
+          eq(roomMember.userId, uid),
+          eq(roomMember.status, 'ACTIVE'),
+          ne(room.ownerId, uid),
+        ),
+      )
+      .orderBy(desc(room.createdAt))
+      .limit(50);
+
+    return { mine: mineRows, joined: joinedRows };
+  });
 
   return NextResponse.json({ mine, joined });
 }
@@ -125,6 +135,9 @@ export async function POST(request: Request) {
 
       // livekitRoomName = room.id (convention) — set sau insert vì cần id
       await db.update(room).set({ livekitRoomName: result.id }).where(eq(room.id, result.id));
+
+      // Room mới → list room (mine) của owner đổi → bust cache.
+      await onRoomChanged(session.user.id);
 
       return NextResponse.json({ room: { ...result, livekitRoomName: result.id } }, { status: 201 });
     } catch (err) {

@@ -18,7 +18,7 @@
 import * as React from 'react';
 import { Circle } from 'lucide-react';
 
-import { getPusherClient } from '@/lib/realtime-client';
+import { useRealtimeEvent } from '@/lib/realtime-client';
 
 type Props = {
   roomId: string;
@@ -44,26 +44,13 @@ export function RecordingBanner({ roomId }: Props) {
       .catch(() => {});
   }, [roomId]);
 
-  // Realtime sync
-  React.useEffect(() => {
-    const pusher = getPusherClient();
-    if (!pusher) return;
-
-    const channel = pusher.subscribe(`presence-room-${roomId}`);
-    const onStarted = (data: { byUserName?: string }) =>
-      setActive({ by: data.byUserName ?? 'mod' });
-    const onStopped = () => setActive(null);
-    const onEnded = () => setActive(null);
-
-    channel.bind('recording:started', onStarted);
-    channel.bind('recording:stopped', onStopped);
-    channel.bind('recording:ended', onEnded);
-    return () => {
-      channel.unbind('recording:started', onStarted);
-      channel.unbind('recording:stopped', onStopped);
-      channel.unbind('recording:ended', onEnded);
-    };
-  }, [roomId]);
+  // Realtime sync — recording:started/stopped/ended trên presence-room.
+  const channel = `presence-room-${roomId}`;
+  useRealtimeEvent<{ byUserName?: string }>(channel, 'recording:started', (data) =>
+    setActive({ by: data.byUserName ?? 'mod' }),
+  );
+  useRealtimeEvent(channel, 'recording:stopped', () => setActive(null));
+  useRealtimeEvent(channel, 'recording:ended', () => setActive(null));
 
   if (!active) return null;
 

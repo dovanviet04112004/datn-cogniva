@@ -23,6 +23,7 @@ import { z } from 'zod';
 
 import { chunk, chunkConcept, db, document, exam, examQuestion } from '@cogniva/db';
 import { auth } from '@/lib/auth';
+import { onExamChanged } from '@/lib/cache/invalidate';
 import {
   generateQuestions,
   type GeneratedQuestion,
@@ -66,7 +67,7 @@ export async function POST(request: Request, ctx: RouteContext) {
   }
 
   const [parent] = await db
-    .select({ ownerId: exam.ownerId, status: exam.status })
+    .select({ ownerId: exam.ownerId, status: exam.status, workspaceId: exam.workspaceId })
     .from(exam)
     .where(eq(exam.id, id))
     .limit(1);
@@ -172,5 +173,7 @@ export async function POST(request: Request, ctx: RouteContext) {
 
   const inserted = await db.insert(examQuestion).values(insertValues).returning();
 
+  // questionCount/maxScore của exam đổi → list owned cache cũ.
+  await onExamChanged(parent.ownerId, parent.workspaceId);
   return NextResponse.json({ questions: inserted, count: inserted.length });
 }

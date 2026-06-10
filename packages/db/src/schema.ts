@@ -18,17 +18,20 @@
  *       voyage-3-large (chất lượng cao nhất, 1024 dim)
  *       voyage-3-lite (cho embedding tốc độ cao, 512 dim — cần migrate xuống nếu dùng)
  *     1024 < 2000 nên fit HNSW. Khi đổi sang OpenAI 1536 hoặc 3072 phải
- *     migrate dim này (xem plan.md §3.3).
+ *     migrate dim này (xem docs/plans/master.md §3.3).
  *   - HNSW index tạo qua sql template tag vì Drizzle hiện chưa có API cao
  *     cấp cho operator class `vector_cosine_ops`.
  */
 import { relations, sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   customType,
+  date,
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -207,9 +210,71 @@ export const user = pgTable('user', {
   /** Khi parent verify thành công (status → VERIFIED). */
   parentalConsentAt: timestamp('parental_consent_at'),
   // ─────────────────────────────────────────────────────────
+  // ── V2 G3 presence status (2026-05-21) ─────────────────
+  /** Trạng thái hiển thị: online (default) / idle / dnd / offline / invisible. */
+  status: text('status').notNull().default('online'),
+  /** Custom status text user tự gõ (vd "Đang ôn thi cuối kỳ"). */
+  statusText: text('status_text'),
+  /** Custom status emoji (1 char). */
+  statusEmoji: text('status_emoji'),
+  /** Auto-clear status sau timestamp này (NULL = không expire). */
+  statusExpiresAt: timestamp('status_expires_at'),
+  // ─────────────────────────────────────────────────────────
+  // ── Admin console (Phase 0) ────────────────────────────
+  /**
+   * Vai trò admin — NULL = user thường (mặc định mọi signup).
+   * Khi NOT NULL → user có quyền vào /admin/* với scope tương ứng:
+   *   SUPER_ADMIN — toàn quyền (delete user, refund, kill switch)
+   *   ADMIN      — KYC review, content moderation
+   *   SUPPORT    — view-only
+   */
+  adminRole: text('admin_role'),
+  /** Soft suspend — user không sign-in được, data giữ nguyên 30 ngày. */
+  suspendedAt: timestamp('suspended_at'),
+  suspendReason: text('suspend_reason'),
+  /**
+   * Phase 6 — 2FA TOTP enabled. Quản lý qua better-auth twoFactor plugin.
+   * KHÔNG set bằng tay — plugin tự update khi verify thành công.
+   */
+  twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+  /**
+   * V4 T4 (2026-05-22): token để export booking calendar iCal feed.
+   * Lazy create khi user click "Subscribe lịch học" — rotate quarterly admin.
+   */
+  bookingIcalToken: text('booking_ical_token'),
+  // ─────────────────────────────────────────────────────────
+  // ── Library Phase 4 Step 5 — PRO subscription expiry ───
+  /**
+   * PRO subscription hết hạn lúc nào. NULL = chưa từng PRO.
+   * Cron daily check < NOW() → downgrade plan FREE.
+   * Khi user subscribe lại → extend (nếu còn hạn) hoặc reset (nếu đã hết).
+   */
+  proUntilAt: timestamp('pro_until_at'),
+  // ─────────────────────────────────────────────────────────
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+/**
+ * twoFactor — store TOTP secret + backup codes cho user enable 2FA.
+ * Managed bởi better-auth twoFactor plugin. KHÔNG truy cập trực tiếp từ app
+ * code — chỉ qua `authClient.twoFactor.*`.
+ */
+export const twoFactor = pgTable(
+  'two_factor',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    secret: text('secret').notNull(),
+    backupCodes: text('backup_codes').notNull(),
+    verified: boolean('verified').notNull().default(true),
+  },
+  (t) => ({
+    userIdx: index('idx_two_factor_user').on(t.userId),
+  }),
+);
 
 /** Phiên đăng nhập — token được lưu cookie phía client. */
 export const session = pgTable('session', {
@@ -296,6 +361,41 @@ export const workspace = pgTable(
   (t) => ({
     // Truy vấn list workspace của 1 user → cần index theo userId
     userIdx: index('workspace_user_idx').on(t.userId),
+  }),
+);
+
+/**
+ * workspaceCachedOutput — V6 (NotebookLM layout): persistent cache cho
+ * LLM-generated markdown (atom-guide / briefing-doc). Trước V6 dùng
+ * in-memory Map nên restart server mất sạch.
+ *
+ * Spec: docs/plans/v5-notebooklm-layout.md V6.5.
+ *
+ * Key compound (workspace × user × kind) — 1 row/cache entry. TTL check
+ * ở app layer (24h) qua `generatedAt`.
+ */
+export const workspaceCachedKindEnum = pgEnum('workspace_cached_kind', [
+  'atom-guide',
+  'briefing',
+]);
+
+export const workspaceCachedOutput = pgTable(
+  'workspace_cached_output',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: workspaceCachedKindEnum('kind').notNull(),
+    markdown: text('markdown').notNull(),
+    meta: jsonb('meta').$type<Record<string, unknown>>().notNull().default({}),
+    generatedAt: timestamp('generated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('workspace_cached_uniq').on(t.workspaceId, t.userId, t.kind),
   }),
 );
 
@@ -400,6 +500,17 @@ export const chunkConcept = pgTable(
  * Embedding để dedup: khi extract concept từ tài liệu mới, nếu cosine
  * similarity > 0.85 với concept có sẵn → coi là cùng concept, không tạo mới.
  */
+/**
+ * Concept = ATOM kiến thức (đơn vị share giữa Flashcard / Quiz / Exam /
+ * Graph / Study Plan). Sau migration 0031, concept "lên cấp" từ "node
+ * graph" thành atom đầy đủ: có examples cụ thể, difficulty estimate,
+ * preview Q/A để hiển thị độc lập ở UI.
+ *
+ * Spec: docs/plans/atom-centric.md §3.2.
+ *
+ * Giữ tên `concept` ở DB level để tránh rename ~50 file references; UI
+ * layer dùng label "atom".
+ */
 export const concept = pgTable(
   'concept',
   {
@@ -409,12 +520,21 @@ export const concept = pgTable(
     /** Lĩnh vực — "math", "biology", "history"… dùng để filter graph. */
     domain: text('domain').notNull(),
     embedding: vector('embedding', 1024),
+    /** 1-3 ví dụ cụ thể minh hoạ atom — show ở UI atom detail. */
+    examples: jsonb('examples').$type<string[]>().notNull().default([]),
+    /** Độ khó ước lượng (0..1) — LLM estimate lúc extract. Dùng cho study
+     *  plan: ưu tiên atom khó user chưa làm; UI difficulty badge. */
+    difficulty: real('difficulty'),
+    /** Q ngắn để show "đây là gì?" preview, không cần JOIN flashcard. */
+    previewQuestion: text('preview_question'),
+    previewAnswer: text('preview_answer'),
   },
   (t) => ({
     embeddingIdx: index('concept_embedding_idx').using(
       'hnsw',
       sql`${t.embedding} vector_cosine_ops`,
     ),
+    difficultyIdx: index('concept_difficulty_idx').on(t.difficulty),
   }),
 );
 
@@ -467,6 +587,11 @@ export const mastery = pgTable(
     lastSeenAt: timestamp('last_seen_at'),
     /** Mốc thời gian áp decay gần nhất — tránh decay nhiều lần. */
     decayedAt: timestamp('decayed_at'),
+    /** Migration 0033 — track timestamp lần cuối user attempt qua từng
+     *  feature, phục vụ study plan đa dạng hoá format + analytics. */
+    lastQuizAt: timestamp('last_quiz_at'),
+    lastFlashcardAt: timestamp('last_flashcard_at'),
+    lastExamAt: timestamp('last_exam_at'),
   },
   (t) => ({
     uniq: uniqueIndex('mastery_user_concept_uniq').on(t.userId, t.conceptId),
@@ -477,35 +602,56 @@ export const mastery = pgTable(
 // Domain — Conversation + Message
 // ──────────────────────────────────────────────────────────
 /** Cuộc hội thoại — gom các message của 1 luồng chat. */
-export const conversation = pgTable('conversation', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  /**
-   * Có thể null nếu là chat global; set null khi workspace bị xoá để
-   * không mất lịch sử hội thoại của user.
-   */
-  workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
-  title: text('title'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const conversation = pgTable(
+  'conversation',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Có thể null nếu là chat global; set null khi workspace bị xoá để
+     * không mất lịch sử hội thoại của user.
+     */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    title: text('title'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    /**
+     * Liệt kê hội thoại của 1 user theo thời gian (sidebar chat, analytics join).
+     * Postgres KHÔNG tự index cột FK → thiếu index này = seq-scan toàn bảng.
+     */
+    userCreatedIdx: index('conversation_user_created_idx').on(t.userId, t.createdAt),
+  }),
+);
 
 /**
  * Mỗi message trong cuộc hội thoại — citation lưu list chunk làm nguồn,
  * metadata lưu thông tin chi phí/độ trễ để dashboard observability.
  */
-export const message = pgTable('message', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  conversationId: text('conversation_id')
-    .notNull()
-    .references(() => conversation.id, { onDelete: 'cascade' }),
-  role: messageRoleEnum('role').notNull(),
-  content: text('content').notNull(),
-  citations: jsonb('citations').$type<Citation[]>().default([]).notNull(),
-  metadata: jsonb('metadata').$type<MessageMetadata>().default({}).notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const message = pgTable(
+  'message',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversation.id, { onDelete: 'cascade' }),
+    role: messageRoleEnum('role').notNull(),
+    content: text('content').notNull(),
+    citations: jsonb('citations').$type<Citation[]>().default([]).notNull(),
+    metadata: jsonb('metadata').$type<MessageMetadata>().default({}).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    /**
+     * Load 1 cuộc chat: WHERE conversation_id=X ORDER BY created_at.
+     * Cũng phục vụ analytics join message→conversation (scan theo cost/30 ngày).
+     * Thiếu index này = seq-scan toàn bảng message (bảng lớn nhất hệ thống).
+     */
+    convCreatedIdx: index('message_conv_created_idx').on(t.conversationId, t.createdAt),
+  }),
+);
 
 // ──────────────────────────────────────────────────────────
 // Domain — Flashcard (FSRS) + Review
@@ -524,6 +670,12 @@ export const flashcard = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Workspace chứa flashcard này (Phase Workspace-centric).
+     * Nullable: thẻ có thể "global" (không thuộc workspace nào — vd thẻ tạo
+     * thủ công nhanh). Workspace bị xoá → set null (giữ thẻ lại trong "Personal").
+     */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
     front: text('front').notNull(),
     back: text('back').notNull(),
@@ -543,6 +695,8 @@ export const flashcard = pgTable(
   (t) => ({
     // Composite index cho daily review queue
     userDueIdx: index('flashcard_user_due_idx').on(t.userId, t.due),
+    // Composite index cho query workspace-scoped list
+    userWorkspaceIdx: index('flashcard_user_workspace_idx').on(t.userId, t.workspaceId),
   }),
 );
 
@@ -565,15 +719,26 @@ export const review = pgTable('review', {
 // Domain — Quiz + Question
 // ──────────────────────────────────────────────────────────
 /** Quiz là tập hợp câu hỏi do AI sinh từ 1 hoặc nhiều concept. */
-export const quiz = pgTable('quiz', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  config: jsonb('config').$type<QuizConfig>().default({}).notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+export const quiz = pgTable(
+  'quiz',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Workspace chứa quiz này (Phase Workspace-centric).
+     * Nullable — quiz có thể "global". Workspace xoá → set null.
+     */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    config: jsonb('config').$type<QuizConfig>().default({}).notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userWorkspaceIdx: index('quiz_user_workspace_idx').on(t.userId, t.workspaceId),
+  }),
+);
 
 /**
  * 1 câu hỏi trong quiz. correctAnswer là JSON để hỗ trợ nhiều dạng:
@@ -596,6 +761,79 @@ export const question = pgTable('question', {
   /** Độ khó câu hỏi (0..1) — adaptive engine sẽ chọn phù hợp với mastery. */
   difficulty: real('difficulty').notNull(),
 });
+
+/**
+ * 1 lần user làm 1 quiz. Trước đây quiz KHÔNG lưu attempt (chỉ log studySession
+ * metadata) → không biết câu nào "đã làm". Bảng này + `quiz_response` cho phép
+ * quản trị "đã làm/chưa làm" từng câu + xem lại điểm. (Nhẹ hơn exam_attempt —
+ * quiz không có anti-cheat/adaptive/proctor.)
+ */
+export const quizAttempt = pgTable(
+  'quiz_attempt',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quiz.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    submittedAt: timestamp('submitted_at'),
+    /** Số câu đúng. */
+    score: real('score'),
+    /** Tổng số câu chấm. */
+    maxScore: real('max_score'),
+    /** % = score/maxScore (cache cho list quản trị). */
+    percentage: real('percentage'),
+  },
+  (t) => ({
+    quizUserIdx: index('quiz_attempt_quiz_user_idx').on(t.quizId, t.userId),
+    userIdx: index('quiz_attempt_user_idx').on(t.userId),
+  }),
+);
+
+/**
+ * Câu trả lời của user cho 1 câu hỏi trong 1 lần làm quiz. `userId` lặp lại (từ
+ * attempt) để query "câu nào user đã làm" nhanh, không cần join attempt.
+ * Upsert theo (attemptId, questionId) — 1 response / câu / lần làm.
+ */
+export const quizResponse = pgTable(
+  'quiz_response',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    /**
+     * Thuộc 1 lần làm quiz đầy đủ (quiz_attempt). NULLABLE: quick-quiz chấm từng
+     * câu rời (cross-quiz, không gom thành 1 attempt) → ghi marker "đã làm" với
+     * attemptId=null. "Đã làm" của 1 câu = EXISTS response của (userId, questionId).
+     */
+    attemptId: text('attempt_id').references(() => quizAttempt.id, {
+      onDelete: 'cascade',
+    }),
+    questionId: text('question_id')
+      .notNull()
+      .references(() => question.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    answer: jsonb('answer'),
+    isCorrect: boolean('is_correct'),
+    answeredAt: timestamp('answered_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    attemptQuestionIdx: uniqueIndex('quiz_response_attempt_question_idx').on(
+      t.attemptId,
+      t.questionId,
+    ),
+    userQuestionIdx: index('quiz_response_user_question_idx').on(t.userId, t.questionId),
+    // Marker quick-quiz (attemptId NULL): tối đa 1 / (user, câu) → upsert
+    // idempotent, chống chấm đồng thời tạo nhiều row trùng. Partial vì full
+    // attempt (attemptId set) đã có attemptQuestionIdx.
+    quickMarkerIdx: uniqueIndex('quiz_response_user_question_quick_idx')
+      .on(t.userId, t.questionId)
+      .where(sql`${t.attemptId} IS NULL`),
+  }),
+);
 
 // ──────────────────────────────────────────────────────────
 // Domain — StudySession (tracking thời gian học)
@@ -630,6 +868,12 @@ export const note = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Workspace chứa note (Phase Workspace-centric).
+     * Nullable cho "Personal" notes (journal, ý tưởng nhanh không gắn môn nào).
+     * Workspace xoá → set null (note giữ lại).
+     */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     /** TipTap HTML content — render trực tiếp trong viewer. */
     content: text('content').notNull(),
@@ -641,6 +885,7 @@ export const note = pgTable(
   (t) => ({
     userIdx: index('note_user_idx').on(t.userId),
     updatedIdx: index('note_updated_idx').on(t.userId, t.updatedAt),
+    userWorkspaceIdx: index('note_user_workspace_idx').on(t.userId, t.workspaceId),
   }),
 );
 
@@ -652,7 +897,26 @@ export const note = pgTable(
  * status: PENDING / DONE — UI tick checkbox. dueDate optional (deadline).
  * conceptId optional (gắn với 1 khái niệm để link sang quiz/flashcard).
  */
-export const studyPlanStatusEnum = pgEnum('study_plan_status', ['PENDING', 'DONE']);
+export const studyPlanStatusEnum = pgEnum('study_plan_status', [
+  'PENDING',
+  'DONE',
+  'SKIPPED', // Phase B (atom-centric): user "swap" 1 AI proposal sang
+             // alternative — mark item cũ SKIPPED rồi propose lại.
+]);
+
+/**
+ * Loại study plan item:
+ *   - 'manual'   : user tự gõ todo (row cũ trước Phase B đều mark 'manual')
+ *   - 'review'   : AI propose atom due SRS (flashcard.due <= today)
+ *   - 'new'      : AI propose atom user chưa biết (chưa có mastery row)
+ *   - 'practice' : AI propose quiz cho atom yếu (mastery.score < 0.5)
+ */
+export const studyPlanKindEnum = pgEnum('study_plan_kind', [
+  'manual',
+  'review',
+  'new',
+  'practice',
+]);
 
 export const studyPlanItem = pgTable(
   'study_plan_item',
@@ -665,6 +929,16 @@ export const studyPlanItem = pgTable(
     description: text('description'),
     conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
     status: studyPlanStatusEnum('status').notNull().default('PENDING'),
+    /**
+     * Phase B (atom-centric): phân loại nguồn item. Default 'manual' để
+     * row cũ tự classify đúng. UI render mỗi kind ở section riêng.
+     */
+    kind: studyPlanKindEnum('kind').notNull().default('manual'),
+    /**
+     * Bổ sung context AI: why_proposed, atom_difficulty, estimated_minutes,
+     * mastery_score, etc. Không tạo column riêng cho mỗi field.
+     */
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     dueDate: timestamp('due_date'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
@@ -710,8 +984,14 @@ export const userStats = pgTable(
 );
 
 /**
- * Nhóm học — shared workspace cho nhiều user.
- * Phase 9 v1: chỉ list members + invite code. Phase 10+ thực sự share data.
+ * Nhóm học — Discord-style server (Phase 20).
+ *
+ * Phase 9 v1 chỉ là list member + invite code đơn. Phase 20 mở rộng:
+ *   - icon/banner URL — branding cho group
+ *   - is_public        — có hiện trong /groups/explore không (V2)
+ *   - max_members      — soft limit theo tier (FREE 100, PRO 500, TEAM 1000)
+ *   - inviteCode legacy giữ lại để link cũ không vỡ; multi-invite mới qua
+ *     bảng study_group_invite (max_uses + expiry).
  */
 export const studyGroup = pgTable(
   'study_group',
@@ -722,8 +1002,28 @@ export const studyGroup = pgTable(
     ownerUserId: text('owner_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    /** Token random — share với người khác để họ join. */
+    /** Legacy invite token — giữ lại cho backward compat. New flow dùng studyGroupInvite. */
     inviteCode: text('invite_code').notNull().unique(),
+    /** Icon URL hiển thị trong sidebar groups (avatar tròn 48x48). */
+    iconUrl: text('icon_url'),
+    /** Banner URL ở đầu group settings page (1500x500). */
+    bannerUrl: text('banner_url'),
+    /** Nếu TRUE → hiện trong public explore (V2 feature). */
+    isPublic: boolean('is_public').notNull().default(false),
+    /** Hard limit số member. Default 100 cho FREE plan. */
+    maxMembers: integer('max_members').notNull().default(100),
+    /**
+     * Channel nhận log recording (Phase 20 V3). Owner chọn 1 TEXT channel để
+     * AI Tutor post system message khi voice recording xong. NULL = fallback
+     * TEXT channel đầu tiên theo position. ON DELETE SET NULL.
+     */
+    recordingLogChannelId: text('recording_log_channel_id'),
+    /**
+     * Phase 2 admin moderation — set khi admin suspend group. NULL = active.
+     * Member không gửi được message khi suspended_at != NULL.
+     */
+    suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+    suspendReason: text('suspend_reason'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({
@@ -731,7 +1031,14 @@ export const studyGroup = pgTable(
   }),
 );
 
-export const groupRoleEnum = pgEnum('group_role', ['OWNER', 'MEMBER']);
+/**
+ * Vai trò trong group — hierarchy:
+ *   OWNER     → full quyền, không xoá được trừ self leave
+ *   ADMIN     → quản trị channel + member, không xoá owner / không thay role owner
+ *   MODERATOR → delete msg, mute, không CRUD channel / không thay role
+ *   MEMBER    → chat, voice, react
+ */
+export const groupRoleEnum = pgEnum('group_role', ['OWNER', 'ADMIN', 'MODERATOR', 'MEMBER']);
 
 export const studyGroupMember = pgTable(
   'study_group_member',
@@ -745,10 +1052,526 @@ export const studyGroupMember = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     role: groupRoleEnum('role').notNull().default('MEMBER'),
     joinedAt: timestamp('joined_at').notNull().defaultNow(),
+    /** Per-group display name — override user.name khi hiện trong group. */
+    nickname: text('nickname'),
+    /** Mute tới timestamp này — read-only chat trong group, auto-clear khi quá hạn. */
+    mutedUntil: timestamp('muted_until'),
+    /** Last online ping — dùng cho online status indicator (V2 — fallback presence Pusher). */
+    lastSeenAt: timestamp('last_seen_at'),
   },
   (t) => ({
     uniq: uniqueIndex('study_group_member_uniq').on(t.groupId, t.userId),
     userIdx: index('study_group_member_user_idx').on(t.userId),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// Phase 20 V2 — Direct Messages (1-1 chat)
+// ──────────────────────────────────────────────────────────
+
+/**
+ * DM thread giữa 2 user. Convention `user1_id < user2_id` để unique cặp
+ * không phụ thuộc thứ tự — chỉ 1 thread cho mỗi cặp dù A start hay B start.
+ *
+ * Caller helper: `orderUserIds(a, b)` → [smaller, larger] trước khi query/insert.
+ */
+export const dmThread = pgTable(
+  'dm_thread',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    user1Id: text('user1_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    user2Id: text('user2_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** Update mỗi lần insert message — dùng sort thread list theo activity. */
+    lastMessageAt: timestamp('last_message_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    usersUniq: uniqueIndex('dm_thread_users_uniq').on(t.user1Id, t.user2Id),
+    user1LastIdx: index('dm_thread_user1_last_idx').on(t.user1Id, t.lastMessageAt),
+    user2LastIdx: index('dm_thread_user2_last_idx').on(t.user2Id, t.lastMessageAt),
+  }),
+);
+
+export const dmMessage = pgTable(
+  'dm_message',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => dmThread.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    replyToId: text('reply_to_id'),
+    attachments: jsonb('attachments').$type<Array<{
+      type: 'image' | 'file' | 'audio' | 'video';
+      url: string;
+      name: string;
+      size: number;
+      mime: string;
+    }>>(),
+    reactions: jsonb('reactions').$type<Record<string, string[]>>(),
+    editedAt: timestamp('edited_at'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    threadTimeIdx: index('dm_message_thread_time_idx').on(t.threadId, t.createdAt),
+  }),
+);
+
+export const dmReadState = pgTable(
+  'dm_read_state',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => dmThread.id, { onDelete: 'cascade' }),
+    lastReadMessageId: text('last_read_message_id'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.threadId] }),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// Phase 20 — Study Group Channels (Discord-style)
+// ──────────────────────────────────────────────────────────
+
+/**
+ * Loại channel trong group:
+ *   - TEXT          : chat thông thường (mặc định mọi member post được)
+ *   - VOICE         : LiveKit room — audio/video/screen share
+ *   - ANNOUNCEMENT  : chỉ admin post (member chỉ đọc + react) — V2 wire
+ */
+export const channelTypeEnum = pgEnum('channel_type', ['TEXT', 'VOICE', 'ANNOUNCEMENT', 'STAGE', 'FORUM']);
+
+/**
+ * Category gom channel — Discord-style folder collapsible.
+ * V2: 1 channel thuộc 0..1 category. NULL category = root level.
+ */
+export const studyGroupCategory = pgTable(
+  'study_group_category',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    groupPosIdx: index('study_group_category_group_pos_idx').on(t.groupId, t.position),
+  }),
+);
+
+/**
+ * Channel trong group — đơn vị nhỏ nhất user "vào" để chat/voice.
+ *
+ * Khác `room` (Phase 13):
+ *   - room    = ephemeral standalone (có owner riêng, scheduled, recurring)
+ *   - channel = persistent fixture trong group (không lifecycle độc lập)
+ *
+ * Convention:
+ *   - VOICE channel: livekitRoomName = 'group:{id}' để khớp 1-1 với LiveKit.
+ *   - position: 0..N, drag-drop reorder update bulk.
+ */
+export const studyGroupChannel = pgTable(
+  'study_group_channel',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
+    /** Tên channel (vd 'chung', 'toán-cao-cấp'). Slug-style, không space. */
+    name: text('name').notNull(),
+    type: channelTypeEnum('type').notNull(),
+    /** Mô tả ngắn dưới header — placeholder cho mục đích channel. */
+    topic: text('topic'),
+    /** Thứ tự trong sidebar (nhỏ nhất trên cùng). Drag-drop update. */
+    position: integer('position').notNull().default(0),
+    /** Private channel: chỉ user có override-permission mới thấy. V2. */
+    isPrivate: boolean('is_private').notNull().default(false),
+    /** Slow mode — giây delay giữa 2 message của cùng user. NULL = off. */
+    slowModeSeconds: integer('slow_mode_seconds'),
+    /** Người tạo channel — set NULL nếu user xoá account (không cascade xoá channel). */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    /** LiveKit room name cho VOICE channel — convention 'group:{channelId}'. */
+    livekitRoomName: text('livekit_room_name'),
+    /** Max participants VOICE channel — NULL = không giới hạn (chỉ LiveKit plan limit). */
+    voiceMaxParticipants: integer('voice_max_participants'),
+    /** V2: thuộc category nào (NULL = root level). */
+    categoryId: text('category_id'),
+    /**
+     * V3 Forum: list tag mod tạo sẵn cho channel — user pick khi tạo post.
+     * Format: [{ name: 'help', color: 'amber' }, ...]. NULL = chưa có tag.
+     */
+    availableTags: jsonb('available_tags').$type<Array<{ name: string; color?: string }>>(),
+  },
+  (t) => ({
+    groupPosIdx: index('study_group_channel_group_pos_idx').on(t.groupId, t.position),
+    /** Mỗi LiveKit room map vào 1 channel duy nhất — partial unique (NULL OK). */
+    livekitIdx: uniqueIndex('study_group_channel_livekit_idx').on(t.livekitRoomName),
+  }),
+);
+
+/**
+ * Tin nhắn trong TEXT/ANNOUNCEMENT channel.
+ *
+ * Field chính:
+ *   - contentType : 'text' | 'markdown' — V1 default markdown render basic.
+ *   - replyToId   : reply tới 1 message khác, render thread chip.
+ *   - attachments : [{type, url, name, size, mime}] — V2 wire R2 upload.
+ *   - reactions   : { '👍': [uid1, uid2], '❤️': [uid3] } — atomic UPDATE jsonb.
+ *   - mentions    : [{type: 'user'|'channel'|'everyone', id}] — push notify.
+ *   - deletedAt   : soft delete giữ thread context, hard delete 30d Inngest cron.
+ */
+export const studyGroupMessage = pgTable(
+  'study_group_message',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    contentType: text('content_type').notNull().default('markdown'),
+    replyToId: text('reply_to_id'),
+    attachments: jsonb('attachments').$type<Array<{
+      type: 'image' | 'file' | 'audio' | 'video';
+      url: string;
+      name: string;
+      size: number;
+      mime: string;
+    }>>(),
+    reactions: jsonb('reactions').$type<Record<string, string[]>>(),
+    pinned: boolean('pinned').notNull().default(false),
+    mentions: jsonb('mentions').$type<Array<{ type: 'user' | 'channel' | 'everyone'; id: string }>>(),
+    editedAt: timestamp('edited_at'),
+    deletedAt: timestamp('deleted_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    // ── Phase 20 V2: Threads ──
+    /** NULL = root message; có giá trị = reply trong thread của message X. */
+    threadRootId: text('thread_root_id'),
+    /** (chỉ trên root) số reply trong thread, dùng cho badge "X replies". */
+    threadCount: integer('thread_count').notNull().default(0),
+    /** (chỉ trên root) timestamp reply gần nhất, sort thread list. */
+    threadLastAt: timestamp('thread_last_at'),
+    // ── Phase 20 V3: Forum ──
+    /** Tiêu đề post forum. NULL trừ message gốc trong FORUM channel. */
+    title: text('title'),
+    /** Tag slug list của forum post. NULL = không tag. */
+    tags: jsonb('tags').$type<string[]>(),
+    /**
+     * V2 G5 (2026-05-21): forum solution-mark.
+     * Một reply trong thread forum có thể được đánh dấu là solution
+     * (Discord pattern). Chỉ 1 solution / thread — API enforce.
+     */
+    isSolution: boolean('is_solution').notNull().default(false),
+    /**
+     * V2 G6.3 (2026-05-21): thread archive (Discord-style).
+     * Inngest cron daily set NOW() khi thread_last_at < NOW() - 7 ngày.
+     * Reply mới vào archived thread → API auto-clear (set null) — unarchive.
+     */
+    archivedAt: timestamp('archived_at'),
+  },
+  (t) => ({
+    channelTimeIdx: index('study_group_message_channel_time_idx').on(t.channelId, t.createdAt),
+    authorIdx: index('study_group_message_author_idx').on(t.authorId),
+    threadIdx: index('study_group_message_thread_idx').on(t.threadRootId, t.createdAt),
+  }),
+);
+
+/**
+ * Read state per (user, channel) — track lastReadMessageId.
+ *
+ * Unread badge logic:
+ *   count msg WHERE channel_id=X AND created_at > (msg of lastReadMessageId).created_at
+ *
+ * Tối ưu: render lazy → chỉ tính unread khi user load group page, cache 30s Redis.
+ */
+export const studyGroupReadState = pgTable(
+  'study_group_read_state',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    lastReadMessageId: text('last_read_message_id'),
+    /** User mute channel này — không hiện unread badge + không push. */
+    muted: boolean('muted').notNull().default(false),
+    /**
+     * V2 G4 (2026-05-21): per-channel notification preference Discord-style.
+     *   - 'all'      → push tất cả message (default)
+     *   - 'mentions' → chỉ push khi user được @mention
+     *   - 'none'     → tắt toàn bộ push (vẫn vào notification log)
+     *
+     * Legacy `muted` boolean backward-compat: muted=true ⇒ notification='none'.
+     * UI mới đọc cột này; mention-notify.ts wire `shouldNotify` qua field này.
+     */
+    notificationSetting: text('notification_setting').notNull().default('all'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.channelId] }),
+  }),
+);
+
+/**
+ * V2 G2 (2026-05-21): edit history per message.
+ *
+ * Mỗi lần user PUT /messages/[id], snapshot content cũ vào đây trước khi
+ * update bảng chính. Frontend gọi GET /messages/[id]/history → render
+ * timeline edits trong modal.
+ */
+export const studyGroupMessageRevision = pgTable(
+  'study_group_message_revision',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => studyGroupMessage.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    editedAt: timestamp('edited_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    msgIdx: index('study_group_message_revision_msg_idx').on(
+      t.messageId,
+      t.editedAt,
+    ),
+  }),
+);
+
+// ──────────────────────────────────────────────────────────
+// V2 G1 (2026-05-21) — Custom roles + per-channel permission overrides
+// ──────────────────────────────────────────────────────────
+
+/**
+ * Custom role cho 1 study group — Discord-style.
+ *
+ * Khác với `groupRoleEnum` (OWNER/ADMIN/MODERATOR/MEMBER hierarchy cứng),
+ * bảng này cho phép owner tạo role tuỳ ý với:
+ *   - Tên + màu hex (render avatar ring + tint chữ)
+ *   - Position trong hierarchy (cao hơn override thấp hơn)
+ *   - Permission bitfield JSON (~20 permission)
+ *   - Hoisted = show member group separate ở member list
+ *   - Mentionable = `@role` ping được không
+ *
+ * Migration backward-compat:
+ *   - Mỗi group tự auto-create 4 default role (OWNER/ADMIN/MODERATOR/MEMBER)
+ *     match với cũ `groupRoleEnum`. Members migrate vào role tương ứng qua
+ *     trigger SQL trong migration.
+ *   - Helper `effectivePermissions(memberId, channelId?)` compute union từ
+ *     mọi role assigned → apply channel overrides.
+ */
+export const studyGroupRole = pgTable(
+  'study_group_role',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Hex color e.g. "#7289DA" — render avatar ring + name tint. */
+    color: text('color').notNull().default('#9aa3af'),
+    /** Position trong hierarchy. Cao hơn = quyền cao hơn (override khi conflict). */
+    position: integer('position').notNull().default(0),
+    /** Permission bitfield — JSON object: { canSendMessages: true, … }. */
+    permissions: jsonb('permissions').notNull().default({}),
+    /** Hoisted = show separately trong member list (Discord pattern). */
+    hoisted: boolean('hoisted').notNull().default(false),
+    /** Mentionable = @role có thể ping (admin+ luôn được ping role). */
+    mentionable: boolean('mentionable').notNull().default(false),
+    /** Default role mỗi group có: cannot delete, link to legacy enum. */
+    isManaged: boolean('is_managed').notNull().default(false),
+    /** Map về legacy groupRoleEnum để backward-compat (cho `can()` cũ). */
+    legacyRole: text('legacy_role'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    groupPositionIdx: index('study_group_role_group_position_idx').on(
+      t.groupId,
+      t.position,
+    ),
+    groupNameUniq: uniqueIndex('study_group_role_group_name_uniq').on(
+      t.groupId,
+      t.name,
+    ),
+  }),
+);
+
+/**
+ * Member ↔ role many-to-many — 1 member có thể gán nhiều custom role.
+ *
+ * Migration: auto-insert 1 row per member với role tương ứng `studyGroupMember.role`.
+ */
+export const studyGroupMemberRole = pgTable(
+  'study_group_member_role',
+  {
+    memberId: text('member_id')
+      .notNull()
+      .references(() => studyGroupMember.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => studyGroupRole.id, { onDelete: 'cascade' }),
+    assignedAt: timestamp('assigned_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.memberId, t.roleId] }),
+    roleIdx: index('study_group_member_role_role_idx').on(t.roleId),
+  }),
+);
+
+/**
+ * Per-channel permission override — Discord-style allow/deny/inherit.
+ *
+ * Target có thể là role HOẶC 1 user cụ thể. Exactly 1 phải set.
+ *
+ * Resolve order trong `effectivePermissions(member, channel)`:
+ *   1. Start với union permissions của mọi role assigned cho member
+ *   2. Apply role override (role nào cao position thắng nếu conflict)
+ *   3. Apply user-specific override (override role overrides)
+ *
+ * 'allow' = grant; 'deny' = revoke; 'inherit' = không động tới (default).
+ *
+ * Use case:
+ *   - Channel #announcements: deny `sendMessages` cho @everyone, allow cho @admin
+ *   - Channel #moderator-only: deny `viewChannel` cho @everyone, allow cho @moderator
+ */
+export const studyGroupChannelPermission = pgTable(
+  'study_group_channel_permission',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    /** Target = role HOẶC user. Exactly 1 phải set (check ở app layer). */
+    roleId: text('role_id').references(() => studyGroupRole.id, {
+      onDelete: 'cascade',
+    }),
+    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    /** JSON: { canSendMessages: 'allow' | 'deny' | 'inherit', … } */
+    overrides: jsonb('overrides').notNull().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    channelRoleUniq: uniqueIndex('study_group_chperm_role_uniq')
+      .on(t.channelId, t.roleId)
+      .where(sql`role_id IS NOT NULL`),
+    channelUserUniq: uniqueIndex('study_group_chperm_user_uniq')
+      .on(t.channelId, t.userId)
+      .where(sql`user_id IS NOT NULL`),
+    channelIdx: index('study_group_chperm_channel_idx').on(t.channelId),
+  }),
+);
+
+/**
+ * Multi-invite link — thay thế `studyGroup.inviteCode` single token.
+ *
+ * Use case: owner tạo 3 invite khác nhau:
+ *   - "promo-summer" max_uses=50, expires=2026-08-31 — share trên fanpage
+ *   - "class-internal" max_uses=NULL, expires=NULL — share trong lớp
+ *   - "vip" max_uses=5 — chỉ cho VIP
+ *
+ * Resolve: POST /api/groups/join { code } → check (uses_count < max_uses) AND (expires_at IS NULL OR expires_at > now())
+ */
+export const studyGroupInvite = pgTable(
+  'study_group_invite',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
+    /** 8-char base32 random — share-friendly URL: /join?code=ABCD1234. */
+    code: text('code').notNull().unique(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** NULL = unlimited. */
+    maxUses: integer('max_uses'),
+    usesCount: integer('uses_count').notNull().default(0),
+    /** NULL = never expires. */
+    expiresAt: timestamp('expires_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    groupIdx: index('study_group_invite_group_idx').on(t.groupId),
+  }),
+);
+
+/**
+ * Voice presence state — DB cache của LiveKit Cloud (source of truth).
+ *
+ * 1 user chỉ trong 1 voice channel cùng lúc → PK = userId.
+ * Update qua LiveKit webhook participant_joined/left/trackPublished.
+ *
+ * Khi LiveKit webhook drop (network blip), state có thể stale → Inngest cron
+ * 5 min reconcile từ LiveKit list API (V2).
+ */
+/**
+ * Stage channel role per (user, channel) — Phase 20 V3.
+ * AUDIENCE → canPublish=false trên LiveKit (mic/cam tắt cứng).
+ * SPEAKER  → canPublish=true sau khi mod promote.
+ * MOD/ADMIN/OWNER: dùng `study_group_member.role`, không lưu ở table này.
+ *
+ * `raisedAt`: timestamp khi audience giơ tay; NULL = không giơ tay; mod thấy
+ * danh sách raised → click promote.
+ */
+export const studyGroupStageRole = pgTable(
+  'study_group_stage_role',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    /** AUDIENCE | SPEAKER */
+    role: text('role').notNull().default('AUDIENCE'),
+    /** Timestamp khi user raise hand. NULL = không giơ tay. */
+    raisedAt: timestamp('raised_at'),
+    /** Khi mod promote → set; mod demote → clear (về AUDIENCE). */
+    promotedAt: timestamp('promoted_at'),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.channelId] }),
+    channelIdx: index('study_group_stage_role_channel_idx').on(t.channelId, t.role),
+  }),
+);
+
+export const studyGroupVoiceState = pgTable(
+  'study_group_voice_state',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    joinedAt: timestamp('joined_at').notNull().defaultNow(),
+    /** Self-muted (mic off bởi user) — sync từ LiveKit metadata. */
+    selfMuted: boolean('self_muted').notNull().default(false),
+    /** Server-muted bởi moderator — kéo mute trên LiveKit room. */
+    serverMuted: boolean('server_muted').notNull().default(false),
+    camera: boolean('camera').notNull().default(false),
+    screenShare: boolean('screen_share').notNull().default(false),
+  },
+  (t) => ({
+    channelIdx: index('study_group_voice_state_channel_idx').on(t.channelId),
   }),
 );
 
@@ -906,10 +1729,29 @@ export const recording = pgTable(
   'recording',
   {
     id: text('id').primaryKey().$defaultFn(() => createId()),
-    roomId: text('room_id')
-      .notNull()
-      .references(() => room.id, { onDelete: 'cascade' }),
+    /**
+     * Owner #1: standalone room (Phase 13/15). Nullable từ V3 vì recording có
+     * thể thuộc về study group voice channel thay vì room.
+     */
+    roomId: text('room_id').references(() => room.id, { onDelete: 'cascade' }),
+    /**
+     * Owner #2 (V3): voice channel của study group. NULL nếu là room recording.
+     * DB constraint `recording_owner_xor` enforce đúng 1 trong 2 cột có giá trị.
+     */
+    studyGroupChannelId: text('study_group_channel_id').references(
+      () => studyGroupChannel.id,
+      { onDelete: 'cascade' },
+    ),
+    /** User trigger record — NULL nếu account đã xoá. */
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     egressId: text('egress_id').unique(),
+    /**
+     * R2 object key (path trong bucket) — set ngay khi start egress vì LiveKit
+     * không reliable trả về filename trong webhook/listEgress (V3 fix).
+     * Format: `recordings/group/{channelId}/{ts}.mp4` hoặc `recordings/{roomId}/{ts}.mp4`.
+     * Public URL = `${R2_PUBLIC_URL}/${storageKey}`.
+     */
+    storageKey: text('storage_key'),
     fileUrl: text('file_url'),
     duration: integer('duration_seconds'),
     fileSize: integer('file_size_bytes'),
@@ -924,6 +1766,7 @@ export const recording = pgTable(
   },
   (t) => ({
     roomIdx: index('recording_room_idx').on(t.roomId),
+    channelIdx: index('recording_channel_idx').on(t.studyGroupChannelId, t.startedAt),
   }),
 );
 
@@ -1108,6 +1951,11 @@ export const notificationLog = pgTable(
     /** Error message từ Expo Push API nếu failed. */
     error: text('error'),
     sentAt: timestamp('sent_at'),
+    /**
+     * Phase 2 follow — user đã xem chưa (NotificationBell mark read).
+     * NULL = chưa xem → tính badge unread count.
+     */
+    readAt: timestamp('read_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({
@@ -1164,6 +2012,11 @@ export const exam = pgTable(
     ownerId: text('owner_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * Workspace chứa exam (Phase Workspace-centric).
+     * Nullable — exam có thể "global". Workspace xoá → set null.
+     */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     description: text('description'),
     mode: examModeEnum('mode').notNull().default('PRACTICE'),
@@ -1200,7 +2053,7 @@ export const exam = pgTable(
     targetSE: real('target_se').default(0.3),
 
     // ── Anti-cheat config (Phase 19 wire fully) ─────────────
-    /** JSONB config: { requireFullscreen, blockTabSwitch, blockCopyPaste, blockContextMenu, detectDevtools, requireWebcam, aiProctor } */
+    /** JSONB config: { requireFullscreen, blockTabSwitch, blockCopyPaste, blockContextMenu, detectDevtools, requireWebcam, requireMic, aiProctor } */
     antiCheat: jsonb('anti_cheat').$type<{
       requireFullscreen?: boolean;
       blockTabSwitch?: boolean;
@@ -1208,6 +2061,7 @@ export const exam = pgTable(
       blockContextMenu?: boolean;
       detectDevtools?: boolean;
       requireWebcam?: boolean;
+      requireMic?: boolean;
       aiProctor?: boolean;
     }>().default({}),
 
@@ -1221,6 +2075,7 @@ export const exam = pgTable(
   (t) => ({
     ownerStatusIdx: index('exam_owner_status_idx').on(t.ownerId, t.status),
     liveCodeIdx: uniqueIndex('exam_live_code_idx').on(t.liveCode),
+    ownerWorkspaceIdx: index('exam_owner_workspace_idx').on(t.ownerId, t.workspaceId),
   }),
 );
 
@@ -1464,6 +2319,7 @@ export const notificationLogRelations = relations(notificationLog, ({ one }) => 
 // ── Phase 16 Exam System ──────────────────────────────────
 export const examRelations = relations(exam, ({ one, many }) => ({
   owner: one(user, { fields: [exam.ownerId], references: [user.id] }),
+  workspace: one(workspace, { fields: [exam.workspaceId], references: [workspace.id] }),
   questions: many(examQuestion),
   attempts: many(examAttempt),
 }));
@@ -1491,6 +2347,7 @@ export const examViolationRelations = relations(examViolation, ({ one }) => ({
   attempt: one(examAttempt, { fields: [examViolation.attemptId], references: [examAttempt.id] }),
 }));
 
+
 export const sessionRelations = relations(session, ({ one }) => ({
   user: one(user, { fields: [session.userId], references: [user.id] }),
 }));
@@ -1502,6 +2359,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   user: one(user, { fields: [workspace.userId], references: [user.id] }),
   documents: many(document),
+  notes: many(note),
+  flashcards: many(flashcard),
+  quizzes: many(quiz),
+  exams: many(exam),
 }));
 
 export const documentRelations = relations(document, ({ one, many }) => ({
@@ -1566,6 +2427,7 @@ export const messageRelations = relations(message, ({ one }) => ({
 
 export const flashcardRelations = relations(flashcard, ({ one, many }) => ({
   user: one(user, { fields: [flashcard.userId], references: [user.id] }),
+  workspace: one(workspace, { fields: [flashcard.workspaceId], references: [workspace.id] }),
   concept: one(concept, { fields: [flashcard.conceptId], references: [concept.id] }),
   sourceChunk: one(chunk, { fields: [flashcard.sourceChunkId], references: [chunk.id] }),
   reviews: many(review),
@@ -1577,6 +2439,7 @@ export const reviewRelations = relations(review, ({ one }) => ({
 
 export const quizRelations = relations(quiz, ({ one, many }) => ({
   user: one(user, { fields: [quiz.userId], references: [user.id] }),
+  workspace: one(workspace, { fields: [quiz.workspaceId], references: [workspace.id] }),
   questions: many(question),
 }));
 
@@ -1612,7 +2475,1087 @@ export const roomEventRelations = relations(roomEvent, ({ one }) => ({
 
 export const recordingRelations = relations(recording, ({ one }) => ({
   room: one(room, { fields: [recording.roomId], references: [room.id] }),
+  channel: one(studyGroupChannel, {
+    fields: [recording.studyGroupChannelId],
+    references: [studyGroupChannel.id],
+  }),
 }));
+
+// ── Phase 20 — Study Group Channels ───────────────────────
+export const studyGroupRelations = relations(studyGroup, ({ one, many }) => ({
+  owner: one(user, { fields: [studyGroup.ownerUserId], references: [user.id] }),
+  members: many(studyGroupMember),
+  channels: many(studyGroupChannel),
+  invites: many(studyGroupInvite),
+}));
+
+export const studyGroupMemberRelations = relations(studyGroupMember, ({ one }) => ({
+  group: one(studyGroup, { fields: [studyGroupMember.groupId], references: [studyGroup.id] }),
+  user: one(user, { fields: [studyGroupMember.userId], references: [user.id] }),
+}));
+
+export const studyGroupChannelRelations = relations(studyGroupChannel, ({ one, many }) => ({
+  group: one(studyGroup, { fields: [studyGroupChannel.groupId], references: [studyGroup.id] }),
+  creator: one(user, { fields: [studyGroupChannel.createdBy], references: [user.id] }),
+  messages: many(studyGroupMessage),
+  voiceStates: many(studyGroupVoiceState),
+}));
+
+export const studyGroupMessageRelations = relations(studyGroupMessage, ({ one }) => ({
+  channel: one(studyGroupChannel, {
+    fields: [studyGroupMessage.channelId],
+    references: [studyGroupChannel.id],
+  }),
+  author: one(user, { fields: [studyGroupMessage.authorId], references: [user.id] }),
+}));
+
+export const studyGroupInviteRelations = relations(studyGroupInvite, ({ one }) => ({
+  group: one(studyGroup, { fields: [studyGroupInvite.groupId], references: [studyGroup.id] }),
+  creator: one(user, { fields: [studyGroupInvite.createdBy], references: [user.id] }),
+}));
+
+export const studyGroupReadStateRelations = relations(studyGroupReadState, ({ one }) => ({
+  user: one(user, { fields: [studyGroupReadState.userId], references: [user.id] }),
+  channel: one(studyGroupChannel, {
+    fields: [studyGroupReadState.channelId],
+    references: [studyGroupChannel.id],
+  }),
+}));
+
+export const studyGroupVoiceStateRelations = relations(studyGroupVoiceState, ({ one }) => ({
+  user: one(user, { fields: [studyGroupVoiceState.userId], references: [user.id] }),
+  channel: one(studyGroupChannel, {
+    fields: [studyGroupVoiceState.channelId],
+    references: [studyGroupChannel.id],
+  }),
+}));
+
+// ══════════════════════════════════════════════════════════
+// PHASE 21 — TUTORING MARKETPLACE (V1)
+// 5 bảng: profile / subject / availability / request / application
+// Booking + review thêm ở V2 (migration sau). Schema reference
+// docs/plans/tutoring.md §4.
+// ══════════════════════════════════════════════════════════
+
+/**
+ * tutor_profile — 1 user → tối đa 1 tutor profile.
+ * Tạo lazy khi user click "Trở thành gia sư". status DRAFT cho phép
+ * fill thông tin trước khi PUBLISHED (hiện trên /tutors browse).
+ */
+export const tutorProfile = pgTable('tutor_profile', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id')
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** Headline ngắn — vd "Gia sư Toán cao cấp 5 năm kinh nghiệm". */
+  headline: text('headline').notNull(),
+  /** Bio chi tiết Markdown, 200-2000 chars. */
+  bio: text('bio').notNull(),
+  /** Giá VND/giờ mặc định. */
+  hourlyRateVnd: integer('hourly_rate_vnd').notNull(),
+  /** ONLINE | OFFLINE_HN | OFFLINE_HCM | HYBRID. */
+  modality: text('modality').notNull().default('ONLINE'),
+  avatarUrl: text('avatar_url'),
+  bannerUrl: text('banner_url'),
+  /** Cached counter — update via cron hoặc trigger sau review/complete. */
+  sessionsCompleted: integer('sessions_completed').notNull().default(0),
+  /** Rating trung bình 1-5 (cached qua trigger từ tutor_review V2). */
+  ratingAvg: numeric('rating_avg', { precision: 3, scale: 2 }),
+  ratingCount: integer('rating_count').notNull().default(0),
+  /** NONE | KYC_PENDING | KYC_VERIFIED — V1 chỉ NONE; V3 KYC flow. */
+  verificationStatus: text('verification_status').notNull().default('NONE'),
+  /** Embedding bio+subjects — dùng cho AI matching V2. NULL ở V1. */
+  bioEmbedding: vector('bio_embedding', 1024),
+  /**
+   * V4 T1 (2026-05-22): timestamp lần cuối compute bioEmbedding.
+   * Inngest cron daily refresh tutor có embedding stale > 14 ngày
+   * hoặc bio đã update sau bioEmbeddingUpdatedAt.
+   */
+  bioEmbeddingUpdatedAt: timestamp('bio_embedding_updated_at'),
+  /**
+   * V4 T2 (2026-05-22): Instant Book — bỏ qua confirm 24h, student book ngay
+   * status = CONFIRMED. Tutor opt-in vì cần đảm bảo lịch chuẩn xác.
+   */
+  instantBookEnabled: boolean('instant_book_enabled').notNull().default(false),
+  /**
+   * V4 T2: cho phép trial 30 phút giảm 50%. Default true.
+   * 1 trial / (student, tutor) pair — enforce qua unique partial index.
+   */
+  trialSessionEnabled: boolean('trial_session_enabled').notNull().default(true),
+  /** V4 T2: avg response time (phút) — compute daily cron. */
+  avgResponseMinutes: integer('avg_response_minutes'),
+  /** V4 T2: response rate % (0-100) — tutor confirm / total booking requested. */
+  responseRatePct: integer('response_rate_pct'),
+  /**
+   * V4 T4 (2026-05-22): token để generate iCal feed URL public (token-protected).
+   * Lazy create khi tutor click "Export lịch". Rotate quarterly admin.
+   */
+  icalToken: text('ical_token'),
+  /** V4 T5: video intro 60s MP4 — hiển thị trên profile hero. */
+  introVideoUrl: text('intro_video_url'),
+  introVideoThumbUrl: text('intro_video_thumb_url'),
+  /** DRAFT | PUBLISHED | PAUSED. */
+  status: text('status').notNull().default('DRAFT'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('tutor_profile_status_idx').on(t.status),
+  modalityIdx: index('tutor_profile_modality_idx').on(t.modality, t.status),
+}));
+
+/**
+ * V4 T1 (2026-05-22): AI Concierge thread + message.
+ *
+ * Chat tự nhiên với AI để tìm gia sư — tách khỏi AI Tutor chat:
+ *   - AI Tutor: chat về kiến thức trong workspace
+ *   - Concierge: chat tìm tutor marketplace
+ *
+ * Spec: docs/plans/tutoring-v4.md §3 T1.
+ */
+export const tutoringConciergeThread = pgTable('tutoring_concierge_thread', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Title auto-generate từ message đầu tiên (vd "Toán 11 dưới 200k"). */
+  title: text('title'),
+  lastMessageAt: timestamp('last_message_at').notNull().defaultNow(),
+  /**
+   * Cache filter trích xuất từ chat — re-open cuộc cũ vẫn còn context.
+   * Format: { subjectSlug, level, budgetMaxVnd, modality, city, keywords }
+   */
+  extractedFilters: jsonb('extracted_filters').$type<{
+    subjectSlug?: string;
+    level?: string;
+    budgetMaxVnd?: number;
+    modality?: string;
+    city?: string;
+    keywords?: string[];
+  }>(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  userTimeIdx: index('tutoring_concierge_thread_user_time_idx').on(
+    t.userId, t.lastMessageAt,
+  ),
+}));
+
+export const tutoringConciergeMessage = pgTable('tutoring_concierge_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  threadId: text('thread_id').notNull().references(
+    () => tutoringConciergeThread.id, { onDelete: 'cascade' },
+  ),
+  role: text('role').notNull(), // 'user' | 'assistant' | 'tool'
+  content: text('content').notNull(),
+  /**
+   * Tool call result jsonb cho assistant message:
+   *   { action: 'search'|'clarify', tutorIds: [], filters: {}, total }
+   */
+  metadata: jsonb('metadata').$type<{
+    action?: 'search' | 'clarify';
+    tutorIds?: string[];
+    filters?: Record<string, unknown>;
+    total?: number;
+  }>(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  threadTimeIdx: index('tutoring_concierge_message_thread_time_idx').on(
+    t.threadId, t.createdAt,
+  ),
+}));
+
+export type TutoringConciergeThread = typeof tutoringConciergeThread.$inferSelect;
+export type TutoringConciergeMessage = typeof tutoringConciergeMessage.$inferSelect;
+
+/**
+ * tutor_subject — N môn / 1 tutor. Cho phép verify từng môn riêng.
+ * unique(tutorId, subjectSlug, level) tránh trùng.
+ */
+export const tutorSubject = pgTable(
+  'tutor_subject',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** Subject slug — xem packages/db/src/taxonomy-subjects.ts cho danh sách. */
+    subjectSlug: text('subject_slug').notNull(),
+    /** PRIMARY | SECONDARY | HIGH_SCHOOL | UNIVERSITY | ADULT. */
+    level: text('level').notNull(),
+    /** Verified bởi AI quiz V3 — NULL = chưa verify. */
+    verifiedAt: timestamp('verified_at'),
+    /** Score quiz 0-100 nếu đã làm. */
+    verifyScore: integer('verify_score'),
+  },
+  (t) => ({
+    uniq: uniqueIndex('tutor_subject_uniq').on(t.tutorId, t.subjectSlug, t.level),
+    subjectIdx: index('tutor_subject_subject_idx').on(t.subjectSlug, t.level),
+  }),
+);
+
+/**
+ * tutor_availability — recurring weekly slot.
+ * V2 sẽ thêm `tutor_availability_override` cho ngày cụ thể.
+ */
+export const tutorAvailability = pgTable(
+  'tutor_availability',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** 0=Sunday, 1=Monday, ..., 6=Saturday. */
+    dayOfWeek: integer('day_of_week').notNull(),
+    /** "HH:MM" 24h format. */
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    /** Default 'Asia/Ho_Chi_Minh'. */
+    timezone: text('timezone').notNull().default('Asia/Ho_Chi_Minh'),
+  },
+  (t) => ({
+    tutorIdx: index('tutor_availability_tutor_idx').on(t.tutorId),
+  }),
+);
+
+/**
+ * tutor_request — student post yêu cầu tìm gia sư.
+ * Public, các tutor browse và apply qua tutor_application.
+ */
+export const tutorRequest = pgTable(
+  'tutor_request',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    studentId: text('student_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    subjectSlug: text('subject_slug').notNull(),
+    level: text('level').notNull(),
+    /** Budget VND/giờ tối đa (null = thoả thuận). */
+    budgetVnd: integer('budget_vnd'),
+    modality: text('modality').notNull().default('ONLINE'),
+    /** ASAP | THIS_WEEK | THIS_MONTH | FLEXIBLE. */
+    urgency: text('urgency').notNull().default('FLEXIBLE'),
+    /** OPEN | MATCHED | CLOSED. */
+    status: text('status').notNull().default('OPEN'),
+    /** Embedding mô tả — match với tutor.bioEmbedding (V2). */
+    embedding: vector('embedding', 1024),
+    /** V5: timestamp lần cuối refresh embedding (cron skip nếu < 14d). */
+    embeddingUpdatedAt: timestamp('embedding_updated_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (t) => ({
+    subjectIdx: index('tutor_request_subject_idx').on(t.subjectSlug, t.level, t.status),
+    studentIdx: index('tutor_request_student_idx').on(t.studentId, t.createdAt),
+  }),
+);
+
+/**
+ * tutor_application — tutor apply vào request.
+ * unique(requestId, tutorId) tránh apply 2 lần cùng request.
+ */
+export const tutorApplication = pgTable(
+  'tutor_application',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    requestId: text('request_id')
+      .notNull()
+      .references(() => tutorRequest.id, { onDelete: 'cascade' }),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    message: text('message').notNull(),
+    proposedRateVnd: integer('proposed_rate_vnd').notNull(),
+    /** PENDING | ACCEPTED | REJECTED | WITHDRAWN. */
+    status: text('status').notNull().default('PENDING'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('tutor_application_uniq').on(t.requestId, t.tutorId),
+    tutorIdx: index('tutor_application_tutor_idx').on(t.tutorId, t.createdAt),
+  }),
+);
+
+// Relations — type-safe join cho Drizzle
+export const tutorProfileRelations = relations(tutorProfile, ({ one, many }) => ({
+  user: one(user, { fields: [tutorProfile.userId], references: [user.id] }),
+  subjects: many(tutorSubject),
+  availability: many(tutorAvailability),
+  applications: many(tutorApplication),
+}));
+
+export const tutorSubjectRelations = relations(tutorSubject, ({ one }) => ({
+  tutor: one(tutorProfile, {
+    fields: [tutorSubject.tutorId],
+    references: [tutorProfile.id],
+  }),
+}));
+
+export const tutorAvailabilityRelations = relations(tutorAvailability, ({ one }) => ({
+  tutor: one(tutorProfile, {
+    fields: [tutorAvailability.tutorId],
+    references: [tutorProfile.id],
+  }),
+}));
+
+export const tutorRequestRelations = relations(tutorRequest, ({ one, many }) => ({
+  student: one(user, { fields: [tutorRequest.studentId], references: [user.id] }),
+  applications: many(tutorApplication),
+}));
+
+export const tutorApplicationRelations = relations(tutorApplication, ({ one }) => ({
+  request: one(tutorRequest, {
+    fields: [tutorApplication.requestId],
+    references: [tutorRequest.id],
+  }),
+  tutor: one(tutorProfile, {
+    fields: [tutorApplication.tutorId],
+    references: [tutorProfile.id],
+  }),
+}));
+
+// ══════════════════════════════════════════════════════════
+// PHASE 21 V2 — BOOKING + REVIEWS
+// Sau khi student + tutor thoả thuận qua DM, student book slot từ tutor
+// availability → tutor confirm → auto-create study group → session diễn ra
+// trên voice channel → recording attach → review.
+// ══════════════════════════════════════════════════════════
+
+/**
+ * tutoring_booking — buổi học cụ thể giữa 1 student và 1 tutor.
+ *
+ * Lifecycle:
+ *   PENDING_TUTOR → CONFIRMED → IN_PROGRESS → COMPLETED
+ *   PENDING_TUTOR → CANCELLED (student/tutor huỷ trước confirm)
+ *   CONFIRMED     → CANCELLED (huỷ ≥24h trước startAt; ≤24h thì policy charge)
+ *
+ * Study group: chỉ auto-create khi CONFIRMED, gắn vào `studyGroupId`. Khi
+ * COMPLETED, group KHÔNG xoá — student lưu lại tài liệu + transcript +
+ * flashcard cho ôn tập (plan §7.2).
+ */
+export const tutoringBooking = pgTable(
+  'tutoring_booking',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'restrict' }),
+    studentId: text('student_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Link tới study group auto-create khi CONFIRMED. NULL trước confirm. */
+    studyGroupId: text('study_group_id').references(() => studyGroup.id, {
+      onDelete: 'set null',
+    }),
+    /** Subject slug + level (snapshot tại thời điểm book). */
+    subjectSlug: text('subject_slug').notNull(),
+    level: text('level').notNull(),
+    /** Khung giờ buổi học. */
+    startAt: timestamp('start_at').notNull(),
+    endAt: timestamp('end_at').notNull(),
+    /** Giá VND cố định cho buổi (snapshot từ tutor rate + thoả thuận). */
+    rateVnd: integer('rate_vnd').notNull(),
+    /** PENDING_TUTOR | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED. */
+    status: text('status').notNull().default('PENDING_TUTOR'),
+    /** Note ngắn student gửi khi book (mục tiêu buổi học). */
+    studentMessage: text('student_message'),
+    /** Note tutor để lại sau buổi học. */
+    sessionNotes: text('session_notes'),
+    /** Recording ID nếu có (Phase 20 V3 voice recording). */
+    recordingId: text('recording_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    confirmedAt: timestamp('confirmed_at'),
+    completedAt: timestamp('completed_at'),
+    cancelledAt: timestamp('cancelled_at'),
+    /** userId người huỷ — để show trong UI ai bỏ buổi. */
+    cancelledBy: text('cancelled_by'),
+    cancelReason: text('cancel_reason'),
+    /**
+     * V4 T2 (2026-05-22): trial booking giảm 50% rate. 1/student/tutor pair.
+     * Enforce qua partial unique index, không cho retry sau cancel.
+     */
+    isTrial: boolean('is_trial').notNull().default(false),
+    /** V4 T2: lưu start time ban đầu trước khi reschedule. */
+    originalStartAt: timestamp('original_start_at'),
+    /** V4 T2: count số lần đổi lịch — cap max 3. */
+    rescheduleCount: integer('reschedule_count').notNull().default(0),
+    /**
+     * V4 T3 (2026-05-22): buổi học thuộc pack purchase → trừ remaining_sessions
+     * thay vì tạo payment riêng. NULL = buổi đơn lẻ.
+     */
+    packPurchaseId: text('pack_purchase_id'),
+  },
+  (t) => ({
+    tutorTimeIdx: index('tutoring_booking_tutor_time_idx').on(t.tutorId, t.startAt),
+    studentTimeIdx: index('tutoring_booking_student_time_idx').on(
+      t.studentId,
+      t.startAt,
+    ),
+    statusIdx: index('tutoring_booking_status_idx').on(t.status),
+  }),
+);
+
+/**
+ * tutor_review — student đánh giá tutor sau session.
+ *
+ * Trigger: chỉ student của booking COMPLETED mới review được. 1 booking →
+ * 1 review (unique). Khi insert → update cached rating_avg + rating_count
+ * trên tutor_profile (handled ở API layer).
+ */
+export const tutorReview = pgTable('tutor_review', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  bookingId: text('booking_id')
+    .notNull()
+    .unique()
+    .references(() => tutoringBooking.id, { onDelete: 'cascade' }),
+  reviewerId: text('reviewer_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  tutorId: text('tutor_id')
+    .notNull()
+    .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  /** 1-5. */
+  rating: integer('rating').notNull(),
+  comment: text('comment'),
+  /**
+   * Phase 4 admin moderation: hide review khỏi tutor profile (set timestamp).
+   * Product query filter `WHERE hidden_at IS NULL`. Vẫn lưu row để forensic.
+   */
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+  hiddenReason: text('hidden_reason'),
+  hiddenBy: text('hidden_by').references(() => user.id, { onDelete: 'set null' }),
+  /**
+   * V4 T5 (2026-05-22): tag chips student tick (helpful, knowledgeable, …).
+   * UI filter qua tag, sort by helpful_count.
+   */
+  tags: text('tags').array().default(sql`'{}'::text[]`),
+  helpfulCount: integer('helpful_count').notNull().default(0),
+  attachments: jsonb('attachments').$type<Array<{
+    type: 'image' | 'video';
+    url: string;
+    thumbUrl?: string;
+  }>>(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// Relations V2
+export const tutoringBookingRelations = relations(tutoringBooking, ({ one }) => ({
+  tutor: one(tutorProfile, {
+    fields: [tutoringBooking.tutorId],
+    references: [tutorProfile.id],
+  }),
+  student: one(user, {
+    fields: [tutoringBooking.studentId],
+    references: [user.id],
+  }),
+  studyGroup: one(studyGroup, {
+    fields: [tutoringBooking.studyGroupId],
+    references: [studyGroup.id],
+  }),
+}));
+
+export const tutorReviewRelations = relations(tutorReview, ({ one }) => ({
+  booking: one(tutoringBooking, {
+    fields: [tutorReview.bookingId],
+    references: [tutoringBooking.id],
+  }),
+  reviewer: one(user, {
+    fields: [tutorReview.reviewerId],
+    references: [user.id],
+  }),
+  tutor: one(tutorProfile, {
+    fields: [tutorReview.tutorId],
+    references: [tutorProfile.id],
+  }),
+}));
+
+// ══════════════════════════════════════════════════════════
+// PHASE 21 V3 — KYC + VERIFICATION QUIZ + PAYMENT
+// KYC: tutor upload CCCD + bằng cấp → admin review → KYC_VERIFIED.
+// Subject verify quiz: tutor làm AI quiz cho 1 môn → ≥ 80% → badge verified.
+// Payment: VNPay/MoMo escrow 7 ngày → tutor payout.
+//
+// LƯU Ý: payment integration ở V3 hiện scaffold dạng STUB — provider STUB
+// auto-capture ngay sau intent (dev), VNPay/MoMo cần merchant credentials
+// + webhook public URL để hoạt động thật.
+// ══════════════════════════════════════════════════════════
+
+/**
+ * tutor_kyc_document — bản gốc CCCD / bằng cấp tutor upload.
+ *
+ * 1 tutor có N document (CCCD front+back, ≥1 bằng cấp). Lưu storage key trên
+ * R2; URL không lưu DB (gen signed URL khi admin xem). PII cao → access log
+ * qua audit_log.
+ */
+export const tutorKycDocument = pgTable(
+  'tutor_kyc_document',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** CCCD_FRONT | CCCD_BACK | DEGREE | CERTIFICATE | OTHER. */
+    docType: text('doc_type').notNull(),
+    storageKey: text('storage_key').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    /** Tên file gốc — display trong admin UI. */
+    originalName: text('original_name').notNull(),
+    /** PENDING | APPROVED | REJECTED. */
+    status: text('status').notNull().default('PENDING'),
+    /** Admin reviewer userId. NULL khi chưa review. */
+    reviewedBy: text('reviewed_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    reviewNote: text('review_note'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    reviewedAt: timestamp('reviewed_at'),
+  },
+  (t) => ({
+    tutorIdx: index('tutor_kyc_document_tutor_idx').on(t.tutorId, t.createdAt),
+    statusIdx: index('tutor_kyc_document_status_idx').on(t.status),
+  }),
+);
+
+/**
+ * tutor_subject_verify_quiz — link 1 quiz (reuse quiz table Phase 6) tới
+ * 1 tutor_subject để cấp badge "verified" cho môn đó.
+ *
+ * Flow: tutor click "Verify môn này" → upload tài liệu mẫu → AI generate quiz
+ *        10 câu MCQ → tutor làm → score ≥ 80% → status=PASSED → cập nhật
+ *        tutor_subject.verifiedAt + verifyScore.
+ */
+export const tutorSubjectVerifyQuiz = pgTable(
+  'tutor_subject_verify_quiz',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorSubjectId: text('tutor_subject_id')
+      .notNull()
+      .references(() => tutorSubject.id, { onDelete: 'cascade' }),
+    /** FK tới quiz table — reuse Phase 6 infrastructure (question + attempt). */
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => quiz.id, { onDelete: 'cascade' }),
+    /** PENDING | PASSED | FAILED. */
+    status: text('status').notNull().default('PENDING'),
+    /** Score 0-100, NULL khi PENDING. */
+    score: integer('score'),
+    /** Threshold pass — default 80. */
+    passThreshold: integer('pass_threshold').notNull().default(80),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (t) => ({
+    subjectIdx: index('tutor_subject_verify_quiz_subject_idx').on(
+      t.tutorSubjectId,
+    ),
+  }),
+);
+
+/**
+ * tutoring_payment — thanh toán 1 booking.
+ *
+ * Lifecycle:
+ *   CREATED → AUTHORIZED (provider hold tiền) → CAPTURED (release vào escrow)
+ *           → REFUNDED (huỷ trong policy) | FAILED
+ *
+ * Escrow: tiền giữ trong Cogniva account 7 ngày sau session COMPLETED, rồi
+ * release vào pool tutor có thể payout. Field `escrowReleaseAt` đánh dấu
+ * thời điểm Cogniva cron release.
+ *
+ * provider:
+ *   - STUB    — dev mode, auto-capture ngay sau intent, không gọi API ngoài.
+ *   - VNPAY   — sandbox/prod cần VNPAY_TMN_CODE + VNPAY_HASH_SECRET trong env.
+ *   - MOMO    — sandbox/prod cần MOMO_PARTNER_CODE + MOMO_SECRET_KEY.
+ */
+export const tutoringPayment = pgTable(
+  'tutoring_payment',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    bookingId: text('booking_id')
+      .notNull()
+      .unique()
+      .references(() => tutoringBooking.id, { onDelete: 'restrict' }),
+    /** Tổng tiền student trả (VND). */
+    amountVnd: integer('amount_vnd').notNull(),
+    /** Phí Cogniva (VND) — V3 default 10% amount, đặt khi capture. */
+    feeVnd: integer('fee_vnd').notNull().default(0),
+    /** STUB | VNPAY | MOMO. */
+    provider: text('provider').notNull().default('STUB'),
+    /** Mã giao dịch trả về từ provider (TxnRef VNPay / transId MoMo). */
+    providerRef: text('provider_ref'),
+    /** Mã đơn hàng nội bộ — đẩy lên provider trong field orderId. */
+    orderCode: text('order_code').notNull().unique(),
+    /** CREATED | AUTHORIZED | CAPTURED | REFUNDED | FAILED. */
+    status: text('status').notNull().default('CREATED'),
+    /** Khi nào escrow release vào tutor pool — set khi CAPTURED. */
+    escrowReleaseAt: timestamp('escrow_release_at'),
+    /** Raw response provider — debug, không expose UI. */
+    rawResponse: jsonb('raw_response').$type<Record<string, unknown>>(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    capturedAt: timestamp('captured_at'),
+    refundedAt: timestamp('refunded_at'),
+  },
+  (t) => ({
+    bookingIdx: index('tutoring_payment_booking_idx').on(t.bookingId),
+    statusIdx: index('tutoring_payment_status_idx').on(t.status),
+  }),
+);
+
+/**
+ * tutor_payout — tutor yêu cầu rút tiền từ pool escrow released.
+ *
+ * V3 chỉ ghi nhận request — admin manual transfer + mark PAID. V4+ tự động.
+ */
+export const tutorPayout = pgTable(
+  'tutor_payout',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'restrict' }),
+    /** Số tiền yêu cầu (VND). */
+    amountVnd: integer('amount_vnd').notNull(),
+    /** REQUESTED | APPROVED | PAID | REJECTED. */
+    status: text('status').notNull().default('REQUESTED'),
+    /** BANK_TRANSFER | MOMO_WALLET — phương thức nhận tiền. */
+    method: text('method').notNull().default('BANK_TRANSFER'),
+    /** Thông tin tài khoản (jsonb) — bank name + account number + holder. */
+    accountDetails: jsonb('account_details').$type<{
+      bankName?: string;
+      accountNumber?: string;
+      accountHolder?: string;
+      phone?: string;
+    }>(),
+    /** Admin xử lý userId. */
+    processedBy: text('processed_by').references(() => user.id, {
+      onDelete: 'set null',
+    }),
+    note: text('note'),
+    requestedAt: timestamp('requested_at').notNull().defaultNow(),
+    processedAt: timestamp('processed_at'),
+  },
+  (t) => ({
+    tutorIdx: index('tutor_payout_tutor_idx').on(t.tutorId, t.requestedAt),
+    statusIdx: index('tutor_payout_status_idx').on(t.status),
+  }),
+);
+
+// Relations V3
+export const tutorKycDocumentRelations = relations(tutorKycDocument, ({ one }) => ({
+  tutor: one(tutorProfile, {
+    fields: [tutorKycDocument.tutorId],
+    references: [tutorProfile.id],
+  }),
+  reviewer: one(user, {
+    fields: [tutorKycDocument.reviewedBy],
+    references: [user.id],
+  }),
+}));
+
+export const tutorSubjectVerifyQuizRelations = relations(
+  tutorSubjectVerifyQuiz,
+  ({ one }) => ({
+    subject: one(tutorSubject, {
+      fields: [tutorSubjectVerifyQuiz.tutorSubjectId],
+      references: [tutorSubject.id],
+    }),
+    quiz: one(quiz, {
+      fields: [tutorSubjectVerifyQuiz.quizId],
+      references: [quiz.id],
+    }),
+  }),
+);
+
+export const tutoringPaymentRelations = relations(tutoringPayment, ({ one }) => ({
+  booking: one(tutoringBooking, {
+    fields: [tutoringPayment.bookingId],
+    references: [tutoringBooking.id],
+  }),
+}));
+
+export const tutorPayoutRelations = relations(tutorPayout, ({ one }) => ({
+  tutor: one(tutorProfile, {
+    fields: [tutorPayout.tutorId],
+    references: [tutorProfile.id],
+  }),
+}));
+
+// ══════════════════════════════════════════════════════════
+// V4 T3 — Wallet + Packs + Promo (migration 0042)
+// ══════════════════════════════════════════════════════════
+
+/**
+ * userWallet — balance VND per user (1-1). Lazy create khi user nạp tiền lần đầu.
+ *
+ * Atomicity: mọi mutation balance PHẢI qua transaction wrap với insert
+ * user_wallet_txn (ledger row) cùng lúc. Helper `lib/tutoring/wallet.ts`
+ * cung cấp `chargeWallet()`, `topupWallet()` để enforce.
+ */
+export const userWallet = pgTable('user_wallet', {
+  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  balanceVnd: integer('balance_vnd').notNull().default(0),
+  /** Cashback + promo — không rút được, có expiry. Apply trước balance khi pay. */
+  promoBalanceVnd: integer('promo_balance_vnd').notNull().default(0),
+  promoExpiresAt: timestamp('promo_expires_at'),
+  /** Auto-topup: khi balance < threshold → tự charge VNPay default method. */
+  autoTopupThresholdVnd: integer('auto_topup_threshold_vnd'),
+  autoTopupAmountVnd: integer('auto_topup_amount_vnd'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * userWalletTxn — ledger immutable cho mọi balance change.
+ *
+ * Audit: balance_after_vnd lưu để verify ledger consistency (cron daily
+ * đối chiếu sum(amount) === current balance, alert nếu lệch).
+ */
+export const userWalletTxn = pgTable('user_wallet_txn', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** TOPUP | BOOKING_PAY | PACK_PURCHASE | REFUND | CASHBACK | PROMO | PAYOUT_RECEIVED | ADJUSTMENT */
+  type: text('type').notNull(),
+  /** signed: + nạp / - chi. */
+  amountVnd: integer('amount_vnd').notNull(),
+  balanceAfterVnd: integer('balance_after_vnd').notNull(),
+  /** Loose FK — booking/topup payment id, dùng cho audit không enforce. */
+  relatedId: text('related_id'),
+  relatedType: text('related_type'),
+  description: text('description'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  userTimeIdx: index('user_wallet_txn_user_time_idx').on(t.userId, t.createdAt),
+}));
+
+/**
+ * tutoringPack — tutor đăng pack 4/8/12 buổi giảm giá.
+ *
+ * Student mua → tutoring_pack_purchase, mỗi booking trừ remaining_sessions.
+ * Pack có thể paused/archived nhưng existing purchase vẫn run (snapshot).
+ */
+export const tutoringPack = pgTable('tutoring_pack', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  subjectSlug: text('subject_slug').notNull(),
+  level: text('level').notNull(),
+  /** 4 | 8 | 12 | 16 | 24 sessions. */
+  sessionCount: integer('session_count').notNull(),
+  durationMin: integer('duration_min').notNull().default(60),
+  ratePerSessionVnd: integer('rate_per_session_vnd').notNull(),
+  totalVnd: integer('total_vnd').notNull(),
+  /** Giảm so với hourly_rate × session_count gốc. */
+  discountPct: integer('discount_pct').notNull().default(0),
+  status: text('status').notNull().default('ACTIVE'),
+  description: text('description'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  tutorIdx: index('tutoring_pack_tutor_idx').on(t.tutorId, t.status),
+}));
+
+/**
+ * tutoringPackPurchase — student mua pack.
+ *
+ * Track remaining_sessions; mỗi booking link via tutoringBooking.packPurchaseId
+ * trừ -1. installment fields cho trả góp 2/3/4 kỳ.
+ */
+export const tutoringPackPurchase = pgTable('tutoring_pack_purchase', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  packId: text('pack_id').notNull().references(() => tutoringPack.id, { onDelete: 'restrict' }),
+  studentId: text('student_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** Snapshot tổng giá tại lúc mua (pack có thể update sau). */
+  totalVnd: integer('total_vnd').notNull(),
+  remainingSessions: integer('remaining_sessions').notNull(),
+  /** 2/3/4 kỳ hoặc null = trả full. */
+  installmentTotalPeriods: integer('installment_total_periods'),
+  installmentPaidPeriods: integer('installment_paid_periods').notNull().default(0),
+  /** Cron-like "WEEKLY:TUE:19:00" — Inngest cron rollout booking từ pack. */
+  recurringSchedule: text('recurring_schedule'),
+  status: text('status').notNull().default('ACTIVE'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  studentIdx: index('tutoring_pack_purchase_student_idx').on(t.studentId, t.status),
+}));
+
+/**
+ * promoCode — admin tạo mã giảm giá.
+ *
+ * 3 type:
+ *   - PERCENTAGE   : value = 0-100 (% giảm)
+ *   - FIXED_VND    : value = số VND giảm trực tiếp
+ *   - WALLET_CREDIT: value = VND tặng vào promoBalanceVnd
+ */
+export const promoCode = pgTable('promo_code', {
+  code: text('code').primaryKey(),
+  type: text('type').notNull(),
+  value: integer('value').notNull(),
+  maxUses: integer('max_uses'),
+  usesCount: integer('uses_count').notNull().default(0),
+  perUserLimit: integer('per_user_limit').notNull().default(1),
+  minPurchaseVnd: integer('min_purchase_vnd'),
+  validFrom: timestamp('valid_from'),
+  validUntil: timestamp('valid_until'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+export const promoCodeRedemption = pgTable('promo_code_redemption', {
+  promoCode: text('promo_code').notNull().references(() => promoCode.code, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  amountVnd: integer('amount_vnd').notNull().default(0),
+  redeemedAt: timestamp('redeemed_at').notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.promoCode, t.userId] }),
+}));
+
+export type UserWallet = typeof userWallet.$inferSelect;
+export type UserWalletTxn = typeof userWalletTxn.$inferSelect;
+export type TutoringPack = typeof tutoringPack.$inferSelect;
+export type TutoringPackPurchase = typeof tutoringPackPurchase.$inferSelect;
+export type PromoCode = typeof promoCode.$inferSelect;
+
+// ══════════════════════════════════════════════════════════
+// V4 T4 — Group Classes + Blocked Time + iCal (migration 0043)
+// ══════════════════════════════════════════════════════════
+
+/**
+ * tutoringClass — lớp nhóm 1 tutor → 2-30 student.
+ *
+ * Schedule recurring (ONE_OFF / WEEKLY / BIWEEKLY) — schedule_slots lưu list
+ * "DAY:HH:MM". Auto-create study group khi class start (Inngest cron).
+ */
+export const tutoringClass = pgTable('tutoring_class', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  subjectSlug: text('subject_slug').notNull(),
+  level: text('level').notNull(),
+  maxStudents: integer('max_students').notNull(),
+  enrolledCount: integer('enrolled_count').notNull().default(0),
+  ratePerStudentVnd: integer('rate_per_student_vnd').notNull(),
+  durationMin: integer('duration_min').notNull().default(90),
+  totalSessions: integer('total_sessions').notNull().default(1),
+  /** ONE_OFF | WEEKLY | BIWEEKLY */
+  scheduleType: text('schedule_type').notNull(),
+  /** Format: ["MON:19:00", "WED:19:00"] */
+  scheduleSlots: jsonb('schedule_slots').$type<string[]>().notNull(),
+  startDate: date('start_date').notNull(),
+  studyGroupId: text('study_group_id').references(() => studyGroup.id, { onDelete: 'set null' }),
+  /** OPEN | FULL | IN_PROGRESS | COMPLETED | CANCELLED */
+  status: text('status').notNull().default('OPEN'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('tutoring_class_status_idx').on(t.status, t.startDate),
+  tutorIdx: index('tutoring_class_tutor_idx').on(t.tutorId, t.status),
+}));
+
+/**
+ * tutoringClassEnrollment — student join class.
+ *
+ * Payment_id link to tutoringPayment row. Waitlist nếu class full → push lên
+ * khi có dropout.
+ */
+export const tutoringClassEnrollment = pgTable('tutoring_class_enrollment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  classId: text('class_id').notNull().references(() => tutoringClass.id, { onDelete: 'cascade' }),
+  studentId: text('student_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  /** ENROLLED | WAITLISTED | COMPLETED | DROPPED | REFUNDED */
+  status: text('status').notNull().default('ENROLLED'),
+  paymentId: text('payment_id'),
+  enrolledAt: timestamp('enrolled_at').notNull().defaultNow(),
+}, (t) => ({
+  classIdx: index('tutoring_class_enrollment_class_idx').on(t.classId, t.status),
+  studentIdx: index('tutoring_class_enrollment_student_idx').on(t.studentId, t.status),
+  unique: uniqueIndex('tutoring_class_enrollment_uniq').on(t.classId, t.studentId),
+}));
+
+/**
+ * tutorBlockedTime — tutor block vacation / busy, không cho book trong khoảng.
+ *
+ * Booking validation phải check không overlap với blocked time.
+ */
+export const tutorBlockedTime = pgTable('tutor_blocked_time', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  startAt: timestamp('start_at').notNull(),
+  endAt: timestamp('end_at').notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  tutorIdx: index('tutor_blocked_time_tutor_idx').on(t.tutorId, t.startAt),
+}));
+
+export type TutoringClass = typeof tutoringClass.$inferSelect;
+export type TutoringClassEnrollment = typeof tutoringClassEnrollment.$inferSelect;
+export type TutorBlockedTime = typeof tutorBlockedTime.$inferSelect;
+
+// ══════════════════════════════════════════════════════════
+// V4 T5 — Trust & Discovery (migration 0044)
+// ══════════════════════════════════════════════════════════
+
+/**
+ * tutorReviewHelpful — user click "Hữu ích" review → increment helpful_count.
+ * 1 user / review.
+ */
+export const tutorReviewHelpful = pgTable('tutor_review_helpful', {
+  reviewId: text('review_id').notNull().references(() => tutorReview.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.reviewId, t.userId] }),
+}));
+
+/**
+ * tutorFavorite — user ♥ tutor (heart icon trên TutorCard).
+ */
+export const tutorFavorite = pgTable('tutor_favorite', {
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.tutorId] }),
+  userIdx: index('tutor_favorite_user_idx').on(t.userId, t.createdAt),
+}));
+
+/**
+ * tutorSavedSearch — user lưu filter, alert push khi có tutor mới match.
+ * Cron daily check tutor mới publish + send notification.
+ */
+export const tutorSavedSearch = pgTable('tutor_saved_search', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  filters: jsonb('filters').$type<{
+    subjectSlug?: string;
+    level?: string;
+    budgetMaxVnd?: number;
+    modality?: string;
+    keywords?: string[];
+  }>().notNull(),
+  alertEnabled: boolean('alert_enabled').notNull().default(false),
+  lastNotifiedAt: timestamp('last_notified_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('tutor_saved_search_user_idx').on(t.userId),
+}));
+
+export type TutorReviewHelpful = typeof tutorReviewHelpful.$inferSelect;
+export type TutorFavorite = typeof tutorFavorite.$inferSelect;
+export type TutorSavedSearch = typeof tutorSavedSearch.$inferSelect;
+
+// ══════════════════════════════════════════════════════════
+// Admin Console (Phase 0) — xem docs/plans/admin.md
+// ══════════════════════════════════════════════════════════
+
+/**
+ * Log mọi mutation từ admin endpoint — ai/làm gì/khi nào/payload diff.
+ * Helper `withAudit()` ở apps/web sẽ auto-insert mỗi mutation.
+ *
+ * payload format: `{ before?, after?, reason?, metadata? }` — DiffViewer
+ * UI render before/after JSON side-by-side.
+ */
+export const adminAuditLog = pgTable(
+  'admin_audit_log',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    /** Action key — vd 'user.suspend', 'doc.delete', 'circuit.reset'. */
+    action: text('action').notNull(),
+    /** Loại entity bị tác động — 'user', 'document', 'group', 'circuit', ... */
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    ip: text('ip'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    adminIdx: index('idx_audit_admin').on(t.adminId, t.createdAt),
+    targetIdx: index('idx_audit_target').on(t.targetType, t.targetId),
+    actionIdx: index('idx_audit_action').on(t.action, t.createdAt),
+  }),
+);
+
+/**
+ * User report content khác (message, user, review, document, group).
+ * Admin xử lý qua queue ở /admin/moderation/reports.
+ */
+export const contentReport = pgTable(
+  'content_report',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    reporterId: text('reporter_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    reason: text('reason').notNull(),
+    status: text('status').notNull().default('PENDING'),
+    resolvedBy: text('resolved_by').references(() => user.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    /** 'dismiss' | 'takedown' | 'warn' | 'ban' — null khi PENDING. */
+    resolution: text('resolution'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    targetIdx: index('idx_report_target').on(t.targetType, t.targetId),
+  }),
+);
+
+/**
+ * Singleton key-value config — maintenance mode, banner, feature flags.
+ * Đọc qua `getSystemConfig(key)` server-only, cache 5s in-memory để giảm DB hit.
+ *
+ * Key cố định:
+ *   'maintenance' → { enabled: bool, banner: string|null, dismissible: bool }
+ *   'flags.<name>' → arbitrary JSON cho feature flag
+ */
+export const systemConfig = pgTable('system_config', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * AI usage log (Phase 3 admin) — 1 row mỗi LLM call cho cost dashboard.
+ *
+ * Caller: `recordCost()` ở [observability/cost-guardrail.ts] — insert sau khi
+ * LLM call xong. Có thể NULL userId nếu là system call (cron, ingest job).
+ *
+ * Tránh insert quá nhiều row vô nghĩa: cached call (semantic-cache hit) vẫn
+ * insert với `cached=true` + `costUsd=0` → phân tích cache hit ratio.
+ */
+export const aiUsageLog = pgTable(
+  'ai_usage_log',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    plan: text('plan'),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    feature: text('feature'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    costUsd: real('cost_usd').notNull().default(0),
+    latencyMs: integer('latency_ms'),
+    cached: boolean('cached').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    providerTimeIdx: index('idx_ai_usage_provider_time').on(t.provider, t.createdAt),
+    userTimeIdx: index('idx_ai_usage_user_time').on(t.userId, t.createdAt),
+    timeIdx: index('idx_ai_usage_time').on(t.createdAt),
+  }),
+);
 
 // ──────────────────────────────────────────────────────────
 // Kiểu dòng đã suy luận — dùng trong app code để type response
@@ -1650,3 +3593,627 @@ export type ExamResponse = typeof examResponse.$inferSelect;
 export type NewExamResponse = typeof examResponse.$inferInsert;
 export type ExamViolation = typeof examViolation.$inferSelect;
 export type NewExamViolation = typeof examViolation.$inferInsert;
+
+// Phase 20 V2 — DM
+export type DmThread = typeof dmThread.$inferSelect;
+export type NewDmThread = typeof dmThread.$inferInsert;
+export type DmMessage = typeof dmMessage.$inferSelect;
+export type NewDmMessage = typeof dmMessage.$inferInsert;
+
+// Phase 20 — Study Group Channels
+export type StudyGroup = typeof studyGroup.$inferSelect;
+export type NewStudyGroup = typeof studyGroup.$inferInsert;
+export type StudyGroupMember = typeof studyGroupMember.$inferSelect;
+export type NewStudyGroupMember = typeof studyGroupMember.$inferInsert;
+export type StudyGroupChannel = typeof studyGroupChannel.$inferSelect;
+export type NewStudyGroupChannel = typeof studyGroupChannel.$inferInsert;
+export type StudyGroupMessage = typeof studyGroupMessage.$inferSelect;
+export type NewStudyGroupMessage = typeof studyGroupMessage.$inferInsert;
+export type StudyGroupInvite = typeof studyGroupInvite.$inferSelect;
+export type NewStudyGroupInvite = typeof studyGroupInvite.$inferInsert;
+export type StudyGroupReadState = typeof studyGroupReadState.$inferSelect;
+export type StudyGroupVoiceState = typeof studyGroupVoiceState.$inferSelect;
+
+// Phase 21 V1 — Tutoring Marketplace
+export type TutorProfile = typeof tutorProfile.$inferSelect;
+export type NewTutorProfile = typeof tutorProfile.$inferInsert;
+export type TutorSubject = typeof tutorSubject.$inferSelect;
+export type NewTutorSubject = typeof tutorSubject.$inferInsert;
+export type TutorAvailability = typeof tutorAvailability.$inferSelect;
+export type NewTutorAvailability = typeof tutorAvailability.$inferInsert;
+export type TutorRequest = typeof tutorRequest.$inferSelect;
+export type NewTutorRequest = typeof tutorRequest.$inferInsert;
+export type TutorApplication = typeof tutorApplication.$inferSelect;
+export type NewTutorApplication = typeof tutorApplication.$inferInsert;
+
+// Phase 21 V2 — Booking + Review
+export type TutoringBooking = typeof tutoringBooking.$inferSelect;
+export type NewTutoringBooking = typeof tutoringBooking.$inferInsert;
+export type TutorReview = typeof tutorReview.$inferSelect;
+export type NewTutorReview = typeof tutorReview.$inferInsert;
+
+// Phase 21 V3 — KYC + Verify Quiz + Payment
+export type TutorKycDocument = typeof tutorKycDocument.$inferSelect;
+export type NewTutorKycDocument = typeof tutorKycDocument.$inferInsert;
+export type TutorSubjectVerifyQuiz = typeof tutorSubjectVerifyQuiz.$inferSelect;
+export type NewTutorSubjectVerifyQuiz = typeof tutorSubjectVerifyQuiz.$inferInsert;
+export type TutoringPayment = typeof tutoringPayment.$inferSelect;
+export type NewTutoringPayment = typeof tutoringPayment.$inferInsert;
+export type TutorPayout = typeof tutorPayout.$inferSelect;
+export type NewTutorPayout = typeof tutorPayout.$inferInsert;
+
+// Admin Console (Phase 0)
+export type AdminRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT';
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
+export type NewAdminAuditLog = typeof adminAuditLog.$inferInsert;
+export type ContentReport = typeof contentReport.$inferSelect;
+export type NewContentReport = typeof contentReport.$inferInsert;
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type NewSystemConfig = typeof systemConfig.$inferInsert;
+
+// ============================================================================
+// LIBRARY — Phase 1 (2026-05-22)
+// Spec: docs/plans/library-share.md
+// Migration: 0046_library_doc.sql
+// ============================================================================
+
+/**
+ * library_doc — master record cho mỗi tài liệu publish lên kho công khai.
+ *
+ * Status flow: PROCESSING (đang ingest) → PUBLISHED → HIDDEN/REPORTED/REVIEWING.
+ *
+ * Khác workspace document ở chỗ: public + có metadata phong phú + outcome
+ * tracking + atom extraction (Phase 2). Có thể clone vào workspace bằng
+ * library_doc_import.
+ */
+export const libraryDoc = pgTable(
+  'library_doc',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    uploaderId: text('uploader_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+
+    // Content metadata
+    title: text('title').notNull(),
+    description: text('description'),
+    subjectSlug: text('subject_slug').notNull(),
+    level: text('level').notNull(),
+    /** 1-12 (null cho non-K-12 như ADULT/UNIVERSITY). */
+    grade: integer('grade'),
+    /** lecture_notes/summary/exam/exercise/solution/reference_book/thesis/handout/mind_map/other. */
+    docType: text('doc_type').notNull().default('other'),
+    /** midterm/final/graduation/university_entrance/gifted_student (chỉ khi docType=exam). */
+    examType: text('exam_type'),
+    /** '2023-2024' format. */
+    schoolYear: text('school_year'),
+    /** national/hanoi/hcm/danang/... */
+    region: text('region').default('national'),
+    language: text('language').default('vi'),
+    /** Topics/sub-tags array, vd ['đạo hàm', 'tích phân']. */
+    tags: text('tags').array().default(sql`'{}'::text[]`),
+    /** easy/medium/hard — Phase 2 AI detect. */
+    difficulty: text('difficulty'),
+    /** Atom slugs cần biết trước khi học doc này (Phase 2). */
+    prerequisiteAtomSlugs: text('prerequisite_atom_slugs')
+      .array()
+      .default(sql`'{}'::text[]`),
+
+    // File metadata
+    /** pdf | docx | image. */
+    fileFormat: text('file_format').notNull(),
+    fileSizeBytes: integer('file_size_bytes').notNull(),
+    fileUrl: text('file_url').notNull(),
+    /** SHA-256 dedup. */
+    fileHash: text('file_hash').notNull(),
+    pageCount: integer('page_count'),
+
+    // Generated content
+    previewThumbUrl: text('preview_thumb_url'),
+    aiSummary: text('ai_summary'),
+    aiSummaryAt: timestamp('ai_summary_at'),
+    previewText: text('preview_text'),
+
+    // Search index (search_vec generated stored column)
+    titleEmbedding: vector('title_embedding', 1024),
+
+    // License + status
+    license: text('license').default('CC-BY-4.0'),
+    status: text('status').notNull().default('PROCESSING'),
+    hiddenAt: timestamp('hidden_at'),
+    hiddenReason: text('hidden_reason'),
+
+    // Stats
+    viewCount: integer('view_count').notNull().default(0),
+    downloadCount: integer('download_count').notNull().default(0),
+    workspaceImportCount: integer('workspace_import_count').notNull().default(0),
+    ratingAvg: numeric('rating_avg', { precision: 3, scale: 2 }),
+    ratingCount: integer('rating_count').notNull().default(0),
+
+    // Quality Score (Phase 2 weighted blend)
+    qualityScore: numeric('quality_score', { precision: 5, scale: 2 }),
+    qualityBreakdown: jsonb('quality_breakdown'),
+    badges: text('badges').array().default(sql`'{}'::text[]`),
+
+    /** Phase 3 Bonus #12: nếu doc là remix → source doc ids + count. */
+    parentRemixDocIds: text('parent_remix_doc_ids').array().default(sql`'{}'::text[]`),
+    remixCount: integer('remix_count').notNull().default(0),
+
+    // Pricing (Phase 4)
+    isPremium: boolean('is_premium').notNull().default(false),
+    priceVnd: integer('price_vnd'),
+    creatorSharePct: integer('creator_share_pct').notNull().default(80),
+
+    // University → Course model (migration 0053). subject_slug giữ legacy.
+    courseId: text('course_id').references((): AnyPgColumn => libraryCourse.id, {
+      onDelete: 'set null',
+    }),
+    universityId: text('university_id').references((): AnyPgColumn => libraryUniversity.id, {
+      onDelete: 'set null',
+    }),
+    /** Denormalize tên course (+code) để index vào search_vec. */
+    courseNameCache: text('course_name_cache'),
+    /** Denormalize tên + viết tắt trường để search "hust" ra doc của trường. */
+    universityNameCache: text('university_name_cache'),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    subjectGradeIdx: index('library_doc_subject_grade_idx').on(
+      t.subjectSlug,
+      t.grade,
+      t.status,
+    ),
+    subjectLevelIdx: index('library_doc_subject_level_idx').on(
+      t.subjectSlug,
+      t.level,
+      t.status,
+    ),
+    typeIdx: index('library_doc_type_idx').on(t.docType, t.status),
+    uploaderIdx: index('library_doc_uploader_idx').on(t.uploaderId),
+    courseIdx: index('library_doc_course_idx').on(t.courseId, t.status),
+    universityIdx: index('library_doc_university_idx').on(t.universityId, t.status),
+  }),
+);
+
+/**
+ * library_university — trường đại học/tổ chức giáo dục (migration 0053).
+ * UGC: user tạo khi upload, autocomplete dedup, admin merge sau.
+ */
+export const libraryUniversity = pgTable('library_university', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  shortName: text('short_name'),
+  country: text('country').notNull().default('VN'),
+  logoUrl: text('logo_url'),
+  docCount: integer('doc_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+/**
+ * library_course — môn học/khoá học (migration 0053). Đơn vị phân loại chính
+ * thay subject taxonomy. Optional university (course general OK).
+ */
+export const libraryCourse = pgTable(
+  'library_course',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    universityId: text('university_id').references(() => libraryUniversity.id, {
+      onDelete: 'set null',
+    }),
+    code: text('code'),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    /** Broad area (legacy subject slug) để group/filter. Optional. */
+    subjectArea: text('subject_area'),
+    docCount: integer('doc_count').notNull().default(0),
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    universityIdx: index('library_course_university_idx').on(t.universityId, t.docCount),
+    subjectIdx: index('library_course_subject_idx').on(t.subjectArea),
+  }),
+);
+
+/**
+ * library_doc_chunk — page-level chunks cho cross-doc semantic search (Pillar #2).
+ *
+ * Mỗi page → split paragraph thành chunks, embed riêng. Search vector across
+ * tất cả chunks → trả về (doc, page, đoạn highlighted).
+ */
+export const libraryDocChunk = pgTable(
+  'library_doc_chunk',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    pageNum: integer('page_num').notNull(),
+    chunkIndex: integer('chunk_index').notNull(),
+    content: text('content').notNull(),
+    contentVec: vector('content_vec', 1024),
+  },
+  (t) => ({
+    docIdx: index('library_doc_chunk_doc_idx').on(t.docId, t.pageNum),
+  }),
+);
+
+/**
+ * library_doc_atom — atoms extracted từ doc (Phase 2).
+ *
+ * 1 atom = 1 concept đơn (vd "đạo hàm hàm hợp"). Track page_nums chứa atom
+ * để Smart Reading mode (Pillar #3) hide pages user đã master.
+ */
+export const libraryDocAtom = pgTable(
+  'library_doc_atom',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    atomText: text('atom_text').notNull(),
+    /** Slugify cho dedup cross-doc (cùng atom xuất hiện nhiều doc). */
+    atomSlug: text('atom_slug').notNull(),
+    /** Pages chứa atom này. */
+    pageNums: integer('page_nums').array().notNull(),
+    difficulty: text('difficulty'),
+    embedding: vector('embedding', 1024),
+  },
+  (t) => ({
+    slugIdx: index('library_doc_atom_slug_idx').on(t.atomSlug),
+    docIdx: index('library_doc_atom_doc_idx').on(t.docId),
+  }),
+);
+
+/** library_doc_review — rating + comment. 1 user 1 review / doc. */
+export const libraryDocReview = pgTable(
+  'library_doc_review',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    reviewerId: text('reviewer_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    rating: integer('rating').notNull(),
+    comment: text('comment'),
+    helpfulCount: integer('helpful_count').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('library_doc_review_uniq').on(t.docId, t.reviewerId),
+    docIdx: index('library_doc_review_doc_idx').on(t.docId, t.createdAt),
+  }),
+);
+
+/**
+ * library_doc_import — track việc user clone doc vào workspace.
+ *
+ * Khi import: copy file URL → workspace document table, INSERT row này
+ * để metric workspace_import_count + outcome tracking sau (Phase 2).
+ */
+export const libraryDocImport = pgTable(
+  'library_doc_import',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id),
+    importerId: text('importer_id')
+      .notNull()
+      .references(() => user.id),
+    workspaceId: text('workspace_id').references(() => workspace.id, {
+      onDelete: 'set null',
+    }),
+    documentId: text('document_id').references(() => document.id, {
+      onDelete: 'set null',
+    }),
+    importedAt: timestamp('imported_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    docIdx: index('library_doc_import_doc_idx').on(t.docId, t.importedAt),
+    userIdx: index('library_doc_import_user_idx').on(
+      t.importerId,
+      t.importedAt,
+    ),
+  }),
+);
+
+/**
+ * library_doc_outcome — outcome signals cho Quality Score (Phase 2).
+ *
+ * Track metric thực: score_delta sau dùng doc, quiz_pass_rate, time_spent,
+ * atom_mastered_count → tổng hợp thành quality_score.
+ */
+export const libraryDocOutcome = pgTable(
+  'library_doc_outcome',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    /** score_delta/time_spent/quiz_pass_rate/atom_mastered_count. */
+    metric: text('metric').notNull(),
+    value: numeric('value').notNull(),
+    context: jsonb('context'),
+    recordedAt: timestamp('recorded_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    docMetricIdx: index('library_doc_outcome_doc_idx').on(t.docId, t.metric),
+    userIdx: index('library_doc_outcome_user_idx').on(t.userId),
+  }),
+);
+
+/** library_doc_report — abuse/copyright report queue. */
+export const libraryDocReport = pgTable(
+  'library_doc_report',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id),
+    reporterId: text('reporter_id')
+      .notNull()
+      .references(() => user.id),
+    /** spam/copyright/misinfo/inappropriate. */
+    reason: text('reason').notNull(),
+    detail: text('detail'),
+    /** PENDING/ACTIONED/DISMISSED. */
+    status: text('status').notNull().default('PENDING'),
+    adminId: text('admin_id').references(() => user.id),
+    actionedAt: timestamp('actioned_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    statusIdx: index('library_doc_report_status_idx').on(t.status, t.createdAt),
+  }),
+);
+
+/**
+ * Phase 3 Bonus #8 — library_doc_annotation: page-level note 1 user gắn
+ * cho 1 doc tại 1 page. Visibility public/private. helpful_count crowd
+ * signal — top 5 "most helpful" sẽ hiện overlay PDF Phase 4.
+ */
+export const libraryDocAnnotation = pgTable(
+  'library_doc_annotation',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    pageNum: integer('page_num').notNull(),
+    /** Note markdown text max 2000 char. */
+    note: text('note').notNull(),
+    /** Phase 4: optional — đoạn text user select khi tạo note. */
+    selectedText: text('selected_text'),
+    /** Phase 4: optional pixel coords {pageW, pageH, x, y, w, h} normalized
+     *  0..1 relative PDF page. Dùng cho overlay highlight rendering. */
+    selectionRect: jsonb('selection_rect').$type<{
+      pageW: number;
+      pageH: number;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }>(),
+    /** 'public' | 'private'. */
+    visibility: text('visibility').notNull().default('public'),
+    helpfulCount: integer('helpful_count').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    docIdx: index('library_doc_annotation_doc_idx').on(t.docId, t.pageNum),
+    authorIdx: index('library_doc_annotation_author_idx').on(t.authorId, t.createdAt),
+    helpfulIdx: index('library_doc_annotation_helpful_idx').on(t.docId, t.helpfulCount),
+  }),
+);
+
+/**
+ * Phase 4 — saved search bookmarks. User save query params + optional
+ * push notify khi có doc mới match.
+ */
+export const librarySavedSearch = pgTable(
+  'library_saved_search',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    queryParams: jsonb('query_params').$type<Record<string, string | number | string[]>>().notNull(),
+    notifyOnNew: boolean('notify_on_new').notNull().default(false),
+    lastRunAt: timestamp('last_run_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('library_saved_search_user_idx').on(t.userId, t.createdAt),
+  }),
+);
+
+/**
+ * Phase 4 — Per-user view history. Upsert pattern: 1 row/(user × doc),
+ * update viewed_at khi user vào lại detail page.
+ */
+export const libraryDocView = pgTable(
+  'library_doc_view',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    viewedAt: timestamp('viewed_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('library_doc_view_uniq').on(t.userId, t.docId),
+    recentIdx: index('library_doc_view_user_recent_idx').on(t.userId, t.viewedAt),
+  }),
+);
+
+/**
+ * Phase 4 Step 5 — Premium doc purchase ledger (migration 0052).
+ *
+ * Buyer trả VND để unlock isPremium=true doc. Unique (doc_id, buyer_id) chống
+ * double-charge. Lưu snapshot creator_share + platform_share tại lúc mua —
+ * admin update creator_share_pct sau không ảnh hưởng giao dịch cũ.
+ */
+export const libraryDocPurchase = pgTable(
+  'library_doc_purchase',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    buyerId: text('buyer_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Snapshot giá tại lúc mua (VND). */
+    priceVnd: integer('price_vnd').notNull(),
+    /** Phần creator nhận (theo creator_share_pct snapshot). */
+    creatorShareVnd: integer('creator_share_vnd').notNull(),
+    /** Phần platform giữ. */
+    platformShareVnd: integer('platform_share_vnd').notNull(),
+    /** FK lỏng tới user_wallet_txn.id của giao dịch CHARGE buyer (audit). */
+    walletTxnId: text('wallet_txn_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('library_doc_purchase_unique').on(t.docId, t.buyerId),
+    buyerIdx: index('library_doc_purchase_buyer_idx').on(t.buyerId, t.createdAt),
+    docIdx: index('library_doc_purchase_doc_idx').on(t.docId, t.createdAt),
+  }),
+);
+
+/**
+ * Phase 3 Bonus #12 — Creator karma points per user.
+ * Increment khi: doc imported (+1) / doc remixed (+5) / endorsed (+10) /
+ *               quality ≥ 80 (+20).
+ */
+export const libraryCreatorKarma = pgTable(
+  'library_creator_karma',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    points: integer('points').notNull().default(0),
+    /** Top 10 contributor cập nhật rank weekly. */
+    rank: integer('rank'),
+    lastEventAt: timestamp('last_event_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    pointsIdx: index('library_creator_karma_points_idx').on(t.points),
+  }),
+);
+
+export const libraryKarmaEvent = pgTable(
+  'library_karma_event',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** 'doc_imported' | 'doc_remixed' | 'endorsed' | 'high_quality'. */
+    eventType: text('event_type').notNull(),
+    points: integer('points').notNull(),
+    docId: text('doc_id').references(() => libraryDoc.id, { onDelete: 'set null' }),
+    context: jsonb('context'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('library_karma_event_user_idx').on(t.userId, t.createdAt),
+    typeIdx: index('library_karma_event_type_idx').on(t.eventType, t.createdAt),
+  }),
+);
+
+export const libraryDocAnnotationVote = pgTable(
+  'library_doc_annotation_vote',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    annotationId: text('annotation_id')
+      .notNull()
+      .references(() => libraryDocAnnotation.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('library_doc_annotation_vote_uniq').on(t.annotationId, t.userId),
+    userIdx: index('library_doc_annotation_vote_user_idx').on(t.userId),
+  }),
+);
+
+/**
+ * Phase 3 Bonus — library_doc_endorsement: verified tutor endorse 1 library doc
+ * → cộng signal vào educator_approved badge (quality score formula).
+ */
+export const libraryDocEndorsement = pgTable(
+  'library_doc_endorsement',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    docId: text('doc_id')
+      .notNull()
+      .references(() => libraryDoc.id, { onDelete: 'cascade' }),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** Optional note tutor giải thích vì sao endorse. */
+    note: text('note'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('library_doc_endorsement_uniq').on(t.docId, t.tutorId),
+    docIdx: index('library_doc_endorsement_doc_idx').on(t.docId, t.createdAt),
+    tutorIdx: index('library_doc_endorsement_tutor_idx').on(t.tutorId, t.createdAt),
+  }),
+);
+
+// Type exports
+export type LibraryDoc = typeof libraryDoc.$inferSelect;
+export type NewLibraryDoc = typeof libraryDoc.$inferInsert;
+export type LibraryDocChunk = typeof libraryDocChunk.$inferSelect;
+export type NewLibraryDocChunk = typeof libraryDocChunk.$inferInsert;
+export type LibraryDocAtom = typeof libraryDocAtom.$inferSelect;
+export type NewLibraryDocAtom = typeof libraryDocAtom.$inferInsert;
+export type LibraryDocReview = typeof libraryDocReview.$inferSelect;
+export type NewLibraryDocReview = typeof libraryDocReview.$inferInsert;
+export type LibraryDocImport = typeof libraryDocImport.$inferSelect;
+export type NewLibraryDocImport = typeof libraryDocImport.$inferInsert;
+export type LibraryDocOutcome = typeof libraryDocOutcome.$inferSelect;
+export type NewLibraryDocOutcome = typeof libraryDocOutcome.$inferInsert;
+export type LibraryDocReport = typeof libraryDocReport.$inferSelect;
+export type NewLibraryDocReport = typeof libraryDocReport.$inferInsert;
+export type LibraryDocEndorsement = typeof libraryDocEndorsement.$inferSelect;
+export type NewLibraryDocEndorsement = typeof libraryDocEndorsement.$inferInsert;
+export type LibraryDocAnnotation = typeof libraryDocAnnotation.$inferSelect;
+export type NewLibraryDocAnnotation = typeof libraryDocAnnotation.$inferInsert;
+export type LibraryDocAnnotationVote = typeof libraryDocAnnotationVote.$inferSelect;
+export type NewLibraryDocAnnotationVote = typeof libraryDocAnnotationVote.$inferInsert;
+export type LibraryCreatorKarma = typeof libraryCreatorKarma.$inferSelect;
+export type NewLibraryCreatorKarma = typeof libraryCreatorKarma.$inferInsert;
+export type LibraryKarmaEvent = typeof libraryKarmaEvent.$inferSelect;
+export type NewLibraryKarmaEvent = typeof libraryKarmaEvent.$inferInsert;
+export type LibrarySavedSearch = typeof librarySavedSearch.$inferSelect;
+export type NewLibrarySavedSearch = typeof librarySavedSearch.$inferInsert;
+export type LibraryDocView = typeof libraryDocView.$inferSelect;
+export type NewLibraryDocView = typeof libraryDocView.$inferInsert;
+export type LibraryDocPurchase = typeof libraryDocPurchase.$inferSelect;
+export type NewLibraryDocPurchase = typeof libraryDocPurchase.$inferInsert;
+export type LibraryUniversity = typeof libraryUniversity.$inferSelect;
+export type NewLibraryUniversity = typeof libraryUniversity.$inferInsert;
+export type LibraryCourse = typeof libraryCourse.$inferSelect;
+export type NewLibraryCourse = typeof libraryCourse.$inferInsert;

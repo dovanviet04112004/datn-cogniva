@@ -588,13 +588,17 @@ function executeStream(args: {
         usage.completionTokens,
       );
 
-      // Record actual cost — không block stream
+      // Record actual cost — không block stream. Phase 3 thêm provider + token
+      // details để ai_usage_log có data đầy đủ cho admin dashboard.
       await recordCost({
         userId: opts.userId,
         plan: opts.plan,
         costUsd,
         model: providerModel.model,
         feature: opts.feature ?? opts.useCase,
+        provider: providerModel.provider,
+        tokensIn: usage.promptTokens,
+        tokensOut: usage.completionTokens,
       });
 
       // Save vào semantic cache nếu enabled (best-effort, không await dài)
@@ -759,6 +763,9 @@ export async function routedGenerateText(
           costUsd,
           model: pm.model,
           feature: opts.feature ?? opts.useCase,
+          provider: pm.provider,
+          tokensIn: result.usage.promptTokens,
+          tokensOut: result.usage.completionTokens,
         });
         logger.info('ai-router.completed', {
           use_case: opts.useCase,

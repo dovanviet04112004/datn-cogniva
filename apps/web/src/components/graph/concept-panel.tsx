@@ -11,10 +11,13 @@
  */
 'use client';
 
-import * as React from 'react';
 import Link from 'next/link';
 import { ExternalLink, Loader2, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
+import type { ConceptDetailDTO } from '@cogniva/shared/types';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -22,42 +25,14 @@ type Props = {
   onClose: () => void;
 };
 
-type ConceptDetail = {
-  concept: {
-    id: string;
-    name: string;
-    description: string | null;
-    domain: string;
-  };
-  chunks: {
-    id: string;
-    snippet: string;
-    documentId: string;
-    filename: string;
-    page: number | null;
-    strength: number;
-  }[];
-};
-
 export function ConceptPanel({ conceptId, onClose }: Props) {
-  const [data, setData] = React.useState<ConceptDetail | null>(null);
-  const [loading, setLoading] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!conceptId) {
-      setData(null);
-      return;
-    }
-    setLoading(true);
-    fetch(`/api/graph/concept/${conceptId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`status ${r.status}`))))
-      .then((json: ConceptDetail) => setData(json))
-      .catch((err) => {
-        console.error('[concept-panel] fetch failed:', err);
-        setData(null);
-      })
-      .finally(() => setLoading(false));
-  }, [conceptId]);
+  // React Query: chỉ fetch khi có conceptId; cache theo concept → click lại node
+  // đã xem hiện ngay.
+  const { data, isLoading: loading } = useQuery({
+    queryKey: qk.graphConcept(conceptId ?? ''),
+    queryFn: () => apiGet<ConceptDetailDTO>(`/api/graph/concept/${conceptId}`),
+    enabled: !!conceptId,
+  });
 
   return (
     <aside

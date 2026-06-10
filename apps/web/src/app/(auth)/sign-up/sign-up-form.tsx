@@ -25,6 +25,8 @@ import { z } from 'zod';
 
 import { signUp } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
+// ComboSelect — dropdown gõ-để-lọc thay 3 <select> native Day/Month/Year.
+import { ComboSelect } from '@/components/ui/combo-select';
 import {
   Form,
   FormControl,
@@ -171,63 +173,34 @@ function DobSelect({
     }
   };
 
-  const baseClass =
-    'h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ' +
-    'ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ' +
-    'disabled:cursor-not-allowed disabled:opacity-50 appearance-none';
-
+  // 3 ComboSelect Day/Month/Year — value vẫn là string (pad2), <option value=""
+  // disabled> placeholder chuyển sang prop `placeholder`. Giữ NGUYÊN emit() để
+  // merge/clamp ngày theo tháng+năm như cũ.
   return (
     <div className="grid grid-cols-3 gap-2">
-      <select
-        aria-label="Ngày"
-        className={baseClass}
+      <ComboSelect
         value={parts.day}
-        onChange={(e) => emit({ day: e.target.value })}
-      >
-        <option value="" disabled>
-          Ngày
-        </option>
-        {days.map((d) => (
-          <option key={d} value={pad2(d)}>
-            {d}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label="Tháng"
-        className={baseClass}
+        onChange={(v) => emit({ day: v })}
+        options={days.map((d) => ({ value: pad2(d), label: String(d) }))}
+        placeholder="Ngày"
+      />
+      <ComboSelect
         value={parts.month}
-        onChange={(e) => emit({ month: e.target.value })}
-      >
-        <option value="" disabled>
-          Tháng
-        </option>
-        {VN_MONTHS.map((label, i) => (
-          <option key={i} value={pad2(i + 1)}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label="Năm"
-        className={baseClass}
+        onChange={(v) => emit({ month: v })}
+        options={VN_MONTHS.map((label, i) => ({ value: pad2(i + 1), label }))}
+        placeholder="Tháng"
+      />
+      <ComboSelect
         value={parts.year}
-        onChange={(e) => emit({ year: e.target.value })}
-      >
-        <option value="" disabled>
-          Năm
-        </option>
-        {years.map((y) => (
-          <option key={y} value={String(y)}>
-            {y}
-          </option>
-        ))}
-      </select>
+        onChange={(v) => emit({ year: v })}
+        options={years.map((y) => ({ value: String(y), label: String(y) }))}
+        placeholder="Năm"
+      />
     </div>
   );
 }
 
-export function SignUpForm() {
+export function SignUpForm({ redirectTo = '/dashboard' }: { redirectTo?: string } = {}) {
   const router = useRouter();
   const [isPending, setIsPending] = React.useState(false);
 
@@ -264,16 +237,14 @@ export function SignUpForm() {
       password: values.password,
       name: values.name,
       // additionalFields — Better Auth pass thẳng sang user.create hook
-      // Cast any vì Better Auth signUp type chỉ list email/password/name.
       ...({
         dateOfBirth: values.dateOfBirth,
         parentEmail: requiresConsent ? values.parentEmail : undefined,
       } as Record<string, unknown>),
-      callbackURL: '/dashboard',
     } as Parameters<typeof signUp.email>[0]);
-    setIsPending(false);
 
     if (error) {
+      setIsPending(false);
       toast.error(error.message ?? 'Could not create your account.');
       return;
     }
@@ -284,11 +255,22 @@ export function SignUpForm() {
         { duration: 8000 },
       );
       router.push('/coppa-pending');
-    } else {
-      toast.success('Account created. Welcome to Cogniva!');
-      router.push('/dashboard');
+      router.refresh();
+      return;
     }
-    router.refresh();
+
+    toast.success('Account created. Welcome to Cogniva!');
+
+    // Đọc redirect param fresh từ URL (phòng prop stale) — safe-check path
+    const url = new URL(window.location.href);
+    const freshRedirect = url.searchParams.get('redirect') ?? redirectTo;
+    const safeRedirect = freshRedirect.startsWith('/') && !freshRedirect.startsWith('//')
+      ? freshRedirect
+      : '/dashboard';
+
+    // Full reload đảm bảo cookie session vừa set được browser commit + RSC
+    // server component fetch lại session mới.
+    window.location.replace(safeRedirect);
   };
 
   return (
@@ -357,7 +339,8 @@ export function SignUpForm() {
                   />
                 </FormControl>
                 <FormDescription className="flex items-start gap-1.5">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  {/* Icon cảnh báo COPPA — dùng token semantic `warning` thay hex amber rời */}
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
                   <span>
                     Vì bạn dưới {COPPA_AGE_THRESHOLD} tuổi, Cogniva gửi link confirm
                     tới email này. Account sẽ limited (no AI, no upload) cho tới khi

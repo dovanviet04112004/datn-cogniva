@@ -8,9 +8,16 @@
  * Phase 0 chưa có unit test nào — config này sẵn sàng khi viết unit test
  * cho lib/ helpers (BKT, FSRS, cloze parser, etc.).
  */
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Sync với tsconfig paths — `@/x` → `src/x`
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

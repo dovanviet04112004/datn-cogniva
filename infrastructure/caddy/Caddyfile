@@ -2,9 +2,9 @@
 #
 # Auto Let's Encrypt cert renewal cho từng domain.
 # Cogniva domains:
-#   - app.cogniva.com    → Next.js (port 3000)
-#   - soketi.cogniva.com → Soketi WS (port 6001)
-#   - hocus.cogniva.com  → Hocuspocus WS (port 1234)
+#   - app.cogniva.com      → Next.js (port 3000)
+#   - realtime.cogniva.com → Socket.IO gateway (port 6002)
+#   - hocus.cogniva.com    → Hocuspocus WS (port 1234)
 #
 # KHÔNG proxy livekit.* và turn.* — WebRTC media qua Cloudflare CDN sẽ fail
 # vì Cloudflare không support arbitrary UDP. Hai service đó listen trực tiếp
@@ -34,15 +34,15 @@ app.cogniva.com {
     }
 }
 
-# ── Soketi WebSocket pub/sub ────────────────────────
-soketi.cogniva.com {
+# ── Socket.IO gateway (apps/realtime) ───────────────
+realtime.cogniva.com {
     import common_headers
-    reverse_proxy localhost:6001 {
+    reverse_proxy localhost:6002 {
         # WS upgrade headers
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
-        # Soketi cần long-lived WS — timeout dài
+        # Socket.IO cần long-lived WS — timeout dài
         flush_interval -1
         transport http {
             keepalive 5m

@@ -12,6 +12,9 @@ import { z } from 'zod';
 import { db, user, userStats } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { cached } from '@/lib/cache/cache-aside';
+import { ck } from '@/lib/cache/keys';
+import { onProfileChanged } from '@/lib/cache/invalidate';
 import { ACHIEVEMENTS } from '@/lib/gamification/achievements';
 
 export const runtime = 'nodejs';
@@ -19,32 +22,40 @@ export const runtime = 'nodejs';
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = session.user.id;
 
-  const [userRow] = await db
-    .select({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      image: user.image,
-      plan: user.plan,
-      isPublic: user.isPublic,
-      createdAt: user.createdAt,
-    })
-    .from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-  if (!userRow) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  // Cache 2 read PK (user + userStats) — StreakBadge gọi mỗi lần điều hướng nên
+  // đáng cache. TTL 120s; invalidate: onXpChanged (XP/streak) + onProfileChanged
+  // (đổi tên/visibility). Date field (createdAt/updatedAt) serialize→string nhưng
+  // chỉ đi tiếp vào NextResponse.json (không date-math) nên không vỡ.
+  const data = await cached(ck.profileMe(userId), 120, async () => {
+    const [userRow] = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        plan: user.plan,
+        isPublic: user.isPublic,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    const [stats] = await db
+      .select()
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1);
+    return { user: userRow ?? null, stats: stats ?? null };
+  });
 
-  const [stats] = await db
-    .select()
-    .from(userStats)
-    .where(eq(userStats.userId, session.user.id))
-    .limit(1);
+  if (!data.user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
   return NextResponse.json({
-    user: userRow,
-    stats: stats ?? {
-      userId: session.user.id,
+    user: data.user,
+    stats: data.stats ?? {
+      userId,
       xp: 0,
       currentStreak: 0,
       longestStreak: 0,
@@ -84,6 +95,9 @@ export async function PATCH(request: Request) {
       name: user.name,
       isPublic: user.isPublic,
     });
+
+  // Tên/visibility nằm trong cache profile → bust để GET kế tiếp thấy giá trị mới.
+  await onProfileChanged(session.user.id);
 
   return NextResponse.json({ user: updated });
 }

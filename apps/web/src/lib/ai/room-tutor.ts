@@ -18,7 +18,7 @@
  *
  * Streaming pattern:
  *   - `streamText` từ AI SDK trả `textStream` (AsyncIterable<string>).
- *   - Caller (route handler) for-await loop, push từng chunk qua Soketi.
+ *   - Caller (route handler) for-await loop, push từng chunk qua Socket.IO.
  *   - Kết thúc → caller gọi onFinish callback với full text + usage.
  */
 import { streamText, type LanguageModel } from 'ai';
@@ -100,7 +100,7 @@ export type RoomTutorStreamResult = {
 
 /**
  * Stream câu trả lời từ roomTutor — caller chịu trách nhiệm broadcast qua
- * Soketi + persist tin nhắn vào DB.
+ * Socket.IO + persist tin nhắn vào DB.
  *
  * @returns RoomTutorStreamResult — textStream + finishPromise + telemetry
  */

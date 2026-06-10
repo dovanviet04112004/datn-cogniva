@@ -10,7 +10,7 @@
  *      scheduledFor = now + 30 days.
  *   2. App show banner "Account sẽ xoá vào {date}. Click here to cancel".
  *   3. DELETE /account/delete → status=CANCELLED, hủy schedule.
- *   4. Inngest cron daily pickup PENDING với scheduled_for <= NOW →
+ *   4. BullMQ cron daily pickup PENDING với scheduled_for <= NOW →
  *      execute hard delete (cascade qua FK + R2 cleanup).
  *
  * Soft delete trong grace:

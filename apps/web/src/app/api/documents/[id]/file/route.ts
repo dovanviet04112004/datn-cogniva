@@ -53,8 +53,10 @@ export async function GET(
       headers: {
         'Content-Type': doc.mimeType,
         'Content-Length': buffer.byteLength.toString(),
-        // Cho phép cache phía browser nhưng yêu cầu re-validate (file có thể bị xoá)
-        'Cache-Control': 'private, max-age=0, must-revalidate',
+        // Nội dung PDF BẤT BIẾN (storageKey = docId, không đổi) → cho browser cache
+        // 24h + immutable → mở lại citation/doc KHÔNG tải lại (trước đây max-age=0 ép
+        // tải lại mỗi lần). private vì doc per-user.
+        'Cache-Control': 'private, max-age=86400, immutable',
         'Content-Disposition': `inline; filename="${encodeURIComponent(doc.filename)}"`,
       },
     });

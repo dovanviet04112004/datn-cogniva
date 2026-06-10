@@ -9,7 +9,7 @@
  *   401 { error }                  — chưa đăng nhập
  *
  * Phase 1 chấp nhận block client tới khi ingest xong (đơn PDF mất 5-30s).
- * Khi swap Inngest, route sẽ trả 200 ngay khi save file + enqueue job; UI
+ * Khi chuyển sang BullMQ, route sẽ trả 200 ngay khi save file + enqueue job; UI
  * polling status của document.
  *
  * Lưu ý:
@@ -21,14 +21,16 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { db, document } from '@cogniva/db';
+import { and, eq } from 'drizzle-orm';
+
+import { db, document, workspace } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onDocumentChanged } from '@/lib/cache/invalidate';
 import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
 import { checkLimit } from '@/lib/rate-limit';
 import { ingestDocument } from '@/lib/ingest/pipeline';
 import { getStorage } from '@/lib/storage';
-import { getOrCreateDefaultWorkspace } from '@/lib/workspace';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -54,6 +56,9 @@ export async function POST(request: Request) {
 
   // ── 2. Parse multipart ───────────────────────────────
   let file: File;
+  // workspaceId BẮT BUỘC — user chọn workspace để upload doc vào ĐÚNG chỗ.
+  // KHÔNG còn fallback "Default" hay auto-route theo nội dung nữa.
+  let requestedWorkspaceId: string | null = null;
   try {
     const form = await request.formData();
     const value = form.get('file');
@@ -64,6 +69,10 @@ export async function POST(request: Request) {
       );
     }
     file = value;
+    const wsField = form.get('workspaceId');
+    if (typeof wsField === 'string' && wsField.trim().length > 0) {
+      requestedWorkspaceId = wsField.trim();
+    }
   } catch {
     return NextResponse.json({ error: 'Body không phải multipart/form-data' }, { status: 400 });
   }
@@ -86,7 +95,25 @@ export async function POST(request: Request) {
   }
 
   // ── 4. Lưu file vào storage ──────────────────────────
-  const ws = await getOrCreateDefaultWorkspace(userId);
+  // Workspace đích BẮT BUỘC do user chọn — verify ownership rồi dùng đúng cái đó.
+  if (!requestedWorkspaceId) {
+    return NextResponse.json(
+      { error: 'Hãy chọn workspace để upload tài liệu vào' },
+      { status: 400 },
+    );
+  }
+  const owned = await db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(and(eq(workspace.id, requestedWorkspaceId), eq(workspace.userId, userId)))
+    .limit(1);
+  if (owned.length === 0) {
+    return NextResponse.json(
+      { error: 'Workspace không tồn tại hoặc không thuộc về bạn' },
+      { status: 400 },
+    );
+  }
+  const ws = owned[0]!;
   const buffer = Buffer.from(await file.arrayBuffer());
 
   // Tạo document trước để có ID làm storage key
@@ -113,7 +140,6 @@ export async function POST(request: Request) {
   await storage.put(storageKey, buffer, file.type);
 
   // Update storageKey
-  const { eq } = await import('drizzle-orm');
   await db.update(document).set({ storageKey }).where(eq(document.id, created.id));
 
   // ── 5. Run ingest pipeline (synchronous) ─────────────
@@ -124,7 +150,20 @@ export async function POST(request: Request) {
       source: 'document',
       totalCount: 1,
     });
-    return NextResponse.json({ id: created.id, filename: file.name, status: 'READY' });
+
+    // Bust cache SAU khi doc đã READY, TRƯỚC khi trả response. Fan-out: list
+    // documents + docCount sidebar + graph + dashboard + stats/atoms của ĐÚNG
+    // workspace user đã chọn. (awardXp ở trên chỉ xoá dashboard/profile — KHÔNG
+    // phủ list/sidebar, nên call này bắt buộc.)
+    await onDocumentChanged(userId, ws.id);
+
+    return NextResponse.json({
+      id: created.id,
+      filename: file.name,
+      status: 'READY',
+      workspaceId: ws.id,
+      workspaceName: ws.name,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[upload] ingest failed:', error);

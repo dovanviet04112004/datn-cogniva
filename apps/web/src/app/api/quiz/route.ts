@@ -9,7 +9,7 @@
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { db, question, quiz } from '@cogniva/db';
 
@@ -24,19 +24,28 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200);
   const offset = Math.max(Number(url.searchParams.get('offset') ?? 0), 0);
+  const workspaceParam = url.searchParams.get('workspaceId');
+
+  const filters = [eq(quiz.userId, session.user.id)];
+  if (workspaceParam === 'null') {
+    filters.push(isNull(quiz.workspaceId));
+  } else if (workspaceParam) {
+    filters.push(eq(quiz.workspaceId, workspaceParam));
+  }
 
   // LEFT JOIN COUNT subquery: lấy số question / quiz
   const rows = await db
     .select({
       id: quiz.id,
       title: quiz.title,
+      workspaceId: quiz.workspaceId,
       config: quiz.config,
       createdAt: quiz.createdAt,
       questionCount: sql<number>`coalesce(count(${question.id}), 0)::int`,
     })
     .from(quiz)
     .leftJoin(question, eq(question.quizId, quiz.id))
-    .where(eq(quiz.userId, session.user.id))
+    .where(and(...filters))
     .groupBy(quiz.id)
     .orderBy(desc(quiz.createdAt))
     .limit(limit)

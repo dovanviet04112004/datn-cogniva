@@ -1,5 +1,8 @@
 /**
- * /api/workspaces/[id] — rename (PATCH) + delete (DELETE).
+ * /api/workspaces/[id] — GET detail + rename (PATCH) + delete (DELETE).
+ *
+ * GET trả về meta workspace + list documents trong workspace (kèm chunkCount,
+ * status, size) — dùng cho page /workspaces/[id].
  *
  * Không xoá được workspace cuối cùng để tránh document orphan (FK NOT NULL).
  * Khi xoá: documents trong workspace bị cascade xoá (theo schema FK).
@@ -8,14 +11,57 @@
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, eq } from 'drizzle-orm';
+import { and, count, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { db, workspace } from '@cogniva/db';
+import { chunk, db, document, workspace } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onWorkspaceChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Workspace + verify owner
+  const [ws] = await db
+    .select()
+    .from(workspace)
+    .where(and(eq(workspace.id, id), eq(workspace.userId, session.user.id)))
+    .limit(1);
+  if (!ws) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Documents trong workspace + chunkCount via subquery aggregate
+  const chunkCount = db
+    .select({ documentId: chunk.documentId, n: count(chunk.id).as('n') })
+    .from(chunk)
+    .groupBy(chunk.documentId)
+    .as('chunk_count');
+
+  const docs = await db
+    .select({
+      id: document.id,
+      filename: document.filename,
+      mimeType: document.mimeType,
+      size: document.size,
+      status: document.status,
+      createdAt: document.createdAt,
+      pageCount: sql<number | null>`(${document.metadata}->>'pageCount')::int`,
+      chunks: sql<number>`coalesce(${chunkCount.n}, 0)::int`,
+    })
+    .from(document)
+    .leftJoin(chunkCount, eq(document.id, chunkCount.documentId))
+    .where(eq(document.workspaceId, id))
+    .orderBy(desc(document.createdAt));
+
+  return NextResponse.json({ workspace: ws, documents: docs });
+}
 
 const PATCH_SCHEMA = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -53,6 +99,10 @@ export async function PATCH(
     })
     .where(eq(workspace.id, id))
     .returning();
+
+  // Rename/đổi mô tả → sidebar list (kèm tên) cũ. Bust cache sau update thành công.
+  await onWorkspaceChanged(session.user.id);
+
   return NextResponse.json({ workspace: updated });
 }
 
@@ -83,5 +133,9 @@ export async function DELETE(
   if (result.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // Workspace bị xoá → sidebar list cũ. Bust cache sau delete thành công.
+  await onWorkspaceChanged(session.user.id);
+
   return NextResponse.json({ deleted: true });
 }

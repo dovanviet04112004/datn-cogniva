@@ -1,17 +1,13 @@
 /**
- * Whisper transcribe wrapper — gọi OpenAI Whisper API hoặc no-op fallback.
+ * Whisper transcribe wrapper — auto-detect provider theo env.
  *
- * Phase 15 v1 dùng OpenAI Whisper-1 vì:
- *   - Ổn định, free $5 credit khi signup mới, sau đó $0.006/phút
- *   - Latency 30-60s cho 1h audio (chạy trong Inngest step, OK)
- *   - Hỗ trợ tiếng Việt + 99 ngôn ngữ khác native
+ * Priority:
+ *   1. Groq (`GROQ_API_KEY`) — FREE tier, host whisper-large-v3-turbo, nhanh
+ *      5-10x OpenAI, rate limit 25 req/phút. Endpoint OpenAI-compatible.
+ *   2. OpenAI (`OPENAI_API_KEY`) — paid $0.006/phút, stable.
  *
- * V2 (phase 18+) sẽ tự host whisper.cpp khi cost > $50/tháng — interface giữ
- * nguyên `transcribe(audioPath, opts)` để swap không đụng pipeline.
- *
- * Format response `verbose_json` thay vì plain text vì cần timestamps per
- * segment để chapter detection (chapters.ts) phân biệt được "đoạn nào nói lúc
- * nào" — pipeline chia chương theo timestamp.
+ * Format response `verbose_json` để có timestamps per segment cho chapter
+ * detection (chapters.ts chia chương theo timestamp).
  */
 import { createReadStream } from 'node:fs';
 import OpenAI from 'openai';
@@ -43,19 +39,36 @@ export type TranscribeOptions = {
   model?: string;
 };
 
-/** Singleton OpenAI client — lazy init để dev không có key không crash route. */
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (_openai) return _openai;
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      'OPENAI_API_KEY chưa cấu hình — Whisper transcribe cần key. ' +
-        'Set trong apps/web/.env.local hoặc Vercel env.',
-    );
+/**
+ * Singleton client — lazy init. Ưu tiên Groq (free) trước OpenAI (paid).
+ * Trả về kèm `provider` để biết dùng model nào (Groq dùng whisper-large-v3,
+ * OpenAI dùng whisper-1).
+ */
+let _client: { openai: OpenAI; provider: 'groq' | 'openai'; defaultModel: string } | null = null;
+function getClient(): { openai: OpenAI; provider: 'groq' | 'openai'; defaultModel: string } {
+  if (_client) return _client;
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    _client = {
+      openai: new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' }),
+      provider: 'groq',
+      // whisper-large-v3-turbo: nhanh hơn, đủ chính xác cho hầu hết use case
+      defaultModel: 'whisper-large-v3-turbo',
+    };
+    return _client;
   }
-  _openai = new OpenAI({ apiKey });
-  return _openai;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    _client = {
+      openai: new OpenAI({ apiKey: openaiKey }),
+      provider: 'openai',
+      defaultModel: 'whisper-1',
+    };
+    return _client;
+  }
+  throw new Error(
+    'Whisper chưa cấu hình — set GROQ_API_KEY (free) hoặc OPENAI_API_KEY (paid) trong apps/web/.env.local.',
+  );
 }
 
 /**
@@ -69,12 +82,12 @@ export async function whisperTranscribe(
   audioPath: string,
   opts: TranscribeOptions = {},
 ): Promise<TranscribeResult> {
-  const openai = getOpenAI();
+  const { openai, defaultModel } = getClient();
   const language = opts.language === 'auto' ? undefined : (opts.language ?? 'vi');
 
   const result = await openai.audio.transcriptions.create({
     file: createReadStream(audioPath),
-    model: opts.model ?? 'whisper-1',
+    model: opts.model ?? defaultModel,
     language,
     response_format: 'verbose_json',
     // timestamp_granularities: ['segment'] là default cho verbose_json
@@ -101,9 +114,10 @@ export async function whisperTranscribe(
 }
 
 /**
- * Check xem Whisper key có available không — pipeline có thể skip transcribe
- * step thay vì throw (file vẫn upload R2, replay xem được, không có transcript).
+ * Check xem Whisper provider có available không — pipeline có thể skip
+ * transcribe step thay vì throw (file vẫn upload R2, replay xem được, không
+ * có transcript).
  */
 export function isWhisperConfigured(): boolean {
-  return !!process.env.OPENAI_API_KEY;
+  return !!process.env.GROQ_API_KEY || !!process.env.OPENAI_API_KEY;
 }

@@ -15,7 +15,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Send, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -48,6 +48,7 @@ type AttemptResult = {
 type AttemptResponse = {
   results: AttemptResult[];
   summary: { totalScore: number; maxScore: number; percentage: number };
+  verifyResult?: { passed: boolean; subjectId: string } | null;
 };
 
 type Props = {
@@ -56,6 +57,7 @@ type Props = {
 };
 
 export function QuizAttemptSession({ quiz, questions }: Props) {
+  const router = useRouter();
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<Record<string, number | boolean | string>>({});
   const [submitting, setSubmitting] = React.useState(false);
@@ -70,9 +72,9 @@ export function QuizAttemptSession({ quiz, questions }: Props) {
     return (
       <Card className="mx-auto mt-12 max-w-2xl space-y-4 p-6 text-center">
         <p>Quiz này không có câu hỏi.</p>
-        <Link href="/quiz">
-          <Button variant="outline">← Về danh sách</Button>
-        </Link>
+        <Button variant="outline" onClick={() => router.back()}>
+          ← Quay lại
+        </Button>
       </Card>
     );
   }
@@ -105,6 +107,17 @@ export function QuizAttemptSession({ quiz, questions }: Props) {
       }
       const data = (await res.json()) as AttemptResponse;
       setResponse(data);
+
+      // Phase 21 V3 — show toast nếu quiz này là tutor_subject_verify_quiz
+      if (data.verifyResult) {
+        if (data.verifyResult.passed) {
+          toast.success(`Đã verify môn dạy này! Score ${data.summary.percentage}%`);
+        } else {
+          toast.error(
+            `Chưa đạt ngưỡng verify (${data.summary.percentage}%) — generate quiz mới để thử lại.`,
+          );
+        }
+      }
     } catch (err) {
       toast.error('Nộp bài thất bại: ' + (err as Error).message);
     } finally {
@@ -115,12 +128,10 @@ export function QuizAttemptSession({ quiz, questions }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <Link href="/quiz">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Thoát
-          </Button>
-        </Link>
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Thoát
+        </Button>
         <p className="text-sm text-muted-foreground">
           Câu {index + 1} / {questions.length}
         </p>
@@ -227,18 +238,17 @@ function ResultsView({
   questions: Question[];
   response: AttemptResponse;
 }) {
+  const router = useRouter();
   const qById = new Map(questions.map((q) => [q.id, q]));
   const { summary, results } = response;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <Link href="/quiz">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Về danh sách
-          </Button>
-        </Link>
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Quay lại
+        </Button>
       </div>
 
       <Card className="space-y-2 p-6">
@@ -261,7 +271,8 @@ function ResultsView({
                   Câu {i + 1} · {r.type}
                 </span>
                 {passed ? (
-                  <span className="flex items-center gap-1 text-green-600">
+                  // Trạng thái positive (đạt ≥ 50%) → dùng token semantic success thay vì green hardcode
+                  <span className="flex items-center gap-1 text-success">
                     <CheckCircle2 className="h-4 w-4" />
                     {(r.score * 100).toFixed(0)}%
                   </span>

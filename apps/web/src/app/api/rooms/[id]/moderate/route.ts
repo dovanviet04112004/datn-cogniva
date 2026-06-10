@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { db, room, roomMember } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onRoomChanged } from '@/lib/cache/invalidate';
 import { getRoomService } from '@/lib/livekit';
 import { triggerEvent } from '@/lib/realtime-server';
 
@@ -92,6 +93,7 @@ export async function POST(req: Request, { params }: Params) {
           .where(and(eq(roomMember.roomId, roomId), eq(roomMember.userId, targetUserId)));
         // 3. Notify user qua personal channel
         await triggerEvent(`presence-user-${targetUserId}`, 'room:kicked', { roomId });
+        await onRoomChanged(targetUserId); // KICKED → room biến khỏi joined-list của target
         break;
       }
 
@@ -132,6 +134,7 @@ export async function POST(req: Request, { params }: Params) {
           .set({ status: 'ACTIVE', joinedAt: new Date() })
           .where(and(eq(roomMember.roomId, roomId), eq(roomMember.userId, targetUserId)));
         await triggerEvent(`presence-user-${targetUserId}`, 'room:approved', { roomId });
+        await onRoomChanged(targetUserId); // PENDING→ACTIVE → room vào joined-list của target
         break;
       }
 
@@ -142,6 +145,7 @@ export async function POST(req: Request, { params }: Params) {
           .set({ status: 'BANNED' })
           .where(and(eq(roomMember.roomId, roomId), eq(roomMember.userId, targetUserId)));
         await triggerEvent(`presence-user-${targetUserId}`, 'room:rejected', { roomId });
+        await onRoomChanged(targetUserId); // BANNED → room biến khỏi joined-list của target
         break;
       }
 

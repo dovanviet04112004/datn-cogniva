@@ -7,12 +7,15 @@
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { ArrowLeft, PlayCircle } from 'lucide-react';
 
-import { db, recording, room, roomMember } from '@cogniva/db';
+import { db, room, roomMember } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { getRoomRecordings } from '@/lib/rooms/get-room-recordings';
+import { PageShell } from '@/components/layout/page-shell';
+import { EmptyState } from '@/components/layout/empty-state';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,38 +53,29 @@ export default async function RecordingsPage({ params }: Props) {
     .where(eq(room.id, roomId))
     .limit(1);
 
-  const rows = await db
-    .select({
-      id: recording.id,
-      status: recording.status,
-      duration: recording.duration,
-      summary: recording.summary,
-      startedAt: recording.startedAt,
-    })
-    .from(recording)
-    .where(eq(recording.roomId, roomId))
-    .orderBy(desc(recording.startedAt))
-    .limit(50);
+  // List recording (cache-aside TTL 600s, dbReplica) — guard membership ở TRÊN đã chạy.
+  const rows = await getRoomRecordings(roomId);
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <PageShell
+      title="Lịch sử ghi hình"
+      description={`${roomRow?.name ?? 'Room'} — ${rows.length} buổi đã ghi`}
+    >
       <Link
         href={`/rooms/${roomId}`}
-        className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        className="-mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-3 w-3" />
         Quay lại phòng
       </Link>
-      <h1 className="text-2xl font-semibold">Lịch sử ghi hình</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {roomRow?.name ?? 'Room'} — {rows.length} buổi đã ghi
-      </p>
 
-      <div className="mt-6 space-y-2">
+      <div className="space-y-2">
         {rows.length === 0 ? (
-          <p className="rounded-md border p-6 text-center text-sm text-muted-foreground">
-            Chưa có buổi học nào được ghi. Mod có thể bấm nút record khi đang ở trong phòng.
-          </p>
+          <EmptyState
+            icon={PlayCircle}
+            title="Chưa có buổi học nào được ghi"
+            description="Mod có thể bấm nút record khi đang ở trong phòng."
+          />
         ) : (
           rows.map((r) => (
             <Link
@@ -107,11 +101,11 @@ export default async function RecordingsPage({ params }: Props) {
               <div className="text-right">
                 <p className="text-xs font-mono">{fmtDuration(r.duration)}</p>
                 <p
-                  className={`text-[10px] uppercase ${
+                  className={`text-[11px] uppercase ${
                     r.status === 'PROCESSED'
-                      ? 'text-green-600'
+                      ? 'text-success'
                       : r.status === 'PROCESSING' || r.status === 'RECORDING'
-                        ? 'text-amber-600'
+                        ? 'text-warning'
                         : 'text-destructive'
                   }`}
                 >
@@ -122,6 +116,6 @@ export default async function RecordingsPage({ params }: Props) {
           ))
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

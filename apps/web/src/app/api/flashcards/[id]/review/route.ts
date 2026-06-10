@@ -20,8 +20,10 @@ import { z } from 'zod';
 import { db, flashcard, review } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onFlashcardChanged } from '@/lib/cache/invalidate';
 import { applyReview } from '@/lib/flashcards/fsrs';
 import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
+import { applyAttempt } from '@/lib/mastery/update';
 
 export const runtime = 'nodejs';
 
@@ -84,6 +86,31 @@ export async function POST(
     rating: parsed.data.rating,
     duration: parsed.data.duration,
   });
+
+  // FSRS state đổi (NEW→LEARNING/REVIEW…, due dời, +1 review log) → mọi field
+  // của flashcard stats đổi (byState, dueToday, reviewsLast7d, retentionRate).
+  // awardXp bên dưới chỉ bust dashboard/profile, KHÔNG bust flashcardStats →
+  // phải gọi onFlashcardChanged riêng (đặt ngay sau write thành công, trước
+  // các bước best-effort + response).
+  await onFlashcardChanged(session.user.id, card.workspaceId);
+
+  // Phase A5 (atom-centric): propagate observation lên mastery. Map FSRS
+  // rating 1-4 → obsScore 0..1:
+  //   1 (Again)  → 0.0  (sai hoàn toàn)
+  //   2 (Hard)   → 0.4  (đúng nhưng khó)
+  //   3 (Good)   → 0.8  (đúng bình thường)
+  //   4 (Easy)   → 1.0  (đúng dễ dàng)
+  // Best-effort: nếu card chưa link concept (conceptId NULL — card cũ trước
+  // backfill 0032 hoặc chunk chưa extract) thì skip silent. Lỗi mastery
+  // không block review response (gamification cũng best-effort cùng tier).
+  if (card.conceptId) {
+    const obsScore = [0, 0.0, 0.4, 0.8, 1.0][parsed.data.rating] ?? 0;
+    try {
+      await applyAttempt(session.user.id, card.conceptId, obsScore, 'flashcard', card.workspaceId);
+    } catch (err) {
+      console.warn('[flashcard-review] applyAttempt failed:', err);
+    }
+  }
 
   // Gamification: award XP + check achievement (best-effort, không block)
   const xpAmount =

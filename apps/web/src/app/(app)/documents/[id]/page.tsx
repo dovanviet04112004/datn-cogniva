@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { StatusBadge } from '@/components/documents/status-badge';
 import { PdfViewer } from '@/components/documents/pdf-viewer';
 import { ChunkList } from '@/components/documents/chunk-list';
+import { DocumentDetailActions } from '@/components/documents/document-detail-actions';
 
 export const runtime = 'nodejs';
 
@@ -64,6 +65,7 @@ export default async function DocumentDetailPage({ params }: Props) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{doc.filename}</p>
         </div>
+        <DocumentDetailActions workspaceId={doc.workspaceId} />
         <StatusBadge status={doc.status} />
       </div>
 

@@ -16,6 +16,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { AlertCircle, Mail, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 
 type ConsentStatus = {
   status: string;
@@ -26,21 +30,15 @@ type ConsentStatus = {
 };
 
 export function CoppaBanner() {
-  const [state, setState] = React.useState<ConsentStatus | null>(null);
   const [dismissed, setDismissed] = React.useState(false);
 
-  React.useEffect(() => {
-    const fetchStatus = () => {
-      fetch('/api/account/parental-consent')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: ConsentStatus | null) => d && setState(d))
-        .catch(() => {});
-    };
-    fetchStatus();
-    // Poll mỗi 60s — parent verify thì banner auto-disappear
-    const id = setInterval(fetchStatus, 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // Poll 60s qua refetchInterval — parent verify thì banner auto-disappear.
+  const { data: state } = useQuery({
+    queryKey: qk.parentalConsent(),
+    queryFn: () =>
+      apiGet<ConsentStatus>('/api/account/parental-consent'),
+    refetchInterval: 60_000,
+  });
 
   if (!state || !state.isLimited || dismissed) return null;
 
@@ -48,7 +46,7 @@ export function CoppaBanner() {
     return (
       <div
         role="alert"
-        className="flex items-center justify-between gap-2 border-b border-red-700/40 bg-red-600/95 px-4 py-2 text-xs text-white"
+        className="flex items-center justify-between gap-2 border-b border-destructive/60 bg-destructive/95 px-4 py-2 text-xs text-destructive-foreground"
       >
         <div className="flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
@@ -68,7 +66,7 @@ export function CoppaBanner() {
   return (
     <div
       role="alert"
-      className="flex items-center justify-between gap-2 border-b border-amber-600/40 bg-amber-500/95 px-4 py-2 text-xs text-white"
+      className="flex items-center justify-between gap-2 border-b border-warning/60 bg-warning/95 px-4 py-2 text-xs text-white"
     >
       <div className="flex items-center gap-2">
         <Mail className="h-4 w-4 shrink-0" />

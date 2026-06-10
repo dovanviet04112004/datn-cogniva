@@ -10,6 +10,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, flashcard } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onFlashcardChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
 
@@ -42,8 +43,10 @@ export async function DELETE(
   const result = await db
     .delete(flashcard)
     .where(and(eq(flashcard.id, id), eq(flashcard.userId, session.user.id)))
-    .returning({ id: flashcard.id });
+    .returning({ id: flashcard.id, workspaceId: flashcard.workspaceId });
 
   if (result.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Xoá card → flashcard stats + dashboard cardsDue (+ workspace stats) đổi.
+  await onFlashcardChanged(session.user.id, result[0]?.workspaceId);
   return NextResponse.json({ ok: true });
 }

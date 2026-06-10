@@ -11,6 +11,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Flame } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 
 type Stats = {
   xp: number;
@@ -18,18 +22,12 @@ type Stats = {
 };
 
 export function StreakBadge() {
-  const [stats, setStats] = React.useState<Stats | null>(null);
-
-  React.useEffect(() => {
-    fetch('/api/profile/me')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { stats: Stats } | null) => {
-        if (d?.stats) setStats(d.stats);
-      })
-      .catch(() => {
-        /* silent */
-      });
-  }, []);
+  // Dùng chung key qk.profileMe() → activity (review/quiz/note) invalidate là badge tươi.
+  const { data: stats } = useQuery({
+    queryKey: qk.profileMe(),
+    queryFn: () =>
+      apiGet<{ stats: Stats }>('/api/profile/me').then((d) => d.stats),
+  });
 
   if (!stats) return null;
 

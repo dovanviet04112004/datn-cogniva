@@ -1,17 +1,17 @@
 /**
- * FSRS wrapper — Free Spaced Repetition Scheduler (Jarrett Ye 2022+).
+ * FSRS scheduler (server-side) — Free Spaced Repetition Scheduler (Jarrett Ye 2022+).
+ *
+ * Phần SCHEDULER ở đây phụ thuộc `ts-fsrs` nên chỉ chạy server-side (apps/web),
+ * KHÔNG nằm trong packages/shared (giữ shared RN-safe, chỉ phụ thuộc zod).
+ * Phần logic THUẦN (`FsrsFields` type + `computeRetrievability`) đã chuyển sang
+ * `@cogniva/shared/domain` để mobile dùng chung — re-export lại bên dưới để các
+ * importer cũ (`@/lib/flashcards/fsrs`) không phải đổi đường dẫn.
  *
  * Vì sao FSRS thay SM-2 (Anki cũ)?
  *   - SM-2 dùng heuristic fix difficulty → có user "leech" cards mãi.
  *   - FSRS train trên 1B+ reviews thực, optimize per-user retention target.
  *   - State machine 4 trạng thái (NEW → LEARNING → REVIEW; lapse → RELEARNING)
  *     match đúng enum trong schema (xem packages/db/src/schema.ts:97).
- *
- * Tham số FSRS trong row flashcard:
- *   - difficulty (0..10): độ khó nội tại sau N lần review
- *   - stability (days): memory strength — số ngày trước khi retrievability=90%
- *   - retrievability (0..1): xác suất nhớ tại thời điểm hiện tại
- *   - state, due, lastReview
  *
  * Rating mapping (schema review.rating 1-4 = FSRS Rating enum):
  *   1 = Again (quên) → state RELEARNING/LEARNING, due ngay
@@ -28,6 +28,11 @@ import {
   type Card as FsrsCard,
   type Grade,
 } from 'ts-fsrs';
+import { type FsrsFields } from '@cogniva/shared/domain';
+
+// Re-export phần THUẦN từ shared để giữ API ổn định cho importer cũ.
+export { computeRetrievability } from '@cogniva/shared/domain';
+export type { FsrsFields } from '@cogniva/shared/domain';
 
 /** Tham số default — `enable_fuzz` thêm random jitter ±5% để tránh "card cluster". */
 const PARAMS = generatorParameters({
@@ -37,16 +42,6 @@ const PARAMS = generatorParameters({
 });
 
 const scheduler = fsrs(PARAMS);
-
-/** Field FSRS lưu trong DB. Mapping 1-1 với cột bảng flashcard. */
-export type FsrsFields = {
-  difficulty: number;
-  stability: number;
-  retrievability: number;
-  state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
-  due: Date;
-  lastReview: Date | null;
-};
 
 /** Convert DB row → ts-fsrs Card (state number, due Date). */
 function toFsrsCard(fields: FsrsFields): FsrsCard {
@@ -135,15 +130,4 @@ export function applyReview(
   const grade = toGrade(rating);
   const result = scheduler.next(card, now, grade);
   return fromFsrsCard(result.card);
-}
-
-/**
- * Tính retrievability hiện tại — xác suất user nhớ card này ở thời điểm now.
- * Dùng cho dashboard "retention rate" và stats panel.
- */
-export function computeRetrievability(fields: FsrsFields, now: Date = new Date()): number {
-  if (fields.stability <= 0 || !fields.lastReview) return 1; // chưa review → coi như nhớ
-  const elapsedDays = (now.getTime() - fields.lastReview.getTime()) / (1000 * 60 * 60 * 24);
-  // FSRS formula: R(t) = exp(-t / (9 * S))
-  return Math.exp(-elapsedDays / (9 * fields.stability));
 }

@@ -6,12 +6,14 @@
  */
 'use client';
 
-import * as React from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { Activity, BookOpen, Clock, TrendingUp } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 
 type Stats = {
   byState: { NEW: number; LEARNING: number; REVIEW: number; RELEARNING: number };
@@ -21,13 +23,11 @@ type Stats = {
 };
 
 export function StatsPanel() {
-  const [stats, setStats] = React.useState<Stats | null>(null);
-
-  React.useEffect(() => {
-    fetch('/api/flashcards/stats')
-      .then((r) => r.json())
-      .then((d) => setStats(d as Stats));
-  }, []);
+  // React Query: cache + dedupe + revalidate, persist IndexedDB → mở lại thấy ngay.
+  const { data: stats } = useQuery({
+    queryKey: qk.flashcardStats(),
+    queryFn: () => apiGet<Stats>('/api/flashcards/stats'),
+  });
 
   if (!stats) {
     return <div className="h-24 animate-pulse rounded-md bg-muted/50" />;
@@ -36,12 +36,14 @@ export function StatsPanel() {
   const total =
     stats.byState.NEW + stats.byState.LEARNING + stats.byState.REVIEW + stats.byState.RELEARNING;
 
+  // Màu retention theo ngưỡng → dùng semantic token: tốt = success, trung bình =
+  // warning, kém = destructive (thay hardcode green/yellow/red rời rạc).
   const retentionColor =
     stats.retentionRate >= 0.85
-      ? 'text-green-500'
+      ? 'text-success'
       : stats.retentionRate >= 0.7
-        ? 'text-yellow-500'
-        : 'text-red-500';
+        ? 'text-warning'
+        : 'text-destructive';
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

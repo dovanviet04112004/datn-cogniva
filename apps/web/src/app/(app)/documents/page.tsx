@@ -1,118 +1,121 @@
 /**
- * Trang /documents — liệt kê tài liệu của user + dropzone upload.
+ * /documents — list toàn bộ document cross-workspace.
  *
- * Server Component: fetch danh sách trực tiếp qua Drizzle (không qua API
- * route) cho SSR nhanh + type-safe. Khi upload xong, dropzone client gọi
- * router.refresh() để re-render server và lấy list mới nhất.
+ * V8.16 (2026-05-20): trước đây redirect /workspaces (Phase 21 workspace-
+ * centric). Giờ build lại proper list page để click "Xem tất cả" ở dashboard
+ * có ý nghĩa thật, không bounce ngược.
+ *
+ * Layout:
+ *   - Header: title + count
+ *   - List rows: filename + workspace badge + relative time
+ *   - Click row → /documents/[id] (page detail PDF + chunks đã có sẵn)
+ *
+ * Sort: lastest first (created_at desc). Limit 100 cho v1, chưa cần
+ * pagination cursor.
  */
+import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { count, desc, eq, sql } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
+import { ChevronRight, FileText } from 'lucide-react';
 
-import { chunk, db, document } from '@cogniva/db';
+import { db, document, workspace } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { StatusBadge } from '@/components/documents/status-badge';
-import { UploadDropzone } from '@/components/documents/upload-dropzone';
-import { formatRelativeTime } from '@/lib/utils';
+import { PageShell } from '@/components/layout/page-shell';
+import { PageHero } from '@/components/layout/page-hero';
+import { EmptyState } from '@/components/layout/empty-state';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
+import { RelativeTime } from '@/components/ui/relative-time';
+import { DocumentsUploadAction } from '@/components/documents/documents-upload-action';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-/**
- * Format byte → KB/MB ngắn gọn cho UI.
- */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export default async function DocumentsPage() {
+export default async function DocumentsListPage() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect('/sign-in?redirect=/documents');
-
-  // Subquery đếm chunk theo documentId — tránh N+1
-  const chunkCount = db
-    .select({ documentId: chunk.documentId, n: count(chunk.id).as('n') })
-    .from(chunk)
-    .groupBy(chunk.documentId)
-    .as('chunk_count');
+  if (!session) redirect('/sign-in');
 
   const rows = await db
     .select({
       id: document.id,
       filename: document.filename,
-      mimeType: document.mimeType,
-      size: document.size,
       status: document.status,
       createdAt: document.createdAt,
-      pageCount: sql<number | null>`(${document.metadata}->>'pageCount')::int`,
-      chunks: sql<number>`coalesce(${chunkCount.n}, 0)::int`,
+      workspaceId: document.workspaceId,
+      workspaceName: workspace.name,
     })
     .from(document)
-    .leftJoin(chunkCount, eq(document.id, chunkCount.documentId))
+    .leftJoin(workspace, eq(workspace.id, document.workspaceId))
     .where(eq(document.userId, session.user.id))
     .orderBy(desc(document.createdAt))
     .limit(100);
 
   return (
-    <div className="container max-w-5xl space-y-8 py-8">
-      {/* ── Header ──────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-        <p className="text-sm text-muted-foreground">
-          Upload PDF để Cogniva parse, chunk, embed và lưu vào knowledge base.
-        </p>
-      </div>
+    <PageShell>
+      {/* Breadcrumb là điều hướng (CONTENT) — giữ NGAY TRƯỚC hero, không nhồi vào. */}
+      <Breadcrumbs
+        segments={[
+          { href: '/workspaces', label: 'Workspaces' },
+          { label: 'Tất cả tài liệu' },
+        ]}
+      />
+      {/* Hero CHUNG thay header tự-chế — h1 → title, p → description, nút Upload → children. */}
+      <PageHero
+        eyebrow="Tài liệu"
+        eyebrowIcon={FileText}
+        title="Tất cả tài liệu"
+        description={`${rows.length} tài liệu cross-workspace — mới nhất trên cùng.`}
+      >
+        {/* Nút Upload (+ auto-mở khi đáp `?upload=1` từ dashboard). Suspense vì
+            DocumentsUploadAction đọc useSearchParams. */}
+        <Suspense>
+          <DocumentsUploadAction />
+        </Suspense>
+      </PageHero>
 
-      {/* ── Dropzone ────────────────────────────────── */}
-      <UploadDropzone />
-
-      {/* ── List ────────────────────────────────────── */}
       {rows.length === 0 ? (
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-base">Chưa có tài liệu nào</CardTitle>
-            <CardDescription>
-              Upload PDF đầu tiên ở khung phía trên để bắt đầu xây kho kiến thức của bạn.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <EmptyState
+          title="Chưa có tài liệu nào"
+          description="Bấm Upload ở góc trên để thêm PDF đầu tiên — Cogniva sẽ parse + index để bạn hỏi đáp có citation."
+        />
       ) : (
-        <div className="grid gap-3">
-          {rows.map((doc) => {
-            const isReady = doc.status === 'READY';
-            // Khi PROCESSING/FAILED, vẫn cho click vào để xem trạng thái + chunks (nếu có)
-            return (
+        <ul className="overflow-hidden rounded-xl border bg-card/30 shadow-soft">
+          {rows.map((d, i) => (
+            <li
+              key={d.id}
+              className={i > 0 ? 'border-t' : undefined}
+            >
               <Link
-                key={doc.id}
-                href={`/documents/${doc.id}`}
-                className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Mở tài liệu ${doc.filename}`}
+                href={`/documents/${d.id}`}
+                className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50"
               >
-                <Card className="cursor-pointer transition-colors hover:bg-muted/30 hover:border-primary/30">
-                  <CardContent className="flex items-center justify-between gap-4 py-4">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <p className="truncate text-sm font-medium">{doc.filename}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatBytes(doc.size)}
-                        {doc.pageCount ? ` · ${doc.pageCount} pages` : ''}
-                        {doc.chunks > 0 ? ` · ${doc.chunks} chunks` : ''}
-                        {' · '}
-                        {formatRelativeTime(doc.createdAt)}
-                        {!isReady && ' · click để xem trạng thái'}
-                      </p>
-                    </div>
-                    <StatusBadge status={doc.status} />
-                  </CardContent>
-                </Card>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{d.filename}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    {d.workspaceName && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-medium">
+                        {d.workspaceName}
+                      </span>
+                    )}
+                    <RelativeTime date={d.createdAt} />
+                    {d.status !== 'READY' && (
+                      <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-semibold text-amber-600">
+                        {d.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
               </Link>
-            );
-          })}
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </PageShell>
   );
 }

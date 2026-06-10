@@ -25,16 +25,32 @@ export interface Storage {
 }
 
 import { LocalStorage } from './local';
+import { R2Storage } from './r2';
 
 // Singleton — tránh tạo nhiều instance trùng dir base
 let _storage: Storage | undefined;
 
 /**
- * Lấy storage backend cấu hình theo env. Hiện tại chỉ có local; thêm R2 sẽ
- * branch theo `STORAGE_DRIVER` env (local | r2).
+ * Driver được chọn theo env `STORAGE_DRIVER` (local | r2). Nếu không set:
+ * auto-detect — có đủ R2 creds → 'r2' (production-safe), không thì 'local'
+ * (dev không cần R2). Đặt STORAGE_DRIVER tường minh để ép driver.
+ */
+function resolveDriver(): 'local' | 'r2' {
+  const explicit = process.env.STORAGE_DRIVER?.toLowerCase();
+  if (explicit === 'r2' || explicit === 'local') return explicit;
+  const hasR2 =
+    !!process.env.R2_ACCESS_KEY_ID &&
+    !!process.env.R2_SECRET_ACCESS_KEY &&
+    !!process.env.R2_ACCOUNT_ID;
+  return hasR2 ? 'r2' : 'local';
+}
+
+/**
+ * Lấy storage backend cấu hình theo env. Workspace docs, flashcard image,
+ * group attachment, KYC đều đi qua đây → đổi driver 1 chỗ là đổi toàn bộ.
  */
 export function getStorage(): Storage {
   if (_storage) return _storage;
-  _storage = new LocalStorage();
+  _storage = resolveDriver() === 'r2' ? new R2Storage() : new LocalStorage();
   return _storage;
 }

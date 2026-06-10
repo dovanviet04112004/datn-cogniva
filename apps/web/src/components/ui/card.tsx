@@ -17,11 +17,23 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Card — Cogniva design language:
+ *   - rounded-xl (calm geometry)
+ *   - SHADOW-ONLY containment (no border) — pattern Linear/Vercel
+ *     premium. Border + shadow đồng thời = "double containment" cảm
+ *     giác bootstrap. Border chỉ thêm via className khi cần thiết
+ *     (vd: dashed empty state).
+ *   - bg-card layered surface
+ */
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}
+      className={cn(
+        'rounded-xl bg-card text-card-foreground shadow-soft',
+        className,
+      )}
       {...props}
     />
   ),

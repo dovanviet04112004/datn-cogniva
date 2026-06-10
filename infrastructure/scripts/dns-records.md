@@ -7,7 +7,7 @@ Setup trong Cloudflare dashboard, zone `cogniva.com`. Lưu ý cột "Proxy".
 | A    | app               | `<APP_IP>`    | ✓     | Auto | Next.js qua Cloudflare CDN     |
 | A    | livekit           | `<MEDIA_IP>`  | ✗     | Auto | WebRTC signaling — không proxy |
 | A    | turn              | `<MEDIA_IP>`  | ✗     | Auto | TURN UDP — không proxy         |
-| A    | soketi            | `<APP_IP>`    | ✓     | Auto | WS qua Caddy → CF OK proxy     |
+| A    | realtime          | `<APP_IP>`    | ✓     | Auto | Socket.IO WS qua Caddy → CF OK |
 | A    | hocus             | `<APP_IP>`    | ✓     | Auto | WS qua Caddy → CF OK proxy     |
 | AAAA | (cùng tên)        | `<IPv6>`      | match | Auto | Dual-stack IPv6                |
 | TXT  | _acme-challenge   | (auto)        | ✗     | Auto | Let's Encrypt DNS-01 (nếu cần) |
@@ -19,12 +19,12 @@ Setup trong Cloudflare dashboard, zone `cogniva.com`. Lưu ý cột "Proxy".
 - LiveKit cần UDP range 50000-60000, coturn cần UDP 3478 + 49152-65535.
 - Bật proxy = WebRTC media fail. Để **DNS only (xám)**.
 
-### Proxy được Soketi + Hocuspocus
+### Proxy được Realtime (Socket.IO) + Hocuspocus
 - Cả 2 chạy WebSocket trên port 443 qua Caddy.
 - Cloudflare WebSocket proxy hỗ trợ tốt, thêm benefit DDoS + cache.
 
 ### TLS cert
-- App/Soketi/Hocus: Caddy auto-issue Let's Encrypt qua HTTP-01.
+- App/Realtime/Hocus: Caddy auto-issue Let's Encrypt qua HTTP-01.
 - coturn: cần cert tay (Caddy không quản coturn). Setup riêng:
   ```bash
   apt install certbot

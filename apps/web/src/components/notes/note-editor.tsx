@@ -21,6 +21,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+
 type Props = {
   noteId: string;
   initialTitle: string;
@@ -153,20 +155,24 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
             Đã lưu lúc {savedAt.toLocaleTimeString('vi-VN')}
           </span>
         )}
-        <button
+        {/* Nút gợi ý AI: dùng <Button variant="outline" size="sm"> thay vì
+            class inline rời (theo design system §9.1). Giữ nguyên handler,
+            disabled khi đang chạy + aria-label. */}
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={handleComplete}
           disabled={completing}
-          className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
           aria-label="AI gợi ý"
         >
           {completing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="animate-spin" />
           ) : (
-            <Sparkles className="h-3.5 w-3.5" />
+            <Sparkles />
           )}
           AI (Tab)
-        </button>
+        </Button>
       </div>
       <div className="rounded-lg border bg-card p-4">
         <EditorContent editor={editor} />

@@ -1,0 +1,18 @@
+// ─────────────────────────────────────────────────────────────────────
+// tsconfig cho @cogniva/realtime — Socket.IO gateway, Node runtime (chạy qua tsx).
+//
+// Khác apps/edge (Cloudflare Workers): ở đây là Node thuần → lib ES2022 +
+// types @types/node. Không emit (tsx transpile on-the-fly cả dev lẫn prod),
+// chỉ dùng tsc để typecheck.
+// ─────────────────────────────────────────────────────────────────────
+{
+  "extends": "@cogniva/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "noEmit": true,
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

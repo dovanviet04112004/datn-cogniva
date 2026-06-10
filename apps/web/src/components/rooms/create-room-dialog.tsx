@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { ComboSelect } from '@/components/ui/combo-select';
 
 type Visibility = 'PRIVATE' | 'UNLISTED' | 'PUBLIC';
 
@@ -106,16 +107,18 @@ export function CreateRoomDialog() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="vis">Chế độ</Label>
-              <select
+              {/* Chế độ hiển thị phòng — enum Visibility, cast string */}
+              <ComboSelect
                 id="vis"
                 value={visibility}
-                onChange={(e) => setVisibility(e.target.value as Visibility)}
-                className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
-              >
-                <option value="PRIVATE">Riêng tư — chỉ mời</option>
-                <option value="UNLISTED">Có link/code</option>
-                <option value="PUBLIC">Công khai</option>
-              </select>
+                onChange={(v) => setVisibility(v as Visibility)}
+                options={[
+                  { value: 'PRIVATE', label: 'Riêng tư — chỉ mời' },
+                  { value: 'UNLISTED', label: 'Có link/code' },
+                  { value: 'PUBLIC', label: 'Công khai' },
+                ]}
+                className="w-full"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="max">Tối đa</Label>

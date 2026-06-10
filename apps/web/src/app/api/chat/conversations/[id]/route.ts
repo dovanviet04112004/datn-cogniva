@@ -8,7 +8,8 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, asc, eq } from 'drizzle-orm';
 
-import { conversation, db, message } from '@cogniva/db';
+// GET read thuần (load 1 conversation + messages) → dùng `dbReplica` offload primary.
+import { conversation, dbReplica, message } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 
@@ -23,14 +24,14 @@ export async function GET(
 
   const { id } = await params;
 
-  const [conv] = await db
+  const [conv] = await dbReplica
     .select()
     .from(conversation)
     .where(and(eq(conversation.id, id), eq(conversation.userId, session.user.id)))
     .limit(1);
   if (!conv) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const messages = await db
+  const messages = await dbReplica
     .select()
     .from(message)
     .where(eq(message.conversationId, id))

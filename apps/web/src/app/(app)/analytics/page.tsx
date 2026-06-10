@@ -8,102 +8,121 @@
  *
  * Phase 10 API đã giới hạn 30 ngày; UI render rỗng nếu user chưa chat.
  */
-'use client';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { TrendingUp } from 'lucide-react';
 
-import * as React from 'react';
-import { Coins, Cpu, MessageSquare, TrendingUp } from 'lucide-react';
-
+import { getUserAnalytics } from '@/lib/analytics/get-user-analytics';
+import { auth } from '@/lib/auth';
 import { Card } from '@/components/ui/card';
+// Tiêu đề mục dùng chung — thay khối eyebrow gạch + uppercase hardcode cũ.
+import { SectionHeading } from '@/components/ui/section-heading';
+import { PageShell } from '@/components/layout/page-shell';
 
-type AnalyticsData = {
-  totalMessages: number;
-  totalPromptTokens: number;
-  totalCompletionTokens: number;
-  totalCostUsd: number;
-  last7Days: Array<{ date: string; messages: number; costUsd: number }>;
-  byModel: Array<{ model: string; messages: number; costUsd: number }>;
-};
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export default function AnalyticsPage() {
-  const [data, setData] = React.useState<AnalyticsData | null>(null);
-
-  React.useEffect(() => {
-    fetch('/api/analytics')
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
-
-  if (!data) {
-    return <p className="p-6 text-sm text-muted-foreground">Đang tải...</p>;
-  }
+export default async function AnalyticsPage() {
+  // Server Component: fetch aggregate thẳng DB qua lib dùng chung với route
+  // /api/analytics (mobile vẫn gọi route) → HTML có data ngay, không skeleton.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/sign-in?redirect=/analytics');
+  const data = await getUserAnalytics(session.user.id);
 
   const maxCost = Math.max(...data.last7Days.map((d) => d.costUsd), 0.0001);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
+    <PageShell
+      // Trang OVERVIEW báo cáo — bật hero banner aurora dùng chung.
+      hero
+      eyebrow="Phân tích"
+      eyebrowIcon={TrendingUp}
+      title={
+        <span className="flex items-center gap-2">
           <TrendingUp className="h-6 w-6" />
           Analytics
-        </h1>
-        <p className="text-sm text-muted-foreground">
+        </span>
+      }
+      description={
+        <>
           Báo cáo sử dụng + chi phí LLM 30 ngày qua. Lưu vào{' '}
           <code className="rounded bg-muted px-1 text-xs">message.metadata</code>{' '}
           mỗi lần chat hoàn thành.
-        </p>
-      </div>
+        </>
+      }
+    >
 
-      {/* ── Stat cards ──────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={MessageSquare}
+      {/* ── Stat tiles ───────────────────────────────
+          Premium: 1 unified surface chia 4 cột với divider — pattern
+          Linear/Stripe. Mỗi tile có accent dot riêng + sparkline trend
+          nếu data có (last7Days). */}
+      <Card className="grid grid-cols-2 overflow-hidden rounded-xl border-divider shadow-soft sm:grid-cols-4 sm:divide-x sm:divide-divider">
+        <StatTile
+          accent="bg-blue-500"
           label="Messages"
           value={data.totalMessages.toLocaleString('vi-VN')}
+          sparkline={data.last7Days.map((d) => d.messages)}
         />
-        <StatCard
-          icon={Cpu}
+        <StatTile
+          accent="bg-emerald-500"
           label="Prompt tokens"
           value={data.totalPromptTokens.toLocaleString('vi-VN')}
+          sparkline={null}
         />
-        <StatCard
-          icon={Cpu}
+        <StatTile
+          accent="bg-discovery-500"
           label="Completion tokens"
           value={data.totalCompletionTokens.toLocaleString('vi-VN')}
+          sparkline={null}
         />
-        <StatCard
-          icon={Coins}
+        <StatTile
+          accent="bg-orange-500"
           label="Cost (USD)"
           value={`$${data.totalCostUsd.toFixed(4)}`}
+          sparkline={data.last7Days.map((d) => d.costUsd)}
         />
-      </div>
+      </Card>
 
-      {/* ── 7-day chart ─────────────────────────────── */}
-      <Card className="space-y-3 p-4">
-        <h2 className="text-sm font-semibold">Cost theo ngày (7 ngày)</h2>
+      {/* ── 7-day chart — soft tinted bars với gradient ───── */}
+      <Card className="rounded-xl border-divider p-5 shadow-soft">
+        {/* Tiêu đề mục dùng chung; count="7d" (cửa sổ 7 ngày), action = max cost.
+            max-cost giữ font-mono vì là giá trị kỹ thuật nhỏ (text-xs). */}
+        <SectionHeading
+          count="7d"
+          action={
+            <span className="font-mono text-xs tabular-nums text-text-muted">
+              max ${maxCost.toFixed(4)}
+            </span>
+          }
+        >
+          Cost theo ngày
+        </SectionHeading>
+
         {data.last7Days.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed bg-surface-secondary/40 py-8 text-center text-xs text-muted-foreground">
             Chưa có data — chat thử để thấy biểu đồ.
           </p>
         ) : (
-          <div className="flex h-40 items-end gap-2">
+          <div className="flex h-44 items-end gap-2">
             {data.last7Days.map((d) => {
               const heightPct = (d.costUsd / maxCost) * 100;
               return (
                 <div
                   key={d.date}
-                  className="flex flex-1 flex-col items-center gap-1"
+                  className="group/bar flex flex-1 flex-col items-center gap-1.5"
                   title={`${d.date}: $${d.costUsd.toFixed(4)} · ${d.messages} msg`}
                 >
                   <div className="flex w-full flex-1 items-end">
                     <div
-                      className="w-full rounded-t bg-primary/70 transition-all"
+                      className="w-full rounded-md bg-gradient-to-t from-primary/40 to-primary/80 shadow-soft transition-all duration-base ease-expo-out group-hover/bar:from-primary/60 group-hover/bar:to-primary"
                       style={{ height: `${Math.max(2, heightPct)}%` }}
                     />
                   </div>
-                  <span className="text-[10px] text-muted-foreground tabular-nums">
+                  <span className="font-mono text-[10px] tabular-nums text-text-muted">
                     {d.date.slice(5)}
                   </span>
-                  <span className="text-[10px] font-medium tabular-nums">
+                  {/* Cỡ chữ sàn 10px (cột bar hẹp, 11px vỡ layout) — bỏ cỡ lẻ 10.5px */}
+                  <span className="font-mono text-[10px] font-semibold tabular-nums">
                     ${d.costUsd.toFixed(4)}
                   </span>
                 </div>
@@ -113,30 +132,35 @@ export default function AnalyticsPage() {
         )}
       </Card>
 
-      {/* ── byModel table ───────────────────────────── */}
-      <Card className="space-y-3 p-4">
-        <h2 className="text-sm font-semibold">Theo model</h2>
+      {/* ── byModel table — premium row design ─────────── */}
+      <Card className="rounded-xl border-divider p-5 shadow-soft">
+        {/* Tiêu đề mục dùng chung — count = số model. */}
+        <SectionHeading count={data.byModel.length}>Theo model</SectionHeading>
         {data.byModel.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="rounded-lg border border-dashed bg-surface-secondary/40 py-8 text-center text-xs text-muted-foreground">
             Chưa có data.
           </p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground">
-              <tr className="border-b">
-                <th className="py-2 text-left">Model</th>
-                <th className="py-2 text-right">Messages</th>
-                <th className="py-2 text-right">Cost (USD)</th>
+            {/* Header bảng = eyebrow label → chuẩn hoá text-[11px] (bỏ cỡ lẻ 10.5px) */}
+            <thead className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+              <tr className="border-b border-divider">
+                <th className="py-2.5 text-left font-semibold">Model</th>
+                <th className="py-2.5 text-right font-semibold">Messages</th>
+                <th className="py-2.5 text-right font-semibold">Cost (USD)</th>
               </tr>
             </thead>
             <tbody>
               {data.byModel.map((m) => (
-                <tr key={m.model} className="border-b last:border-0">
-                  <td className="py-2 font-mono text-xs">{m.model}</td>
-                  <td className="py-2 text-right tabular-nums">
+                <tr
+                  key={m.model}
+                  className="border-b border-divider last:border-0 transition-colors hover:bg-muted/40"
+                >
+                  <td className="py-3 font-mono text-xs">{m.model}</td>
+                  <td className="py-3 text-right font-mono tabular-nums">
                     {m.messages.toLocaleString('vi-VN')}
                   </td>
-                  <td className="py-2 text-right tabular-nums font-medium">
+                  <td className="py-3 text-right font-mono font-semibold tabular-nums">
                     ${m.costUsd.toFixed(6)}
                   </td>
                 </tr>
@@ -145,26 +169,52 @@ export default function AnalyticsPage() {
           </table>
         )}
       </Card>
-    </div>
+    </PageShell>
   );
 }
 
-function StatCard({
-  icon: Icon,
+/**
+ * StatTile — 1 cột trong unified stat card. Accent dot bên cạnh label +
+ * value to (sans Geist, tabular-nums) + sparkline mini nếu có data.
+ */
+function StatTile({
+  accent,
   label,
   value,
+  sparkline,
 }: {
-  icon: typeof MessageSquare;
+  accent: string;
   label: string;
   value: string;
+  sparkline: number[] | null;
 }) {
+  const max = sparkline ? Math.max(...sparkline, 0.0001) : 0;
   return (
-    <Card className="space-y-1 p-4">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
+    <div className="flex flex-col justify-between gap-2 px-5 py-4">
+      <div className="flex items-center gap-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${accent}`} />
+        {/* Eyebrow label của StatTile → chuẩn hoá text-[11px] (bỏ cỡ lẻ 10.5px) */}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </p>
       </div>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-    </Card>
+      <div className="space-y-1.5">
+        {/* Số metric to: dùng sans Geist (bỏ font-mono), giữ tabular-nums canh cột. */}
+        <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight">
+          {value}
+        </p>
+        {sparkline && sparkline.length > 0 && (
+          <div className="flex h-4 items-end gap-0.5">
+            {sparkline.map((v, i) => (
+              <div
+                key={i}
+                className={`flex-1 rounded-sm ${accent} opacity-30`}
+                style={{ height: `${Math.max(8, (v / max) * 100)}%` }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

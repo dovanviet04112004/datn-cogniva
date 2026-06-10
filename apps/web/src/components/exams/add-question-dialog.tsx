@@ -10,6 +10,7 @@ import * as React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { apiSend } from '@cogniva/shared/api';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -105,23 +106,15 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/exams/${examId}/questions`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          type,
-          prompt: prompt.trim(),
-          options: optsArr,
-          correctAnswer,
-          acceptableAnswers: altsArr,
-          points: Number(points),
-          explanation: explanation.trim() || undefined,
-        }),
+      await apiSend(`/api/exams/${examId}/questions`, 'POST', {
+        type,
+        prompt: prompt.trim(),
+        options: optsArr,
+        correctAnswer,
+        acceptableAnswers: altsArr,
+        points: Number(points),
+        explanation: explanation.trim() || undefined,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
-        throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`);
-      }
       toast.success('Đã thêm câu hỏi');
       reset();
       setOpen(false);

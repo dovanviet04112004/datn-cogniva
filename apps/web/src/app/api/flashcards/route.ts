@@ -11,12 +11,13 @@
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db, flashcard } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onFlashcardChanged } from '@/lib/cache/invalidate';
 import { initFsrsFields } from '@/lib/flashcards/fsrs';
 
 export const runtime = 'nodejs';
@@ -29,12 +30,19 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const state = url.searchParams.get('state');
+  const workspaceParam = url.searchParams.get('workspaceId');
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 50), 200);
   const offset = Math.max(Number(url.searchParams.get('offset') ?? 0), 0);
 
   const filters = [eq(flashcard.userId, session.user.id)];
   if (state && (STATES as readonly string[]).includes(state)) {
     filters.push(eq(flashcard.state, state as (typeof STATES)[number]));
+  }
+  // workspaceParam='null' → personal (no workspace); 'X' → scope by ID; bỏ qua → tất cả
+  if (workspaceParam === 'null') {
+    filters.push(isNull(flashcard.workspaceId));
+  } else if (workspaceParam) {
+    filters.push(eq(flashcard.workspaceId, workspaceParam));
   }
 
   const rows = await db
@@ -52,6 +60,7 @@ const CREATE_SCHEMA = z.object({
   cardType: z.enum(['BASIC', 'CLOZE', 'IMAGE_OCCLUSION']),
   front: z.string().min(1).max(5000),
   back: z.string().min(1).max(10000),
+  workspaceId: z.string().nullable().optional(),
   conceptId: z.string().optional(),
   sourceChunkId: z.string().optional(),
 });
@@ -71,6 +80,7 @@ export async function POST(request: Request) {
     .insert(flashcard)
     .values({
       userId: session.user.id,
+      workspaceId: parsed.data.workspaceId ?? null,
       conceptId: parsed.data.conceptId ?? null,
       sourceChunkId: parsed.data.sourceChunkId ?? null,
       front: parsed.data.front,
@@ -80,5 +90,9 @@ export async function POST(request: Request) {
     })
     .returning();
 
+  // Card mới due=now → flashcard stats + dashboard cardsDue đổi (+ workspace
+  // stats nếu card thuộc workspace). onFlashcardChanged đã bao gồm dashboard.
+  // (Tạo card KHÔNG qua awardXp.)
+  await onFlashcardChanged(session.user.id, inserted?.workspaceId);
   return NextResponse.json({ flashcard: inserted }, { status: 201 });
 }

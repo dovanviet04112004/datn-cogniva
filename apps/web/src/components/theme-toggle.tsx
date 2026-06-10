@@ -22,6 +22,21 @@ import {
 
 export function ThemeToggle() {
   const { setTheme } = useTheme();
+  // Mount-gate để tránh hydration ID mismatch của Radix DropdownMenu khi
+  // kết hợp React 19 + Radix v2.1.4 + next-themes. Server render skeleton
+  // không có Dropdown → useId() chưa chạy. Client mount xong mới mount
+  // Dropdown thật → useId() chạy duy nhất ở client → không có conflict.
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" aria-label="Toggle theme" disabled>
+        <Sun className="h-[1.2rem] w-[1.2rem]" />
+        <span className="sr-only">Toggle theme</span>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>

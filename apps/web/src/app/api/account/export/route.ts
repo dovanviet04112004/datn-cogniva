@@ -10,7 +10,7 @@
  *   - Return immediately (< 30s cho user trung bình)
  *   - SLA target: < 30 days theo GDPR, target < 24h
  *
- * Stage 2 — async với Inngest job:
+ * Stage 2 — async với BullMQ job:
  *   - Queue job → email signed download URL khi xong
  *   - Bao gồm file media từ R2 (PDF docs, recording transcript)
  *   - TTL signed URL 7 days

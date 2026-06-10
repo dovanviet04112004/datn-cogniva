@@ -9,7 +9,10 @@
 import * as React from 'react';
 import { Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet, apiSend } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { ComboSelect } from '@/components/ui/combo-select';
 
 interface DocRow {
   id: string;
@@ -37,7 +41,6 @@ interface Props {
 
 export function AiGenerateDialog({ examId, onDone }: Props) {
   const [open, setOpen] = React.useState(false);
-  const [docs, setDocs] = React.useState<DocRow[]>([]);
   const [docId, setDocId] = React.useState('');
   const [count, setCount] = React.useState('10');
   const [types, setTypes] = React.useState<Set<'MCQ' | 'TRUE_FALSE' | 'SHORT'>>(
@@ -45,17 +48,21 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
   );
   const [busy, setBusy] = React.useState(false);
 
+  // Documents list — key dùng chung qk.documents() (ai-gen / quiz-gen / fc-gen).
+  // Chỉ fetch khi mở dialog; lọc READY client-side.
+  const { data: docsData } = useQuery({
+    queryKey: qk.documents(),
+    queryFn: () =>
+      apiGet<{ documents: DocRow[] }>('/api/documents').then((d) => d.documents),
+    enabled: open,
+  });
+  const docs = React.useMemo(
+    () => (docsData ?? []).filter((doc) => doc.status === 'READY'),
+    [docsData],
+  );
   React.useEffect(() => {
-    if (!open) return;
-    fetch('/api/documents')
-      .then((r) => r.json())
-      .then((d: { documents: DocRow[] }) => {
-        // Chỉ chọn document READY (đã chunk xong)
-        const ready = d.documents.filter((doc) => doc.status === 'READY');
-        setDocs(ready);
-        if (ready.length > 0 && !docId) setDocId(ready[0]!.id);
-      });
-  }, [open, docId]);
+    if (docs.length > 0 && !docId) setDocId(docs[0]!.id);
+  }, [docs, docId]);
 
   const toggleType = (t: 'MCQ' | 'TRUE_FALSE' | 'SHORT') => {
     setTypes((set) => {
@@ -78,20 +85,11 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/exams/${examId}/generate-questions`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          documentId: docId,
-          types: [...types],
-          count: Number(count),
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: unknown };
-        throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`);
-      }
-      const out = (await res.json()) as { count: number };
+      const out = await apiSend<{ count: number }>(
+        `/api/exams/${examId}/generate-questions`,
+        'POST',
+        { documentId: docId, types: [...types], count: Number(count) },
+      );
       toast.success(`Đã thêm ${out.count} câu hỏi`);
       setOpen(false);
       onDone();
@@ -124,18 +122,14 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
                 Chưa có document READY. Upload + chờ xử lý trước.
               </p>
             ) : (
-              <select
+              // Thay <select> native bằng ComboSelect (gõ-để-lọc tài liệu).
+              <ComboSelect
                 id="doc"
                 value={docId}
-                onChange={(e) => setDocId(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-              >
-                {docs.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.filename}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setDocId(v)}
+                options={docs.map((d) => ({ value: d.id, label: d.filename }))}
+                placeholder="Chọn tài liệu"
+              />
             )}
           </div>
 

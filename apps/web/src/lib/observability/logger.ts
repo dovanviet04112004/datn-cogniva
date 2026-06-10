@@ -44,7 +44,7 @@ export async function getTraceId(): Promise<string> {
     const h = await headers();
     return h.get('x-trace-id') ?? 'no-trace';
   } catch {
-    // Ngoài request scope (Inngest job, CLI script) → no-trace
+    // Ngoài request scope (BullMQ job, CLI script) → no-trace
     return 'no-trace';
   }
 }

@@ -15,7 +15,12 @@ import { useParticipants } from '@livekit/components-react';
 import { Crown, Mic, MicOff, MoreVertical, Shield, UserMinus, UserPlus, Video, VideoOff } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { apiSend } from '@cogniva/shared/api';
+import { cn } from '@/lib/utils';
+import { useConfirm } from '@/lib/use-confirm';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+// Tiêu đề mục dùng chung toàn app (thay khối eyebrow gạch hardcode cũ).
+import { SectionHeading } from '@/components/ui/section-heading';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,20 +50,15 @@ type Props = {
 
 export function ParticipantList({ roomId, myRole, myUserId }: Props) {
   const participants = useParticipants();
+  // Hook confirm styled — hoist ở đầu component (không gọi trong map/onClick)
+  const confirm = useConfirm();
   const isOwner = myRole === 'OWNER';
   const isMod = isOwner || myRole === 'MODERATOR';
 
   const callModerate = async (body: Record<string, unknown>, successMsg: string) => {
     try {
-      const res = await fetch(`/api/rooms/${roomId}/moderate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? 'Hành động thất bại');
-      }
+      // Không refetch list — LiveKit useParticipants() tự đồng bộ realtime.
+      await apiSend(`/api/rooms/${roomId}/moderate`, 'POST', body);
       toast.success(successMsg);
     } catch (err) {
       toast.error((err as Error).message);
@@ -66,36 +66,77 @@ export function ParticipantList({ roomId, myRole, myUserId }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-1 p-2">
-      <p className="px-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Đang trong phòng ({participants.length})
-      </p>
+    <div className="flex flex-col gap-1 p-3">
+      {/* Giữ padding ngang px-2 + margin nhỏ mb-2 để canh với danh sách bên dưới. */}
+      <SectionHeading count={participants.length} className="mb-2 px-2">
+        Đang trong phòng
+      </SectionHeading>
       {participants.map((p) => {
         const meta = safeParseMeta(p.metadata);
         const name = p.name || p.identity;
         const role = (meta.role ?? 'MEMBER') as 'OWNER' | 'MODERATOR' | 'MEMBER';
         const isSelf = p.identity === myUserId;
+        const isSpeaking = p.isSpeaking;
 
         return (
-          <div key={p.sid} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted">
-            <Avatar className="h-7 w-7">
-              {meta.avatarUrl && <AvatarImage src={meta.avatarUrl} alt={name} />}
-              <AvatarFallback className="text-xs">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>
-            </Avatar>
+          <div
+            key={p.sid}
+            className={cn(
+              'group/p flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors',
+              'hover:bg-muted/60',
+              isSpeaking && 'bg-primary/8 ring-1 ring-primary/30',
+            )}
+          >
+            {/* Avatar — speaking glow halo nếu đang nói */}
+            <div className="relative shrink-0">
+              <Avatar
+                className={cn(
+                  'h-8 w-8 transition-all duration-base',
+                  isSpeaking && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+                )}
+              >
+                {meta.avatarUrl && <AvatarImage src={meta.avatarUrl} alt={name} />}
+                <AvatarFallback className="text-xs">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>
+              </Avatar>
+              {isSpeaking && (
+                <span
+                  aria-hidden
+                  className="absolute -inset-1 rounded-full bg-primary/20 blur-md animate-soft-pulse"
+                />
+              )}
+            </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1">
-                <p className="truncate text-sm font-medium">{name}{isSelf && ' (bạn)'}</p>
-                {role === 'OWNER' && <Crown className="h-3 w-3 text-yellow-500" />}
-                {role === 'MODERATOR' && <Shield className="h-3 w-3 text-blue-500" />}
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-sm font-medium tracking-tight">
+                  {name}
+                  {isSelf && (
+                    <span className="ml-1 text-xs font-normal text-text-muted">(bạn)</span>
+                  )}
+                </p>
+                {role === 'OWNER' && (
+                  <Crown className="h-3 w-3 shrink-0 text-yellow-500" />
+                )}
+                {role === 'MODERATOR' && (
+                  <Shield className="h-3 w-3 shrink-0 text-blue-500" />
+                )}
               </div>
+              {isSpeaking && (
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-primary animate-soft-pulse">
+                  đang nói
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1 text-muted-foreground">
-              {p.isMicrophoneEnabled
-                ? <Mic className="h-3.5 w-3.5" />
-                : <MicOff className="h-3.5 w-3.5 text-destructive" />}
-              {p.isCameraEnabled
-                ? <Video className="h-3.5 w-3.5" />
-                : <VideoOff className="h-3.5 w-3.5 text-muted-foreground/50" />}
+              {p.isMicrophoneEnabled ? (
+                <Mic className="h-3.5 w-3.5 text-foreground/60" />
+              ) : (
+                <MicOff className="h-3.5 w-3.5 text-destructive" />
+              )}
+              {p.isCameraEnabled ? (
+                <Video className="h-3.5 w-3.5 text-foreground/60" />
+              ) : (
+                <VideoOff className="h-3.5 w-3.5 text-muted-foreground/40" />
+              )}
             </div>
 
             {/* Mod menu */}
@@ -141,8 +182,13 @@ export function ParticipantList({ roomId, myRole, myUserId }: Props) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={() => {
-                      if (!confirm(`Kick ${name} khỏi phòng?`)) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Kick ${name} khỏi phòng?`,
+                        confirmLabel: 'Kick',
+                        variant: 'destructive',
+                      });
+                      if (!ok) return;
                       callModerate(
                         { action: 'KICK', targetUserId: p.identity },
                         `Đã kick ${name}`,

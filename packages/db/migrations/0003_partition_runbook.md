@@ -269,6 +269,6 @@ COMMIT;
 ## 6. References
 
 - [Postgres Docs — Table Partitioning](https://www.postgresql.org/docs/current/ddl-partitioning.html)
-- [Plan v2 §5.1.1 — Postgres lifecycle](../../scale-up-master-plan.md#511-primary-oltp--postgres-lifecycle)
+- [Plan v2 §5.1.1 — Postgres lifecycle](../../docs/plans/scale-up.md#511-primary-oltp--postgres-lifecycle)
 - [Citus blog — How to partition with zero downtime](https://www.citusdata.com/blog/2017/12/22/postgres-table-partitioning/)
 - [pg_partman](https://github.com/pgpartman/pg_partman) — auto-partition extension nếu muốn outsource cron logic

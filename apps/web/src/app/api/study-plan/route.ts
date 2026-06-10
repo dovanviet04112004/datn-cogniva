@@ -8,12 +8,14 @@
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db, studyPlanItem } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onStudyPlanChanged } from '@/lib/cache/invalidate';
+import { getStudyPlanItems } from '@/lib/study-plan/query';
+import { studyPlanDayKey } from '@/lib/study-plan/materialize';
 
 export const runtime = 'nodejs';
 
@@ -22,21 +24,12 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(request.url);
-  const status = url.searchParams.get('status');
+  const items = await getStudyPlanItems(session.user.id, {
+    status: url.searchParams.get('status'),
+    kind: url.searchParams.get('kind'),
+  });
 
-  const filters = [eq(studyPlanItem.userId, session.user.id)];
-  if (status === 'PENDING' || status === 'DONE') {
-    filters.push(eq(studyPlanItem.status, status));
-  }
-
-  // ORDER BY due_date ASC NULLS LAST → item có deadline lên trước
-  const rows = await db
-    .select()
-    .from(studyPlanItem)
-    .where(and(...filters))
-    .orderBy(sql`${studyPlanItem.dueDate} ASC NULLS LAST`, asc(studyPlanItem.createdAt));
-
-  return NextResponse.json({ items: rows });
+  return NextResponse.json({ items });
 }
 
 const CREATE_SCHEMA = z.object({
@@ -68,5 +61,6 @@ export async function POST(request: Request) {
     })
     .returning();
 
+  await onStudyPlanChanged(session.user.id, studyPlanDayKey());
   return NextResponse.json({ item: inserted }, { status: 201 });
 }

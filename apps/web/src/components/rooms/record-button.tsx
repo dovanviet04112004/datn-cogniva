@@ -1,18 +1,18 @@
 /**
  * RecordButton — toggle record buổi học (chỉ mod/owner thấy).
  *
- * State machine (sync với Soketi events):
+ * State machine (sync với realtime events):
  *   - IDLE       : chưa có recording active → hiện Circle red
  *   - STARTING   : đang call POST /record → spinner
  *   - RECORDING  : có recording, blink red dot + "REC" label
  *   - STOPPING   : đang call /stop → spinner
  *
  * Khi recording active, các participant non-mod sẽ thấy banner "Buổi học đang
- * được ghi" qua Soketi event `recording:started` (handled bởi RecordingBanner
+ * được ghi" qua realtime event `recording:started` (handled bởi RecordingBanner
  * trong room-client). Compliance: banner BẮT BUỘC hiển thị suốt thời gian REC.
  *
  * Polling: khi mount, GET /record → tìm recording status='RECORDING' → init
- * state. Sau đó dựa hoàn toàn vào Soketi `recording:started` / `recording:stopped`
+ * state. Sau đó dựa hoàn toàn vào realtime `recording:started` / `recording:stopped`
  * cho realtime sync giữa các mod (nhiều mod cùng phòng có thể thấy state nhau).
  */
 'use client';
@@ -21,8 +21,9 @@ import * as React from 'react';
 import { Circle, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { apiSend } from '@cogniva/shared/api';
 import { Button } from '@/components/ui/button';
-import { getPusherClient } from '@/lib/realtime-client';
+import { useRealtimeEvent } from '@/lib/realtime-client';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -58,48 +59,47 @@ export function RecordButton({ roomId, visible }: Props) {
       .catch((err) => console.error('[record-btn] init fail:', err));
   }, [roomId, visible]);
 
-  // Subscribe Soketi cho realtime sync giữa mod
-  React.useEffect(() => {
-    if (!visible) return;
-    const pusher = getPusherClient();
-    if (!pusher) return;
-
-    const channel = pusher.subscribe(`presence-room-${roomId}`);
-
-    const onStarted = (data: { recordingId: string; byUserName?: string }) => {
+  // Realtime sync giữa mod (chỉ khi visible) — recording:started/stopped/ended.
+  const channel = `presence-room-${roomId}`;
+  useRealtimeEvent<{ recordingId: string; byUserName?: string }>(
+    channel,
+    'recording:started',
+    (data) => {
       setActiveId(data.recordingId);
       setState('RECORDING');
-    };
-    const onStopped = (_data: { recordingId: string }) => {
+    },
+    visible,
+  );
+  useRealtimeEvent<{ recordingId: string }>(
+    channel,
+    'recording:stopped',
+    () => {
       setActiveId(null);
       setState('IDLE');
-    };
-    const onEnded = (_data: { recordingId: string }) => {
+    },
+    visible,
+  );
+  useRealtimeEvent<{ recordingId: string }>(
+    channel,
+    'recording:ended',
+    () => {
       setActiveId(null);
       setState('IDLE');
-    };
-
-    channel.bind('recording:started', onStarted);
-    channel.bind('recording:stopped', onStopped);
-    channel.bind('recording:ended', onEnded);
-
-    return () => {
-      channel.unbind('recording:started', onStarted);
-      channel.unbind('recording:stopped', onStopped);
-      channel.unbind('recording:ended', onEnded);
-    };
-  }, [roomId, visible]);
+    },
+    visible,
+  );
 
   if (!visible) return null;
 
   const start = async () => {
     setState('STARTING');
     try {
-      const res = await fetch(`/api/rooms/${roomId}/record`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Start record fail');
+      const data = await apiSend<{ recordingId: string }>(
+        `/api/rooms/${roomId}/record`,
+        'POST',
+      );
       toast.success('Đã bắt đầu ghi hình');
-      // State sẽ flip thành RECORDING qua Soketi event (kể cả mod khác)
+      // State sẽ flip thành RECORDING qua realtime event (kể cả mod khác)
       setActiveId(data.recordingId);
       setState('RECORDING');
     } catch (err) {
@@ -112,11 +112,7 @@ export function RecordButton({ roomId, visible }: Props) {
     if (!activeId) return;
     setState('STOPPING');
     try {
-      const res = await fetch(`/api/rooms/${roomId}/record/${activeId}/stop`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Stop record fail');
+      await apiSend(`/api/rooms/${roomId}/record/${activeId}/stop`, 'POST');
       toast.message('Đã dừng ghi hình. Đang xử lý transcript...');
       setActiveId(null);
       setState('IDLE');

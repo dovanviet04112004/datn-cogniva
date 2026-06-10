@@ -12,20 +12,25 @@
  * nhận user info qua props (Server không thể truyền function/event handler
  * trực tiếp xuống Client).
  */
-import { headers } from 'next/headers';
-
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/app/user-menu';
 import { CommandPaletteButton } from '@/components/app/command-palette';
+import { MobileMenuTrigger } from '@/components/app/mobile-menu-trigger';
 import { PomodoroWidget } from '@/components/app/pomodoro-widget';
 import { StreakBadge } from '@/components/app/streak-badge';
+import { NotificationBell } from '@/components/app/notification-bell';
 
 export async function AppTopbar() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // Deduped với AppLayout (cùng request → 1 lần resolve) + Redis-backed (P1).
+  const session = await getServerSession();
 
   return (
-    <header className="flex h-14 items-center gap-2 border-b bg-background/80 pl-14 pr-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:gap-4 md:pl-6 md:pr-6">
+    <header className="glass sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-3 md:gap-4 md:px-6">
+      {/* Hamburger menu — chỉ hiện mobile, ngồi như flex child đầu tiên
+          của topbar (KHÔNG fixed-position floating). */}
+      <MobileMenuTrigger />
+
       {/* ── Search trigger (Cmd+K dialog) ──────────── */}
       <div className="flex flex-1 items-center">
         <CommandPaletteButton />
@@ -36,6 +41,7 @@ export async function AppTopbar() {
         <StreakBadge />
         <PomodoroWidget />
         <ThemeToggle />
+        {session?.user && <NotificationBell userId={session.user.id} />}
         {session?.user && (
           // Pick các trường cần — không leak token / id sensitive nào ra client
           <UserMenu

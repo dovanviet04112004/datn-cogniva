@@ -24,8 +24,11 @@ import {
   examResponse,
 } from '@cogniva/db';
 import { auth } from '@/lib/auth';
+import { onExamChanged } from '@/lib/cache/invalidate';
 import { gradeResponse } from '@/lib/exam/grade';
 import { aiGradeShortAnswer, aiGradeEssay } from '@/lib/ai/grade-essay';
+import { applyAttempt } from '@/lib/mastery/update';
+import { recordExamOutcome } from '@/lib/library/outcome-tracker';
 import type { Plan } from '@/lib/observability/cost-guardrail';
 import { logger } from '@/lib/observability/logger';
 
@@ -170,6 +173,29 @@ export async function POST(_request: Request, ctx: RouteContext) {
     );
   }
 
+  // Phase A6 (atom-centric): propagate exam responses lên mastery cho atom.
+  // Iter responses 1 lần, với question có conceptId thì gọi applyAttempt
+  // với obsScore = pointsEarned/maxPoints. Best-effort: 1 fail không kill
+  // submit response. Sequential để tránh lock conflict trên cùng row
+  // mastery (race condition với 5 question cùng concept).
+  for (const u of updates) {
+    const resp = responses.find((r) => r.id === u.id);
+    if (!resp) continue;
+    const q = questionMap.get(resp.questionId);
+    if (!q?.conceptId) continue;
+    const maxPts = q.points || 1;
+    const obsScore = Math.max(0, Math.min(1, u.pointsEarned / maxPts));
+    try {
+      await applyAttempt(session.user.id, q.conceptId, obsScore, 'exam');
+    } catch (err) {
+      logger.warn('exam.submit.mastery-update-fail', {
+        response_id: u.id,
+        concept_id: q.conceptId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // Finalize attempt
   const maxScore = parent.maxScore || questions.reduce((s, q) => s + q.points, 0);
   const percentage = maxScore > 0 ? totalScore / maxScore : 0;
@@ -192,6 +218,32 @@ export async function POST(_request: Request, ctx: RouteContext) {
     })
     .where(eq(examAttempt.id, id))
     .returning();
+
+  // Attempt vừa submit → summary "joined" (attemptCount/bestScore/latestStatus)
+  // trong list exams của CHÍNH student này đổi → bust cache exams của user đó.
+  // Truyền workspaceId của exam để fan-out đúng key list theo workspace.
+  await onExamChanged(attempt.userId, parent.workspaceId);
+
+  // Phase 2 Pillar #5: ghi outcome cho library docs user đã import vào
+  // workspace của exam. Best-effort — fail không kill response.
+  if (parent.workspaceId && percentage >= 0 && percentage <= 1) {
+    void recordExamOutcome({
+      userId: session.user.id,
+      workspaceId: parent.workspaceId,
+      percentage,
+      context: {
+        examId: parent.id,
+        attemptId: id,
+        score: totalScore,
+        maxScore,
+      },
+    }).catch((err) => {
+      logger.warn('exam.submit.outcome-track-fail', {
+        attempt_id: id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
 
   return NextResponse.json({
     attempt: updatedAttempt,

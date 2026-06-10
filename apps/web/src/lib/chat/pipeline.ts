@@ -39,6 +39,12 @@ export type BuildContextOptions = {
   query: string;
   userId: string;
   workspaceId?: string;
+  /**
+   * Document-level pin: nếu set, retrieval chỉ search trong các doc này
+   * (ngay cả khi workspace có doc khác). User chọn qua panel "Tài liệu
+   * tham chiếu" → forward từ /api/chat body.
+   */
+  documentIds?: string[];
   topK?: number;
   /** Override mode (mặc định lấy từ env RETRIEVAL_MODE, fallback 'advanced'). */
   mode?: RetrievalMode;
@@ -66,6 +72,7 @@ export async function buildChatContext(opts: BuildContextOptions): Promise<ChatC
       query: opts.query,
       userId: opts.userId,
       workspaceId: opts.workspaceId,
+      documentIds: opts.documentIds,
       topK,
     });
     return {
@@ -85,6 +92,7 @@ export async function buildChatContext(opts: BuildContextOptions): Promise<ChatC
     queryEmbedding,
     userId: opts.userId,
     workspaceId: opts.workspaceId,
+    documentIds: opts.documentIds,
     topK,
   });
   return {

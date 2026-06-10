@@ -11,11 +11,11 @@
  *
  * Lỗi xử lý: bất kỳ exception nào → đặt status = FAILED và rethrow để
  * caller log. KHÔNG retry tự động ở phiên bản inline — Phase 1 next pass
- * sẽ swap sang Inngest và thêm retry policy.
+ * sẽ chuyển sang BullMQ job và thêm retry policy.
  *
  * Phiên bản hiện tại (Phase 1 v1) chạy ĐỒNG BỘ trong route handler. PDF
- * lớn (>10 MB) sẽ block request — chấp nhận trade-off cho dev. Khi swap
- * sang Inngest chỉ cần wrap hàm này trong `inngest.createFunction(...)`.
+ * lớn (>10 MB) sẽ block request — chấp nhận trade-off cho dev. Khi chuyển
+ * sang BullMQ chỉ cần enqueue hàm này như một job trên queue `document`.
  */
 import { eq } from 'drizzle-orm';
 
@@ -25,7 +25,8 @@ import { chunkPages } from './chunk';
 import { embedBatch } from './embed';
 import { parsePdf } from './parse';
 import { getStorage } from '../storage';
-import { extractConceptsForChunks } from '../concepts';
+import { getDocumentQueue } from '@/queue/queues';
+import { extractConceptsForDocument } from '@/lib/concepts';
 
 /**
  * Chạy ingest end-to-end cho 1 document đã có sẵn record (status PROCESSING).
@@ -64,22 +65,21 @@ export async function ingestDocument(documentId: string): Promise<void> {
     const embeddings = await embedBatch(inputs.map((c) => c.content));
 
     // ── 6. Insert chunks ────────────────────────────────
-    // Drizzle insert nhiều row trong 1 query → tránh N+1
-    const insertedChunks = await db
-      .insert(chunk)
-      .values(
-        inputs.map((input, i) => ({
-          documentId,
-          content: input.content,
-          embedding: embeddings[i] ?? [],
-          tokens: input.tokens,
-          metadata: {
-            chunkIndex: input.chunkIndex,
-            page: input.page,
-          },
-        })),
-      )
-      .returning({ id: chunk.id });
+    // Drizzle insert nhiều row trong 1 query → tránh N+1.
+    // Phase A7: KHÔNG capture insertedChunks nữa — BullMQ job
+    // `extract-document-concepts` tự query chunk theo documentId.
+    await db.insert(chunk).values(
+      inputs.map((input, i) => ({
+        documentId,
+        content: input.content,
+        embedding: embeddings[i] ?? [],
+        tokens: input.tokens,
+        metadata: {
+          chunkIndex: input.chunkIndex,
+          page: input.page,
+        },
+      })),
+    );
 
     // ── 7. Mark READY + cập nhật metadata ───────────────
     await db
@@ -93,23 +93,48 @@ export async function ingestDocument(documentId: string): Promise<void> {
       })
       .where(eq(document.id, documentId));
 
-    // ── 8. Phase 4+: extract concepts FIRE-AND-FORGET ──
-    // Không await — upload endpoint trả 200 ngay sau khi document READY.
-    // Concept extraction chạy ngầm trong cùng Node process, có thể mất
-    // 1-5 phút với PDF lớn do Voyage embed rate limit. UI có thể polling
-    // /api/graph để biết khi nào xong.
-    //
-    // Trade-off: lỗi extraction không bubble lên upload response (chỉ log).
-    // Production khi swap Inngest job, job riêng có retry + visible failure.
-    void extractConceptsForChunks(insertedChunks.map((c) => c.id))
-      .then((stats) =>
-        console.log(
-          `[ingest] document ${documentId} concepts extracted: ${stats.conceptsExtracted} (${stats.linksCreated} links)`,
-        ),
-      )
-      .catch((err: Error) =>
-        console.warn(`[ingest] concept extraction failed:`, err.message),
+    // ── 8. Phase A7 (atom-centric): enqueue BullMQ job extract-document-concepts ──
+    // Delegate cho worker queue `document` (job `extract-document-concepts`):
+    //   - Retry 3 lần exponential nếu LLM/Voyage fail (attempts=3)
+    //   - Concurrency limit 2 song song (tránh Voyage rate limit free tier) — set ở worker
+    //   - Backfill flashcard.concept_id cho card sinh trước khi atom extract xong
+    //   - Idempotent: ON CONFLICT DO NOTHING ở pivot → retry không dup
+    // jobId=documentId dedup. KHÔNG block upload response (best-effort). Nếu Redis down,
+    // upload vẫn return 200; có thể enqueue lại sau.
+    try {
+      await getDocumentQueue().add(
+        'extract-document-concepts',
+        {
+          documentId,
+          userId: doc.userId,
+          plan: 'FREE' as const, // Phase A: hardcode FREE; sau wire user.plan field
+        },
+        {
+          jobId: documentId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 10_000 },
+          removeOnComplete: 100,
+          removeOnFail: 500,
+        },
       );
+    } catch (err) {
+      // Enqueue lỗi (vd Redis chết lúc upload) → trước đây document kẹt READY mà
+      // KHÔNG BAO GIỜ có atom. Fallback: extract NGAY (đồng bộ, best-effort) để
+      // không mất atom. Chậm hơn 1 lần hiếm hoi (Redis down) — chấp nhận. Lỗi
+      // extract cũng không kéo cả ingest fail (chunks đã READY, chat vẫn chạy).
+      console.warn(
+        '[ingest] enqueue concept extraction lỗi → chạy inline fallback:',
+        (err as Error).message,
+      );
+      try {
+        await extractConceptsForDocument(documentId);
+      } catch (inlineErr) {
+        console.warn(
+          '[ingest] inline concept extraction cũng lỗi:',
+          (inlineErr as Error).message,
+        );
+      }
+    }
   } catch (error) {
     // Đánh dấu FAILED rồi rethrow để caller log + xử lý
     await db

@@ -9,7 +9,7 @@
  *
  * Tại sao subprocess thay vì @ffmpeg/ffmpeg (WASM):
  *   - WASM nặng (~30MB), chạy chậm hơn 5-10x trên file dài.
- *   - Inngest function chạy trên Node.js (không edge runtime) → có quyền spawn.
+ *   - BullMQ job chạy trên Node.js (không edge runtime) → có quyền spawn.
  *
  * Tại sao output 16kHz mono WAV PCM:
  *   - Whisper-1 docs khuyên dùng (giảm transcribe latency + cost).

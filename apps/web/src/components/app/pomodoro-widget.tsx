@@ -17,6 +17,8 @@
 import * as React from 'react';
 import { Coffee, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 
+import { usePomodoroEnabled } from './use-pomodoro-enabled';
+
 const FOCUS_SECONDS = 25 * 60;
 const BREAK_SECONDS = 5 * 60;
 const LONG_BREAK_SECONDS = 15 * 60;
@@ -70,6 +72,8 @@ function notify(title: string, body: string) {
 }
 
 export function PomodoroWidget() {
+  // Pref toggle ở /settings — default off, user phải bật mới hiện widget.
+  const [enabled] = usePomodoroEnabled();
   const [state, setState] = React.useState<State>(defaultState);
   const [hydrated, setHydrated] = React.useState(false);
 
@@ -144,10 +148,13 @@ export function PomodoroWidget() {
   const Icon = state.phase === 'BREAK' ? Coffee : Timer;
   const phaseColor =
     state.phase === 'FOCUS'
-      ? 'text-red-500'
+      ? 'text-destructive'
       : state.phase === 'BREAK'
-        ? 'text-green-500'
+        ? 'text-success'
         : 'text-muted-foreground';
+
+  // Pref OFF (default) → không render widget. Hook đã handle SSR/hydration.
+  if (!enabled) return null;
 
   return (
     <div className="hidden items-center gap-1 rounded-md border px-2 py-1 sm:flex">
@@ -172,7 +179,7 @@ export function PomodoroWidget() {
         </button>
       )}
       {state.cycle > 0 && (
-        <span className="ml-1 text-[10px] text-muted-foreground">×{state.cycle}</span>
+        <span className="ml-1 text-[11px] text-muted-foreground">×{state.cycle}</span>
       )}
     </div>
   );

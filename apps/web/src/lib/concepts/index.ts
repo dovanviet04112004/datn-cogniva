@@ -27,6 +27,8 @@ export type ExtractStats = {
   conceptsExtracted: number;
   /** Số concept_id unique đã link vào chunk_concept. */
   linksCreated: number;
+  /** Số concept extract được nhưng dedup/insert lỗi (Voyage timeout, DB…). */
+  failedConcepts: number;
 };
 
 /**
@@ -41,7 +43,7 @@ export async function extractConceptsForChunks(
   ctx?: { userId: string; plan: import('@/lib/observability/cost-guardrail').Plan },
 ): Promise<ExtractStats> {
   if (chunkIds.length === 0) {
-    return { chunksProcessed: 0, conceptsExtracted: 0, linksCreated: 0 };
+    return { chunksProcessed: 0, conceptsExtracted: 0, linksCreated: 0, failedConcepts: 0 };
   }
 
   // Load nội dung — không lấy embedding vì không cần cho extract step
@@ -52,6 +54,7 @@ export async function extractConceptsForChunks(
 
   let conceptsExtracted = 0;
   let linksCreated = 0;
+  let failedConcepts = 0;
 
   for (const ch of chunks) {
     const extracted = await extractConceptsFromChunk(ch.content, ctx);
@@ -61,15 +64,17 @@ export async function extractConceptsForChunks(
     for (const c of extracted) {
       try {
         const conceptId = await findOrCreateConcept(c);
-        // INSERT pivot — onConflictDoNothing để chạy lại idempotent
+        // INSERT pivot — strength theo LLM (mức liên quan chunk↔atom), default
+        // 0.5 nếu LLM không trả. onConflictDoNothing để chạy lại idempotent.
         const inserted = await db
           .insert(chunkConcept)
-          .values({ chunkId: ch.id, conceptId, strength: 1 })
+          .values({ chunkId: ch.id, conceptId, strength: c.strength ?? 0.5 })
           .onConflictDoNothing()
           .returning({ chunkId: chunkConcept.chunkId });
         if (inserted.length > 0) linksCreated++;
       } catch (err) {
-        // Dedup failure → skip concept, log nhưng không crash batch
+        // Dedup/insert failure → skip concept, log nhưng không crash batch.
+        failedConcepts++;
         console.warn(`[concepts] skip "${c.name}": ${(err as Error).message}`);
       }
     }
@@ -79,6 +84,7 @@ export async function extractConceptsForChunks(
     chunksProcessed: chunks.length,
     conceptsExtracted,
     linksCreated,
+    failedConcepts,
   };
 }
 
@@ -92,5 +98,11 @@ export async function extractConceptsForDocument(documentId: string): Promise<Ex
 }
 
 export { extractConceptsFromChunk } from './extract';
-export { findOrCreateConcept, listAllConcepts, listConceptsForUser, type ConceptRow } from './dedup';
+export {
+  findOrCreateConcept,
+  listAllConcepts,
+  listConceptsForUser,
+  listConceptsForWorkspace,
+  type ConceptRow,
+} from './dedup';
 export { minePrerequisites, listConceptRelations } from './prerequisite';

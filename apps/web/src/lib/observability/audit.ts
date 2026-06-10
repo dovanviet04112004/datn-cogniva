@@ -29,7 +29,7 @@
  * actorType:
  *   - 'user': end-user action
  *   - 'admin': Cogniva staff (CSM, support)
- *   - 'system': background job, cron, Inngest function
+ *   - 'system': background job, cron, BullMQ job
  *   - 'webhook': external (LiveKit, Stripe)
  */
 import { db, auditLog, type NewAuditLog } from '@cogniva/db';

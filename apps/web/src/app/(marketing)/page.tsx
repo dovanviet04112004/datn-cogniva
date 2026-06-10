@@ -1,22 +1,22 @@
 /**
  * Landing page (route "/") — bộ mặt marketing chính của Cogniva.
  *
- * Gồm 2 section:
- *  1. Hero    : pitch ngắn, CTA "Get started" + "See how it works"
- *  2. Features: 6 thẻ giới thiệu các tính năng then chốt — định vị Cogniva
- *               KHÔNG phải ChatGPT wrapper, mà là pipeline RAG production
- *               + BKT mastery + FSRS spaced repetition.
+ * Gồm 3 section:
+ *  1. Hero    : 2-column layout — text + CTA bên trái, 3D neural network bên phải
+ *  2. Features: 6 thẻ giới thiệu các tính năng then chốt
+ *  3. Footer CTA: gọi action cuối cùng
  *
- * File này là Server Component (không có "use client") → render tĩnh
- * khi build, đổi nội dung chỉ cần redeploy.
+ * Hero visual = Three.js neural network — dynamic import client-only để tránh
+ * SSR + giữ initial bundle nhẹ.
  */
 import Link from 'next/link';
 import { ArrowRight, BrainCircuit, FileText, Network, Sparkles, Target, Zap } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { NeuralNetworkHero } from '@/components/marketing/neural-network-hero';
+import { StaggerGrid } from '@/components/marketing/stagger-grid';
 
-// Khai báo tách ra để dễ A/B test wording sau này — chỉ sửa ở 1 chỗ
 const features = [
   {
     icon: FileText,
@@ -60,32 +60,47 @@ export default function MarketingHomePage() {
   return (
     <>
       {/* ── Hero ──────────────────────────────────────────── */}
-      <section className="container flex flex-col items-center gap-6 py-24 text-center md:py-32">
-        {/* Badge nhỏ phía trên hero — báo hiệu giai đoạn dự án */}
-        <div className="inline-flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
-          <Sparkles className="h-3 w-3" />
-          Phase 0 — Foundation shipping
+      <section className="relative overflow-hidden">
+        {/* Decor blobs nền sau lưng — chỉ desktop */}
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -left-32 top-20 h-96 w-96 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="absolute -right-20 bottom-0 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
         </div>
-        <h1 className="max-w-3xl text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-          AI tutor that actually <span className="text-primary">knows you</span>.
-        </h1>
-        <p className="max-w-2xl text-balance text-lg text-muted-foreground">
-          Cogniva builds a personal knowledge graph for every learner, retrieves with multi-stage
-          RAG, and adapts in real-time using Bayesian mastery tracking and spaced repetition.
-        </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button size="lg" asChild>
-            <Link href="/sign-up">
-              Get started free <ArrowRight className="ml-1" />
-            </Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="/#features">See how it works</Link>
-          </Button>
+
+        <div className="container grid items-center gap-12 py-16 md:grid-cols-2 md:gap-16 md:py-24 lg:py-32">
+          {/* Left: text + CTA */}
+          <div className="flex flex-col items-start gap-5 text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <Sparkles className="h-3 w-3" />
+              Phase 0 — Foundation shipping
+            </div>
+            <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-5xl lg:text-6xl">
+              AI tutor that actually <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">knows you</span>.
+            </h1>
+            <p className="max-w-xl text-balance text-base text-muted-foreground md:text-lg">
+              Cogniva builds a personal knowledge graph for every learner, retrieves with multi-stage
+              RAG, and adapts in real-time using Bayesian mastery tracking and spaced repetition.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" asChild>
+                <Link href="/sign-up">
+                  Get started free <ArrowRight className="ml-1" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/#features">See how it works</Link>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Free tier · 10 documents · 50 AI messages/day · No credit card.
+            </p>
+          </div>
+
+          {/* Right: 3D neural network */}
+          <div className="relative aspect-square w-full md:aspect-auto md:h-[480px] lg:h-[560px]">
+            <NeuralNetworkHero className="h-full w-full" />
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Free tier · 10 documents · 50 AI messages/day · No credit card.
-        </p>
       </section>
 
       {/* ── Features ──────────────────────────────────────── */}
@@ -98,11 +113,11 @@ export default function MarketingHomePage() {
             Every interaction makes the system smarter about <em>this specific learner</em>.
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <StaggerGrid className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
-              <Card key={feature.title} className="border-muted">
+              <Card key={feature.title} className="h-full border-muted transition-colors hover:border-foreground/20">
                 <CardHeader>
                   <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md border bg-muted/50">
                     <Icon className="h-5 w-5" />
@@ -115,6 +130,30 @@ export default function MarketingHomePage() {
               </Card>
             );
           })}
+        </StaggerGrid>
+      </section>
+
+      {/* ── Footer CTA ─────────────────────────────────────── */}
+      <section className="container py-16 md:py-24">
+        <div className="relative mx-auto max-w-3xl overflow-hidden rounded-2xl border bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 p-8 text-center md:p-12">
+          <div className="pointer-events-none absolute -left-10 -top-10 h-40 w-40 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-10 -right-10 h-40 w-40 rounded-full bg-pink-500/20 blur-3xl" />
+          <h2 className="relative text-2xl font-semibold tracking-tight md:text-3xl">
+            Sẵn sàng học theo cách của riêng bạn?
+          </h2>
+          <p className="relative mt-3 text-muted-foreground">
+            Upload PDF đầu tiên, tạo flashcard, chat với AI tutor — tất cả free.
+          </p>
+          <div className="relative mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Button size="lg" asChild>
+              <Link href="/sign-up">
+                Tạo tài khoản miễn phí <ArrowRight className="ml-1" />
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/sign-in">Đăng nhập</Link>
+            </Button>
+          </div>
         </div>
       </section>
     </>

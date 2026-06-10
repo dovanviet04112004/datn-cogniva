@@ -15,6 +15,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, room, roomMember, user } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onRoomChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
 
@@ -83,5 +84,9 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
 
   await db.delete(room).where(and(eq(room.id, id), eq(room.ownerId, session.user.id)));
+
+  // Room bị xoá → biến mất khỏi list "mine" của owner → bust cache.
+  await onRoomChanged(session.user.id);
+
   return NextResponse.json({ ok: true });
 }

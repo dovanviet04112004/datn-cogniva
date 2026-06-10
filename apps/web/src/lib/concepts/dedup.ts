@@ -15,10 +15,12 @@
  *     * 0.75-: false positive cao (gộp khái niệm khác nhau).
  *   - Tinh chỉnh trên dataset thực ở Phase 6 nếu cần.
  *
- * Race condition trong concurrent extraction:
- *   - 2 chunks cùng có "Pythagoras" → 2 calls findOrCreate đồng thời, có thể
- *     cả 2 đều miss và INSERT 2 row. Sẽ chấp nhận (Phase 4 v1) — Phase 5
- *     thêm advisory lock hoặc unique constraint trên (name, domain) lower.
+ * Race condition trong concurrent extraction (ĐÃ FIX bằng advisory lock):
+ *   - 2 job (2 document upload song song, worker concurrency 2) cùng extract
+ *     "Pythagoras" → trước đây 2 call findOrCreate đồng thời cùng miss HNSW →
+ *     INSERT 2 row trùng → atom nhân đôi. Giờ bọc search+insert trong 1
+ *     transaction + `pg_advisory_xact_lock` theo (name|domain) → call thứ 2 chờ,
+ *     rồi search thấy concept call đầu vừa insert → reuse. Lock nhả khi commit.
  */
 import { eq } from 'drizzle-orm';
 
@@ -48,47 +50,58 @@ export type ConceptRow = {
  * @returns ID của concept (mới hoặc cũ)
  */
 export async function findOrCreateConcept(c: ExtractedConcept): Promise<string> {
-  // Embed concept name — input chỉ vài chục token, nhanh
+  // Embed concept name — input chỉ vài chục token, nhanh. Gọi NGOÀI transaction
+  // (network) để không giữ lock lâu.
   const embedding = await embedQuery(c.name);
   const vectorLiteral = `[${embedding.join(',')}]`;
+  // Key serialize theo (tên chuẩn hoá | domain) — 2 job đồng thời cùng concept
+  // sẽ tuần tự qua đây thay vì cùng INSERT.
+  const lockKey = `concept:${c.name.trim().toLowerCase()}|${c.domain.trim().toLowerCase()}`;
 
-  // Search HNSW: lấy concept nearest, nếu similarity > threshold thì reuse
-  const matches = await db.execute<{
-    id: string;
-    name: string;
-    distance: number;
-  }>(sql`
-    SELECT
-      id,
-      name,
-      (embedding <=> ${vectorLiteral}::vector) AS distance
-    FROM concept
-    ORDER BY embedding <=> ${vectorLiteral}::vector
-    LIMIT 1;
-  `);
+  // Search + (maybe) INSERT trong 1 transaction + advisory lock → chống race tạo
+  // concept TRÙNG. Call thứ 2 chờ lock, rồi search thấy bản call đầu vừa insert.
+  return await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`);
 
-  const candidate = matches[0];
-  if (candidate) {
-    // Cosine distance ∈ [0, 2]; similarity = 1 - distance/2
-    const similarity = 1 - Number(candidate.distance) / 2;
-    if (similarity >= DEDUP_THRESHOLD) {
-      return candidate.id;
+    const matches = await tx.execute<{ id: string; name: string; distance: number }>(sql`
+      SELECT
+        id,
+        name,
+        (embedding <=> ${vectorLiteral}::vector) AS distance
+      FROM concept
+      ORDER BY embedding <=> ${vectorLiteral}::vector
+      LIMIT 1;
+    `);
+
+    const candidate = matches[0];
+    if (candidate) {
+      // Cosine distance ∈ [0, 2]; similarity = 1 - distance/2
+      const similarity = 1 - Number(candidate.distance) / 2;
+      if (similarity >= DEDUP_THRESHOLD) {
+        return candidate.id;
+      }
     }
-  }
 
-  // Không match → INSERT new concept
-  const [inserted] = await db
-    .insert(concept)
-    .values({
-      name: c.name,
-      description: c.description,
-      domain: c.domain,
-      embedding,
-    })
-    .returning({ id: concept.id });
+    // Không match → INSERT new concept. Phase A6: populate examples /
+    // difficulty / preview_q/a nếu LLM trả về (forward-compat: prompt cũ
+    // không có thì để default).
+    const [inserted] = await tx
+      .insert(concept)
+      .values({
+        name: c.name,
+        description: c.description,
+        domain: c.domain,
+        embedding,
+        examples: c.examples ?? [],
+        difficulty: c.difficulty ?? null,
+        previewQuestion: c.previewQuestion ?? null,
+        previewAnswer: c.previewAnswer ?? null,
+      })
+      .returning({ id: concept.id });
 
-  if (!inserted) throw new Error('[dedup] INSERT concept thất bại');
-  return inserted.id;
+    if (!inserted) throw new Error('[dedup] INSERT concept thất bại');
+    return inserted.id;
+  });
 }
 
 /**
@@ -121,6 +134,36 @@ export async function listConceptsForUser(userId: string): Promise<ConceptRow[]>
     INNER JOIN chunk ch ON ch.id = cc.chunk_id
     INNER JOIN document d ON d.id = ch.document_id
     WHERE d.user_id = ${userId};
+  `);
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    domain: r.domain,
+  }));
+}
+
+/**
+ * Concept scope theo 1 workspace cụ thể (qua document.workspace_id).
+ * Dùng cho V5 MindMap render graph chỉ atoms của workspace đang xem.
+ */
+export async function listConceptsForWorkspace(
+  userId: string,
+  workspaceId: string,
+): Promise<ConceptRow[]> {
+  const rows = await db.execute<{
+    id: string;
+    name: string;
+    description: string | null;
+    domain: string;
+  }>(sql`
+    SELECT DISTINCT c.id, c.name, c.description, c.domain
+    FROM concept c
+    INNER JOIN chunk_concept cc ON cc.concept_id = c.id
+    INNER JOIN chunk ch ON ch.id = cc.chunk_id
+    INNER JOIN document d ON d.id = ch.document_id
+    WHERE d.user_id = ${userId}
+      AND d.workspace_id = ${workspaceId};
   `);
   return rows.map((r) => ({
     id: r.id,

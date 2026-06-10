@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { db, document, workspace } from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
+import { onDocumentChanged } from '@/lib/cache/invalidate';
 
 export const runtime = 'nodejs';
 
@@ -32,9 +33,10 @@ export async function POST(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Verify document thuộc user
+  // Verify document thuộc user. Lấy workspaceId CŨ để invalidate stats/atoms
+  // của cả workspace nguồn (doc rời đi) lẫn đích (doc chuyển tới) sau khi move.
   const [doc] = await db
-    .select({ id: document.id })
+    .select({ id: document.id, workspaceId: document.workspaceId })
     .from(document)
     .where(and(eq(document.id, id), eq(document.userId, session.user.id)))
     .limit(1);
@@ -59,6 +61,14 @@ export async function POST(
     .update(document)
     .set({ workspaceId: parsed.data.workspaceId })
     .where(eq(document.id, id));
+
+  // Bust cache SAU khi move thành công. onDocumentChanged xoá per-user keys
+  // (list/sidebar/graph/dashboard) + stats/atoms của 1 workspace. Move chạm 2
+  // workspace → gọi cho CẢ nguồn (doc.workspaceId) lẫn đích (workspaceId mới).
+  await onDocumentChanged(session.user.id, doc.workspaceId);
+  if (doc.workspaceId !== parsed.data.workspaceId) {
+    await onDocumentChanged(session.user.id, parsed.data.workspaceId);
+  }
 
   return NextResponse.json({ moved: true });
 }

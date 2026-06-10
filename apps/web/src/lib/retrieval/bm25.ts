@@ -34,6 +34,11 @@ export type BM25Options = {
   topK?: number;
   /** (Optional) lọc 1 workspace cụ thể. */
   workspaceId?: string;
+  /**
+   * (Optional) lọc tập document cụ thể — match với retrieveChunks. Khi user
+   * pin docs trong panel, BM25 cũng phải giới hạn cùng subset.
+   */
+  documentIds?: string[];
   /** Trả về thêm embedding 1024-dim cho MMR — default false. */
   includeEmbedding?: boolean;
 };
@@ -46,7 +51,14 @@ export type BM25Options = {
  * phải qua RRF.
  */
 export async function bm25Search(opts: BM25Options): Promise<RetrievedChunk[]> {
-  const { query, userId, topK = 30, workspaceId, includeEmbedding = false } = opts;
+  const {
+    query,
+    userId,
+    topK = 30,
+    workspaceId,
+    documentIds,
+    includeEmbedding = false,
+  } = opts;
 
   // Trim + bỏ ký tự đặc biệt khiến websearch_to_tsquery throw
   // (websearch_to_tsquery rất permissive, nhưng query rỗng vẫn match nothing)
@@ -61,6 +73,12 @@ export async function bm25Search(opts: BM25Options): Promise<RetrievedChunk[]> {
   const workspaceFilter = workspaceId
     ? sql`AND d.workspace_id = ${workspaceId}`
     : sql``;
+  const documentFilter =
+    documentIds && documentIds.length > 0
+      ? sql`AND d.id = ANY(${`{${documentIds
+          .map((id) => `"${id.replace(/"/g, '\\"')}"`)
+          .join(',')}}`}::text[])`
+      : sql``;
 
   const rows = await db.execute<{
     id: string;
@@ -88,6 +106,7 @@ export async function bm25Search(opts: BM25Options): Promise<RetrievedChunk[]> {
     WHERE d.user_id = ${userId}
       AND d.status = 'READY'
       ${workspaceFilter}
+      ${documentFilter}
       AND to_tsvector('english', c.content) @@ websearch_to_tsquery('english', ${cleaned})
     ORDER BY rank DESC
     LIMIT ${topK};

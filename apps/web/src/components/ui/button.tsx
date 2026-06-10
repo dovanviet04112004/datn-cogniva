@@ -18,22 +18,59 @@ import { cn } from '@/lib/utils';
 
 // cva = class-variance-authority — gom các class theo variant + size để
 // đảm bảo conflict được twMerge xử lý đúng và type được suy luận tự động.
+//
+// Cogniva design language:
+//   - rounded-xl default (calm geometry, không sharp)
+//   - duration-base ease-expo-out cho hover smooth
+//   - Primary: subtle gradient accent → hover lift glow
+//   - Secondary: translucent surface với border subtle
+//   - Ghost: pure transparency với hover wash
+//   - Destructive: low-saturation red (không gắt)
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  [
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
+    'rounded-xl text-sm font-medium tracking-tight',
+    'ring-offset-background transition-all duration-base ease-expo-out',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    'disabled:pointer-events-none disabled:opacity-50',
+    '[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  ].join(' '),
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        // Primary — inset sheen + accent shadow (shadow-primary), hover lift glow.
+        // shadow-primary đã gộp highlight + drop trong 1 box-shadow nên KHÔNG dùng
+        // kèm Tailwind `ring` ở đây (ring cũng ghi box-shadow → sẽ ghi đè nhau).
+        default: [
+          'bg-primary text-primary-foreground',
+          'shadow-primary hover:bg-primary-hover hover:shadow-glow',
+          'active:scale-[0.98]',
+        ].join(' '),
+        // Destructive — low saturation red, không gắt
+        destructive: [
+          'bg-destructive text-destructive-foreground',
+          'shadow-soft hover:bg-destructive/90',
+          'active:scale-[0.98]',
+        ].join(' '),
+        // Outline — translucent surface với border, subtle hover wash
+        outline: [
+          'border border-border bg-surface/60 backdrop-blur-sm',
+          'hover:bg-accent hover:border-foreground/15 hover:text-accent-foreground',
+        ].join(' '),
+        // Secondary — surface tone, hover slightly elevated
+        secondary: [
+          'bg-secondary text-secondary-foreground',
+          'hover:bg-secondary/80',
+        ].join(' '),
+        // Ghost — pure transparency, hover wash
         ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+        // Link — primary-tinted text với underline animate
+        link: 'text-primary underline-offset-4 hover:underline hover:text-primary-hover',
       },
       size: {
         default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
+        sm: 'h-9 px-3 text-[13px]',
+        lg: 'h-11 px-8',
         icon: 'h-10 w-10',
       },
     },

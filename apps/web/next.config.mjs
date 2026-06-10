@@ -4,7 +4,7 @@
  * - reactStrictMode: bật để bắt side-effect kép trong dev.
  * - typedRoutes: tạm tắt vì roadmap còn nhiều route stub (`/quiz`,
  *   `/flashcards`, `/chat`…) chưa có file → bật sẽ fail typecheck. Bật lại
- *   khi map route đã ổn định (~Phase 5 trong plan.md §10).
+ *   khi map route đã ổn định (~Phase 5 trong docs/plans/master.md §10).
  * - transpilePackages: cần thiết để Next.js compile mã TS của
  *   `@cogniva/db` (workspace package) thay vì yêu cầu pre-build.
  * - images.remotePatterns: whitelist domain ảnh được tối ưu qua next/image.
@@ -13,8 +13,41 @@
  */
 const nextConfig = {
   reactStrictMode: true,
+  // ESLint KHÔNG chặn `next build`. Các warning hiện tại (unused-var,
+  // consistent-type-imports) thuần style, 0 ảnh hưởng runtime — nhưng nếu để mặc
+  // định, `next build` FAIL trên chúng → VPS không build/deploy được. Lint vẫn chạy
+  // riêng qua `pnpm lint` / CI / pre-commit. (typecheck giữ NGUYÊN — type vẫn được
+  // kiểm lúc build.) Pattern chuẩn nhiều team prod.
+  eslint: { ignoreDuringBuilds: true },
   // typedRoutes: re-enable once the full route map is built out (~Phase 5).
-  transpilePackages: ['@cogniva/db'],
+  transpilePackages: ['@cogniva/db', '@cogniva/shared'],
+  // Cho phép truy cập dev qua tunnel HTTPS (cloudflared/ngrok) để test trên điện
+  // thoại thật — nếu không khai báo, Next 15.5 chặn asset/HMR cross-origin.
+  allowedDevOrigins: ['*.trycloudflare.com', '*.ngrok-free.app', '*.ngrok.io'],
+  experimental: {
+    // Client Router Cache: Next 15 mặc định dynamic=0s → MỖI lần điều hướng
+    // (đổi channel, vào/ra forum, back/forward) đều fetch lại RSC từ server →
+    // nhấp nháy "tải lại trang". Đặt cửa sổ cache ngắn để re-visit/back trong
+    // khoảng này dùng lại payload đã cache (điều hướng tức thì như Discord),
+    // vẫn đủ ngắn để không thấy data quá cũ. Mutation vẫn gọi router.refresh()
+    // để bust cache route hiện tại.
+    staleTimes: {
+      dynamic: 60,
+      static: 180,
+    },
+    // Barrel-import optimization: với package export gom (named import kéo cả
+    // module), Next rewrite sang import trực tiếp từng submodule → tree-shake tốt
+    // hơn, giảm JS gửi xuống client. CHỈ liệt kê package client-impactful CÓ
+    // barrel export và CHƯA nằm trong default list của Next (lucide-react,
+    // @radix-ui/* đã được Next tự tối ưu nên không thêm lại). An toàn: chỉ đổi
+    // cách resolve import, không đổi hành vi runtime.
+    optimizePackageImports: [
+      '@tanstack/react-query',
+      '@tiptap/react',
+      '@tiptap/starter-kit',
+      'yjs',
+    ],
+  },
   images: {
     remotePatterns: [{ protocol: 'https', hostname: 'avatars.githubusercontent.com' }],
   },

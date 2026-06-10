@@ -12,6 +12,15 @@ import dynamic from 'next/dynamic';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { Loader2 } from 'lucide-react';
+// Type-only import — lấy đúng kiểu API & props của Excalidraw để tránh 'any'
+import type { ExcalidrawImperativeAPI, ExcalidrawProps } from '@excalidraw/excalidraw/types';
+
+/**
+ * Kiểu phần tử (element) mà Excalidraw phát qua onChange.
+ * Suy ra trực tiếp từ chữ ký prop onChange nên không cần import sâu
+ * (OrderedExcalidrawElement nằm ở package con @excalidraw/element).
+ */
+type WhiteboardElement = Parameters<NonNullable<ExcalidrawProps['onChange']>>[0][number];
 
 // CSS bundle của Excalidraw — BẮT BUỘC
 import '@excalidraw/excalidraw/index.css';
@@ -35,9 +44,11 @@ type Status = 'idle' | 'connecting' | 'synced' | 'error';
 
 type Props = {
   roomId: string;
+  /** Endpoint POST issue Hocuspocus token (xem NotesPanel JSDoc). */
+  tokenEndpoint?: string;
 };
 
-export function WhiteboardPanel({ roomId }: Props) {
+export function WhiteboardPanel({ roomId, tokenEndpoint }: Props) {
   const [provider, setProvider] = React.useState<HocuspocusProvider | null>(null);
   const [status, setStatus] = React.useState<Status>('idle');
   const [error, setError] = React.useState<string | null>(null);
@@ -46,10 +57,11 @@ export function WhiteboardPanel({ roomId }: Props) {
     let aborted = false;
     let p: HocuspocusProvider | null = null;
     let ydoc: Y.Doc | null = null;
+    const endpoint = tokenEndpoint ?? `/api/rooms/${roomId}/collab-token`;
 
     (async () => {
       try {
-        const res = await fetch(`/api/rooms/${roomId}/collab-token`, {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'whiteboard' }),
@@ -101,7 +113,7 @@ export function WhiteboardPanel({ roomId }: Props) {
       ydoc?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, tokenEndpoint]);
 
   if (status === 'error') {
     return (
@@ -129,12 +141,12 @@ export function WhiteboardPanel({ roomId }: Props) {
  * Mount khi provider synced.
  */
 function WhiteboardCanvas({ provider }: { provider: HocuspocusProvider }) {
-  const [excalidrawApi, setExcalidrawApi] = React.useState<any>(null);
+  const [excalidrawApi, setExcalidrawApi] = React.useState<ExcalidrawImperativeAPI | null>(null);
   const lastSerializedRef = React.useRef<string>('');
 
   React.useEffect(() => {
     if (!excalidrawApi) return;
-    const yElements = provider.document.getArray<unknown>('elements');
+    const yElements = provider.document.getArray<WhiteboardElement>('elements');
 
     const applyRemoteToLocal = () => {
       const arr = yElements.toArray();
@@ -152,15 +164,16 @@ function WhiteboardCanvas({ provider }: { provider: HocuspocusProvider }) {
   }, [provider, excalidrawApi]);
 
   const handleChange = React.useCallback(
-    (elements: readonly unknown[]) => {
+    (elements: readonly WhiteboardElement[]) => {
       const serialized = JSON.stringify(elements);
       if (serialized === lastSerializedRef.current) return; // remote loop guard
       lastSerializedRef.current = serialized;
 
-      const yElements = provider.document.getArray('elements');
+      const yElements = provider.document.getArray<WhiteboardElement>('elements');
       provider.document.transact(() => {
         yElements.delete(0, yElements.length);
-        yElements.push(elements as any);
+        // Sao chép ra mảng khả biến vì Y.Array.push yêu cầu mảng không readonly
+        yElements.push([...elements]);
       });
     },
     [provider],
@@ -169,7 +182,7 @@ function WhiteboardCanvas({ provider }: { provider: HocuspocusProvider }) {
   return (
     <div className="h-full w-full">
       <Excalidraw
-        excalidrawAPI={setExcalidrawApi as any}
+        excalidrawAPI={setExcalidrawApi}
         onChange={handleChange}
         UIOptions={{
           canvasActions: {

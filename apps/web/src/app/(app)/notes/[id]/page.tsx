@@ -5,73 +5,58 @@
  */
 'use client';
 
-import * as React from 'react';
 import { use } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
-import { Button } from '@/components/ui/button';
-
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
+import type { NoteDTO } from '@cogniva/shared/types';
+import { PageShell } from '@/components/layout/page-shell';
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
+import { PageLoading } from '@/components/layout/page-loading';
+import { EmptyState } from '@/components/layout/empty-state';
 import { NoteEditor } from '@/components/notes/note-editor';
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-type Note = {
-  id: string;
-  title: string;
-  content: string;
-};
-
 export default function NotePage({ params }: PageProps) {
   const { id } = use(params);
-  const [note, setNote] = React.useState<Note | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    fetch(`/api/notes/${id}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`status ${r.status}`);
-        return (await r.json()) as { note: Note };
-      })
-      .then((d) => setNote(d.note))
-      .catch((err: Error) => {
-        setError(err.message);
-        toast.error('Không load được note: ' + err.message);
-      });
-  }, [id]);
+  // React Query: cache + revalidate, share cache với NoteEditorDialog (cùng key).
+  const { data: note, error } = useQuery({
+    queryKey: qk.note(id),
+    queryFn: () => apiGet<{ note: NoteDTO }>(`/api/notes/${id}`).then((d) => d.note),
+  });
 
   if (error) {
     return (
-      <div className="mx-auto max-w-3xl p-6 text-sm text-muted-foreground">
-        Lỗi: {error}
-      </div>
+      <PageShell size="narrow">
+        <EmptyState title="Không load được note" description={(error as Error).message} />
+      </PageShell>
     );
   }
   if (!note) {
     return (
-      <div className="mx-auto flex max-w-3xl items-center justify-center p-12 text-sm text-muted-foreground">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Đang tải note...
-      </div>
+      <PageShell size="narrow">
+        <PageLoading label="Đang tải note..." />
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-6">
-      <Link href="/notes">
-        <Button variant="ghost" size="sm">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Về danh sách
-        </Button>
-      </Link>
+    <PageShell size="narrow">
+      <Breadcrumbs
+        segments={[
+          { href: '/notes', label: 'Notes' },
+          { label: note.title || 'Untitled' },
+        ]}
+      />
       <NoteEditor
         noteId={note.id}
         initialTitle={note.title}
         initialContent={note.content}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -23,7 +23,16 @@ import { NextResponse } from 'next/server';
 import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { db, question, quiz, studySession } from '@cogniva/db';
+import {
+  db,
+  question,
+  quiz,
+  quizAttempt,
+  quizResponse,
+  studySession,
+  tutorSubject,
+  tutorSubjectVerifyQuiz,
+} from '@cogniva/db';
 
 import { auth } from '@/lib/auth';
 import {
@@ -34,6 +43,7 @@ import {
 } from '@/lib/quiz/grade';
 import { applyAttempt } from '@/lib/mastery/update';
 import { awardXp, XP_AMOUNTS } from '@/lib/gamification/xp';
+import { recordQuizOutcome } from '@/lib/library/outcome-tracker';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // SHORT grading có LLM call
@@ -90,37 +100,47 @@ export async function POST(
     masteryAfter: number | null;
   };
 
-  const gradingPromises = parsed.data.answers.map(async (ans): Promise<ResultItem | null> => {
-    const q = qById.get(ans.questionId);
-    if (!q) return null;
-    let grade: GradeResult = { score: 0, feedback: 'Không tìm thấy câu hỏi.' };
+  type Question = (typeof questions)[number];
 
-    if (q.type === 'MCQ' && typeof ans.userAnswer === 'number') {
-      grade = gradeMcq(ans.userAnswer, q.correctAnswer as number);
-    } else if (q.type === 'TRUE_FALSE' && typeof ans.userAnswer === 'boolean') {
-      grade = gradeTrueFalse(ans.userAnswer, q.correctAnswer as boolean);
-    } else if (q.type === 'SHORT' && typeof ans.userAnswer === 'string') {
-      grade = await gradeShort(
-        q.prompt,
-        q.correctAnswer as string,
-        ans.userAnswer,
-      );
-    } else {
-      grade = { score: 0, feedback: 'Định dạng câu trả lời không hợp lệ.' };
-    }
+  // ── Bước 1: CHẤM song song (SHORT cần LLM → parallel giảm latency). KHÔNG
+  // đụng mastery ở đây để tránh race. ──
+  const gradedPromises = parsed.data.answers.map(
+    async (ans): Promise<{ q: Question; grade: GradeResult } | null> => {
+      const q = qById.get(ans.questionId);
+      if (!q) return null;
+      let grade: GradeResult = { score: 0, feedback: 'Không tìm thấy câu hỏi.' };
+      if (q.type === 'MCQ' && typeof ans.userAnswer === 'number') {
+        grade = gradeMcq(ans.userAnswer, q.correctAnswer as number);
+      } else if (q.type === 'TRUE_FALSE' && typeof ans.userAnswer === 'boolean') {
+        grade = gradeTrueFalse(ans.userAnswer, q.correctAnswer as boolean);
+      } else if (q.type === 'SHORT' && typeof ans.userAnswer === 'string') {
+        grade = await gradeShort(q.prompt, q.correctAnswer as string, ans.userAnswer);
+      } else {
+        grade = { score: 0, feedback: 'Định dạng câu trả lời không hợp lệ.' };
+      }
+      return { q, grade };
+    },
+  );
+  const graded = (await Promise.all(gradedPromises)).filter(
+    (g): g is { q: Question; grade: GradeResult } => g !== null,
+  );
 
+  // ── Bước 2: cập nhật mastery TUẦN TỰ → tránh lost-update khi nhiều câu CÙNG
+  // concept trong 1 lần làm (coverAll sinh 2 câu/chunk cho 1 atom → rất hay gặp).
+  // Sequential đảm bảo applyAttempt sau đọc score đã commit của câu trước cùng atom. ──
+  const results: ResultItem[] = [];
+  for (const { q, grade } of graded) {
     let masteryAfter: number | null = null;
     if (q.conceptId) {
-      // applyAttempt vẫn await trong promise riêng — race condition giữa các
-      // câu cùng concept (hiếm) chấp nhận: kết quả cuối là posterior cuối.
       masteryAfter = await applyAttempt(
         session.user.id,
         q.conceptId,
         grade.score,
+        'quiz',
+        quizRow.workspaceId,
       );
     }
-
-    return {
+    results.push({
       questionId: q.id,
       type: q.type as 'MCQ' | 'TRUE_FALSE' | 'SHORT',
       score: grade.score,
@@ -128,15 +148,52 @@ export async function POST(
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
       masteryAfter,
-    };
-  });
-
-  const settled = await Promise.all(gradingPromises);
-  const results = settled.filter((r): r is ResultItem => r !== null);
+    });
+  }
 
   const totalScore = results.reduce((sum, r) => sum + r.score, 0);
   const maxScore = results.length;
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+
+  // Lưu LỊCH SỬ làm quiz (quiz_attempt + quiz_response) → quản trị biết câu nào
+  // "đã làm" + xem lại điểm. isCorrect = score ≥ 0.5 (SHORT chấm 0..1). Dedup
+  // theo questionId (unique index attemptId+questionId) phòng client gửi trùng.
+  const now = new Date();
+  const userAnswerById = new Map(
+    parsed.data.answers.map((a) => [a.questionId, a.userAnswer]),
+  );
+  const [attempt] = await db
+    .insert(quizAttempt)
+    .values({
+      quizId,
+      userId: session.user.id,
+      startedAt: now,
+      submittedAt: now,
+      score: totalScore,
+      maxScore,
+      percentage,
+    })
+    .returning({ id: quizAttempt.id });
+  if (attempt && results.length > 0) {
+    const seen = new Set<string>();
+    const responseValues = results
+      .filter((r) => {
+        if (seen.has(r.questionId)) return false;
+        seen.add(r.questionId);
+        return true;
+      })
+      .map((r) => ({
+        attemptId: attempt.id,
+        questionId: r.questionId,
+        userId: session.user.id,
+        answer: userAnswerById.get(r.questionId) ?? null,
+        isCorrect: r.score >= 0.5,
+        answeredAt: now,
+      }));
+    if (responseValues.length > 0) {
+      await db.insert(quizResponse).values(responseValues);
+    }
+  }
 
   // Lưu session log
   await db.insert(studySession).values({
@@ -165,9 +222,62 @@ export async function POST(
     newAchievements = awarded.newAchievements;
   }
 
+  // Phase 21 V3 — nếu quiz này là tutor_subject_verify_quiz (link 1-1 qua
+  // bảng tutor_subject_verify_quiz.quizId), auto cập nhật score + mark
+  // PASSED nếu ≥ passThreshold. Tutor không cần PATCH thủ công nữa.
+  let verifyResult: { passed: boolean; subjectId: string } | null = null;
+  const [verifyLink] = await db
+    .select({
+      id: tutorSubjectVerifyQuiz.id,
+      tutorSubjectId: tutorSubjectVerifyQuiz.tutorSubjectId,
+      status: tutorSubjectVerifyQuiz.status,
+      passThreshold: tutorSubjectVerifyQuiz.passThreshold,
+    })
+    .from(tutorSubjectVerifyQuiz)
+    .where(eq(tutorSubjectVerifyQuiz.quizId, quizId))
+    .limit(1);
+  if (verifyLink && verifyLink.status === 'PENDING') {
+    const passed = percentage >= verifyLink.passThreshold;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(tutorSubjectVerifyQuiz)
+        .set({
+          status: passed ? 'PASSED' : 'FAILED',
+          score: percentage,
+          completedAt: new Date(),
+        })
+        .where(eq(tutorSubjectVerifyQuiz.id, verifyLink.id));
+      if (passed) {
+        await tx
+          .update(tutorSubject)
+          .set({
+            verifiedAt: new Date(),
+            verifyScore: percentage,
+          })
+          .where(eq(tutorSubject.id, verifyLink.tutorSubjectId));
+      }
+    });
+    verifyResult = { passed, subjectId: verifyLink.tutorSubjectId };
+  }
+
+  // Phase 2 Pillar #5: ghi outcome cho library docs đã import vào workspace
+  // của quiz (nếu có). Best-effort — không kill response. Note `percentage`
+  // ở đây là 0..100 → chia 100 trước khi pass.
+  if (quizRow.workspaceId) {
+    void recordQuizOutcome({
+      userId: session.user.id,
+      workspaceId: quizRow.workspaceId,
+      percentage: percentage / 100,
+      context: { score: totalScore, maxScore },
+    }).catch(() => {
+      /* silent — outcome best-effort */
+    });
+  }
+
   return NextResponse.json({
     results,
     summary: { totalScore, maxScore, percentage },
     xp: { awarded: xpAmount, newAchievements },
+    verifyResult,
   });
 }

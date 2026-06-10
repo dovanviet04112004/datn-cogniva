@@ -1,6 +1,9 @@
 /**
- * Trang sign-up — wrap form đăng ký, hiển thị thông tin về free tier.
- * Khác sign-in: không cần redirectTo (đăng ký mới thì luôn vào /dashboard).
+ * Trang sign-up — wrap form đăng ký + honor `?redirect=` query.
+ *
+ * Use case: student vào /join?code=X chưa login → /sign-in?redirect=/join?code=X.
+ * Click "Sign up" link → /sign-up?redirect=/join?code=X. Đăng ký xong bounce
+ * về URL gốc thay vì /dashboard.
  */
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -13,7 +16,15 @@ export const metadata: Metadata = {
   description: 'Create your Cogniva account.',
 };
 
-export default function SignUpPage() {
+type Props = {
+  searchParams: Promise<{ redirect?: string }>;
+};
+
+export default async function SignUpPage({ searchParams }: Props) {
+  const { redirect } = await searchParams;
+  const signInHref = redirect
+    ? `/sign-in?redirect=${encodeURIComponent(redirect)}`
+    : '/sign-in';
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
@@ -23,10 +34,10 @@ export default function SignUpPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <SignUpForm />
+        <SignUpForm redirectTo={redirect ?? '/dashboard'} />
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{' '}
-          <Link href="/sign-in" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link href={signInHref} className="font-medium text-foreground underline-offset-4 hover:underline">
             Sign in
           </Link>
         </p>

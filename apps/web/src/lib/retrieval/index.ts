@@ -52,6 +52,13 @@ export type RetrieveOptions = {
   /** (Optional) chỉ retrieve trong 1 workspace cụ thể. */
   workspaceId?: string;
   /**
+   * (Optional) chỉ retrieve trong tập document cụ thể. Truyền `documentIds`
+   * khi user pin một số tài liệu trong panel "Tài liệu tham chiếu" — AI sẽ
+   * chỉ search trong subset đó, bỏ qua các doc khác cùng workspace. Khi
+   * undefined hoặc rỗng → không filter document-level.
+   */
+  documentIds?: string[];
+  /**
    * Trả về thêm cột `embedding` cho mỗi chunk (cần cho MMR).
    * Default false để không tốn payload trong basic flow.
    */
@@ -64,7 +71,14 @@ export type RetrieveOptions = {
  * @returns Mảng chunk sắp xếp theo score giảm dần
  */
 export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedChunk[]> {
-  const { queryEmbedding, userId, topK = 5, workspaceId, includeEmbedding = false } = opts;
+  const {
+    queryEmbedding,
+    userId,
+    topK = 5,
+    workspaceId,
+    documentIds,
+    includeEmbedding = false,
+  } = opts;
 
   // pgvector format: '[0.1,0.2,...]'
   const vectorLiteral = `[${queryEmbedding.join(',')}]`;
@@ -79,6 +93,15 @@ export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedCh
   const workspaceFilter = workspaceId
     ? sql`AND d.workspace_id = ${workspaceId}`
     : sql``;
+  // Document-level filter: user pin tài liệu cụ thể trong panel. Postgres
+  // ARRAY literal: '{id1,id2,...}'::text[]; escape `"` trong UUID (shouldn't
+  // appear nhưng safe-guard).
+  const documentFilter =
+    documentIds && documentIds.length > 0
+      ? sql`AND d.id = ANY(${`{${documentIds
+          .map((id) => `"${id.replace(/"/g, '\\"')}"`)
+          .join(',')}}`}::text[])`
+      : sql``;
 
   // Dùng raw SQL vì:
   //   - Cosine distance operator <=> chưa có API Drizzle native
@@ -106,6 +129,7 @@ export async function retrieveChunks(opts: RetrieveOptions): Promise<RetrievedCh
     WHERE d.user_id = ${userId}
       AND d.status = 'READY'
       ${workspaceFilter}
+      ${documentFilter}
     ORDER BY c.embedding <=> ${vectorLiteral}::vector
     LIMIT ${topK};
   `);

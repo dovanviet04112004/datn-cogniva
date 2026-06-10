@@ -88,7 +88,10 @@ export async function POST(request: Request, ctx: RouteContext) {
   let aiGrading: unknown = null;
   let needsReview = false;
 
-  if (wantGrade && parent?.mode === 'PRACTICE') {
+  // PRACTICE với ?grade=1 → grade ngay để hiện feedback. TIMED defer grade
+  // cho /submit cuối (tránh AI token spam khi student edit answer nhiều lần).
+  const shouldGrade = wantGrade && parent?.mode === 'PRACTICE';
+  if (shouldGrade) {
     const result = gradeResponse(q, answer);
     isCorrect = result.isCorrect;
     pointsEarned = result.pointsEarned;
@@ -139,7 +142,7 @@ export async function POST(request: Request, ctx: RouteContext) {
 
   return NextResponse.json({
     ok: true,
-    graded: wantGrade && parent?.mode === 'PRACTICE',
+    graded: shouldGrade,
     isCorrect,
     pointsEarned,
   });

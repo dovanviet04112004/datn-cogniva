@@ -44,6 +44,11 @@ export async function createLivekitToken(opts: {
   isMod?: boolean;
   ttl?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Cho phép user publish audio/video. Default true.
+   * Set false cho Stage channel audience — họ chỉ subscribe, không phát.
+   */
+  canPublish?: boolean;
 }): Promise<string> {
   const { apiKey, apiSecret } = requireLivekitEnv();
 
@@ -57,7 +62,7 @@ export async function createLivekitToken(opts: {
   at.addGrant({
     room: opts.roomName,
     roomJoin: true,
-    canPublish: true,
+    canPublish: opts.canPublish ?? true,
     canSubscribe: true,
     canPublishData: true,
     roomAdmin: opts.isMod ?? false,

@@ -6,14 +6,17 @@
 
 ```
 infrastructure/
-├── docker-compose.dev.yml      # Local dev (LiveKit + Soketi + Redis)
-├── docker-compose.prod.yml     # Production stack (full)
+├── docker-compose.dev.yml      # Local dev (LiveKit + Redis; gateway chạy qua pnpm)
+├── docker-compose.prod.yml     # Production stack (full, gồm service `realtime`)
 ├── livekit/                    # SFU media server config
 ├── coturn/                     # TURN/STUN server (relay cho restrictive NAT)
-├── soketi/                     # Pusher-compatible WebSocket pub/sub
 ├── caddy/                      # Reverse proxy + Let's Encrypt
 └── scripts/                    # Provisioning + health checks
 ```
+
+> Realtime app events (chat/presence/voice…) dùng **Socket.IO gateway** ở `apps/realtime`
+> (thay Soketi/Pusher). Prod: service `realtime` trong docker-compose.prod.yml sau Caddy
+> (`realtime.cogniva.com` → :6002). Xem `apps/realtime/README.md`.
 
 ## Local development
 
@@ -26,8 +29,15 @@ docker compose -f docker-compose.dev.yml up -d
 
 # Smoke test:
 curl http://localhost:7880          # LiveKit signaling endpoint
-curl http://localhost:6001/usage    # Soketi metrics
 docker compose -f docker-compose.dev.yml logs -f livekit
+```
+
+Chạy Socket.IO gateway trên host (hot-reload, dùng redis của compose):
+
+```bash
+REDIS_URL=redis://localhost:6379 INTERNAL_API_URL=http://localhost:3000 \
+  pnpm --filter @cogniva/realtime dev   # nghe ws://localhost:6002
+curl http://localhost:6002/healthz        # → ok
 ```
 
 Sau đó set env trong `apps/web/.env.local`:
@@ -36,20 +46,19 @@ Sau đó set env trong `apps/web/.env.local`:
 NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=devsecret_at_least_32_chars_long_xxx
-NEXT_PUBLIC_SOKETI_HOST=localhost
-NEXT_PUBLIC_SOKETI_KEY=app-key-dev
-SOKETI_APP_ID=cogniva
-SOKETI_SECRET=app-secret-dev
+NEXT_PUBLIC_REALTIME_URL=ws://localhost:6002
+REDIS_URL=redis://localhost:6379
 ```
 
 **Lưu ý local:**
 - Không có TURN → user behind symmetric NAT sẽ không connect được (95% case OK trên cùng LAN/wifi).
 - Không có TLS — chỉ test localhost. Production bắt buộc TLS qua Caddy.
 - Không có Hocuspocus — Phase 14 sẽ add khi cần whiteboard/notes collab.
+- Gateway Socket.IO chạy qua pnpm (không trong compose dev) để hot-reload nhanh.
 
 ## Production deploy
 
-Xem `plan-rooms-and-exam.md` §12 cho chi tiết. Steps tóm tắt:
+Xem `docs/plans/rooms-and-exam.md` §12 cho chi tiết. Steps tóm tắt:
 
 1. Provision 2 Hetzner CCX23 (Ubuntu 22.04):
    ```bash
@@ -63,5 +72,5 @@ Xem `plan-rooms-and-exam.md` §12 cho chi tiết. Steps tóm tắt:
 ## Tham khảo
 
 - LiveKit OSS docs: https://docs.livekit.io/home/self-hosting/local/
-- Soketi docs: https://docs.soketi.app/
+- Socket.IO docs: https://socket.io/docs/v4/ (adapter: https://socket.io/docs/v4/redis-adapter/)
 - coturn wiki: https://github.com/coturn/coturn/wiki

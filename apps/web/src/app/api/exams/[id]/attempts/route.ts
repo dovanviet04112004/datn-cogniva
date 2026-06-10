@@ -1,16 +1,21 @@
 /**
- * POST /api/exams/[id]/attempts — student start làm exam.
+ * GET  /api/exams/[id]/attempts — list user's attempts cho exam này (history).
+ * POST /api/exams/[id]/attempts — start làm exam (tạo attempt mới hoặc resume).
  *
- * Pre-check:
+ * GET dùng cho StudioExamInlinePreview (V8.24) để hiện lịch sử score + cho
+ * student resume attempt đang dở. Trả attempts của CHÍNH session user (không
+ * leak attempt user khác).
+ *
+ * POST pre-check:
  *   - Exam PUBLISHED (DRAFT student không thấy được; ENDED không start mới)
  *   - User chưa vượt `maxAttempts` (count attempts của user cho exam này)
  *   - ASYNC mode: now() phải trong window [startsAt, endsAt]
  *
- * Return: { attempt: ExamAttempt } — client redirect sang /exams/[id]/take?aid=...
+ * Return POST: { attempt: ExamAttempt } — client redirect /exams/[id]/take?aid=...
  */
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { and, count, eq } from 'drizzle-orm';
+import { and, count, desc, eq } from 'drizzle-orm';
 
 import { db, exam, examAttempt } from '@cogniva/db';
 import { auth } from '@/lib/auth';
@@ -18,6 +23,47 @@ import { auth } from '@/lib/auth';
 export const runtime = 'nodejs';
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, ctx: RouteContext) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { id } = await ctx.params;
+  const userId = session.user.id;
+
+  // Exam meta + attempts của user fetch song song — independent queries,
+  // chấp nhận thêm 1 query nếu exam DRAFT (filter sau).
+  const [examRows, attemptRows] = await Promise.all([
+    db
+      .select({ ownerId: exam.ownerId, status: exam.status })
+      .from(exam)
+      .where(eq(exam.id, id))
+      .limit(1),
+    db
+      .select({
+        id: examAttempt.id,
+        status: examAttempt.status,
+        score: examAttempt.score,
+        maxScore: examAttempt.maxScore,
+        percentage: examAttempt.percentage,
+        startedAt: examAttempt.startedAt,
+        submittedAt: examAttempt.submittedAt,
+      })
+      .from(examAttempt)
+      .where(and(eq(examAttempt.examId, id), eq(examAttempt.userId, userId)))
+      .orderBy(desc(examAttempt.startedAt))
+      .limit(20),
+  ]);
+
+  const parent = examRows[0];
+  if (!parent) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // Student không list được attempts của exam DRAFT (tự nhiên = 0)
+  if (parent.status === 'DRAFT' && parent.ownerId !== userId) {
+    return NextResponse.json({ attempts: [] });
+  }
+
+  return NextResponse.json({ attempts: attemptRows });
+}
 
 export async function POST(request: Request, ctx: RouteContext) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -52,9 +98,10 @@ export async function POST(request: Request, ctx: RouteContext) {
   }
 
   // Check attempt count — Practice mode bypass (luyện tập = unlimited).
-  // TIMED/LIVE/ASYNC/ADAPTIVE/TOURNAMENT enforce maxAttempts để đảm bảo
-  // fairness khi chấm điểm có ý nghĩa.
-  if (parent.mode !== 'PRACTICE') {
+  // Owner BYPASS hoàn toàn (đang "Làm thử" preview UX, không tính fairness).
+  // Student TIMED bị enforce maxAttempts để fairness khi chấm điểm.
+  const isOwner = parent.ownerId === userId;
+  if (parent.mode !== 'PRACTICE' && !isOwner) {
     const [cnt] = await db
       .select({ n: count() })
       .from(examAttempt)

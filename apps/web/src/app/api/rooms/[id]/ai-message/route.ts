@@ -166,7 +166,7 @@ export async function POST(req: Request, { params }: Params) {
     for await (const delta of stream.textStream) {
       if (aborted) break;
       fullText += delta;
-      // Fire-and-forget: nếu Soketi tạm thời lỗi cho 1 chunk, không huỷ stream
+      // Fire-and-forget: nếu realtime tạm thời lỗi cho 1 chunk, không huỷ stream
       void triggerEvent(`presence-room-${roomId}`, 'ai:streaming', {
         messageId,
         delta,

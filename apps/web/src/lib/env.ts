@@ -29,8 +29,6 @@ const serverSchema = z.object({
   // Phase 12 — Realtime infrastructure (Study Rooms + Live Exam)
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().min(32).optional(),
-  SOKETI_APP_ID: z.string().optional(),
-  SOKETI_SECRET: z.string().optional(),
   // Phase 14 — Hocuspocus JWT signing (whiteboard + notes collab)
   JWT_SECRET: z.string().min(32).optional(),
 });
@@ -40,8 +38,9 @@ const clientSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   // Phase 12 client-side endpoints
   NEXT_PUBLIC_LIVEKIT_URL: z.string().optional(),
-  NEXT_PUBLIC_SOKETI_HOST: z.string().optional(),
-  NEXT_PUBLIC_SOKETI_KEY: z.string().optional(),
+  // Socket.IO gateway (apps/realtime) WS endpoint — vd ws://localhost:6002 (dev),
+  // wss://realtime.cogniva.com (prod). Thay NEXT_PUBLIC_SOKETI_* / PUSHER_CLUSTER.
+  NEXT_PUBLIC_REALTIME_URL: z.string().optional(),
   // Phase 14 — Hocuspocus WS endpoint
   NEXT_PUBLIC_HOCUSPOCUS_URL: z.string().optional(),
 });
@@ -61,13 +60,10 @@ const processEnv = {
   COHERE_API_KEY: process.env.COHERE_API_KEY,
   LIVEKIT_API_KEY: process.env.LIVEKIT_API_KEY,
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
-  SOKETI_APP_ID: process.env.SOKETI_APP_ID,
-  SOKETI_SECRET: process.env.SOKETI_SECRET,
   JWT_SECRET: process.env.JWT_SECRET,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_LIVEKIT_URL: process.env.NEXT_PUBLIC_LIVEKIT_URL,
-  NEXT_PUBLIC_SOKETI_HOST: process.env.NEXT_PUBLIC_SOKETI_HOST,
-  NEXT_PUBLIC_SOKETI_KEY: process.env.NEXT_PUBLIC_SOKETI_KEY,
+  NEXT_PUBLIC_REALTIME_URL: process.env.NEXT_PUBLIC_REALTIME_URL,
   NEXT_PUBLIC_HOCUSPOCUS_URL: process.env.NEXT_PUBLIC_HOCUSPOCUS_URL,
 };
 

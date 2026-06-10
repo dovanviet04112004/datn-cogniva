@@ -42,6 +42,16 @@ const protectedPrefixes = [
   '/settings',
 ];
 
+/**
+ * Admin route — yêu cầu session + adminRole. Middleware chỉ check session
+ * tồn tại (Edge runtime không hit DB). Authorization thật do layout server
+ * component (`requireAdmin()`) + API guard (`requireAdminRole()`) đảm bảo.
+ *
+ * /admin/sign-in được loại trừ — public để user chưa login truy cập.
+ */
+const ADMIN_PREFIX = '/admin';
+const ADMIN_PUBLIC_PREFIXES = ['/admin/sign-in'];
+
 // /profile (không có id) là protected — đó là profile của chính user.
 // /profile/[id] và /leaderboard là public (allow anonymous).
 const exactProtected = ['/profile'];
@@ -77,7 +87,7 @@ function generateTraceId(): string {
  *
  * Production deploy: BẮT BUỘC set EDGE_SHARED_SECRET trên cả edge + origin.
  */
-const ANTI_BYPASS_EXEMPT_PREFIXES = ['/api/health', '/__health', '/api/inngest'];
+const ANTI_BYPASS_EXEMPT_PREFIXES = ['/api/health', '/__health'];
 function checkEdgeVerified(request: NextRequest): boolean {
   if (process.env.NODE_ENV !== 'production') return true;
   const secret = process.env.EDGE_SHARED_SECRET;
@@ -87,9 +97,43 @@ function checkEdgeVerified(request: NextRequest): boolean {
   return request.headers.get('x-edge-verified') === secret;
 }
 
+/**
+ * Phase 6 V1 impersonation enforcement.
+ *
+ * Khi admin start impersonate user, cookie `cogniva-imp` được set. Middleware
+ * KHÔNG verify chữ ký (Node crypto không có ở Edge) — chỉ check presence.
+ * Nếu cookie có + request là mutation (POST/PUT/PATCH/DELETE) → 403.
+ *
+ * Bypass: impersonation endpoints (`/api/admin/impersonate*`) cho phép DELETE
+ * để stop impersonation. /api/auth/* không match middleware (matcher exclude).
+ */
+const IMPERSONATION_COOKIE = 'cogniva-imp';
+const IMPERSONATION_BYPASS_PATHS = ['/api/admin/impersonate'];
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function shouldBlockImpersonationMutation(request: NextRequest): boolean {
+  if (!request.cookies.get(IMPERSONATION_COOKIE)) return false;
+  if (!MUTATION_METHODS.has(request.method)) return false;
+  const { pathname } = request.nextUrl;
+  if (IMPERSONATION_BYPASS_PATHS.some((p) => pathname.startsWith(p))) return false;
+  return true;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sessionCookie = getSessionCookie(request);
+
+  // Impersonation read-only enforcement — chặn mutation khi đang impersonate.
+  if (shouldBlockImpersonationMutation(request)) {
+    return new NextResponse(
+      JSON.stringify({
+        error: 'impersonation_readonly',
+        message:
+          'Đang trong session impersonate — không được mutate. Stop impersonation ở banner top page rồi thử lại.',
+      }),
+      { status: 403, headers: { 'content-type': 'application/json' } },
+    );
+  }
 
   // Anti-bypass: reject 403 nếu production + secret set + KHÔNG đến từ edge.
   if (!checkEdgeVerified(request)) {
@@ -116,6 +160,22 @@ export function middleware(request: NextRequest) {
   const isAuthRoute = publicAuthPrefixes.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+
+  // Admin: chặn riêng — chưa login thì về /admin/sign-in (KHÔNG dùng chung
+  // /sign-in của product để tách biệt UX). Authorization role-based do
+  // layout server component xử lý.
+  const isAdminRoute =
+    pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`);
+  const isAdminPublic = ADMIN_PUBLIC_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  if (isAdminRoute && !isAdminPublic && !sessionCookie) {
+    const url = new URL('/admin/sign-in', request.url);
+    url.searchParams.set('redirect', pathname);
+    const response = NextResponse.redirect(url);
+    response.headers.set('x-trace-id', traceId);
+    return response;
+  }
 
   // Trường hợp 1: vào trang protected mà chưa login → đẩy về sign-in
   if (isProtected && !sessionCookie) {

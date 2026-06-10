@@ -5,7 +5,7 @@
  *
  * UI:
  *   - Progress bar: spent / quota theo plan
- *   - Color: green < 70%, yellow 70-90%, red > 90%
+ *   - Color: success < 70%, warning 70-90%, destructive > 90%
  *   - Reset time (00:00 UTC kế)
  *   - Upgrade CTA nếu FREE và spent > 50%
  *
@@ -16,7 +16,10 @@
 import * as React from 'react';
 import { Loader2, Sparkles, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -31,28 +34,19 @@ type Usage = {
 };
 
 export function AiUsageCard() {
-  const [usage, setUsage] = React.useState<Usage | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    fetch('/api/account/usage')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: Usage) => setUsage(d))
-      .catch((err) => setError(err.message));
-    // Poll mỗi 30s — quota update tương đối realtime sau mỗi AI call
-    const id = setInterval(() => {
-      fetch('/api/account/usage')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: Usage | null) => d && setUsage(d))
-        .catch(() => {});
-    }, 30_000);
-    return () => clearInterval(id);
-  }, []);
+  // Poll 30s qua refetchInterval — quota update sau mỗi AI call.
+  const { data: usage, error } = useQuery({
+    queryKey: qk.accountUsage(),
+    queryFn: () => apiGet<Usage>('/api/account/usage'),
+    refetchInterval: 30_000,
+  });
 
   if (error) {
     return (
       <Card className="p-4">
-        <p className="text-sm text-destructive">Không tải được quota: {error}</p>
+        <p className="text-sm text-destructive">
+          Không tải được quota: {(error as Error).message}
+        </p>
       </Card>
     );
   }
@@ -68,13 +62,14 @@ export function AiUsageCard() {
     );
   }
 
-  // Color theo mức tiêu thụ
+  // Color theo mức tiêu thụ — map sang token trạng thái:
+  //   >90% quá tải → destructive, 70-90% cảnh báo → warning, còn lại ổn → success
   const barColor =
     usage.spentPct >= 90
-      ? 'bg-red-500'
+      ? 'bg-destructive'
       : usage.spentPct >= 70
-        ? 'bg-amber-500'
-        : 'bg-emerald-500';
+        ? 'bg-warning'
+        : 'bg-success';
 
   const resetDate = new Date(usage.resetAt);
   const hoursUntilReset = Math.max(
@@ -107,9 +102,9 @@ export function AiUsageCard() {
             className={cn(
               'text-xs font-medium',
               usage.spentPct >= 90
-                ? 'text-red-500'
+                ? 'text-destructive'
                 : usage.spentPct >= 70
-                  ? 'text-amber-500'
+                  ? 'text-warning'
                   : 'text-muted-foreground',
             )}
           >

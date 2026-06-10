@@ -10,7 +10,7 @@
  * Trạng thái recording:
  *   - RECORDING : chưa kết thúc → redirect về room (replay chưa có video).
  *   - PROCESSING: video sẵn nhưng chưa có transcript/summary → hiển thị
- *     placeholder + auto refresh khi Inngest xong.
+ *     placeholder + auto refresh khi worker BullMQ xong.
  *   - PROCESSED : full UI có transcript + chapters + summary.
  *   - FAILED    : hiển thị video + thông báo "Transcribe lỗi, không có
  *     transcript". Mod có thể trigger re-process Phase 16.

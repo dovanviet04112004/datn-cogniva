@@ -120,9 +120,10 @@ function createDb(role: 'primary' | 'replica'): DbClient {
   }
   return drizzle(client, {
     schema,
-    // Logger dev = console.log mọi query → handy debug nhưng noisy.
-    // Tắt cho replica để không double-log khi cùng query qua cả 2.
-    logger: process.env.NODE_ENV === 'development' && role === 'primary',
+    // Logger = console.log MỌI query → cực noisy (1 click atom ~5 dòng, chat
+    // hàng chục). Mặc định TẮT; bật khi cần debug bằng `DB_DEBUG=1`. Chỉ primary
+    // để không double-log khi cùng query qua cả 2 client.
+    logger: process.env.DB_DEBUG === '1' && role === 'primary',
   });
 }
 
@@ -203,6 +204,7 @@ export function getDbForRegion(_region?: string | null): DbClient {
 export type Db = DbClient;
 export * from './schema';
 export * from './types';
+export * from './taxonomy-subjects';
 
 // Re-export `sql` template tag từ drizzle-orm để consumer (apps/web) chắc
 // chắn dùng CÙNG instance drizzle-orm với @cogniva/db. Nếu apps tự import

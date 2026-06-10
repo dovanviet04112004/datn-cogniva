@@ -16,11 +16,13 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { and, eq, ilike, or } from 'drizzle-orm';
 
+// Global search chỉ GET read thuần (5 query song song) → dùng `dbReplica`
+// offload heavy ILIKE scan khỏi primary.
 import {
   chunk,
   chunkConcept,
   concept,
-  db,
+  dbReplica,
   document,
   flashcard,
   note,
@@ -53,14 +55,14 @@ export async function GET(request: Request) {
 
   // Chạy 5 truy vấn song song
   const [docs, concepts, cards, quizzes, notes] = await Promise.all([
-    db
+    dbReplica
       .select({ id: document.id, label: document.filename })
       .from(document)
       .where(and(eq(document.userId, userId), ilike(document.filename, pattern)))
       .limit(limit),
 
     // Concept không có user_id trực tiếp → scope qua chunk_concept → chunk → document
-    db
+    dbReplica
       .selectDistinct({ id: concept.id, label: concept.name, sublabel: concept.domain })
       .from(concept)
       .innerJoin(chunkConcept, eq(chunkConcept.conceptId, concept.id))
@@ -69,7 +71,7 @@ export async function GET(request: Request) {
       .where(and(eq(document.userId, userId), ilike(concept.name, pattern)))
       .limit(limit),
 
-    db
+    dbReplica
       .select({
         id: flashcard.id,
         label: flashcard.front,
@@ -84,13 +86,13 @@ export async function GET(request: Request) {
       )
       .limit(limit),
 
-    db
+    dbReplica
       .select({ id: quiz.id, label: quiz.title })
       .from(quiz)
       .where(and(eq(quiz.userId, userId), ilike(quiz.title, pattern)))
       .limit(limit),
 
-    db
+    dbReplica
       .select({ id: note.id, label: note.title })
       .from(note)
       .where(and(eq(note.userId, userId), ilike(note.title, pattern)))

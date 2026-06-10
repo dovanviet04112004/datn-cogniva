@@ -8,7 +8,7 @@
  * Polling khi status=PROCESSING:
  *   - Refetch /api/rooms/{id}/recordings/{recId} mỗi 10s cho tới khi
  *     PROCESSED hoặc FAILED → router.refresh() reload server data.
- *   - Subscribe Soketi `recording:processed` để biết ngay khi Inngest xong
+ *   - Subscribe realtime `recording:processed` để biết ngay khi worker BullMQ xong
  *     (instant feedback < 1s thay vì chờ polling tick).
  *
  * Note: video src dùng presigned URL hoặc public R2 URL. Phase 15 dev có thể
@@ -20,11 +20,13 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, ArrowLeft, Loader2, PlayCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2, PlayCircle, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { toast } from 'sonner';
 
-import { getPusherClient } from '@/lib/realtime-client';
+import { useRealtimeEvent } from '@/lib/realtime-client';
+import { useConfirm } from '@/lib/use-confirm';
 
 export type ReplayChapter = {
   startSec: number;
@@ -49,6 +51,26 @@ type Props = {
   roomId: string;
   roomName: string;
   recording: RecordingData;
+  /**
+   * Override realtime channel prefix khi component dùng cho voice channel của
+   * study group (`presence-voice-`). Default `presence-room-` cho rooms.
+   */
+  pusherChannelPrefix?: string;
+  /**
+   * URL endpoint force-sync egress status từ LiveKit (workaround khi webhook
+   * chưa cấu hình). Nếu set, hiện nút "Sync ngay" cạnh status badge khi đang
+   * PROCESSING. Format: `/api/channels/{id}/record/{recId}/sync`.
+   */
+  syncUrl?: string;
+  /**
+   * URL endpoint xoá recording. Nếu set + canDelete=true → hiện nút "Xoá".
+   * Format: `/api/channels/{id}/record/{recId}` (DELETE method).
+   */
+  deleteUrl?: string;
+  /** Redirect tới URL này sau khi xoá thành công. */
+  afterDeleteHref?: string;
+  /** Cho phép xoá — caller check role mod+. */
+  canDelete?: boolean;
 };
 
 /** Format giây → mm:ss (dùng cho chapter timestamp). */
@@ -58,33 +80,94 @@ function fmtTime(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function ReplayClient({ roomId, roomName, recording }: Props) {
+export function ReplayClient({
+  roomId,
+  roomName,
+  recording,
+  pusherChannelPrefix = 'presence-room-',
+  syncUrl,
+  deleteUrl,
+  afterDeleteHref,
+  canDelete = false,
+}: Props) {
   const router = useRouter();
+  // Hook confirm styled — hoist ở đầu component
+  const confirm = useConfirm();
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const [syncing, setSyncing] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
 
-  // Subscribe realtime "processed" event để refresh ngay khi pipeline xong
+  const triggerDelete = React.useCallback(async () => {
+    if (!deleteUrl || deleting) return;
+    const ok = await confirm({
+      title: 'Xoá recording này?',
+      description: 'Không khôi phục được.',
+      confirmLabel: 'Xoá',
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(deleteUrl, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? `status ${res.status}`);
+      if (afterDeleteHref) {
+        router.push(afterDeleteHref);
+      } else {
+        router.back();
+      }
+    } catch (err) {
+      console.error('[replay] delete fail:', err);
+      toast.error('Xoá thất bại: ' + (err as Error).message);
+      setDeleting(false);
+    }
+  }, [deleteUrl, deleting, afterDeleteHref, router, confirm]);
+
+  const triggerSync = React.useCallback(
+    async (force = false) => {
+      if (!syncUrl || syncing) return;
+      setSyncing(true);
+      try {
+        const u = force ? `${syncUrl}?force=1` : syncUrl;
+        const res = await fetch(u, { method: 'POST' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error ?? `status ${res.status}`);
+        }
+        router.refresh();
+      } catch (err) {
+        console.error('[replay] sync fail:', err);
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [syncUrl, syncing, router],
+  );
+
+  // Realtime "processed" event → refresh ngay khi pipeline xong (chỉ khi đang PROCESSING).
+  useRealtimeEvent<{ recordingId: string }>(
+    `${pusherChannelPrefix}${roomId}`,
+    'recording:processed',
+    (data) => {
+      if (data.recordingId === recording.id) router.refresh();
+    },
+    recording.status === 'PROCESSING',
+  );
+
+  // Fallback polling 15s nếu realtime miss event. Nếu có syncUrl (channel
+  // recording — không có webhook tin cậy) thì gọi cả /sync để force-poll
+  // egress status từ LiveKit, không chỉ refresh trang.
   React.useEffect(() => {
     if (recording.status !== 'PROCESSING') return;
-    const pusher = getPusherClient();
-    if (!pusher) return;
-    const channel = pusher.subscribe(`presence-room-${roomId}`);
-    const handler = (data: { recordingId: string }) => {
-      if (data.recordingId === recording.id) {
+    const id = setInterval(() => {
+      if (syncUrl) {
+        void triggerSync();
+      } else {
         router.refresh();
       }
-    };
-    channel.bind('recording:processed', handler);
-    return () => {
-      channel.unbind('recording:processed', handler);
-    };
-  }, [roomId, recording.id, recording.status, router]);
-
-  // Fallback polling 15s nếu Soketi miss event
-  React.useEffect(() => {
-    if (recording.status !== 'PROCESSING') return;
-    const id = setInterval(() => router.refresh(), 15_000);
+    }, 15_000);
     return () => clearInterval(id);
-  }, [recording.status, router]);
+  }, [recording.status, router, syncUrl, triggerSync]);
 
   const seekTo = (sec: number) => {
     const v = videoRef.current;
@@ -112,7 +195,42 @@ export function ReplayClient({ roomId, roomName, recording }: Props) {
               {recording.duration ? ` · ${fmtTime(recording.duration)}` : null}
             </span>
           </div>
-          <StatusBadge status={recording.status} />
+          <div className="flex items-center gap-2">
+            {syncUrl && recording.status === 'PROCESSING' && (
+              <button
+                onClick={() => triggerSync(false)}
+                disabled={syncing}
+                className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-300"
+                title="Force-poll LiveKit để cập nhật status (dùng khi webhook không hoạt động)"
+              >
+                <Loader2 className={syncing ? 'h-3 w-3 animate-spin' : 'hidden h-3 w-3'} />
+                {syncing ? 'Đang sync...' : 'Sync ngay'}
+              </button>
+            )}
+            {syncUrl && recording.status === 'FAILED' && (
+              <button
+                onClick={() => triggerSync(true)}
+                disabled={syncing}
+                className="inline-flex items-center gap-1 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-500/20 disabled:opacity-50 dark:text-blue-300"
+                title="Re-poll LiveKit + chạy lại pipeline (Whisper/summary)"
+              >
+                <Loader2 className={syncing ? 'h-3 w-3 animate-spin' : 'hidden h-3 w-3'} />
+                {syncing ? 'Đang retry...' : 'Retry pipeline'}
+              </button>
+            )}
+            {canDelete && deleteUrl && recording.status !== 'PROCESSING' && (
+              <button
+                onClick={triggerDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
+                title="Xoá recording (R2 file + DB row)"
+              >
+                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                {deleting ? 'Đang xoá...' : 'Xoá'}
+              </button>
+            )}
+            <StatusBadge status={recording.status} />
+          </div>
         </header>
 
         {/* Video */}
@@ -172,7 +290,7 @@ export function ReplayClient({ roomId, roomName, recording }: Props) {
                   >
                     <PlayCircle className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
                     <span className="flex-1">
-                      <span className="font-mono text-[10px] text-muted-foreground">
+                      <span className="font-mono text-[11px] text-muted-foreground">
                         {fmtTime(c.startSec)}
                       </span>
                       <span className="ml-2 font-medium">{c.title}</span>
@@ -211,21 +329,21 @@ export function ReplayClient({ roomId, roomName, recording }: Props) {
 function StatusBadge({ status }: { status: RecordingData['status'] }) {
   if (status === 'PROCESSED') {
     return (
-      <span className="rounded bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+      <span className="rounded bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
         ĐÃ XỬ LÝ
       </span>
     );
   }
   if (status === 'PROCESSING') {
     return (
-      <span className="flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+      <span className="flex items-center gap-1 rounded bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
         <Loader2 className="h-2.5 w-2.5 animate-spin" />
         ĐANG XỬ LÝ
       </span>
     );
   }
   return (
-    <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900/50 dark:text-red-300">
+    <span className="rounded bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
       LỖI
     </span>
   );

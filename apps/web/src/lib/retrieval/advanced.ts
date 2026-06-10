@@ -39,6 +39,11 @@ export type AdvancedRetrieveOptions = {
   userId: string;
   /** (Optional) lọc workspace. */
   workspaceId?: string;
+  /**
+   * (Optional) lọc tập document cụ thể — match retrieveChunks/bm25Search.
+   * Khi user pin docs trong panel "Tài liệu tham chiếu".
+   */
+  documentIds?: string[];
   /** Số chunk cuối cùng (default 5 — match basic). */
   topK?: number;
   /**
@@ -83,6 +88,7 @@ export async function advancedRetrieve(
     query,
     userId,
     workspaceId,
+    documentIds,
     topK = 5,
     enableHyde = true,
     enableBm25 = true,
@@ -108,6 +114,7 @@ export async function advancedRetrieve(
       queryEmbedding,
       userId,
       workspaceId,
+      documentIds,
       topK: VECTOR_CANDIDATES,
       includeEmbedding: enableMmr,
     }),
@@ -116,6 +123,7 @@ export async function advancedRetrieve(
           query,
           userId,
           workspaceId,
+          documentIds,
           topK: BM25_CANDIDATES,
           includeEmbedding: enableMmr,
         })

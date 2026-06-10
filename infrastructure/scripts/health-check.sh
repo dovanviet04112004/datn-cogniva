@@ -18,7 +18,7 @@ alert() {
 }
 
 # 1. Container alive?
-CONTAINERS=(cogniva-livekit cogniva-soketi cogniva-redis)
+CONTAINERS=(cogniva-livekit cogniva-realtime cogniva-redis)
 for c in "${CONTAINERS[@]}"; do
   if ! docker ps --filter "name=$c" --filter 'status=running' --format '{{.Names}}' | grep -q "$c"; then
     alert "Container $c not running"
@@ -30,9 +30,9 @@ if ! curl -fsS --max-time 5 http://localhost:7880/ >/dev/null; then
   alert "LiveKit signaling endpoint unreachable"
 fi
 
-# 3. Soketi WS endpoint?
-if ! curl -fsS --max-time 5 http://localhost:6001/usage >/dev/null; then
-  alert "Soketi unreachable"
+# 3. Socket.IO gateway healthz?
+if ! curl -fsS --max-time 5 http://localhost:6002/healthz >/dev/null; then
+  alert "Realtime gateway (Socket.IO) unreachable"
 fi
 
 # 4. Redis ping?

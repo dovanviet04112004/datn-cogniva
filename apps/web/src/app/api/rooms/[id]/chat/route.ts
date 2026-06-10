@@ -1,5 +1,5 @@
 /**
- * POST /api/rooms/[id]/chat — gửi message + broadcast qua Soketi.
+ * POST /api/rooms/[id]/chat — gửi message + broadcast qua Socket.IO.
  * GET  /api/rooms/[id]/chat — fetch 50 message gần nhất (initial load).
  *
  * Flow POST:

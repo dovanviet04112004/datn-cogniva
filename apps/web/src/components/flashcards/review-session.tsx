@@ -19,6 +19,10 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, RotateCcw } from 'lucide-react';
 
+import { useQuery } from '@tanstack/react-query';
+
+import { apiGet, apiSend } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
@@ -36,32 +40,66 @@ type Flashcard = {
 
 type Props = {
   initial?: Flashcard[];
+  /**
+   * V5 (atom-centric): scope review queue theo workspace. Khi pass,
+   * /api/flashcards/queue?workspaceId=X chỉ trả thẻ due của workspace.
+   */
+  workspaceId?: string;
 };
 
+// Rating colors — theme-aware (semantic Tailwind colors thay vì hardcode
+// text-xxx-200 vô hình trên light mode). Hover state có shadow-glow accent.
 const RATINGS = [
-  { rating: 1, label: 'Lại', short: 'Again', key: '1', className: 'bg-red-500/15 hover:bg-red-500/25 text-red-200' },
-  { rating: 2, label: 'Khó', short: 'Hard', key: '2', className: 'bg-orange-500/15 hover:bg-orange-500/25 text-orange-200' },
-  { rating: 3, label: 'Tốt', short: 'Good', key: '3', className: 'bg-green-500/15 hover:bg-green-500/25 text-green-200' },
-  { rating: 4, label: 'Dễ', short: 'Easy', key: '4', className: 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-200' },
+  {
+    rating: 1,
+    label: 'Lại',
+    short: 'Again',
+    key: '1',
+    className: 'border-red-500/30 bg-red-500/10 hover:border-red-500/50 hover:bg-red-500/15 text-red-600 dark:text-red-400',
+  },
+  {
+    rating: 2,
+    label: 'Khó',
+    short: 'Hard',
+    key: '2',
+    className: 'border-orange-500/30 bg-orange-500/10 hover:border-orange-500/50 hover:bg-orange-500/15 text-orange-600 dark:text-orange-400',
+  },
+  {
+    rating: 3,
+    label: 'Tốt',
+    short: 'Good',
+    key: '3',
+    className: 'border-green-500/30 bg-green-500/10 hover:border-green-500/50 hover:bg-green-500/15 text-green-600 dark:text-green-400',
+  },
+  {
+    rating: 4,
+    label: 'Dễ',
+    short: 'Easy',
+    key: '4',
+    className: 'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  },
 ];
 
-export function ReviewSession({ initial }: Props) {
+export function ReviewSession({ initial, workspaceId }: Props) {
   const router = useRouter();
-  const [queue, setQueue] = React.useState<Flashcard[]>(initial ?? []);
+  // React Query: queue do server cấp; có `initial` (SSR-seed) thì dùng luôn, không
+  // fetch. Sau khi load, idx tiến cục bộ qua queue (queue read-only trong phiên).
+  const { data: fetchedQueue, isLoading } = useQuery({
+    queryKey: qk.flashcardQueue(workspaceId),
+    queryFn: () =>
+      apiGet<{ flashcards: Flashcard[] }>(
+        `/api/flashcards/queue${workspaceId ? `?workspaceId=${workspaceId}` : ''}`,
+      ).then((d) => d.flashcards),
+    enabled: !initial,
+    initialData: initial,
+  });
+  const queue = fetchedQueue ?? [];
+  const loading = !initial && isLoading;
   const [idx, setIdx] = React.useState(0);
   const [revealed, setRevealed] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [startTime, setStartTime] = React.useState(Date.now());
   const [stats, setStats] = React.useState({ done: 0, good: 0 });
-  const [loading, setLoading] = React.useState(!initial);
-
-  React.useEffect(() => {
-    if (initial) return;
-    fetch('/api/flashcards/queue')
-      .then((r) => r.json())
-      .then((d) => setQueue(d.flashcards))
-      .finally(() => setLoading(false));
-  }, [initial]);
 
   // Reset timer khi card đổi
   React.useEffect(() => {
@@ -77,11 +115,7 @@ export function ReviewSession({ initial }: Props) {
       setSubmitting(true);
       const duration = Date.now() - startTime;
       try {
-        await fetch(`/api/flashcards/${current.id}/review`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rating, duration }),
-        });
+        await apiSend(`/api/flashcards/${current.id}/review`, 'POST', { rating, duration });
         setStats((s) => ({ done: s.done + 1, good: s.good + (rating >= 3 ? 1 : 0) }));
         setIdx((i) => i + 1);
       } catch (err) {
@@ -117,28 +151,48 @@ export function ReviewSession({ initial }: Props) {
   }
 
   if (!current) {
-    return <SessionDone stats={stats} onReturn={() => router.push('/flashcards')} />;
+    // Sau review xong → quay lại nơi user đến (workspace tab nếu vào từ workspace).
+    // Fallback /workspaces nếu không có history (user vào /flashcards/review trực tiếp).
+    return <SessionDone stats={stats} onReturn={() => router.back()} />;
   }
 
+  // Progress bar percentage
+  const progress = queue.length > 0 ? ((idx + 1) / queue.length) * 100 : 0;
+
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      {/* Progress */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {idx + 1} / {queue.length}
-        </span>
-        <span className="text-xs uppercase tracking-wider">{current.state}</span>
+    <div className="mx-auto max-w-2xl space-y-5">
+      {/* Progress — thin bar + counters with mono typography */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-mono tabular-nums font-semibold text-foreground/80">
+            {idx + 1}{' '}
+            <span className="font-normal text-text-muted">/ {queue.length}</span>
+          </span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {current.state}
+          </span>
+        </div>
+        <div className="relative h-1 overflow-hidden rounded-full bg-muted">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-base ease-expo-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
       </div>
 
-      <Card className="overflow-hidden">
+      {/* Card — premium soft container, depth via shadow + ring */}
+      <Card className="overflow-hidden rounded-2xl border-divider bg-card shadow-soft transition-shadow duration-base hover:shadow-elevated">
         {/* Front */}
-        <div className="border-b p-6">
+        <div className="px-7 py-8">
           <CardFront card={current} revealed={revealed} />
         </div>
 
-        {/* Back — chỉ hiện khi revealed */}
+        {/* Back — reveal animation: fade-in-up */}
         {revealed && (
-          <div className="bg-muted/30 p-6">
+          <div className="border-t border-divider bg-surface-secondary/50 px-7 py-7 animate-fade-in-up">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Đáp án
+            </p>
             <CardBack card={current} />
           </div>
         )}
@@ -146,21 +200,32 @@ export function ReviewSession({ initial }: Props) {
 
       {/* Actions */}
       {!revealed ? (
-        <Button onClick={() => setRevealed(true)} className="w-full" size="lg">
-          Hiện đáp án (Space)
+        <Button
+          onClick={() => setRevealed(true)}
+          className="w-full shadow-soft hover:shadow-glow"
+          size="lg"
+        >
+          Hiện đáp án
+          <kbd className="ml-2 rounded bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[10px] tracking-tight">
+            Space
+          </kbd>
         </Button>
       ) : (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-4 gap-2.5">
           {RATINGS.map((r) => (
             <button
               key={r.rating}
               onClick={() => submitRating(r.rating)}
               disabled={submitting}
-              className={`flex flex-col items-center justify-center rounded-md py-3 transition-colors disabled:opacity-50 ${r.className}`}
+              className={`group/rate flex flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-3 transition-all duration-base ease-expo-out hover:-translate-y-0.5 active:scale-95 disabled:pointer-events-none disabled:opacity-50 ${r.className}`}
             >
-              <span className="text-xs uppercase opacity-70">{r.short}</span>
-              <span className="text-base font-semibold">{r.label}</span>
-              <span className="mt-0.5 text-[10px] opacity-60">phím {r.key}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">
+                {r.short}
+              </span>
+              <span className="text-base font-semibold tracking-tight">{r.label}</span>
+              <kbd className="mt-0.5 rounded bg-foreground/5 px-1.5 py-0.5 font-mono text-[10px] opacity-60">
+                {r.key}
+              </kbd>
             </button>
           ))}
         </div>

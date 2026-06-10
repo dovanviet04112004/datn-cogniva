@@ -22,6 +22,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { jwt } from 'better-auth/plugins/jwt';
 import { bearer } from 'better-auth/plugins/bearer';
+import { twoFactor } from 'better-auth/plugins/two-factor';
 import { createAuthMiddleware } from 'better-auth/api';
 
 import { account, db, jwks, session, user, verification } from '@cogniva/db';
@@ -34,6 +35,7 @@ import {
   signConsentToken,
   COPPA_AGE_THRESHOLD,
 } from '@/lib/coppa';
+import { redisSecondaryStorage } from '@/lib/auth-secondary-storage';
 
 /**
  * Extract IP + UA + trace từ Better Auth context.
@@ -92,6 +94,10 @@ export const auth = betterAuth({
     provider: 'pg',
     schema: { user, session, account, verification, jwks },
   }),
+  // Session lưu/đọc ở Redis (1-5ms) thay vì query Neon mỗi getSession (50-100ms warm,
+  // +1-2s cold). Phủ MỌI getSession (layout/page/route/mobile) cùng lúc. Fail-open:
+  // adapter trả null khi Redis lỗi → findSession fallback DB (storeSessionInDatabase=true).
+  secondaryStorage: redisSecondaryStorage,
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
@@ -144,6 +150,10 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: 60 * 5, // 5 phút — chấp nhận trade-off latency vs accuracy
     },
+    // GIỮ session trong DB SONG SONG với Redis (secondaryStorage). Tác dụng: khi Redis
+    // miss/chết, Better Auth findSession tự fallback đọc DB → fail-open, KHÔNG logout
+    // toàn bộ (chỉ chậm lại như trước). Cũng giữ tương thích flow cũ (bảng session vẫn dùng).
+    storeSessionInDatabase: true,
   },
   /**
    * Database hooks — wire audit log cho compliance + security observability.
@@ -343,6 +353,14 @@ export const auth = betterAuth({
      * = 30 days, grace period 30 days (JWT cũ vẫn verify được sau rotate).
      */
     jwt({
+      // PERF FIX: TẮT auto-đính JWT vào MỌI response /get-session. Mặc định
+      // plugin có after-hook trên /get-session → mỗi getSession ký 1 JWT →
+      // getJwksAdapter().getLatestKey() query `select … from jwks` (KHÔNG cache).
+      // Mà mọi API route đều gọi getSession → jwks bị query MỖI REQUEST (hàng
+      // chục lần/trang) → chậm + spam Neon. Web xài cookie KHÔNG cần JWT này.
+      // An toàn cho mobile: token vẫn cấp qua header `set-auth-token` lúc
+      // sign-in/up (capture vào SecureStore) + refresh qua GET /api/auth/token.
+      disableSettingJwtHeader: true,
       jwks: {
         keyPairConfig: { alg: 'EdDSA', crv: 'Ed25519' },
       },
@@ -363,6 +381,18 @@ export const auth = betterAuth({
       },
     }),
     /** nextCookies PHẢI nằm CUỐI plugin list — Better Auth doc requirement. */
+    /**
+     * Phase 6 — 2FA TOTP. Plugin tự thêm endpoint /two-factor/enable, /verify-totp,
+     * /disable + auto-challenge khi sign-in nếu user.twoFactorEnabled. Schema có
+     * sẵn user.two_factor_enabled + two_factor table (migration 0030).
+     *
+     * `issuer` xuất hiện trong Google Authenticator/Authy app — đẹp hơn URL.
+     * `skipVerificationOnEnable=false` (default): bắt user verify 1 code trước
+     * khi enable thật → tránh bị lock khi nhập sai secret QR.
+     */
+    twoFactor({
+      issuer: 'Cogniva',
+    }),
     nextCookies(),
   ],
 });

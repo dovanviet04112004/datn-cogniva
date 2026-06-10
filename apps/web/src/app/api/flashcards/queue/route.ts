@@ -24,6 +24,10 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 100);
+  // V5 (atom-centric): scope theo workspace nếu được pass, cho phép
+  // FlashcardSession recipe trong workspace notebook chỉ review thẻ
+  // thuộc workspace đó.
+  const workspaceId = url.searchParams.get('workspaceId');
 
   // Custom ORDER BY: ưu tiên NEW > RELEARNING > LEARNING > REVIEW, sau đó due asc
   const rows = await db.execute<typeof flashcard.$inferSelect>(sql`
@@ -31,6 +35,7 @@ export async function GET(request: Request) {
     FROM flashcard
     WHERE user_id = ${session.user.id}
       AND due <= NOW()
+      ${workspaceId ? sql`AND workspace_id = ${workspaceId}` : sql``}
     ORDER BY
       CASE state
         WHEN 'NEW' THEN 1

@@ -2,7 +2,7 @@
  * ChatPanel — sidebar chat realtime trong room.
  *
  * Initial load: GET /api/rooms/{id}/chat → 50 message gần nhất.
- * Subscribe `presence-room-{id}` qua Soketi → bind:
+ * Subscribe `presence-room-{id}` qua Socket.IO → bind:
  *   - `chat:message`   : tin nhắn mới (text/AI placeholder/system)
  *   - `ai:streaming`   : delta từng token cho AI message (Phase 15)
  *   - `ai:complete`    : AI generation xong → lock final content
@@ -11,7 +11,7 @@
  * Gửi:
  *   - Text thường: POST /api/rooms/{id}/chat
  *   - `@AI <câu hỏi>` ở đầu message: POST /api/rooms/{id}/ai-message
- *     Server insert AI placeholder + stream delta → client nhận qua Soketi.
+ *     Server insert AI placeholder + stream delta → client nhận qua Socket.IO.
  *
  * UX:
  *   - Auto-scroll xuống cuối khi có message mới (trừ khi user đã scroll lên).
@@ -25,7 +25,8 @@ import * as React from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { getPusherClient } from '@/lib/realtime-client';
+import { apiSend } from '@cogniva/shared/api';
+import { useRealtimeEvent } from '@/lib/realtime-client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -68,68 +69,43 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
       .catch((err) => console.error('[chat] load fail:', err));
   }, [roomId]);
 
-  // Subscribe Soketi — chat:message + ai:streaming/complete/error
-  React.useEffect(() => {
-    const pusher = getPusherClient();
-    if (!pusher) return;
+  // Realtime — chat:message + ai:streaming/complete/error trên presence-room.
+  // (ref-count subscribe trong useRealtimeEvent: nhiều component cùng channel chỉ sub 1 lần.)
+  const channel = `presence-room-${roomId}`;
 
-    const channel = pusher.subscribe(`presence-room-${roomId}`);
+  useRealtimeEvent<Msg>(channel, 'chat:message', (data) => {
+    setMessages((prev) => {
+      // Trùng ID (server echo) → bỏ qua
+      if (prev.some((m) => m.id === data.id)) return prev;
+      // AI message vừa đẻ ra → mark streaming
+      return [...prev, data.type === 'AI' ? { ...data, aiStatus: 'streaming' as const } : data];
+    });
+  });
 
-    const onMessage = (data: Msg) => {
-      setMessages((prev) => {
-        // Trùng ID (server echo) → bỏ qua
-        if (prev.some((m) => m.id === data.id)) return prev;
-        return [
-          ...prev,
-          // AI message vừa đẻ ra → mark streaming
-          data.type === 'AI' ? { ...data, aiStatus: 'streaming' as const } : data,
-        ];
-      });
-    };
+  useRealtimeEvent<{ messageId: string; delta: string }>(channel, 'ai:streaming', (data) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === data.messageId
+          ? { ...m, content: m.content + data.delta, aiStatus: 'streaming' }
+          : m,
+      ),
+    );
+  });
 
-    const onAiStreaming = (data: { messageId: string; delta: string }) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === data.messageId
-            ? { ...m, content: m.content + data.delta, aiStatus: 'streaming' }
-            : m,
-        ),
-      );
-    };
+  useRealtimeEvent<{ messageId: string; content: string }>(channel, 'ai:complete', (data) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === data.messageId ? { ...m, content: data.content, aiStatus: 'complete' } : m,
+      ),
+    );
+  });
 
-    const onAiComplete = (data: { messageId: string; content: string }) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === data.messageId
-            ? { ...m, content: data.content, aiStatus: 'complete' }
-            : m,
-        ),
-      );
-    };
-
-    const onAiError = (data: { messageId: string; error: string }) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === data.messageId ? { ...m, aiStatus: 'error' } : m,
-        ),
-      );
-      toast.error(`AI lỗi: ${data.error}`);
-    };
-
-    channel.bind('chat:message', onMessage);
-    channel.bind('ai:streaming', onAiStreaming);
-    channel.bind('ai:complete', onAiComplete);
-    channel.bind('ai:error', onAiError);
-
-    return () => {
-      channel.unbind('chat:message', onMessage);
-      channel.unbind('ai:streaming', onAiStreaming);
-      channel.unbind('ai:complete', onAiComplete);
-      channel.unbind('ai:error', onAiError);
-      // Note: KHÔNG unsubscribe channel — components khác (Pomodoro, Reactions)
-      // có thể đang dùng. Pusher auto cleanup khi tab close.
-    };
-  }, [roomId]);
+  useRealtimeEvent<{ messageId: string; error: string }>(channel, 'ai:error', (data) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === data.messageId ? { ...m, aiStatus: 'error' } : m)),
+    );
+    toast.error(`AI lỗi: ${data.error}`);
+  });
 
   // Auto-scroll xuống cuối khi có message mới (nếu user đang ở dưới).
   // Cần phụ thuộc cả content của AI message (đang grow theo stream) để scroll
@@ -165,31 +141,13 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
     try {
       if (isAiQuery) {
         // 1. Trước hết gửi câu hỏi của user vào chat thường (để mọi người thấy)
-        await fetch(`/api/rooms/${roomId}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
+        await apiSend(`/api/rooms/${roomId}/chat`, 'POST', { content });
+        // 2. Trigger AI — response stream qua Socket.IO, không cần await full
+        await apiSend(`/api/rooms/${roomId}/ai-message`, 'POST', {
+          message: aiQuery,
         });
-        // 2. Trigger AI — response stream qua Soketi, không cần await full
-        const res = await fetch(`/api/rooms/${roomId}/ai-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: aiQuery }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? 'AI Tutor lỗi');
-        }
       } else {
-        const res = await fetch(`/api/rooms/${roomId}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? 'Gửi tin nhắn thất bại');
-        }
+        await apiSend(`/api/rooms/${roomId}/chat`, 'POST', { content });
       }
       setInput('');
     } catch (err) {
@@ -253,7 +211,7 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
           </Button>
         </div>
         {willTriggerAI && (
-          <p className="mt-1 text-[10px] text-primary">
+          <p className="mt-1 text-[11px] text-primary">
             <Sparkles className="mr-0.5 inline h-3 w-3" />
             Sẽ gọi AI Tutor — cả phòng sẽ thấy câu trả lời stream realtime.
           </p>
@@ -280,7 +238,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
           isError ? 'border-destructive bg-destructive/5' : 'bg-primary/5',
         )}
       >
-        <p className="flex items-center gap-1 text-[10px] font-medium uppercase text-primary">
+        <p className="flex items-center gap-1 text-[11px] font-medium uppercase text-primary">
           <Sparkles className="h-3 w-3" />
           AI Tutor · {time}
           {isStreaming && <span className="ml-1 text-muted-foreground">đang trả lời...</span>}
@@ -297,7 +255,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
 
   if (message.type === 'SYSTEM') {
     return (
-      <p className="text-center text-[10px] italic text-muted-foreground">{message.content}</p>
+      <p className="text-center text-[11px] italic text-muted-foreground">{message.content}</p>
     );
   }
 
@@ -308,7 +266,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
         <AvatarFallback className="text-[10px]">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>
       </Avatar>
       <div className={cn('flex max-w-[80%] flex-col', isOwn && 'items-end')}>
-        <div className="flex items-baseline gap-2 text-[10px] text-muted-foreground">
+        <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
           <span className="font-medium">{isOwn ? 'Bạn' : name}</span>
           <span>{time}</span>
         </div>

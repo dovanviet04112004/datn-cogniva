@@ -12,7 +12,7 @@
  * Egress flow (LiveKit):
  *   1. POST /room-composite trả `egressId` (chưa upload, mới start).
  *   2. Egress service render composite layout 'speaker' → MP4 → S3/R2.
- *   3. Khi xong, LiveKit gửi webhook `egress_ended` → Inngest event
+ *   3. Khi xong, LiveKit gửi webhook `egress_ended` → enqueue BullMQ job
  *      `recording/finished` → process-recording.ts pipeline chạy.
  *
  * R2 bucket cần config trong egress.yaml (xem infrastructure/livekit-egress/).

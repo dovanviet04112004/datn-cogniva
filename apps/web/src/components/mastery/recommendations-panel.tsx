@@ -10,7 +10,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Card } from '@/components/ui/card';
 
 type Recommendation = {
@@ -24,15 +27,13 @@ type Recommendation = {
 };
 
 export function RecommendationsPanel({ limit = 5 }: { limit?: number }) {
-  const [items, setItems] = React.useState<Recommendation[]>([]);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    fetch(`/api/mastery/recommendations?limit=${limit}`)
-      .then((r) => r.json())
-      .then((d: { recommendations: Recommendation[] }) => setItems(d.recommendations))
-      .finally(() => setLoading(false));
-  }, [limit]);
+  const { data: items = [], isLoading: loading } = useQuery({
+    queryKey: qk.masteryRecommendations(limit),
+    queryFn: () =>
+      apiGet<{ recommendations: Recommendation[] }>(
+        `/api/mastery/recommendations?limit=${limit}`,
+      ).then((d) => d.recommendations),
+  });
 
   if (loading) {
     return (

@@ -15,7 +15,8 @@
     "dev:hocus": "turbo run dev --filter=@cogniva/hocuspocus",
     "dev:edge": "turbo run dev --filter=@cogniva/edge",
     "dev:mobile": "turbo run start --filter=@cogniva/mobile",
-    "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "dev:worker": "pnpm --filter @cogniva/web worker",
+    "dev:all": "concurrently -k -n web,worker,realtime -c blue,magenta,green \"pnpm --filter @cogniva/web dev\" \"pnpm --filter @cogniva/web worker\" \"pnpm --filter @cogniva/realtime dev\"",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
@@ -30,6 +31,7 @@
     "db:logs": "docker compose logs -f postgres"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.9",
     "turbo": "^2.3.3",

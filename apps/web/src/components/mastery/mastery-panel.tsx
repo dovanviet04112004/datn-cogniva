@@ -12,7 +12,10 @@
 'use client';
 
 import * as React from 'react';
+import { useQuery } from '@tanstack/react-query';
 
+import { apiGet } from '@cogniva/shared/api';
+import { qk } from '@cogniva/shared/query';
 import { Card } from '@/components/ui/card';
 
 type MasteryRow = {
@@ -32,15 +35,13 @@ function masteryColor(score: number): string {
 }
 
 export function MasteryPanel({ limit = 20 }: { limit?: number }) {
-  const [rows, setRows] = React.useState<MasteryRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    fetch(`/api/mastery?limit=${limit}`)
-      .then((r) => r.json())
-      .then((d: { mastery: MasteryRow[] }) => setRows(d.mastery))
-      .finally(() => setLoading(false));
-  }, [limit]);
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey: qk.mastery(limit),
+    queryFn: () =>
+      apiGet<{ mastery: MasteryRow[] }>(`/api/mastery?limit=${limit}`).then(
+        (d) => d.mastery,
+      ),
+  });
 
   if (loading) {
     return (
