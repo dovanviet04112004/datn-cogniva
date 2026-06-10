@@ -1,23 +1,23 @@
 /**
- * Form sign-in — Client Component (dùng react-hook-form + zod + Better Auth).
+ * Form sign-in — gọi API auth V2 (NestJS, JWT + dual-issue session).
  *
  * Luồng:
- *  1. User nhập email + password → react-hook-form validate qua zod schema.
- *  2. submit → gọi `signIn.email()` của Better Auth client; nó POST tới
- *     /api/auth/sign-in/email, set cookie phiên rồi trả về.
- *  3. Lỗi → hiển thị toast (sonner). Thành công → router.push(redirectTo)
- *     + router.refresh() để Server Component nhận được session mới.
+ *  1. email + password → POST /api/auth/sign-in (lib/auth-api).
+ *  2. User bật 2FA → server trả challengeToken → form chuyển bước nhập mã
+ *     TOTP 6 số → POST /api/auth/sign-in/2fa.
+ *  3. Thành công: server đã set cookie (cg_at/cg_rt + session Better Auth
+ *     dual-issue) → full reload về redirectTo để SSR nhận session.
  */
 'use client';
 
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
-import { signIn } from '@/lib/auth-client';
+import { signIn, signInTwoFactor } from '@/lib/auth-api';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -29,7 +29,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
-// Zod schema — dùng cho cả validate UI lẫn type cho form values
 const schema = z.object({
   email: z.string().email('Enter a valid email address.'),
   password: z.string().min(1, 'Password is required.'),
@@ -37,12 +36,20 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-/**
- * @param redirectTo Path để chuyển tới sau khi đăng nhập thành công
- */
+/** Điều hướng sau đăng nhập — đọc redirect fresh từ URL, chặn open-redirect. */
+function redirectAfterSignIn(fallback: string) {
+  const url = new URL(window.location.href);
+  const fresh = url.searchParams.get('redirect') ?? fallback;
+  const safe = fresh.startsWith('/') && !fresh.startsWith('//') ? fresh : '/dashboard';
+  // Full reload + không thêm /sign-in vào history (back không quay lại form).
+  window.location.replace(safe);
+}
+
 export function SignInForm({ redirectTo }: { redirectTo: string }) {
-  // isPending điều khiển spinner + disabled — tránh user click lặp
   const [isPending, setIsPending] = useState(false);
+  // Khác null = đang ở bước 2 (nhập mã TOTP).
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -51,33 +58,67 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
 
   const onSubmit = async (values: FormValues) => {
     setIsPending(true);
-    const { error } = await signIn.email({
-      email: values.email,
-      password: values.password,
-    });
-
-    if (error) {
+    const result = await signIn(values.email, values.password);
+    if (!result.ok) {
       setIsPending(false);
-      toast.error(error.message ?? 'Could not sign in. Check your credentials.');
+      toast.error(result.error);
       return;
     }
-
-    // Đọc lại redirect param trực tiếp từ URL hiện tại — phòng case prop
-    // `redirectTo` không nhận đúng giá trị (browser cache, RSC stale).
-    const url = new URL(window.location.href);
-    const freshRedirect = url.searchParams.get('redirect') ?? redirectTo;
-
-    // Safety: phải là path tương đối, KHÔNG cho redirect absolute URL khác
-    // domain (open redirect protection).
-    const safeRedirect = freshRedirect.startsWith('/') && !freshRedirect.startsWith('//')
-      ? freshRedirect
-      : '/dashboard';
-
-    // window.location.replace = full reload + KHÔNG add /sign-in vào history
-    // (back button không quay lại form đã submit). Cookie session từ Better
-    // Auth Set-Cookie response đã được browser process trước navigation.
-    window.location.replace(safeRedirect);
+    if (result.twoFactorRequired) {
+      setIsPending(false);
+      setChallengeToken(result.challengeToken);
+      return;
+    }
+    redirectAfterSignIn(redirectTo);
   };
+
+  const onSubmitCode = async () => {
+    if (!challengeToken || code.length !== 6) return;
+    setIsPending(true);
+    const result = await signInTwoFactor(challengeToken, code);
+    if (!result.ok) {
+      setIsPending(false);
+      toast.error(result.error);
+      return;
+    }
+    redirectAfterSignIn(redirectTo);
+  };
+
+  if (challengeToken) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Nhập mã 6 số từ ứng dụng xác thực của bạn.
+        </div>
+        <Input
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          placeholder="000000"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={(e) => e.key === 'Enter' && onSubmitCode()}
+          autoFocus
+        />
+        <Button className="w-full" disabled={isPending || code.length !== 6} onClick={onSubmitCode}>
+          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Xác nhận
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full"
+          disabled={isPending}
+          onClick={() => {
+            setChallengeToken(null);
+            setCode('');
+          }}
+        >
+          Quay lại
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Form {...form}>

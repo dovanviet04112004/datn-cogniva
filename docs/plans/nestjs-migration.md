@@ -435,9 +435,17 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   **DUAL-ISSUE**: sign-in/up flow mới phát kèm session Better Auth (cookie +
   row DB) → SSR/API cũ của Next nhận user ngay, web switch không phải sửa
   hàng trăm điểm getSession (gỡ cùng Better Auth cuối GĐ1); sign-out revoke cả
-  2 hệ. Bảng mới apply cả Neon + docker. **Còn lại Wave 1:** email Resend,
-  client web/mobile switch sang endpoint mới, 2FA enable/disable (tạm ở legacy),
-  denylist force-signout.
+  2 hệ. Bảng mới apply cả Neon + docker.
+  **CLIENT SWITCH ✅ 2026-06-10** (proxy proof 4/4 qua Next dev): web form
+  sign-in (kèm bước 2FA inline) + sign-up (COPPA UI đã gỡ) + 4 điểm sign-out
+  → `lib/auth-api.ts` gọi endpoint mới; mobile store auth → endpoint mới
+  (Bearer vẫn là session token BA qua header `set-auth-token` dual-issue →
+  chạy được trên CẢ route cũ lẫn mới, không đổi gì thêm); rewrites EXACT
+  paths (không nuốt path BA còn dùng: sign-in/email của admin page,
+  two-factor/*, get-session). Fix bug chữ ký: BA makeSignature = base64
+  CHUẨN (btoa) chứ không base64url — issuer/verify đã sửa cả 2 chiều.
+  **Còn lại Wave 1:** email Resend, admin sign-in page (vẫn BA, hoạt động
+  bình thường), 2FA enable/disable (tạm ở legacy), denylist force-signout.
 - Client: web form + interceptor auto-refresh; mobile token flow ở
   `packages/shared/api`; dual-accept BẬT (user hiện tại không bị đá).
 - Tách `packages/server-core` (§5.3).

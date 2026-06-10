@@ -8,7 +8,8 @@ import { z } from 'zod';
 export const signUpSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8).max(128),
-  name: z.string().trim().min(1).max(100),
+  // Optional (mobile cho phép bỏ trống) — service fallback local-part của email.
+  name: z.string().trim().min(1).max(100).optional(),
 });
 export type SignUpInput = z.infer<typeof signUpSchema>;
 

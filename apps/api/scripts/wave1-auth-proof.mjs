@@ -98,8 +98,10 @@ try {
   const legacy = await prisma.$queryRaw`
     SELECT token FROM "session" WHERE expires_at > now() ORDER BY expires_at DESC LIMIT 1`;
   if (legacy[0]) {
-    const sig = createHmac('sha256', process.env.BETTER_AUTH_SECRET).update(legacy[0].token).digest('base64url');
-    r = await fetch(`${BASE}/me`, { headers: { cookie: `better-auth.session_token=${legacy[0].token}.${sig}` } });
+    // Ký đúng format BA thật: base64 CHUẨN (btoa) + cookie URL-encode.
+    const sig = createHmac('sha256', process.env.BETTER_AUTH_SECRET).update(legacy[0].token).digest('base64');
+    const cookieVal = encodeURIComponent(`${legacy[0].token}.${sig}`);
+    r = await fetch(`${BASE}/me`, { headers: { cookie: `better-auth.session_token=${cookieVal}` } });
     check('dual-accept session BA cũ → /me 200', r.status === 200);
   } else {
     console.log('• bỏ qua dual-accept (DB không có session BA còn hạn)');

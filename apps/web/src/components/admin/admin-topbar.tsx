@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { authClient } from '@/lib/auth-client';
+import { signOut as signOutV2 } from '@/lib/auth-api';
 import { cn } from '@/lib/utils';
 import type { AdminContext } from '@/lib/admin/guard';
 
@@ -34,7 +34,7 @@ export function AdminTopbar({ admin }: { admin: AdminContext }) {
   const router = useRouter();
 
   const signOut = async () => {
-    await authClient.signOut();
+    await signOutV2();
     router.replace('/admin/sign-in');
   };
 

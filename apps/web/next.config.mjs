@@ -23,20 +23,38 @@ const NEST_MIGRATED_PREFIXES = [
   '_spike', // Wave 0 — stream PoC, xóa khi ChatModule port (W7)
   'auth/google', // Wave 1 — OAuth mới (path KHÁC callback/google của Better Auth)
 ];
+// Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
+// nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,
+// get-session…). Better Auth catch-all chỉ gỡ ở cuối GĐ1.
+const NEST_MIGRATED_EXACT = [
+  'auth/sign-in',
+  'auth/sign-in/2fa',
+  'auth/sign-up',
+  'auth/refresh',
+  'auth/sign-out',
+  'auth/me',
+  'auth/forgot-password',
+  'auth/reset-password',
+];
 
 const nextConfig = {
   reactStrictMode: true,
   async rewrites() {
     return {
-      beforeFiles: NEST_MIGRATED_PREFIXES.map((p) => ({
-        source: `/api/${p}/:path*`,
-        destination: `${NEST_ORIGIN}/api/${p}/:path*`,
-      })).concat(
-        NEST_MIGRATED_PREFIXES.map((p) => ({
+      beforeFiles: [
+        ...NEST_MIGRATED_PREFIXES.map((p) => ({
+          source: `/api/${p}/:path*`,
+          destination: `${NEST_ORIGIN}/api/${p}/:path*`,
+        })),
+        ...NEST_MIGRATED_PREFIXES.map((p) => ({
           source: `/api/${p}`,
           destination: `${NEST_ORIGIN}/api/${p}`,
         })),
-      ),
+        ...NEST_MIGRATED_EXACT.map((p) => ({
+          source: `/api/${p}`,
+          destination: `${NEST_ORIGIN}/api/${p}`,
+        })),
+      ],
     };
   },
   // ESLint KHÔNG chặn `next build`. Các warning hiện tại (unused-var,

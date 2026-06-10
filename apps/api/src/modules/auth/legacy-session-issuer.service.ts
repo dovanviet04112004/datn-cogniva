@@ -40,9 +40,11 @@ export class LegacySessionIssuerService {
         user_agent: meta?.userAgent ?? null,
       },
     });
+    // BA makeSignature = btoa(...) → base64 CHUẨN có padding (KHÔNG base64url) —
+    // sai biến thể là get-session của Better Auth từ chối cookie.
     const sig = createHmac('sha256', this.config.getOrThrow<string>('BETTER_AUTH_SECRET'))
       .update(token)
-      .digest('base64url');
+      .digest('base64');
     return { cookieValue: `${token}.${sig}`, expiresAt };
   }
 }

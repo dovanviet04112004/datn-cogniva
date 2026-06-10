@@ -28,7 +28,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiGet, apiSend } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
-import { signOut } from '@/lib/auth-client';
+import { signOut } from '@/lib/auth-api';
 import { purgeQueryCache } from '@/lib/query/idb-persister';
 import { ACTIVE_USER_KEY } from '@/components/providers/cache-user-guard';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -118,11 +118,8 @@ export function UserMenu({ user }: Props) {
   };
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
-      toast.error(error.message ?? 'Could not sign out.');
-      return;
-    }
+    // Auth V2: server revoke refresh family + session Better Auth + clear cookie.
+    await signOut();
     // Dọn SẠCH cache React Query (in-memory + IndexedDB persist) — nếu không, tài
     // khoản đăng nhập kế tiếp trên cùng trình duyệt sẽ thấy data của user vừa thoát
     // (IndexedDB per-origin, không per-user). Reset luôn cờ active-user của guard.

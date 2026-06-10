@@ -38,19 +38,22 @@ export class LegacySessionService {
     private readonly prisma: PrismaService,
   ) {}
 
-  /** `<token>.<sig>` → token nếu chữ ký đúng, ngược lại null. */
+  /**
+   * `<token>.<sig>` → token nếu chữ ký đúng, ngược lại null.
+   * BA ký bằng base64 CHUẨN (btoa) nhưng bearer plugin của nó chấp nhận cả
+   * base64url — ta normalize biến thể về buffer rồi so timing-safe.
+   */
   private extractToken(signedValue: string): string | null {
     const decoded = decodeURIComponent(signedValue);
     const dot = decoded.indexOf('.');
     if (dot <= 0) return null;
     const token = decoded.slice(0, dot);
-    const sig = decoded.slice(dot + 1);
+    const sigB64 = decoded.slice(dot + 1).replace(/-/g, '+').replace(/_/g, '/');
+    const provided = Buffer.from(sigB64, 'base64');
     const expected = createHmac('sha256', this.config.getOrThrow<string>('BETTER_AUTH_SECRET'))
       .update(token)
-      .digest('base64url');
-    const a = Buffer.from(sig);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+      .digest();
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return null;
     return token;
   }
 

@@ -13,7 +13,7 @@ import { Loader2, Mail, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { signOut } from '@/lib/auth-client';
+import { signOut } from '@/lib/auth-api';
 
 type Props = {
   initialParentEmail: string | null;
@@ -67,11 +67,8 @@ export function CoppaPendingClient({ initialParentEmail }: Props) {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await signOut({
-      fetchOptions: {
-        onSuccess: () => router.push('/sign-in'),
-      },
-    });
+    await signOut();
+    router.push('/sign-in');
   };
 
   return (

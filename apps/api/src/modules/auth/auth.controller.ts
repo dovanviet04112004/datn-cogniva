@@ -84,6 +84,9 @@ export class AuthController {
         path: '/',
         expires: t.legacyExpiresAt,
       });
+      // Mobile (credentials: omit) đọc token qua header — đúng convention
+      // `set-auth-token` của Better Auth nên client mobile KHÔNG phải đổi code.
+      res.setHeader('set-auth-token', t.legacyCookieValue);
     }
   }
 
@@ -177,7 +180,11 @@ export class AuthController {
   ) {
     const raw = body.refreshToken ?? this.readCookie(req, REFRESH_COOKIE);
     const user = (req as Request & { user?: AuthUser }).user;
-    const legacyValue = this.readCookie(req, LEGACY_COOKIE());
+    // Session BA đến từ cookie (web) HOẶC Bearer 2-phần (mobile) — revoke cả 2 đường.
+    const bearer = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
+    const legacyValue =
+      this.readCookie(req, LEGACY_COOKIE()) ??
+      (bearer && bearer.split('.').length === 2 ? bearer : undefined);
     await Promise.all([
       this.auth.signOut(raw, user?.id),
       legacyValue ? this.legacySessions.revoke(legacyValue) : Promise.resolve(),

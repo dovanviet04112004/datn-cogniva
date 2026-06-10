@@ -49,7 +49,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { authClient } from '@/lib/auth-client';
+import { signOut as signOutV2 } from '@/lib/auth-api';
 import { AiUsageCard } from '@/components/settings/ai-usage-card';
 import { DeleteAccountCard } from '@/components/settings/delete-account-card';
 import { PomodoroToggleCard } from '@/components/settings/pomodoro-toggle-card';
@@ -179,7 +179,7 @@ export default function SettingsPage() {
   };
 
   const signOut = async () => {
-    await authClient.signOut();
+    await signOutV2();
     router.replace('/sign-in');
   };
 

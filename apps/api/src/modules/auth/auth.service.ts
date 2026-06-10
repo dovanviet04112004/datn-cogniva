@@ -97,7 +97,7 @@ export class AuthService {
     };
   }
 
-  async signUp(input: { email: string; password: string; name: string }, meta: RequestMeta): Promise<AuthTokens> {
+  async signUp(input: { email: string; password: string; name?: string }, meta: RequestMeta): Promise<AuthTokens> {
     const existing = await this.prisma.user.findUnique({ where: { email: input.email }, select: { id: true } });
     if (existing) throw new ConflictException({ error: 'Email đã được đăng ký' });
 
@@ -105,7 +105,7 @@ export class AuthService {
     const userId = randomUUID();
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { id: userId, email: input.email, name: input.name },
+        data: { id: userId, email: input.email, name: input.name ?? input.email.split('@')[0] ?? null },
       });
       // account schema theo Better Auth: credential → account_id = userId.
       await tx.account.create({
