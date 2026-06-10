@@ -44,5 +44,12 @@ const lines = [
   `AUTH_JWT_PRIVATE_KEY="${pem(privateKey, 'pkcs8')}"`,
   `AUTH_JWT_PUBLIC_KEY="${pem(publicKey, 'spki')}"`,
 ];
+// Key optional — chỉ ghi khi web có cấu hình (Google OAuth, APP_URL).
+const appUrl = get('NEXT_PUBLIC_APP_URL') ?? get('BETTER_AUTH_URL');
+if (appUrl) lines.push(`APP_URL="${appUrl}"`);
+for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) {
+  const v = get(k);
+  if (v) lines.push(`${k}="${v}"`);
+}
 writeFileSync(join(apiDir, '.env'), lines.join('\n') + '\n');
 console.log('OK — pooled host:', pooled.hostname, '| direct host:', direct.hostname);

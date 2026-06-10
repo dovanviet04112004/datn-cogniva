@@ -22,6 +22,8 @@ const ALG = 'ES256';
 const ISSUER = 'cogniva';
 const AUDIENCE = 'cogniva-app';
 const ACCESS_TTL = '15m';
+const CHALLENGE_AUDIENCE = 'cogniva-2fa';
+const CHALLENGE_TTL = '5m';
 
 export interface AccessTokenPayload {
   sub: string;
@@ -78,6 +80,32 @@ export class TokenService {
       .setIssuedAt()
       .setExpirationTime(ACCESS_TTL)
       .sign(privateKey);
+  }
+
+  /** Challenge token bước 2FA — chứng minh đã qua bước mật khẩu, sống 5 phút. */
+  async signChallengeToken(userId: string): Promise<string> {
+    const { privateKey } = await this.keys();
+    return new SignJWT({})
+      .setProtectedHeader({ alg: ALG, typ: 'JWT' })
+      .setSubject(userId)
+      .setIssuer(ISSUER)
+      .setAudience(CHALLENGE_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime(CHALLENGE_TTL)
+      .sign(privateKey);
+  }
+
+  async verifyChallengeToken(token: string): Promise<string | null> {
+    try {
+      const { publicKey } = await this.keys();
+      const { payload } = await jwtVerify(token, publicKey, {
+        issuer: ISSUER,
+        audience: CHALLENGE_AUDIENCE,
+      });
+      return payload.sub ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Verify chữ ký + iss/aud/exp. Token hỏng/hết hạn → null (caller quyết 401). */

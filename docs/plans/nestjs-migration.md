@@ -427,11 +427,17 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   reuse-detection, Google OAuth, 2FA TOTP, **forgot/reset password
   (feature mới)**, email verify, JWKS, guards đầy đủ, denylist Redis.
   (COPPA cắt khỏi scope theo quyết định owner 2026-06-10.)
-  **Tiến độ 2026-06-10 ✅ core xong + proof 14 checks:** sign-up/in/out, refresh
-  rotation + reuse-detection, forgot/reset, /me, JWKS, dual-accept, hash scrypt
-  2 chiều tương thích Better Auth, bảng refresh_token + password_reset_token
-  apply cả Neon lẫn docker. **Còn lại:** Google OAuth, 2FA TOTP, email Resend,
-  client web/mobile switch, denylist force-signout.
+  **Tiến độ 2026-06-10 ✅ server-side XONG + proof 22 checks:** sign-up/in/out,
+  refresh rotation + reuse-detection, forgot/reset, /me, JWKS, hash scrypt 2
+  chiều tương thích BA, **2FA TOTP sign-in 2 bước** (decrypt XChaCha20-Poly1305
+  đúng format BA), **Google OAuth** (authorization-code + state cookie; 503 khi
+  thiếu env — cần đăng ký redirect URI `${APP_URL}/api/auth/google/callback`),
+  **DUAL-ISSUE**: sign-in/up flow mới phát kèm session Better Auth (cookie +
+  row DB) → SSR/API cũ của Next nhận user ngay, web switch không phải sửa
+  hàng trăm điểm getSession (gỡ cùng Better Auth cuối GĐ1); sign-out revoke cả
+  2 hệ. Bảng mới apply cả Neon + docker. **Còn lại Wave 1:** email Resend,
+  client web/mobile switch sang endpoint mới, 2FA enable/disable (tạm ở legacy),
+  denylist force-signout.
 - Client: web form + interceptor auto-refresh; mobile token flow ở
   `packages/shared/api`; dual-accept BẬT (user hiện tại không bị đá).
 - Tách `packages/server-core` (§5.3).

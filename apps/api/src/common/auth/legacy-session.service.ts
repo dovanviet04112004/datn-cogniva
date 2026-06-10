@@ -54,6 +54,16 @@ export class LegacySessionService {
     return token;
   }
 
+  /** Thu hồi session BA (sign-out từ flow mới) — xoá row DB + cache Redis. */
+  async revoke(signedValue: string): Promise<void> {
+    const token = this.extractToken(signedValue);
+    if (!token) return;
+    await Promise.all([
+      this.prisma.session.deleteMany({ where: { token } }),
+      this.redis.delSafe(`${REDIS_PREFIX}${token}`),
+    ]);
+  }
+
   async verify(signedValue: string): Promise<AuthContext | null> {
     const token = this.extractToken(signedValue);
     if (!token) return null;

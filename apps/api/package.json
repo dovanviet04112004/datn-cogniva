@@ -20,6 +20,7 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/swagger": "^11.0.0",
     "@nestjs/terminus": "^11.0.0",
+    "@noble/ciphers": "^2.2.0",
     "@prisma/client": "^6.1.0",
     "ai": "^4.0.18",
     "ioredis": "^5.10.1",

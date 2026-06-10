@@ -22,7 +22,9 @@ import { PasswordService } from '../../common/auth/password.service';
 import { TokenService } from '../../common/auth/token.service';
 import type { AuthUser } from '../../common/auth/session.types';
 import { PrismaService } from '../../infra/database/prisma.service';
+import { LegacySessionIssuerService } from './legacy-session-issuer.service';
 import { RefreshTokenService } from './refresh-token.service';
+import { TwoFactorService } from './two-factor.service';
 
 const CREDENTIAL_PROVIDER = 'credential';
 const RESET_TTL_MS = 60 * 60 * 1000;
@@ -34,6 +36,14 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   refreshExpiresAt: Date;
+  /** DUAL-ISSUE: cookie session Better Auth để SSR cũ nhận user — gỡ cuối GĐ1. */
+  legacyCookieValue?: string;
+  legacyExpiresAt?: Date;
+}
+
+export interface TwoFactorChallenge {
+  twoFactorRequired: true;
+  challengeToken: string;
 }
 
 interface RequestMeta {
@@ -50,6 +60,8 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
     private readonly refreshTokens: RefreshTokenService,
+    private readonly twoFactor: TwoFactorService,
+    private readonly legacyIssuer: LegacySessionIssuerService,
     private readonly config: ConfigService,
   ) {}
 
@@ -64,12 +76,25 @@ export class AuthService {
     return { id: u.id, email: u.email, name: u.name, image: u.image, plan: u.plan, adminRole: u.admin_role };
   }
 
-  private async issueTokens(user: AuthUser, meta: RequestMeta, familyId?: string): Promise<AuthTokens> {
-    const [accessToken, refresh] = await Promise.all([
+  /**
+   * Phát cặp token + (dual-issue) session Better Auth. Public vì OAuth
+   * callback cũng dùng. `withLegacy=false` cho refresh (session 30d đã có).
+   */
+  async issueTokens(user: AuthUser, meta: RequestMeta, opts?: { familyId?: string; withLegacy?: boolean }): Promise<AuthTokens> {
+    const withLegacy = opts?.withLegacy ?? true;
+    const [accessToken, refresh, legacy] = await Promise.all([
       this.tokens.signAccessToken(user),
-      this.refreshTokens.issue(user.id, { familyId, ip: meta.ip, userAgent: meta.userAgent }),
+      this.refreshTokens.issue(user.id, { familyId: opts?.familyId, ip: meta.ip, userAgent: meta.userAgent }),
+      withLegacy ? this.legacyIssuer.issue(user.id, meta) : Promise.resolve(undefined),
     ]);
-    return { user, accessToken, refreshToken: refresh.raw, refreshExpiresAt: refresh.expiresAt };
+    return {
+      user,
+      accessToken,
+      refreshToken: refresh.raw,
+      refreshExpiresAt: refresh.expiresAt,
+      legacyCookieValue: legacy?.cookieValue,
+      legacyExpiresAt: legacy?.expiresAt,
+    };
   }
 
   async signUp(input: { email: string; password: string; name: string }, meta: RequestMeta): Promise<AuthTokens> {
@@ -98,7 +123,7 @@ export class AuthService {
     return this.issueTokens(this.toAuthUser(user), meta);
   }
 
-  async signIn(input: { email: string; password: string }, meta: RequestMeta): Promise<AuthTokens> {
+  async signIn(input: { email: string; password: string }, meta: RequestMeta): Promise<AuthTokens | TwoFactorChallenge> {
     const user = await this.prisma.user.findUnique({ where: { email: input.email } });
     const account = user
       ? await this.prisma.account.findFirst({
@@ -118,10 +143,27 @@ export class AuthService {
       throw new ForbiddenException({ error: 'Tài khoản đã bị tạm khoá' });
     }
     if (user.two_factor_enabled) {
-      // 2FA chưa port sang flow mới — user 2FA vẫn dùng đăng nhập cũ (dual-stack).
-      throw new ForbiddenException({ error: 'Tài khoản bật 2FA — dùng trang đăng nhập hiện tại' });
+      // Bước 2: client gửi challengeToken + mã TOTP vào /auth/sign-in/2fa.
+      return { twoFactorRequired: true, challengeToken: await this.tokens.signChallengeToken(user.id) };
     }
 
+    return this.issueTokens(this.toAuthUser(user), meta);
+  }
+
+  async signInTwoFactor(challengeToken: string, code: string, meta: RequestMeta): Promise<AuthTokens> {
+    const userId = await this.tokens.verifyChallengeToken(challengeToken);
+    if (!userId) throw new UnauthorizedException({ error: 'Phiên 2FA hết hạn — đăng nhập lại' });
+
+    const [user, tf] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId } }),
+      this.prisma.two_factor.findFirst({ where: { user_id: userId }, select: { secret: true } }),
+    ]);
+    if (!user || !tf) throw new UnauthorizedException({ error: 'Phiên 2FA không hợp lệ' });
+
+    const secret = await this.twoFactor.decryptSecret(tf.secret);
+    if (!this.twoFactor.verifyTotp(code, secret)) {
+      throw new UnauthorizedException({ error: 'Mã 2FA không đúng' });
+    }
     return this.issueTokens(this.toAuthUser(user), meta);
   }
 

@@ -24,6 +24,12 @@ export const refreshSchema = z.object({
 });
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
+export const twoFactorSchema = z.object({
+  challengeToken: z.string().min(20),
+  code: z.string().regex(/^\d{6}$/, 'Mã 2FA gồm 6 chữ số'),
+});
+export type TwoFactorInput = z.infer<typeof twoFactorSchema>;
+
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });

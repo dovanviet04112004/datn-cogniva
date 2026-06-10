@@ -32,6 +32,16 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  /** DEL fail-open: lỗi Redis → bỏ qua (caller không cần biết). */
+  async delSafe(key: string): Promise<void> {
+    try {
+      if (this.client.status === 'wait') await this.client.connect();
+      await this.client.del(key);
+    } catch {
+      /* fail-open */
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
       if (this.client.status === 'wait') await this.client.connect();

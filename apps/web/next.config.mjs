@@ -20,7 +20,8 @@
 const NEST_ORIGIN = process.env.NEST_API_ORIGIN ?? 'http://localhost:4000';
 const NEST_MIGRATED_PREFIXES = [
   'healthz', // Wave 0 — health của NestJS
-  '_spike', // Wave 0 — XÓA Ở WAVE 1 cùng SpikeModule
+  '_spike', // Wave 0 — stream PoC, xóa khi ChatModule port (W7)
+  'auth/google', // Wave 1 — OAuth mới (path KHÁC callback/google của Better Auth)
 ];
 
 const nextConfig = {

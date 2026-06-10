@@ -1,15 +1,28 @@
 /**
  * Proof e2e Wave 1 — chạy với server :4000 đang bật. Phủ toàn bộ flow JWT:
- * sign-up → me → refresh ROTATION → REUSE-DETECTION (revoke family) →
- * sign-in lại → sai mật khẩu → forgot/reset password → mật khẩu cũ chết →
- * dual-accept session Better Auth cũ. Tự dọn user test ở cuối (xoá cascade).
+ * sign-up → me → refresh ROTATION → REUSE-DETECTION → sign-in → forgot/reset
+ * → 2FA TOTP (secret mã hoá đúng format Better Auth) → dual-issue session BA
+ * → sign-out cả 2 hệ → dual-accept. Tự dọn user test ở cuối (xoá cascade).
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PrismaClient } from '@prisma/client';
+import { xchacha20poly1305 } from '@noble/ciphers/chacha.js';
+import { managedNonce } from '@noble/ciphers/utils.js';
+
+/** TOTP HMAC-SHA1 6 số 30s — y hệt thuật toán server để sinh mã test. */
+function totp(secret) {
+  const counter = Math.floor(Date.now() / 30000);
+  const buf = Buffer.alloc(8);
+  buf.writeBigUInt64BE(BigInt(counter));
+  const mac = createHmac('sha1', secret).update(buf).digest();
+  const off = mac[mac.length - 1] & 15;
+  const t = ((mac[off] & 127) << 24) | (mac[off + 1] << 16) | (mac[off + 2] << 8) | mac[off + 3];
+  return (t % 1e6).toString().padStart(6, '0');
+}
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 for (const raw of readFileSync(join(apiDir, '.env'), 'utf8').split(/\r?\n/)) {
@@ -91,6 +104,56 @@ try {
   } else {
     console.log('• bỏ qua dual-accept (DB không có session BA còn hạn)');
   }
+
+  // 9. DUAL-ISSUE: sign-in flow mới phải set cookie session Better Auth
+  //    (SSR cũ nhận user) — cookie đó tự verify được qua nhánh legacy của /me.
+  r = await post('/sign-in', { email, password: 'matkhau-moi-456' });
+  const setCookies = r.headers.getSetCookie?.() ?? [];
+  const baCookie = setCookies.find((c) => c.startsWith('better-auth.session_token='));
+  check('dual-issue set cookie BA', !!baCookie);
+  if (baCookie) {
+    const baValue = baCookie.split(';')[0];
+    r = await fetch(`${BASE}/me`, { headers: { cookie: baValue } });
+    check('cookie BA do flow mới phát → /me 200', r.status === 200);
+    const sessRows = await prisma.$queryRaw`
+      SELECT count(*)::int AS n FROM "session" s JOIN "user" u ON u.id = s.user_id WHERE u.email = ${email}`;
+    check('session row tồn tại trong DB', (sessRows[0]?.n ?? 0) >= 1);
+
+    // 10. Sign-out: revoke refresh family + xoá session BA
+    r = await fetch(`${BASE}/sign-out`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: baValue },
+      body: JSON.stringify({}),
+    });
+    const after = await prisma.$queryRaw`
+      SELECT count(*)::int AS n FROM "session" WHERE token = ${baValue.split('=')[1].split('.')[0]}`;
+    check('sign-out xoá session BA khỏi DB', r.status === 200 && after[0]?.n === 0);
+  }
+
+  // 11. 2FA TOTP — bật 2FA cho user test với secret mã hoá ĐÚNG format BA
+  const tfSecret = 'PROOF2FASECRET123';
+  const key = createHash('sha256').update(process.env.BETTER_AUTH_SECRET).digest();
+  const encrypted = Buffer.from(
+    managedNonce(xchacha20poly1305)(new Uint8Array(key)).encrypt(Buffer.from(tfSecret, 'utf8')),
+  ).toString('hex');
+  const u = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  await prisma.two_factor.create({
+    data: { id: randomUUID(), user_id: u.id, secret: encrypted, backup_codes: '' },
+  });
+  await prisma.user.update({ where: { id: u.id }, data: { two_factor_enabled: true } });
+
+  r = await post('/sign-in', { email, password: 'matkhau-moi-456' });
+  d = await r.json();
+  check('sign-in user 2FA → twoFactorRequired + challenge', r.status === 200 && d.twoFactorRequired === true && !!d.challengeToken);
+  r = await post('/sign-in/2fa', { challengeToken: d.challengeToken, code: '000000' });
+  check('mã 2FA sai → 401', r.status === 401);
+  r = await post('/sign-in/2fa', { challengeToken: d.challengeToken, code: totp(tfSecret) });
+  d = await r.json();
+  check('mã 2FA đúng → 200 + tokens (decrypt XChaCha tương thích BA)', r.status === 200 && !!d.accessToken);
+
+  // 12. Google OAuth — chưa cấu hình env → 503 (conditional như hệ cũ)
+  r = await fetch(`${BASE}/google`, { redirect: 'manual' });
+  check('GET /google không env → 503', r.status === 503);
 } finally {
   await prisma.$executeRaw`DELETE FROM "user" WHERE email = ${email}`;
   await prisma.$disconnect();

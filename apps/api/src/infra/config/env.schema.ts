@@ -14,8 +14,11 @@ const envSchema = z.object({
   // Keypair ES256 (PEM) cho JWT mới — sinh bằng: node scripts/setup-env.mjs
   AUTH_JWT_PRIVATE_KEY: z.string().includes('PRIVATE KEY'),
   AUTH_JWT_PUBLIC_KEY: z.string().includes('PUBLIC KEY'),
-  // Origin frontend — chỉ dùng dựng link trong email (reset password…).
+  // Origin frontend — dựng link email (reset password) + redirect_uri OAuth.
   APP_URL: z.string().url().default('http://localhost:3000'),
+  // Google OAuth — optional như hệ cũ: thiếu → endpoint /auth/google trả 503.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
