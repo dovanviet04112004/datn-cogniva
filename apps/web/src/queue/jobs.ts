@@ -39,16 +39,9 @@ export type DocumentJob = {
 
 /**
  * Cron jobs CÒN LẠI trên queue `cron` (UTC). `id` = scheduler key + job.name.
- * Job đã PORT sang worker NestJS (apps/api, queue `cron-v2`) phải GỠ khỏi đây
- * (worker boot sẽ tự remove scheduler thừa) — đã port: health-monitor,
- * reconcile-leaderboard, thread-archive-stale, flashcard-due-reminder,
- * library-pro-downgrade, library-pro-expiry-warn, library-saved-search-notify.
+ * TOÀN BỘ cron đã PORT sang worker NestJS (apps/api, queue `cron-v2`) — giữ
+ * mảng RỖNG để worker boot tự remove scheduler thừa còn persist trong Redis.
  */
-export const CRON_JOBS = [
-  { id: 'tutoring-auto-complete', pattern: '5 * * * *' },
-  { id: 'tutoring-recurring-rollout', pattern: '30 2 * * *' },
-  { id: 'process-gdpr-deletion', pattern: '0 3 * * *' },
-  { id: 'tutoring-refresh-embeddings', pattern: '0 3 * * *' },
-] as const;
+export const CRON_JOBS: readonly { id: string; pattern: string }[] = [];
 
 export type CronId = (typeof CRON_JOBS)[number]['id'];

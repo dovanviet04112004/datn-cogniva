@@ -10,9 +10,9 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
 import { PrismaService } from '../../infra/database/prisma.service';
+import { InsufficientBalanceError, WalletService } from '../payments/wallet.service';
 import { KarmaService } from './karma.service';
 import { LibraryAccessService } from './library-access.service';
-import { InsufficientBalanceError, LibraryWalletService } from './library-wallet.service';
 
 const MONTHLY_PRICE_VND = 199_000;
 const MONTH_DAYS = 30;
@@ -26,7 +26,7 @@ export class LibraryMoneyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: LibraryAccessService,
-    private readonly wallet: LibraryWalletService,
+    private readonly wallet: WalletService,
     private readonly karma: KarmaService,
   ) {}
 

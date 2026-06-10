@@ -587,6 +587,45 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 - Trước cutover: **replay-test webhook bằng signed fixtures** (VNPay + Momo, GET
   lẫn POST), idempotency (double-delivery không double-credit). Escrow/payout
   cron giữ nguyên văn.
+- **WAVE 6 HOÀN TẤT 2026-06-11 ✅** (NỀN main-loop + workflow 6 agent song
+  song). NỀN: `modules/payments` — WalletService ĐẦY ĐỦ (7 hàm, SELECT FOR
+  UPDATE + ledger + onWalletChanged; cache key wallet:v1 giữ shape camelCase
+  dùng chung SSR) + PaymentProviderService (ký VNPay SHA512 sort-asc encode
+  %20→'+', refund join '|' KHÔNG sort; MoMo SHA256 alphabet raw) +
+  WalletController (/api/wallet + topup); LibraryWalletService SUBSET đã XÓA,
+  library-money chuyển sang bản full. 5 module mới: TutorsModule (7 route),
+  TutoringBookingsModule (13 — confirm tạo study group 3 channel + payment STUB
+  CAPTURED fee 10%; cancel refund NGOÀI tx; complete escrow +7d; ical @Public
+  token), TutoringMarketModule (11 — requests/apply/applications cascade,
+  packs purchase chargeWallet, promo redeem applyPromoCredit, matches
+  embedding write-on-read), TutoringConciergeModule (4 — SSE byte-giữ-nguyên,
+  planner LLM guarded qua pattern LibraryLlmService, HybridSearchService
+  export thêm từ LibrarySearchModule), WebhooksModule (4 — main.ts bật
+  rawBody:true + json parser nhận application/webhook+json cho LiveKit
+  WebhookReceiver; RecordingPipelineService provide riêng). 4 cron CUỐI port
+  sang cron-v2 (auto-complete '5 * * * *', recurring-rollout '30 2',
+  gdpr-deletion '0 3', refresh-embeddings '0 3') → **web worker XÓA HẲN**
+  (src/worker + src/jobs + script `worker` + dev:worker; scheduler mồ côi
+  queue `cron` đã drain khỏi Redis; web giờ CHỈ produce queue `document` từ
+  admin reingest tới W7). **GOLDEN DIFF 65/65 PASS** — twin-user cùng display
+  name (response chứa tên), tie-sort ledger TOPUP/CASHBACK cùng created_at,
+  **webhook replay fixtures ký THẬT**: VNPay GET+POST json+form-urlencoded
+  (CAPTURED/already-CAPTURED double-delivery captured_at không đổi/sig sai
+  400/thiếu field 400/orderCode lạ 404), MoMo (CAPTURED/idempotent/1006
+  FAILED), LiveKit JWT sha256 (skipped/401), DB-assert provider_ref +
+  raw_response.ipn. 1 fix sau proof: ical api dùng APP_URL (NEXT_PUBLIC_* không
+  có trong api .env → URL event thiếu origin). **17 method 0-caller BỎ không
+  port** (caller-analysis): blocked-time GET+POST, bookings/:id PATCH,
+  reschedule, calendar tổng, classes POST + enroll, concierge/search, packs
+  GET+POST, reviews/:id/helpful, saved-searches ×2, tutors GET, tutors/:id
+  GET+PATCH+DELETE, favorite GET, kyc GET, subjects/:sid DELETE, verify-quiz
+  GET+PATCH, tutors/me. Xóa web: 46 file route + 10 lib tutoring (giữ
+  get-mine-tab cho SSR) + 4 job + 2 script stale (eval-concierge,
+  seed-tutoring-v2). setup-env passthrough thêm PAYMENT/VNPAY_*/MOMO_*/
+  TUTORING_ESCROW_HOURS (test secrets dev đã ghi .env.local). Deviation chấp
+  nhận: id randomUUID ≠ cuid2, malformed-JSON 400 shape express, `details`
+  P2002 text Prisma, intent returnUrl origin từ APP_URL. Nest ~236 route.
+  Tiếp: Wave 7.
 
 ### Wave 7 — AI/streaming + Admin + chốt hạ (≈56 routes, 2 tuần)
 - `infra/ai` hoàn thiện (router DI, guardrail, circuit, semantic cache);

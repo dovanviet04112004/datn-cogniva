@@ -92,6 +92,22 @@ for (const k of [
   'NEXT_PUBLIC_LIVEKIT_URL',
   'JWT_SECRET',
   'NEXT_PUBLIC_HOCUSPOCUS_URL',
+  // Wave 6: payment provider (STUB/VNPay/MoMo) + escrow — api phải cùng config
+  // với web, không thì webhook verify/intent ký lệch secret giữa 2 backend.
+  'PAYMENT_PROVIDER',
+  'VNPAY_TMN_CODE',
+  'VNPAY_HASH_SECRET',
+  'VNPAY_RETURN_URL',
+  'VNPAY_PAY_URL',
+  'VNPAY_REFUND_URL',
+  'MOMO_PARTNER_CODE',
+  'MOMO_ACCESS_KEY',
+  'MOMO_SECRET_KEY',
+  'MOMO_CREATE_URL',
+  'MOMO_REFUND_URL',
+  'MOMO_RETURN_URL',
+  'MOMO_IPN_URL',
+  'TUTORING_ESCROW_HOURS',
 ]) {
   const v = get(k);
   if (v) lines.push(`${k}="${v}"`);

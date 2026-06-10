@@ -35,5 +35,7 @@ import { VoiceSearchService } from './voice-search.service';
     GoalPlannerService,
     VoiceSearchService,
   ],
+  // TutoringConciergeModule (W6) dùng lại hybrid search doc cho action library_search.
+  exports: [HybridSearchService],
 })
 export class LibrarySearchModule {}

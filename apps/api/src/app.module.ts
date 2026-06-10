@@ -32,12 +32,18 @@ import { LibraryAnnotationsModule } from './modules/library/library-annotations.
 import { LibraryContentModule } from './modules/library/library-content.module';
 import { LibrarySearchModule } from './modules/library/library-search.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { SearchModule } from './modules/search/search.module';
 import { SpikeModule } from './modules/spike/spike.module';
+import { TutoringBookingsModule } from './modules/tutoring/bookings/bookings.module';
+import { TutoringConciergeModule } from './modules/tutoring/concierge/concierge.module';
+import { TutoringMarketModule } from './modules/tutoring/market/market.module';
+import { TutorsModule } from './modules/tutoring/tutors/tutors.module';
 import { UsersModule } from './modules/users/users.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module';
 
 @Module({
@@ -76,6 +82,14 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     RoomsModule,
     NotificationsModule,
     RealtimeModule,
+    PaymentsModule,
+    // Tutoring: 4 module riêng cùng mount 'tutoring' (+ 'tutors') — path tĩnh
+    // (bookings/requests/concierge/...) không đè nhau nên thứ tự không nhạy cảm.
+    TutorsModule,
+    TutoringBookingsModule,
+    TutoringMarketModule,
+    TutoringConciergeModule,
+    WebhooksModule,
     // Library: Content (route tĩnh docs/upload-init|finalize) ĐỨNG TRƯỚC
     // Search (có GET docs/:id catch-all) — Express match theo thứ tự đăng ký.
     LibraryContentModule,

@@ -13,8 +13,12 @@ import { HealthMonitorJob } from './handlers/health-monitor.job';
 import { LibraryProDowngradeJob } from './handlers/library-pro-downgrade.job';
 import { LibraryProExpiryWarnJob } from './handlers/library-pro-expiry-warn.job';
 import { LibrarySavedSearchNotifyJob } from './handlers/library-saved-search-notify.job';
+import { ProcessGdprDeletionJob } from './handlers/process-gdpr-deletion.job';
 import { ReconcileLeaderboardJob } from './handlers/reconcile-leaderboard.job';
 import { ThreadArchiveStaleJob } from './handlers/thread-archive-stale.job';
+import { TutoringAutoCompleteJob } from './handlers/tutoring-auto-complete.job';
+import { TutoringRecurringRolloutJob } from './handlers/tutoring-recurring-rollout.job';
+import { TutoringRefreshEmbeddingsJob } from './handlers/tutoring-refresh-embeddings.job';
 
 @Processor(CRON_QUEUE, { concurrency: 1 })
 export class CronProcessor extends WorkerHost {
@@ -28,6 +32,10 @@ export class CronProcessor extends WorkerHost {
     private readonly libraryProDowngrade: LibraryProDowngradeJob,
     private readonly libraryProExpiryWarn: LibraryProExpiryWarnJob,
     private readonly librarySavedSearchNotify: LibrarySavedSearchNotifyJob,
+    private readonly tutoringAutoComplete: TutoringAutoCompleteJob,
+    private readonly tutoringRecurringRollout: TutoringRecurringRolloutJob,
+    private readonly processGdprDeletion: ProcessGdprDeletionJob,
+    private readonly tutoringRefreshEmbeddings: TutoringRefreshEmbeddingsJob,
   ) {
     super();
   }
@@ -48,6 +56,14 @@ export class CronProcessor extends WorkerHost {
         return this.libraryProExpiryWarn.run();
       case 'library-saved-search-notify':
         return this.librarySavedSearchNotify.run();
+      case 'tutoring-auto-complete':
+        return this.tutoringAutoComplete.run();
+      case 'tutoring-recurring-rollout':
+        return this.tutoringRecurringRollout.run();
+      case 'process-gdpr-deletion':
+        return this.processGdprDeletion.run();
+      case 'tutoring-refresh-embeddings':
+        return this.tutoringRefreshEmbeddings.run();
       default:
         this.logger.warn(`cron-v2 job không có handler: ${job.name}`);
         return undefined;

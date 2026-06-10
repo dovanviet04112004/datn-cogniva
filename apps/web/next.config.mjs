@@ -49,6 +49,10 @@ const NEST_MIGRATED_PREFIXES = [
   'realtime', // Wave 4 — RealtimeModule (gateway auth endpoint)
   'questions', // Wave 4 catch-up — QuizModule (questions/:id/grade)
   'library', // Wave 5 — 3 module Library (golden diff 42/42, có bug-fix import)
+  'tutoring', // Wave 6 — Bookings/Market/Concierge (golden diff 65/65)
+  'tutors', // Wave 6 — TutorsModule
+  'wallet', // Wave 6 — PaymentsModule (WalletService đầy đủ)
+  'webhooks', // Wave 6 — VNPay/MoMo/LiveKit (replay signed fixtures + idempotency)
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

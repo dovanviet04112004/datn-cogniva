@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { PaymentsModule } from '../payments/payments.module';
 import { AtomExtractorService } from './atom-extractor.service';
 import { KarmaService } from './karma.service';
 import { LibraryAccessService } from './library-access.service';
@@ -14,7 +15,6 @@ import { LibraryMoneyController } from './library-money.controller';
 import { LibraryMoneyService } from './library-money.service';
 import { LibraryRateLimitService } from './library-rate-limit.service';
 import { LibraryUploadService } from './library-upload.service';
-import { LibraryWalletService } from './library-wallet.service';
 import { QualityScoreService } from './quality-score.service';
 
 /**
@@ -29,13 +29,13 @@ import { QualityScoreService } from './quality-score.service';
  * submit → recompute quality).
  */
 @Module({
+  imports: [PaymentsModule],
   controllers: [LibraryContentController, LibraryMoneyController, LibraryEnrichController],
   providers: [
     LibraryAccessService,
     KarmaService,
     QualityScoreService,
     LibraryRateLimitService,
-    LibraryWalletService,
     LibraryLlmService,
     AtomExtractorService,
     LibraryIngestService,

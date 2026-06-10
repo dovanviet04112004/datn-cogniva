@@ -13,11 +13,9 @@
     "test:e2e:headed": "playwright test --headed",
     "eval:golden": "pnpm exec tsx --env-file=.env.local evals/golden-build.ts",
     "eval:run": "pnpm exec tsx --env-file=.env.local evals/run.ts",
-    "eval:concierge": "pnpm exec tsx --env-file=.env.local scripts/eval-concierge.ts",
     "seed:tutoring-v5": "pnpm exec tsx --env-file=.env.local scripts/seed-tutoring-v5.ts",
     "extract:concepts": "pnpm exec tsx --env-file=.env.local scripts/extract-concepts.ts",
     "smoke": "pnpm exec tsx scripts/smoke-test.ts",
-    "worker": "tsx --env-file=.env.local src/worker/index.ts",
     "clean": "rm -rf .next .turbo node_modules"
   },
   "dependencies": {
