@@ -34,6 +34,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1045.0
         version: 3.1045.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1045.0
+        version: 3.1053.0
       '@cogniva/server-core':
         specifier: workspace:^
         version: link:../../packages/server-core
@@ -79,9 +82,15 @@ importers:
       livekit-server-sdk:
         specifier: ^2.15.2
         version: 2.15.2
+      mammoth:
+        specifier: ^1.8.0
+        version: 1.12.0
       nestjs-pino:
         specifier: ^4.1.0
         version: 4.6.1(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@10.5.0)(pino@9.14.0)(rxjs@7.8.2)
+      pdf-to-img:
+        specifier: ^6.1.0
+        version: 6.1.0
       pino-http:
         specifier: ^10.3.0
         version: 10.5.0
@@ -91,6 +100,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      sharp:
+        specifier: ^0.34.0
+        version: 0.34.5
       ts-fsrs:
         specifier: ^4.6.1
         version: 4.7.1

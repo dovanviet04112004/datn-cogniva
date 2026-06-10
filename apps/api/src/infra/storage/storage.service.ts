@@ -21,6 +21,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /** Interface driver — giữ nguyên contract từ apps/web/src/lib/storage/index.ts. */
 interface StorageDriver {
@@ -156,6 +157,26 @@ class R2Driver implements StorageDriver {
       throw err;
     }
   }
+
+  /** Presigned PUT cho client upload thẳng lên R2 (Library upload flow). */
+  async presignPut(key: string, contentType: string, expiresSeconds: number): Promise<string> {
+    const cmd = new PutObjectCommand({
+      Bucket: LIBRARY_BUCKET,
+      Key: key,
+      ContentType: contentType,
+    });
+    // Cast vì 2 @smithy/types version trong dep tree gây type clash — runtime OK
+    // (giữ y workaround của apps/web/src/lib/r2-client.ts).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return getSignedUrl(this.client() as any, cmd as any, { expiresIn: expiresSeconds });
+  }
+
+  /** Presigned GET cho client download (signed URL, expire ngắn). */
+  async presignGet(key: string, expiresSeconds: number): Promise<string> {
+    const cmd = new GetObjectCommand({ Bucket: LIBRARY_BUCKET, Key: key });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return getSignedUrl(this.client() as any, cmd as any, { expiresIn: expiresSeconds });
+  }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -177,6 +198,14 @@ export class StorageService implements StorageDriver {
   private readonly driver: StorageDriver =
     resolveDriver() === 'r2' ? new R2Driver() : new LocalDriver();
 
+  /**
+   * Presigned/public URL LUÔN đi R2 bất kể STORAGE_DRIVER — y semantics
+   * apps/web/src/lib/r2-client.ts (library routes gọi r2-client trực tiếp,
+   * không qua storage abstraction). Lazy client → chỉ throw thiếu creds khi dùng.
+   */
+  private readonly r2: R2Driver =
+    this.driver instanceof R2Driver ? this.driver : new R2Driver();
+
   /** Upload buffer thành object có tên `key`. Ghi đè nếu đã tồn tại. */
   put(key: string, body: Buffer | Uint8Array, contentType: string): Promise<void> {
     return this.driver.put(key, body, contentType);
@@ -195,5 +224,34 @@ export class StorageService implements StorageDriver {
   /** True nếu object tồn tại — dùng cho health check / dedupe. */
   exists(key: string): Promise<boolean> {
     return this.driver.exists(key);
+  }
+
+  /**
+   * Presigned URL cho client PUT trực tiếp lên R2 — port getPresignedUploadUrl
+   * từ apps/web/src/lib/r2-client.ts (bucket LIBRARY_BUCKET, default 15 min).
+   */
+  getPresignedUploadUrl(
+    storageKey: string,
+    contentType: string,
+    expiresSeconds = 900,
+  ): Promise<string> {
+    return this.r2.presignPut(storageKey, contentType, expiresSeconds);
+  }
+
+  /** Presigned URL download (signed GET) — port getPresignedDownloadUrl r2-client. */
+  getPresignedDownloadUrl(storageKey: string, expiresSeconds = 3600): Promise<string> {
+    return this.r2.presignGet(storageKey, expiresSeconds);
+  }
+
+  /**
+   * Public URL cho file đã upload (thumbnail/preview KHÔNG nhạy cảm) — port
+   * getPublicUrl r2-client: ưu tiên R2_LIBRARY_PUBLIC_URL/R2_PUBLIC_URL (CDN),
+   * fallback R2 direct URL (chỉ work nếu bucket public, hiếm).
+   */
+  getPublicUrl(storageKey: string): string {
+    const base = process.env.R2_LIBRARY_PUBLIC_URL ?? process.env.R2_PUBLIC_URL;
+    if (base) return `${base.replace(/\/$/, '')}/${storageKey}`;
+    const accountId = process.env.R2_ACCOUNT_ID;
+    return `https://${accountId}.r2.cloudflarestorage.com/${LIBRARY_BUCKET}/${storageKey}`;
   }
 }

@@ -31,9 +31,6 @@ const CRON_MAP: Record<string, () => Promise<unknown>> = {
   'tutoring-recurring-rollout': jobs.tutoringRecurringRollout,
   'process-gdpr-deletion': jobs.processGdprDeletion,
   'tutoring-refresh-embeddings': jobs.tutoringRefreshEmbeddings,
-  'library-pro-downgrade': jobs.libraryProDowngrade,
-  'library-pro-expiry-warn': jobs.libraryProExpiryWarn,
-  'library-saved-search-notify': jobs.librarySavedSearchNotify,
 };
 
 async function main() {

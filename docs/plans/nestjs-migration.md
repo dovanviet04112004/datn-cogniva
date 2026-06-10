@@ -554,6 +554,33 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 ### Wave 5 — Library (33 routes, 1–1.5 tuần)
 - `LibraryModule`: hybrid search (SQL pgvector + tsvector — sang GĐ2 đổi adapter
   Qdrant), R2 proxy, purchase/PRO gate (402), karma, annotation + 3 cron.
+- **WAVE 5 HOÀN TẤT 2026-06-10 ✅** (workflow 3 agent song song). 3 module
+  riêng cùng mount 'library' (Content TRƯỚC Search — GET docs/:id catch-all):
+  LibraryContentModule (upload-init presigned R2 → finalize ingest
+  pdf/docx/image qua mammoth+sharp+pdf-to-img, import/file/download/purchase/
+  subscribe-pro, endorse/remix/atoms/translate/podcast, AccessService PRO-gate
+  402 + KarmaService + QualityScore + WalletService SUBSET — bản đầy đủ W6),
+  LibrarySearchModule (detail/related/duplicates/prereq/reviews, reverse/voice
+  search Whisper+OCR REST, goal-planner, universities/courses),
+  LibraryAnnotationsModule (+ 3 cron port: pro-downgrade/pro-expiry-warn/
+  saved-search-notify → web worker CHỈ CÒN 4 cron tutoring+gdpr).
+  StorageService thêm presigned (s3-request-presigner). Hợp nhất 2 cặp helper
+  trùng giữa các agent: OptionalAuthService → common/auth (AuthCore @Global,
+  resolve session best-effort cho route @Public per-user), LibraryLlmService
+  (complete rich + guardedComplete wrapper). **GOLDEN DIFF 42/42 PASS** — E2E
+  THẬT: presigned PUT → R2 → finalize ingest cả 2 backend; PRO gate 402; LLM
+  status-only. **BUG-FIX route cũ**: POST docs/:id/import của web 500 VĨNH VIỄN
+  khi doc có chunks (PG 42P18 — jsonb_build_object('sourceDocId',$2) thiếu
+  ::text, postgres.js không suy kiểu) — bản Nest cast đúng, IMPORT LẦN ĐẦU
+  CHẠY ĐƯỢC. **4 route 0-caller BỎ không port** (caller-analysis): GET
+  /library/docs (SSR LibraryGrid query DB trực tiếp), GET karma/leaderboard
+  (SSR getKarmaBoard), POST search/cross-doc (thử nghiệm không UI — service
+  vẫn sống cho voice-search), POST admin/recompute-quality (admin TODO).
+  Xóa web: 33 file route + 13 lib hết caller + 6 script backfill/smoke stale
+  (lib SSR/client GIỮ: access, hybrid-search-doc — tutoring concierge W6 còn
+  dùng, get-karma-board, badge-labels, doc-card-data, get-catalog-detail,
+  get-hub-stats, get-universities-directory). Nest ~196 route. Tiếp: Wave 6
+  Tiền (tutoring/wallet/webhooks — replay fixtures VNPay/Momo).
 
 ### Wave 6 — Tiền (≈37 routes, ~1.5 tuần — cẩn trọng nhất)
 - `TutoringModule`, `WalletModule`, `WebhooksModule`.

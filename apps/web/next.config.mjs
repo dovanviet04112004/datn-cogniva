@@ -48,6 +48,7 @@ const NEST_MIGRATED_PREFIXES = [
   'reports', // Wave 4 — NotificationsModule (reports controller)
   'realtime', // Wave 4 — RealtimeModule (gateway auth endpoint)
   'questions', // Wave 4 catch-up — QuizModule (questions/:id/grade)
+  'library', // Wave 5 — 3 module Library (golden diff 42/42, có bug-fix import)
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

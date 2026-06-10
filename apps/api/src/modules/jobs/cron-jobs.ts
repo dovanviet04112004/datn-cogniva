@@ -8,6 +8,9 @@ export const CRON_JOBS_V2 = [
   { id: 'reconcile-leaderboard', pattern: '*/30 * * * *' },
   { id: 'thread-archive-stale', pattern: '0 2 * * *' },
   { id: 'flashcard-due-reminder', pattern: '0 13 * * *' },
+  { id: 'library-pro-downgrade', pattern: '0 3 * * *' },
+  { id: 'library-pro-expiry-warn', pattern: '0 9 * * *' },
+  { id: 'library-saved-search-notify', pattern: '0 14 * * *' },
 ] as const;
 
 export type CronV2Id = (typeof CRON_JOBS_V2)[number]['id'];

@@ -11,6 +11,9 @@ import { DocumentProcessor } from './document.processor';
 import { RecordingProcessor } from './recording.processor';
 import { FlashcardDueReminderJob } from './handlers/flashcard-due-reminder.job';
 import { HealthMonitorJob } from './handlers/health-monitor.job';
+import { LibraryProDowngradeJob } from './handlers/library-pro-downgrade.job';
+import { LibraryProExpiryWarnJob } from './handlers/library-pro-expiry-warn.job';
+import { LibrarySavedSearchNotifyJob } from './handlers/library-saved-search-notify.job';
 import { ReconcileLeaderboardJob } from './handlers/reconcile-leaderboard.job';
 import { ThreadArchiveStaleJob } from './handlers/thread-archive-stale.job';
 
@@ -21,7 +24,8 @@ import { ThreadArchiveStaleJob } from './handlers/thread-archive-stale.job';
  * AiModule + StorageModule import tường minh ở đây vì WorkerModule KHÔNG
  * mount chúng như app.module — @Global chỉ có tác dụng khi module nằm trong
  * graph; DocumentsModule (ConceptsService/IngestService) cần cả hai.
- * NotificationsModule → getPushTokens cho flashcard-due-reminder.
+ * NotificationsModule → getPushTokens cho flashcard-due-reminder +
+ * library-pro-expiry-warn + library-saved-search-notify.
  * RoomsPipelineModule (KHÔNG phải RoomsModule — tránh kéo controllers/LiveKit
  * vào worker) → RecordingPipelineService cho RecordingProcessor.
  */
@@ -42,6 +46,9 @@ import { ThreadArchiveStaleJob } from './handlers/thread-archive-stale.job';
     ReconcileLeaderboardJob,
     ThreadArchiveStaleJob,
     FlashcardDueReminderJob,
+    LibraryProDowngradeJob,
+    LibraryProExpiryWarnJob,
+    LibrarySavedSearchNotifyJob,
   ],
 })
 export class JobsModule {}

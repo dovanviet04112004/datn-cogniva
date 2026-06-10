@@ -28,6 +28,9 @@ import { GraphModule } from './modules/graph/graph.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { HealthModule } from './modules/health/health.module';
 import { LearningModule } from './modules/learning/learning.module';
+import { LibraryAnnotationsModule } from './modules/library/library-annotations.module';
+import { LibraryContentModule } from './modules/library/library-content.module';
+import { LibrarySearchModule } from './modules/library/library-search.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { QuizModule } from './modules/quiz/quiz.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
@@ -73,6 +76,11 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     RoomsModule,
     NotificationsModule,
     RealtimeModule,
+    // Library: Content (route tĩnh docs/upload-init|finalize) ĐỨNG TRƯỚC
+    // Search (có GET docs/:id catch-all) — Express match theo thứ tự đăng ký.
+    LibraryContentModule,
+    LibrarySearchModule,
+    LibraryAnnotationsModule,
     HealthModule,
     SpikeModule,
   ],
