@@ -2,10 +2,11 @@
  * BullMQ worker — process thứ 2 của apps/web (chạy `pnpm --filter @cogniva/web worker`,
  * hoặc service `worker` trên VPS). Chia sẻ TOÀN BỘ code apps/web (db, lib, ai, r2, redis).
  *
- * 3 worker:
+ * 2 worker:
  *   - `recording` (event, concurrency 2): processRecording
- *   - `document`  (event, concurrency 2): extractDocumentConcepts
  *   - `cron`      (concurrency 1, serial — an toàn cho gdpr): dispatch theo job.name
+ * Queue `document` (extract-document-concepts) đã PORT sang worker NestJS
+ * (apps/api DocumentProcessor) Wave 3 — web chỉ còn produce (admin reingest).
  *
  * Repeatable cron (11) đăng ký qua upsertJobScheduler (idempotent) lúc boot, GIỮ giờ UTC.
  *
@@ -24,7 +25,7 @@ import { Worker, type Job } from 'bullmq';
 import { logger } from '@/lib/observability/logger';
 import { makeBullConnection } from '@/queue/connection';
 import { getCronQueue } from '@/queue/queues';
-import { QUEUE, CRON_JOBS, type RecordingJob, type DocumentJob } from '@/queue/jobs';
+import { QUEUE, CRON_JOBS, type RecordingJob } from '@/queue/jobs';
 import * as jobs from '@/jobs';
 
 /** Map cron job.name → logic. job.name = CRON_JOBS[].id (set qua scheduler template). */
@@ -47,12 +48,6 @@ async function main() {
     { connection: makeBullConnection(), concurrency: 2 },
   );
 
-  const documentWorker = new Worker(
-    QUEUE.document,
-    (job: Job<DocumentJob>) => jobs.extractDocumentConcepts(job.data),
-    { connection: makeBullConnection(), concurrency: 2 },
-  );
-
   const cronWorker = new Worker(
     QUEUE.cron,
     (job: Job) => {
@@ -66,7 +61,7 @@ async function main() {
     { connection: makeBullConnection(), concurrency: 1 },
   );
 
-  const workers = [recordingWorker, documentWorker, cronWorker];
+  const workers = [recordingWorker, cronWorker];
   for (const w of workers) {
     w.on('completed', (job) =>
       logger.info('worker.job.completed', { queue: w.name, name: job.name, id: job.id }),

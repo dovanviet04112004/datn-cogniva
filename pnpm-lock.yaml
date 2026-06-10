@@ -31,6 +31,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1045.0
+        version: 3.1045.0
       '@cogniva/server-core':
         specifier: workspace:^
         version: link:../../packages/server-core
@@ -85,6 +88,12 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      ts-fsrs:
+        specifier: ^4.6.1
+        version: 4.7.1
+      unpdf:
+        specifier: ^0.12.1
+        version: 0.12.2
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -98,6 +107,9 @@ importers:
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
+      '@types/multer':
+        specifier: ^2.1.0
+        version: 2.1.0
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.18
@@ -5858,6 +5870,9 @@ packages:
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
+
+  '@types/multer@2.1.0':
+    resolution: {integrity: sha512-zYZb0+nJhOHtPpGDb3vqPjwpdeGlGC157VpkqNQL+UU2qwoacoQ7MpsAmUptI/0Oa127X32JzWDqQVEXp2RcIA==}
 
   '@types/mysql@2.15.27':
     resolution: {integrity: sha512-YfWiV16IY0OeBfBCk8+hXKmdTKrKlwKN1MNKAPBu5JYxLwBEZl7QzeEpGnlZb3VMGJrrGmB84gXiH+ofs/TezA==}
@@ -18750,6 +18765,10 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/ms@2.1.0': {}
+
+  '@types/multer@2.1.0':
+    dependencies:
+      '@types/express': 5.0.6
 
   '@types/mysql@2.15.27':
     dependencies:

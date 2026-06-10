@@ -28,6 +28,8 @@ export type RecordingJob = {
 /**
  * Payload `document/ingested` (cũ) → job queue `document`. Bắn sau khi ingestDocument()
  * chunk + embed xong. Idempotent (ON CONFLICT DO NOTHING ở pivot).
+ * Wave 3: PROCESSOR đã chuyển sang worker NestJS (apps/api DocumentProcessor) —
+ * web chỉ còn produce từ admin reingest (lib/ingest/pipeline.ts).
  */
 export type DocumentJob = {
   documentId: string;

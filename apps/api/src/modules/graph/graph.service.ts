@@ -10,9 +10,8 @@
  * Khác biệt cố ý so với web:
  *   - Web đọc graph qua dbReplica; API hiện chỉ có 1 PrismaClient (primary).
  *     Cache Redis Tier 1 vẫn là tầng giảm tải chính — replica routing để infra lo sau.
- *   - LLM call: copy/adapt từ apps/web/src/lib/ai/models.ts (getChatModel) — gọi
- *     REST OpenAI-compatible trực tiếp vì apps/api chưa có @ai-sdk provider deps
- *     (infra/ai là việc Wave 7). Đồng bộ tay khi models.ts đổi provider/default model.
+ *   - LLM mining → LlmService (infra/ai, @Global) — cùng provider pick order /
+ *     model default như getChatModel() web, params giữ nguyên mineGroup cũ.
  */
 import { randomUUID } from 'node:crypto';
 import {
@@ -27,6 +26,7 @@ import { cached } from '@cogniva/server-core/cache/cache-aside';
 import { ck } from '@cogniva/server-core/cache/keys';
 import { onGraphChanged } from '@cogniva/server-core/cache/invalidate';
 
+import { LlmService } from '../../infra/ai/llm.service';
 import { PrismaService } from '../../infra/database/prisma.service';
 
 /** Node React Flow — { id, type, data, position } (position client tự layout). */
@@ -95,7 +95,10 @@ function extractJson(text: string): unknown {
 
 @Injectable()
 export class GraphService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llm: LlmService,
+  ) {}
 
   // ════════════════════════════════════════════════════════════════════════
   // GET /graph — viz (cache-aside Redis TTL 1h, bust qua onDocumentChanged/
@@ -324,7 +327,11 @@ export class GraphService {
       .join('\n');
 
     try {
-      const text = await this.generatePlainText(PREREQ_INSTRUCTION.replace('{{LIST}}', list));
+      // temperature 0.2 / max 1000 token — như mineGroup cũ (prerequisite.ts).
+      const text = await this.llm.complete(PREREQ_INSTRUCTION.replace('{{LIST}}', list), {
+        temperature: 0.2,
+        maxTokens: 1000,
+      });
       const obj = extractJson(text) as { edges?: unknown };
       if (!Array.isArray(obj.edges)) return [];
 
@@ -372,98 +379,5 @@ export class GraphService {
       }
     }
     return inserted;
-  }
-
-  // ── LLM helper — thay getChatModel()+generateText (xem header file) ────────
-
-  /**
-   * Chọn provider theo env — CÙNG thứ tự ưu tiên getChatModel() web:
-   * LLM_PROVIDER ép cứng → ANTHROPIC → GROQ → GOOGLE → OPENROUTER. Kiểm GIÁ TRỊ
-   * env (key rỗng = không có) chứ không chỉ "có set".
-   */
-  private resolveChatEndpoint(): {
-    url: string;
-    apiKey: string;
-    model: string;
-    headers: Record<string, string>;
-  } {
-    const forced = process.env.LLM_PROVIDER;
-    const has = (k: string) => !!process.env[k];
-    const provider =
-      forced && ['anthropic', 'groq', 'google', 'openrouter'].includes(forced)
-        ? forced
-        : has('ANTHROPIC_API_KEY')
-          ? 'anthropic'
-          : has('GROQ_API_KEY')
-            ? 'groq'
-            : has('GOOGLE_GENERATIVE_AI_API_KEY')
-              ? 'google'
-              : has('OPENROUTER_API_KEY')
-                ? 'openrouter'
-                : null;
-    if (!provider) {
-      throw new Error(
-        '[ai] Không tìm thấy AI provider key — set 1 trong: ANTHROPIC_API_KEY / GROQ_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY / OPENROUTER_API_KEY',
-      );
-    }
-
-    // Default model ids khớp getChatModel() web (models.ts) — đồng bộ tay khi đổi.
-    switch (provider) {
-      case 'anthropic':
-        // Anthropic có OpenAI-compat layer tại /v1/chat/completions (Bearer key).
-        return {
-          url: 'https://api.anthropic.com/v1/chat/completions',
-          apiKey: process.env.ANTHROPIC_API_KEY!,
-          model: 'claude-sonnet-4-6',
-          headers: {},
-        };
-      case 'groq':
-        return {
-          url: 'https://api.groq.com/openai/v1/chat/completions',
-          apiKey: process.env.GROQ_API_KEY!,
-          model: 'llama-3.3-70b-versatile',
-          headers: {},
-        };
-      case 'google':
-        return {
-          url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-          apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-          model: 'gemini-2.5-flash',
-          headers: {},
-        };
-      default:
-        return {
-          url: 'https://openrouter.ai/api/v1/chat/completions',
-          apiKey: process.env.OPENROUTER_API_KEY!,
-          model: 'openai/gpt-oss-20b:free',
-          // 2 header OpenRouter recommend cho usage analytics — như web.
-          headers: {
-            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
-            'X-Title': 'Cogniva',
-          },
-        };
-    }
-  }
-
-  /** 1 completion thuần text — temperature 0.2 + max 1000 token như mineGroup cũ. */
-  private async generatePlainText(prompt: string): Promise<string> {
-    const { url, apiKey, model, headers } = this.resolveChatEndpoint();
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, ...headers },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2,
-        max_tokens: 1000,
-      }),
-    });
-    if (!res.ok) {
-      throw new Error(`[ai] ${res.status} ${(await res.text()).slice(0, 300)}`);
-    }
-    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const text = json.choices?.[0]?.message?.content;
-    if (typeof text !== 'string') throw new Error('[ai] Response thiếu choices[0].message.content');
-    return text;
   }
 }

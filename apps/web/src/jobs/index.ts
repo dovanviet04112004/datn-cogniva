@@ -3,7 +3,6 @@
  * (Tên export GIỮ NGUYÊN như job cũ để map cron/queue rõ ràng.)
  */
 export { processRecording } from './process-recording';
-export { extractDocumentConcepts } from './extract-document-concepts';
 export { flashcardDueReminder } from './flashcard-due-reminder';
 export { processGdprDeletion } from './process-gdpr-deletion';
 export { tutoringAutoComplete } from './tutoring-auto-complete';

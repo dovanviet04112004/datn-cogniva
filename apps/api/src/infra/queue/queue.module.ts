@@ -13,6 +13,13 @@ import IORedis from 'ioredis';
 
 export const CRON_QUEUE = 'cron-v2';
 
+/**
+ * Queue `document` GIỮ NGUYÊN tên queue cũ của web (apps/web/src/queue/jobs.ts
+ * QUEUE.document): cùng Redis, jobId=documentId dedup được giữa 2 producer
+ * trong cửa sổ strangler-fig. Web ngừng consume khi cutover (main loop gỡ).
+ */
+export const DOCUMENT_QUEUE = 'document';
+
 @Module({
   imports: [
     BullModule.forRootAsync({
@@ -24,7 +31,7 @@ export const CRON_QUEUE = 'cron-v2';
       }),
       inject: [ConfigService],
     }),
-    BullModule.registerQueue({ name: CRON_QUEUE }),
+    BullModule.registerQueue({ name: CRON_QUEUE }, { name: DOCUMENT_QUEUE }),
   ],
   exports: [BullModule],
 })

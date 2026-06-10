@@ -277,9 +277,10 @@ export class StudyPlanService {
   }
 
   /**
-   * Port proposeForToday (lib/study-plan/propose.ts) — bản KHÔNG workspace
-   * scope (route /today luôn gọi cross-workspace). 3 query + hydrate batch,
-   * SQL giữ nguyên semantics câu Drizzle cũ.
+   * Port proposeForToday (lib/study-plan/propose.ts) — cross-workspace.
+   * 3 query + hydrate batch, SQL giữ nguyên semantics câu Drizzle cũ.
+   * (Biến thể scope-workspace của lib cũ KHÔNG port: route duy nhất dùng nó
+   * — GET /workspaces/:id/today — đã chết, 0 caller.)
    */
   private async proposeForToday(userId: string): Promise<StudyPlanProposal> {
     const now = new Date();

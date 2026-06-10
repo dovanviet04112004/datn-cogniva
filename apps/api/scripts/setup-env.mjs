@@ -58,6 +58,19 @@ for (const k of [
   'VOYAGE_API_KEY',
   'COHERE_API_KEY',
   'CRON_SECRET',
+  // Wave 3: storage R2 + embedding provider — api phải CÙNG driver với web,
+  // không thì upload (Nest) ghi local mà file proxy/web đọc R2 và ngược lại.
+  'STORAGE_DRIVER',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_ACCOUNT_ID',
+  'R2_BUCKET_NAME',
+  'R2_LIBRARY_BUCKET',
+  'R2_PUBLIC_URL',
+  'R2_LIBRARY_PUBLIC_URL',
+  'EMBEDDING_PROVIDER',
+  'UPLOADS_DIR',
+  'LLM_PROVIDER',
 ]) {
   const v = get(k);
   if (v) lines.push(`${k}="${v}"`);

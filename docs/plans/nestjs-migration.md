@@ -488,6 +488,34 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   GET. File proxy → `StreamableFile` (Content-Type/Cache-Control y hệt).
 - SSR pages: **write-path-first** — trang read SSR tạm giữ đọc DB cũ (xem nguyên
   tắc cuối §7).
+- **WAVE 3 HOÀN TẤT 2026-06-10 ✅** (1 ngày nhờ 2 workflow: 3 agent nền + 7 agent
+  port song song). Nền dùng chung mới: `infra/ai` (LlmService gộp 2 bản copy LLM
+  của notes/graph + EmbeddingService Voyage/OpenAI REST + CostGuardrailService,
+  @Global), `infra/storage` (StorageService R2+local, @Global), `XpService`
+  (gamification, NotesService đã refactor dùng chung), `MasteryUpdateService`
+  (learning), `OutcomeTrackerService` (library stub). 6 module port đủ 65 route
+  — **GOLDEN DIFF 64/64 PASS** (LLM status-only; upload PDF thật chạy ingest
+  end-to-end 2 chiều R2; file proxy so header; twin-users cho flow có XP trong
+  response). Bug bắt được: `/flashcards/queue` timestamp phải `::text` (postgres.js
+  trả raw text, Prisma trả ISO — client ăn format cũ); `lastMessageAt` ở
+  conversations route CŨ bug trả null vĩnh viễn (Drizzle subquery) — bản Nest trả
+  ĐÚNG, chấp nhận bug-fix. **2 route cũ 0 caller bị BỎ không port** (caller-analysis
+  toàn web/mobile/shared): `GET /workspaces/:id/today` (thay bằng /study-plan/today),
+  `POST /exams/:id/duplicate` (feature bỏ). Worker: DocumentProcessor (queue
+  `document` GIỮ TÊN — producer+consumer chuyển cùng lúc; admin reingest cũ của web
+  vẫn enqueue ăn khớp processor Nest; web worker đã gỡ documentWorker). Cutover 7
+  prefix + XÓA 46 file route cũ + lib chết (exam/grade, ai/grade-essay,
+  flashcards/{fsrs,generate}, quiz/grade, library/outcome-tracker, jobs/
+  extract-document-concepts); lib còn caller GIỮ: ingest/* + concepts (admin
+  reingest W7), storage (groups/KYC), quiz/generate (tutor verify-quiz W6),
+  mastery/update (questions/grade), study-plan/propose (SSR page), flashcards/cloze
+  (client component). main.ts nới body-parser 10mb (Express default 100kb < Next
+  không giới hạn). Env: setup-env passthrough thêm R2_*/STORAGE_DRIVER/EMBEDDING_*.
+  Deviation chấp nhận (ghi trong proof + service comment): 401 file-proxy/image trả
+  JSON thay text (AuthGuard chung); multipart hỏng/oversize 52MB+ ra message multer;
+  float4 (cheatRiskScore) lệch tail digit do driver; ipAddress lấy từ XFF (chỉ có
+  qua proxy). Nest giờ phục vụ ~100 route (14 auth + 21 W2 + 65 W3). Tiếp:
+  Wave 4 social/realtime.
 
 ### Wave 4 — Social/realtime (≈68 routes, 1.5–2 tuần)
 - `GroupsModule`, `ChannelsModule`, `RoomsModule` (+ recording processor +

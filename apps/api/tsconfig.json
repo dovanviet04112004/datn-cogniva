@@ -15,7 +15,9 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "types": ["node"],
+    // "multer": nạp global augmentation Express.Multer.File (@types/multer
+    // không được import trực tiếp ở đâu nên phải khai báo tường minh).
+    "types": ["node", "multer"],
     "incremental": true
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

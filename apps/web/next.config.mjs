@@ -33,6 +33,13 @@ const NEST_MIGRATED_PREFIXES = [
   'graph', // Wave 2b — GraphModule
   'search', // Wave 2b — SearchModule
   'chunks', // Wave 2b — SearchModule
+  'workspaces', // Wave 3 — WorkspacesModule (golden diff 64/64)
+  'documents', // Wave 3 — DocumentsModule (upload + ingest + file proxy)
+  'flashcards', // Wave 3 — FlashcardsModule (FSRS + ảnh R2)
+  'quiz', // Wave 3 — QuizModule
+  'exams', // Wave 3 — ExamsModule
+  'attempts', // Wave 3 — ExamsModule (attempts controller)
+  'conversations', // Wave 3 — ConversationsModule (POST /api/chat vẫn ở Next tới W7)
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

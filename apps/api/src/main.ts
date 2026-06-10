@@ -20,6 +20,11 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
 
+  // Next route handler không giới hạn body; Express mặc định 100kb sẽ làm
+  // payload lớn (exam PUT nhiều câu hỏi, responses save) 413 — nới cho khớp.
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
+
   // Swagger /api/docs — DTO sẽ phủ dần theo từng wave migrate.
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Cogniva API')
