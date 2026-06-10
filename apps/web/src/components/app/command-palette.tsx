@@ -34,7 +34,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
-import type { SearchResult } from '@/app/api/search/route';
+import type { SearchResult } from '@cogniva/shared';
 
 const TYPE_ICON: Record<SearchResult['type'], typeof FileText> = {
   document: FileText,

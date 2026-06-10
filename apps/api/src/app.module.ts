@@ -15,7 +15,10 @@ import { AppExceptionFilter } from './common/filters/app-exception.filter';
 import { AuthGuard } from './common/guards/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { GamificationModule } from './modules/gamification/gamification.module';
+import { GraphModule } from './modules/graph/graph.module';
 import { HealthModule } from './modules/health/health.module';
+import { LearningModule } from './modules/learning/learning.module';
+import { SearchModule } from './modules/search/search.module';
 import { SpikeModule } from './modules/spike/spike.module';
 import { UsersModule } from './modules/users/users.module';
 
@@ -37,6 +40,9 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     GamificationModule,
+    LearningModule,
+    GraphModule,
+    SearchModule,
     HealthModule,
     SpikeModule,
   ],

@@ -44,10 +44,21 @@ const lines = [
   `AUTH_JWT_PRIVATE_KEY="${pem(privateKey, 'pkcs8')}"`,
   `AUTH_JWT_PUBLIC_KEY="${pem(publicKey, 'spki')}"`,
 ];
-// Key optional — chỉ ghi khi web có cấu hình (Google OAuth, APP_URL).
+// Key optional — chỉ ghi khi web có cấu hình (OAuth, AI providers, APP_URL).
 const appUrl = get('NEXT_PUBLIC_APP_URL') ?? get('BETTER_AUTH_URL');
 if (appUrl) lines.push(`APP_URL="${appUrl}"`);
-for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) {
+for (const k of [
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GROQ_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GOOGLE_GENERATIVE_AI_API_KEY',
+  'OPENROUTER_API_KEY',
+  'OPENAI_API_KEY',
+  'VOYAGE_API_KEY',
+  'COHERE_API_KEY',
+  'CRON_SECRET',
+]) {
   const v = get(k);
   if (v) lines.push(`${k}="${v}"`);
 }

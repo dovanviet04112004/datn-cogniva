@@ -4,7 +4,6 @@
  */
 export { processRecording } from './process-recording';
 export { extractDocumentConcepts } from './extract-document-concepts';
-export { healthMonitor } from './health-monitor';
 export { flashcardDueReminder } from './flashcard-due-reminder';
 export { processGdprDeletion } from './process-gdpr-deletion';
 export { tutoringAutoComplete } from './tutoring-auto-complete';
@@ -14,4 +13,4 @@ export { tutoringRecurringRollout } from './tutoring-recurring-rollout';
 export { librarySavedSearchNotify } from './library-saved-search-notify';
 export { libraryProDowngrade } from './library-pro-downgrade';
 export { libraryProExpiryWarn } from './library-pro-expiry-warn';
-export { reconcileLeaderboard } from './reconcile-leaderboard';
+// health-monitor + reconcile-leaderboard ĐÃ PORT sang worker NestJS (apps/api).

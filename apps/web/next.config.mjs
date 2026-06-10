@@ -26,6 +26,13 @@ const NEST_MIGRATED_PREFIXES = [
   'user/status', // Wave 2 — UsersModule
   'leaderboard', // Wave 2 — GamificationModule
   'analytics', // Wave 2 — GamificationModule
+  'mastery', // Wave 2b — LearningModule (golden diff 19/19)
+  'atoms', // Wave 2b — LearningModule
+  'notes', // Wave 2b — LearningModule
+  'study-plan', // Wave 2b — LearningModule
+  'graph', // Wave 2b — GraphModule
+  'search', // Wave 2b — SearchModule
+  'chunks', // Wave 2b — SearchModule
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

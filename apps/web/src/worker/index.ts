@@ -29,8 +29,6 @@ import * as jobs from '@/jobs';
 
 /** Map cron job.name → logic. job.name = CRON_JOBS[].id (set qua scheduler template). */
 const CRON_MAP: Record<string, () => Promise<unknown>> = {
-  'health-monitor': jobs.healthMonitor,
-  'reconcile-leaderboard': jobs.reconcileLeaderboard,
   'tutoring-auto-complete': jobs.tutoringAutoComplete,
   'thread-archive-stale': jobs.threadArchiveStale,
   'tutoring-recurring-rollout': jobs.tutoringRecurringRollout,
@@ -88,6 +86,15 @@ async function main() {
   const cronQueue = getCronQueue();
   for (const c of CRON_JOBS) {
     await cronQueue.upsertJobScheduler(c.id, { pattern: c.pattern, tz: 'UTC' }, { name: c.id });
+  }
+  // Dọn scheduler MỒ CÔI (job đã port sang worker NestJS queue cron-v2 hoặc bị
+  // gỡ khỏi CRON_JOBS) — scheduler persist trong Redis nên không tự biến mất.
+  const keep = new Set<string>(CRON_JOBS.map((c) => c.id));
+  for (const s of await cronQueue.getJobSchedulers()) {
+    if (s.key && !keep.has(s.key)) {
+      await cronQueue.removeJobScheduler(s.key);
+      logger.info('worker.cron.removed_stale', { id: s.key });
+    }
   }
   logger.info('worker.ready', { crons: CRON_JOBS.length });
 

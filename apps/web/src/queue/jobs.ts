@@ -36,12 +36,12 @@ export type DocumentJob = {
 };
 
 /**
- * 11 cron job → repeatable jobs trên queue `cron`. GIỮ NGUYÊN biểu thức (UTC) như lịch cũ.
- * `id` = scheduler key (upsert idempotent) + cũng là job.name để worker dispatch.
+ * Cron jobs CÒN LẠI trên queue `cron` (UTC). `id` = scheduler key + job.name.
+ * Job đã PORT sang worker NestJS (apps/api, queue `cron-v2`) phải GỠ khỏi đây
+ * (worker boot sẽ tự remove scheduler thừa) — đã port: health-monitor,
+ * reconcile-leaderboard.
  */
 export const CRON_JOBS = [
-  { id: 'health-monitor', pattern: '*/5 * * * *' },
-  { id: 'reconcile-leaderboard', pattern: '*/30 * * * *' },
   { id: 'tutoring-auto-complete', pattern: '5 * * * *' },
   { id: 'thread-archive-stale', pattern: '0 2 * * *' },
   { id: 'tutoring-recurring-rollout', pattern: '30 2 * * *' },

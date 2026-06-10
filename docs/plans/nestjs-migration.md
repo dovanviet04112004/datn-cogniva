@@ -469,8 +469,17 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   Ghi chú kỹ thuật: @cogniva/shared là ESM-source nên api (CJS) chỉ `import
   type` được — const dùng chung đặt ở server-core; khi Wave 3 cần zod schema
   shared thì quyết: shared build dual HOẶC api chuyển ESM.
-  **Còn lại Wave 2:** `LearningModule` (atoms/mastery/notes/study-plan),
-  `GraphModule`, `SearchModule` (search/chunks) + 2 cron (cần QueueModule).
+  **WAVE 2 HOÀN TẤT 2026-06-10 ✅:** `LearningModule` (mastery 4 + atoms 2 +
+  notes 5 + study-plan 5), `GraphModule` (3), `SearchModule` (2) port bằng
+  4-agent workflow song song — **golden diff 19/19** (route LLM so status-only);
+  cutover 7 prefix + XÓA route cũ (SearchResult contract dọn về shared/types).
+  **Worker NestJS chạy** (`pnpm --filter @cogniva/api worker`, @nestjs/bullmq,
+  queue `cron-v2`): health-monitor + reconcile-leaderboard đã port, web gỡ 2
+  job + worker cũ tự dọn scheduler mồ côi khi boot (chống double-run).
+  Tổng route Nest đang phục vụ: auth (14) + 21 route domain. Ghi chú: route
+  LLM port (notes/complete, graph/mine) gọi REST OpenAI-compatible tạm —
+  Wave 7 thay bằng infra/ai router DI; api chưa có replica client (đọc primary,
+  cache Redis vẫn là tầng giảm tải chính).
 
 ### Wave 3 — Core học tập (≈51 routes, 2–2.5 tuần)
 - `WorkspacesModule`, `DocumentsModule` (Multer 50MB + ingest pipeline service +

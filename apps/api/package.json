@@ -7,6 +7,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
+    "worker": "node dist/worker",
     "typecheck": "tsc --noEmit",
     "prisma:pull": "prisma db pull",
     "prisma:generate": "prisma generate",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@cogniva/server-core": "workspace:^",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -24,6 +26,7 @@
     "@noble/ciphers": "^2.2.0",
     "@prisma/client": "^6.1.0",
     "ai": "^4.0.18",
+    "bullmq": "^5.34.0",
     "ioredis": "^5.10.1",
     "jose": "^5.9.6",
     "nestjs-pino": "^4.1.0",

@@ -8,6 +8,16 @@
  * → render. KHÔNG có pgvector, KHÔNG có Drizzle InferSelectModel ở đây.
  */
 
+// ── Search (command palette web + mobile) ──────────────────────────
+/** 1 kết quả global search — contract của GET /api/search. */
+export type SearchResult = {
+  type: 'document' | 'concept' | 'flashcard' | 'quiz' | 'note';
+  id: string;
+  label: string;
+  sublabel?: string;
+  href: string;
+};
+
 // ── User & session ─────────────────────────────────────────────────
 export interface UserDTO {
   id: string;

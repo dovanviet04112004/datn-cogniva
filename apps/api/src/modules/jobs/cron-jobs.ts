@@ -1,0 +1,11 @@
+/**
+ * Cron jobs đã port sang worker NestJS (queue `cron-v2`) — GIỮ NGUYÊN pattern
+ * UTC như lịch cũ ở apps/web/src/queue/jobs.ts. Port job nào thì thêm vào đây
+ * + gỡ khỏi CRON_JOBS của web cùng commit.
+ */
+export const CRON_JOBS_V2 = [
+  { id: 'health-monitor', pattern: '*/5 * * * *' },
+  { id: 'reconcile-leaderboard', pattern: '*/30 * * * *' },
+] as const;
+
+export type CronV2Id = (typeof CRON_JOBS_V2)[number]['id'];
