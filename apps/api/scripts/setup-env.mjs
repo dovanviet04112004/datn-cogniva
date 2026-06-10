@@ -3,12 +3,19 @@
  * Chạy lại bất kỳ lúc nào — ghi đè .env (idempotent). Không in secret.
  */
 import { generateKeyPairSync } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const webEnv = readFileSync(join(apiDir, '../web/.env.local'), 'utf8');
+// .env hiện có (nếu có) — để GIỮ keypair cũ, tránh invalidate JWT đang lưu hành
+// (gateway realtime verify cục bộ bằng public key này).
+const prevEnv = existsSync(join(apiDir, '.env')) ? readFileSync(join(apiDir, '.env'), 'utf8') : '';
+const getPrev = (key) => {
+  const m = prevEnv.match(new RegExp(`^${key}="?(.*?)"?$`, 'm'));
+  return m ? m[1] : null;
+};
 
 const get = (key) => {
   for (const raw of webEnv.split(/\r?\n/)) {
@@ -28,8 +35,16 @@ const direct = new URL(pooled.toString());
 direct.hostname = direct.hostname.replace('-pooler', '');
 direct.searchParams.delete('pgbouncer');
 
-const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
-const pem = (k, type) => k.export({ type, format: 'pem' }).trim().replaceAll('\n', '\\n');
+// Keypair ES256: tái dùng nếu .env đã có (chạy lại script không đá user đang
+// đăng nhập); chỉ sinh mới lần đầu.
+let privPem = getPrev('AUTH_JWT_PRIVATE_KEY');
+let pubPem = getPrev('AUTH_JWT_PUBLIC_KEY');
+if (!privPem || !pubPem) {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const pem = (k, type) => k.export({ type, format: 'pem' }).trim().replaceAll('\n', '\\n');
+  privPem = pem(privateKey, 'pkcs8');
+  pubPem = pem(publicKey, 'spki');
+}
 
 const lines = [
   '# apps/api/.env — sinh bởi scripts/setup-env.mjs từ apps/web/.env.local.',
@@ -41,8 +56,8 @@ const lines = [
   `DATABASE_URL_LOCAL="postgresql://cogniva:cogniva@localhost:5432/cogniva"`,
   `REDIS_URL="${get('REDIS_URL')}"`,
   `BETTER_AUTH_SECRET="${get('BETTER_AUTH_SECRET')}"`,
-  `AUTH_JWT_PRIVATE_KEY="${pem(privateKey, 'pkcs8')}"`,
-  `AUTH_JWT_PUBLIC_KEY="${pem(publicKey, 'spki')}"`,
+  `AUTH_JWT_PRIVATE_KEY="${privPem}"`,
+  `AUTH_JWT_PUBLIC_KEY="${pubPem}"`,
 ];
 // Key optional — chỉ ghi khi web có cấu hình (OAuth, AI providers, APP_URL).
 const appUrl = get('NEXT_PUBLIC_APP_URL') ?? get('BETTER_AUTH_URL');
@@ -71,6 +86,12 @@ for (const k of [
   'EMBEDDING_PROVIDER',
   'UPLOADS_DIR',
   'LLM_PROVIDER',
+  // Wave 4: LiveKit (voice/rooms/recording) + JWT_SECRET (collab-token Hocuspocus HS256).
+  'LIVEKIT_API_KEY',
+  'LIVEKIT_API_SECRET',
+  'NEXT_PUBLIC_LIVEKIT_URL',
+  'JWT_SECRET',
+  'NEXT_PUBLIC_HOCUSPOCUS_URL',
 ]) {
   const v = get(k);
   if (v) lines.push(`${k}="${v}"`);

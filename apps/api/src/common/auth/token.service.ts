@@ -30,6 +30,9 @@ export interface AccessTokenPayload {
   email: string;
   role: string | null;
   plan: string | null;
+  /** Claims OIDC name/picture — gateway realtime verify cục bộ là có đủ Identity, không round-trip DB. */
+  name: string | null;
+  picture: string | null;
 }
 
 @Injectable()
@@ -72,6 +75,8 @@ export class TokenService {
       email: user.email,
       role: user.adminRole ?? null,
       plan: user.plan ?? null,
+      name: user.name ?? null,
+      picture: user.image ?? null,
     })
       .setProtectedHeader({ alg: ALG, typ: 'JWT', kid: keys[0]?.kid })
       .setSubject(user.id)
@@ -122,6 +127,9 @@ export class TokenService {
         email: String(payload.email ?? ''),
         role: (payload.role as string | null) ?? null,
         plan: (payload.plan as string | null) ?? null,
+        // Token cũ (phát trước khi thêm claims) chưa có name/picture → fallback null.
+        name: typeof payload.name === 'string' ? payload.name : null,
+        picture: typeof payload.picture === 'string' ? payload.picture : null,
       };
     } catch {
       return null;

@@ -76,6 +76,9 @@ importers:
       jose:
         specifier: ^5.9.6
         version: 5.10.0
+      livekit-server-sdk:
+        specifier: ^2.15.2
+        version: 2.15.2
       nestjs-pino:
         specifier: ^4.1.0
         version: 4.6.1(@nestjs/common@11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2))(pino-http@10.5.0)(pino@9.14.0)(rxjs@7.8.2)
@@ -305,6 +308,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
       socket.io:
         specifier: ^4.8.1
         version: 4.8.3

@@ -20,6 +20,13 @@ export const CRON_QUEUE = 'cron-v2';
  */
 export const DOCUMENT_QUEUE = 'document';
 
+/**
+ * Queue `recording` GIỮ TÊN queue cũ (QUEUE.recording): producer là webhook
+ * LiveKit ở apps/web tới W6, consumer chuyển sang RecordingProcessor (api).
+ * Worker recording của web phải TẮT khi worker api chạy — không double-process.
+ */
+export const RECORDING_QUEUE = 'recording';
+
 @Module({
   imports: [
     BullModule.forRootAsync({
@@ -31,7 +38,7 @@ export const DOCUMENT_QUEUE = 'document';
       }),
       inject: [ConfigService],
     }),
-    BullModule.registerQueue({ name: CRON_QUEUE }, { name: DOCUMENT_QUEUE }),
+    BullModule.registerQueue({ name: CRON_QUEUE }, { name: DOCUMENT_QUEUE }, { name: RECORDING_QUEUE }),
   ],
   exports: [BullModule],
 })

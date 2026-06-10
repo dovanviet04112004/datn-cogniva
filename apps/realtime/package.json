@@ -15,6 +15,7 @@
     "@cogniva/shared": "workspace:*",
     "@socket.io/redis-adapter": "^8.3.0",
     "ioredis": "^5.10.1",
+    "jose": "^5.9.6",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

@@ -2,21 +2,18 @@
  * BullMQ worker — process thứ 2 của apps/web (chạy `pnpm --filter @cogniva/web worker`,
  * hoặc service `worker` trên VPS). Chia sẻ TOÀN BỘ code apps/web (db, lib, ai, r2, redis).
  *
- * 2 worker:
- *   - `recording` (event, concurrency 2): processRecording
- *   - `cron`      (concurrency 1, serial — an toàn cho gdpr): dispatch theo job.name
- * Queue `document` (extract-document-concepts) đã PORT sang worker NestJS
- * (apps/api DocumentProcessor) Wave 3 — web chỉ còn produce (admin reingest).
+ * 1 worker:
+ *   - `cron` (concurrency 1, serial — an toàn cho gdpr): dispatch theo job.name
+ * Queue `document` (W3) + `recording` (W4) đã PORT sang worker NestJS
+ * (apps/api Document/RecordingProcessor) — web chỉ còn PRODUCE
+ * (admin reingest, webhook LiveKit).
  *
- * Repeatable cron (11) đăng ký qua upsertJobScheduler (idempotent) lúc boot, GIỮ giờ UTC.
+ * Repeatable cron (CRON_JOBS) đăng ký qua upsertJobScheduler (idempotent) lúc boot, GIỮ giờ UTC.
  *
- * Retry semantics (QUAN TRỌNG cho idempotency):
- *   - Cron jobs dùng attempts MẶC ĐỊNH = 1 (KHÔNG retry). Lỡ 1 lần thì lần schedule
- *     sau chạy lại (đa số dedupe qua notification_log / WHERE status). → KHÔNG gửi push
- *     trùng, KHÔNG double-act dù side-effect không nguyên tử. ĐỪNG đặt attempts>1 cho cron
- *     trừ khi job đã idempotent hoàn toàn.
- *   - Event jobs CÓ retry (recording attempts=2, document attempts=3) → đã idempotent:
- *     recording = checkpoint PROCESSED + flashcards atomic; document = ON CONFLICT DO NOTHING.
+ * Retry semantics (QUAN TRỌNG cho idempotency): cron jobs dùng attempts MẶC
+ * ĐỊNH = 1 (KHÔNG retry). Lỡ 1 lần thì lần schedule sau chạy lại (đa số dedupe
+ * qua notification_log / WHERE status). ĐỪNG đặt attempts>1 cho cron trừ khi
+ * job đã idempotent hoàn toàn.
  *
  * Server-only. KHÔNG import vào packages/shared / apps/mobile.
  */
@@ -25,29 +22,21 @@ import { Worker, type Job } from 'bullmq';
 import { logger } from '@/lib/observability/logger';
 import { makeBullConnection } from '@/queue/connection';
 import { getCronQueue } from '@/queue/queues';
-import { QUEUE, CRON_JOBS, type RecordingJob } from '@/queue/jobs';
+import { CRON_JOBS, QUEUE } from '@/queue/jobs';
 import * as jobs from '@/jobs';
 
 /** Map cron job.name → logic. job.name = CRON_JOBS[].id (set qua scheduler template). */
 const CRON_MAP: Record<string, () => Promise<unknown>> = {
   'tutoring-auto-complete': jobs.tutoringAutoComplete,
-  'thread-archive-stale': jobs.threadArchiveStale,
   'tutoring-recurring-rollout': jobs.tutoringRecurringRollout,
   'process-gdpr-deletion': jobs.processGdprDeletion,
   'tutoring-refresh-embeddings': jobs.tutoringRefreshEmbeddings,
   'library-pro-downgrade': jobs.libraryProDowngrade,
   'library-pro-expiry-warn': jobs.libraryProExpiryWarn,
-  'flashcard-due-reminder': jobs.flashcardDueReminder,
   'library-saved-search-notify': jobs.librarySavedSearchNotify,
 };
 
 async function main() {
-  const recordingWorker = new Worker(
-    QUEUE.recording,
-    (job: Job<RecordingJob>) => jobs.processRecording(job.data),
-    { connection: makeBullConnection(), concurrency: 2 },
-  );
-
   const cronWorker = new Worker(
     QUEUE.cron,
     (job: Job) => {
@@ -61,7 +50,7 @@ async function main() {
     { connection: makeBullConnection(), concurrency: 1 },
   );
 
-  const workers = [recordingWorker, cronWorker];
+  const workers = [cronWorker];
   for (const w of workers) {
     w.on('completed', (job) =>
       logger.info('worker.job.completed', { queue: w.name, name: job.name, id: job.id }),

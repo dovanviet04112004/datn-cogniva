@@ -31,6 +31,7 @@
     "bullmq": "^5.34.0",
     "ioredis": "^5.10.1",
     "jose": "^5.9.6",
+    "livekit-server-sdk": "^2.15.2",
     "nestjs-pino": "^4.1.0",
     "pino-http": "^10.3.0",
     "reflect-metadata": "^0.2.2",

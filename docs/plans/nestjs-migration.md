@@ -524,6 +524,32 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   HTTP round-trip), membership authorize → endpoint Nest; dual-accept 1 wave +
   socket/presence/voice smoke trước khi xoá route cũ. Hocuspocus: align verify
   sang JWKS (thay JWT_SECRET đối xứng).
+- **WAVE 4 HOÀN TẤT 2026-06-10 ✅** (cùng ngày W3 — workflow 3 agent nền + 6
+  agent port, 1.2M token). Nền mới: `PermissionsService` (engine quyền 3 lớp
+  role/override port nguyên), `NotificationsService` (notify + push Expo gom từ
+  2 chỗ inline), `infra/livekit` (@Global). Port 66 route HTTP: groups 23 + dm 3
+  + channels-core 17 + channels-voice 15 + rooms 13 + notifications/reports 3 +
+  realtime/auth 1 + catch-up questions/grade (QuizModule W3 sót); 2 cron
+  catch-up port (`flashcard-due-reminder`, `thread-archive-stale`) +
+  `RecordingProcessor` (queue `recording` giữ tên — webhook LiveKit web vẫn
+  produce; web worker chỉ còn cron, RoomsPipelineModule tách riêng cho worker
+  không kéo controllers). **GOLDEN DIFF 98/98** + **SOCKET SMOKE 7/7** (gateway
+  verify JWT cục bộ CHỨNG MINH bằng instance hố-đen-HTTP; fallback BA legacy
+  qua Nest dual-accept OK; authorize subscribe qua endpoint Nest). Access token
+  thêm claims name+picture (token cũ vẫn verify, fallback ''/null);
+  setup-env.mjs giờ GIỮ keypair cũ khi chạy lại. **5 route 0-caller BỎ không
+  port**: groups/:id/ping (thay bằng socket presence), channel
+  permission-overrides GET/PUT/DELETE (engine vẫn đọc DB), members/:userId/roles
+  GET/PUT (bulk — UI dùng PUT member). Whisper = REST Groq multipart (không dep
+  openai); collab-token HS256 as-is (Hocuspocus server ngoài repo — JWKS align
+  dời GĐ3); ai-message rooms phát ai:streaming 1 phát full-text (LlmService
+  non-stream, client tương thích — Wave 7 router stream lại); RAG room-tutor
+  tạm basic top-5 (advanced HyDE/rerank W7). Xóa web: 65 file route + libs chết
+  (effective-permissions, mention-notify, ai-reply, livekit, rooms/codes,
+  process-recording); giữ lib client/SSR/W6 còn dùng (permissions UI,
+  permission-keys, code, dm, search-query, inline-pipeline+media cho webhook,
+  notifications/notify cho tutoring). Nest giờ phục vụ ~166 route. Tiếp:
+  Wave 5 Library (33).
 
 ### Wave 5 — Library (33 routes, 1–1.5 tuần)
 - `LibraryModule`: hybrid search (SQL pgvector + tsvector — sang GĐ2 đổi adapter

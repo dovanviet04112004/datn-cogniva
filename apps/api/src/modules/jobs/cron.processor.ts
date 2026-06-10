@@ -8,8 +8,10 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 
 import { CRON_QUEUE } from '../../infra/queue/queue.module';
+import { FlashcardDueReminderJob } from './handlers/flashcard-due-reminder.job';
 import { HealthMonitorJob } from './handlers/health-monitor.job';
 import { ReconcileLeaderboardJob } from './handlers/reconcile-leaderboard.job';
+import { ThreadArchiveStaleJob } from './handlers/thread-archive-stale.job';
 
 @Processor(CRON_QUEUE, { concurrency: 1 })
 export class CronProcessor extends WorkerHost {
@@ -18,6 +20,8 @@ export class CronProcessor extends WorkerHost {
   constructor(
     private readonly healthMonitor: HealthMonitorJob,
     private readonly reconcileLeaderboard: ReconcileLeaderboardJob,
+    private readonly threadArchiveStale: ThreadArchiveStaleJob,
+    private readonly flashcardDueReminder: FlashcardDueReminderJob,
   ) {
     super();
   }
@@ -28,6 +32,10 @@ export class CronProcessor extends WorkerHost {
         return this.healthMonitor.run();
       case 'reconcile-leaderboard':
         return this.reconcileLeaderboard.run();
+      case 'thread-archive-stale':
+        return this.threadArchiveStale.run();
+      case 'flashcard-due-reminder':
+        return this.flashcardDueReminder.run();
       default:
         this.logger.warn(`cron-v2 job không có handler: ${job.name}`);
         return undefined;

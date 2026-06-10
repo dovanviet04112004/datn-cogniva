@@ -6,6 +6,8 @@
 export const CRON_JOBS_V2 = [
   { id: 'health-monitor', pattern: '*/5 * * * *' },
   { id: 'reconcile-leaderboard', pattern: '*/30 * * * *' },
+  { id: 'thread-archive-stale', pattern: '0 2 * * *' },
+  { id: 'flashcard-due-reminder', pattern: '0 13 * * *' },
 ] as const;
 
 export type CronV2Id = (typeof CRON_JOBS_V2)[number]['id'];

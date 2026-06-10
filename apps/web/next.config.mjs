@@ -40,6 +40,14 @@ const NEST_MIGRATED_PREFIXES = [
   'exams', // Wave 3 — ExamsModule
   'attempts', // Wave 3 — ExamsModule (attempts controller)
   'conversations', // Wave 3 — ConversationsModule (POST /api/chat vẫn ở Next tới W7)
+  'groups', // Wave 4 — GroupsModule (golden diff 98/98)
+  'dm', // Wave 4 — GroupsModule (DM controller)
+  'channels', // Wave 4 — ChannelsModule + ChannelsVoiceModule
+  'rooms', // Wave 4 — RoomsModule
+  'notifications', // Wave 4 — NotificationsModule
+  'reports', // Wave 4 — NotificationsModule (reports controller)
+  'realtime', // Wave 4 — RealtimeModule (gateway auth endpoint)
+  'questions', // Wave 4 catch-up — QuizModule (questions/:id/grade)
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

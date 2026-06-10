@@ -58,7 +58,8 @@ export class AuthGuard implements CanActivate {
           user: {
             id: payload.sub,
             email: payload.email,
-            name: null,
+            name: payload.name,
+            image: payload.picture,
             plan: payload.plan,
             adminRole: payload.role,
           },

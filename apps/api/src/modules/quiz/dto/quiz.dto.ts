@@ -1,7 +1,7 @@
 /**
- * Zod schemas cho /quiz — copy NGUYÊN VĂN từ route cũ
- * (apps/web/src/app/api/quiz/{generate,[id]/attempt}/route.ts) để 400 flatten
- * byte-identical.
+ * Zod schemas cho /quiz + /questions — copy NGUYÊN VĂN từ route cũ
+ * (apps/web/src/app/api/quiz/{generate,[id]/attempt}/route.ts +
+ * questions/[id]/grade/route.ts) để 400 flatten byte-identical.
  */
 import { z } from 'zod';
 
@@ -33,3 +33,9 @@ export const attemptQuizSchema = z.object({
 });
 
 export type AttemptQuizInput = z.infer<typeof attemptQuizSchema>;
+
+export const gradeQuestionSchema = z.object({
+  answer: z.union([z.number(), z.string()]),
+});
+
+export type GradeQuestionInput = z.infer<typeof gradeQuestionSchema>;
