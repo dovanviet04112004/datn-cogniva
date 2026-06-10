@@ -4,7 +4,8 @@
   "private": true,
   "description": "Backend NestJS — modular monolith thay dần API routes của apps/web (plan: docs/plans/nestjs-migration.md). HTTP :4000, prefix /api, Prisma + Neon, JWT auth.",
   "scripts": {
-    "dev": "nest start --watch",
+    "dev": "concurrently -k -n http,worker -c cyan,yellow \"nest start --watch\" \"node scripts/dev-worker.mjs\"",
+    "dev:http": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main",
     "worker": "node dist/worker",
@@ -40,6 +41,7 @@
     "@nestjs/cli": "^11.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
+    "concurrently": "^9.1.2",
     "pino-pretty": "^13.0.0",
     "prisma": "^6.1.0",
     "typescript": "^5.7.2"

@@ -16,7 +16,7 @@
     "dev:edge": "turbo run dev --filter=@cogniva/edge",
     "dev:mobile": "turbo run start --filter=@cogniva/mobile",
     "dev:worker": "pnpm --filter @cogniva/web worker",
-    "dev:all": "concurrently -k -n web,worker,realtime -c blue,magenta,green \"pnpm --filter @cogniva/web dev\" \"pnpm --filter @cogniva/web worker\" \"pnpm --filter @cogniva/realtime dev\"",
+    "dev:all": "concurrently -k -n web,api,worker,realtime -c blue,cyan,magenta,green \"pnpm --filter @cogniva/web dev\" \"pnpm --filter @cogniva/api dev\" \"pnpm --filter @cogniva/web worker\" \"pnpm --filter @cogniva/realtime dev\"",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
