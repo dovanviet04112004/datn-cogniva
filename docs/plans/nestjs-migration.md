@@ -168,7 +168,7 @@ Thay Better Auth bằng **AuthModule NestJS tự triển khai** (`@nestjs/jwt` +
 
 | Token | TTL | Dạng | Lưu ở đâu |
 |---|---|---|---|
-| **Access token** | 15 phút | JWT ký **ES256/EdDSA (asymmetric)** — payload `{ sub, email, role, plan, parentalConsentStatus, iss: 'cogniva', aud: 'cogniva-app' }` | Web: httpOnly cookie `cg_at` (SameSite=Lax). Mobile: SecureStore, gửi `Authorization: Bearer` |
+| **Access token** | 15 phút | JWT ký **ES256 (asymmetric)** — payload `{ sub, email, role, plan, iss: 'cogniva', aud: 'cogniva-app' }` | Web: httpOnly cookie `cg_at` (SameSite=Lax). Mobile: SecureStore, gửi `Authorization: Bearer` |
 | **Refresh token** | 30 ngày, **rotation mỗi lần dùng** | Opaque random 256-bit; DB lưu **hash** (bảng `refresh_token`: id, user_id, token_hash, family_id, expires_at, revoked_at, ip, user_agent) | Web: httpOnly cookie `cg_rt` (path=/api/auth). Mobile: SecureStore |
 
 - **Vì sao asymmetric (không HS256):** GĐ3 các service + gateway + apps/realtime +
@@ -184,20 +184,24 @@ Thay Better Auth bằng **AuthModule NestJS tự triển khai** (`@nestjs/jwt` +
 ### 3.2. Endpoints (AuthController — `@Public()` trừ khi ghi chú)
 
 ```
-POST /api/auth/sign-up           # email+password; COPPA hook (<13 → PENDING)
-POST /api/auth/sign-in           # trả access+refresh; nếu 2FA bật → bước 2
-POST /api/auth/sign-in/2fa       # verify TOTP sau bước 1 (challenge token 5')
-POST /api/auth/refresh           # rotation; reuse-detection
-POST /api/auth/sign-out          # revoke refresh family (auth)
-GET  /api/auth/jwks              # public keys (tái dùng bảng jwks)
-GET  /api/auth/me                # session info (auth)
-POST /api/auth/forgot-password   # MỚI (đang thiếu) — token 1h one-time qua email
-POST /api/auth/reset-password    # MỚI
-GET  /api/auth/google            # OAuth redirect (passport-google-oauth20)
-GET  /api/auth/google/callback   # upsert account → phát token (web redirect /
-                                 # mobile deep-link cogniva://)
-POST /api/auth/2fa/enable|verify|disable   # otplib TOTP + backup codes (auth)
-POST /api/auth/verify-email · /api/parental-consent/respond  # port logic hiện có
+POST /api/auth/sign-up           # email+password (✅ Wave 1 — COPPA đã CẮT khỏi
+                                 # scope 2026-06-10 theo quyết định owner: không
+                                 # DOB/parental consent nữa)
+POST /api/auth/sign-in           # trả access+refresh (✅; user 2FA tạm 403 → dùng
+                                 # flow cũ tới khi port 2FA)
+POST /api/auth/sign-in/2fa       # verify TOTP sau bước 1 (còn lại Wave 1)
+POST /api/auth/refresh           # rotation; reuse-detection (✅)
+POST /api/auth/sign-out          # revoke refresh family (✅)
+GET  /api/auth/jwks              # public keys ES256, kid RFC7638 (✅ — key từ env,
+                                 # rotation qua bảng để sau)
+GET  /api/auth/me                # session info (✅)
+POST /api/auth/forgot-password   # MỚI — token 1h one-time (✅; email Resend chưa
+                                 # wire — dev log console)
+POST /api/auth/reset-password    # MỚI (✅ — one-time + revoke mọi refresh)
+GET  /api/auth/google            # OAuth redirect (còn lại Wave 1)
+GET  /api/auth/google/callback   # upsert account → phát token (còn lại Wave 1)
+POST /api/auth/2fa/enable|verify|disable   # otplib TOTP (còn lại Wave 1)
+POST /api/auth/verify-email      # port logic hiện có (còn lại Wave 1)
 ```
 
 ### 3.3. Tương thích dữ liệu & migration không mất user
@@ -205,7 +209,7 @@ POST /api/auth/verify-email · /api/parental-consent/respond  # port logic hiệ
 1. **Password:** giữ nguyên bảng `account` — verify **tương thích format scrypt
    của Better Auth**; đăng nhập thành công → **rehash sang argon2id** (progressive,
    không ai phải đổi mật khẩu).
-2. **Bảng:** `user` giữ nguyên (đã có role/plan/COPPA fields); thêm
+2. **Bảng:** `user` giữ nguyên (cột COPPA cũ để nguyên trong DB, không dùng); thêm
    `refresh_token` (migration mới); `session` cũ giữ đọc trong cửa sổ chuyển tiếp
    rồi drop; `jwks`, `two_factor`, `verification` tái dùng.
 3. **Cửa sổ chuyển tiếp (dual-accept, 1–2 wave):** `JwtAuthGuard` chấp nhận
@@ -220,13 +224,14 @@ POST /api/auth/verify-email · /api/parental-consent/respond  # port logic hiệ
 5. **Impersonation:** port thành claim `imp: <adminId>` trong access token đặc
    biệt TTL ngắn + `ImpersonationGuard` chặn mutation (thay cookie `cogniva-imp`).
 6. **Better Auth gỡ hẳn** (dep + `/api/auth/[...all]` + plugins) khi: 100% client
-   dùng flow mới + OAuth/2FA/COPPA parity test pass.
+   dùng flow mới + OAuth/2FA parity test pass. (COPPA đã cắt khỏi scope —
+   parental-consent routes của Next sẽ xoá luôn khi gỡ Better Auth.)
 
 ### 3.4. Guards chuẩn
 
 `JwtAuthGuard` (APP_GUARD mặc định + `@Public()`), `RolesGuard`
 (`@Roles('ADMIN','SUPER_ADMIN')` — port ma trận `requireAdminRole` + `ADMIN_EMAILS`),
-`CoppaGuard` (PENDING chặn AI/upload/room/chat như hiện tại), `RateLimitGuard`
+`RateLimitGuard`
 (`@RateLimit('aiGenerate')` — wrap checkLimit Redis), `ImpersonationGuard`.
 
 ---
@@ -305,7 +310,7 @@ apps/api/
 │  ├─ worker.ts                # bootstrap worker — ApplicationContext + BullMQ processors
 │  ├─ app.module.ts
 │  ├─ common/
-│  │  ├─ guards/               # jwt-auth · roles · rate-limit · coppa · impersonation
+│  │  ├─ guards/               # jwt-auth · roles · rate-limit · impersonation
 │  │  ├─ decorators/           # @Public() · @CurrentUser() · @Roles() · @RateLimit()
 │  │  ├─ filters/              # app-exception.filter.ts — GIỮ shape {error: flatten()}
 │  │  ├─ interceptors/         # audit-log · request-logging (traceId)
@@ -362,7 +367,7 @@ là đường cắt GĐ3.
 
 | Nest module (GĐ1) | Routes (số lượng) | Jobs kèm | Wave | Service GĐ3 |
 |---|---|---|---|---|
-| `AuthModule` | auth JWT mới (§3.2) + parental-consent (1) | — | 1 | **auth-service** |
+| `AuthModule` | auth JWT mới (§3.2) — COPPA/parental-consent đã cắt | — | 1 ✅ core | **auth-service** |
 | `UsersModule` | profile (2), user/status (1), account (5) | process-gdpr-deletion | 2 | **user-service** |
 | `LearningModule` | atoms (2), mastery (4), notes (3), study-plan (4) | — | 2 | **learning-service** |
 | `GraphModule` | graph (3) | — | 2 | **knowledge-graph-service** |
@@ -419,8 +424,14 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 
 ### Wave 1 — AuthModule JWT (1.5–2 tuần — wave hệ trọng nhất)
 - Toàn bộ §3: sign-up/in/refresh/out, scrypt-compat + argon2id rehash, rotation +
-  reuse-detection, Google OAuth, 2FA TOTP, COPPA hooks, **forgot/reset password
+  reuse-detection, Google OAuth, 2FA TOTP, **forgot/reset password
   (feature mới)**, email verify, JWKS, guards đầy đủ, denylist Redis.
+  (COPPA cắt khỏi scope theo quyết định owner 2026-06-10.)
+  **Tiến độ 2026-06-10 ✅ core xong + proof 14 checks:** sign-up/in/out, refresh
+  rotation + reuse-detection, forgot/reset, /me, JWKS, dual-accept, hash scrypt
+  2 chiều tương thích Better Auth, bảng refresh_token + password_reset_token
+  apply cả Neon lẫn docker. **Còn lại:** Google OAuth, 2FA TOTP, email Resend,
+  client web/mobile switch, denylist force-signout.
 - Client: web form + interceptor auto-refresh; mobile token flow ở
   `packages/shared/api`; dual-accept BẬT (user hiện tại không bị đá).
 - Tách `packages/server-core` (§5.3).

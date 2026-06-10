@@ -1787,12 +1787,14 @@ model user {
   mastery                                                 mastery[]
   note                                                    note[]
   notification_log                                        notification_log[]
+  password_reset_token                                    password_reset_token[]
   promo_code_redemption                                   promo_code_redemption[]
   push_token                                              push_token[]
   quiz                                                    quiz[]
   quiz_attempt                                            quiz_attempt[]
   quiz_response                                           quiz_response[]
   recording                                               recording[]
+  refresh_token                                           refresh_token[]
   room                                                    room[]
   room_member                                             room_member[]
   session                                                 session[]
@@ -1912,6 +1914,35 @@ model workspace_cached_output {
 
   @@unique([workspace_id, user_id, kind], map: "workspace_cached_uniq")
   @@index([workspace_id, user_id, kind], map: "workspace_cached_lookup_idx")
+}
+
+model password_reset_token {
+  id         String    @id
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime  @db.Timestamp(6)
+  used_at    DateTime? @db.Timestamp(6)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+  user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "password_reset_token_user_idx")
+}
+
+model refresh_token {
+  id          String    @id
+  user_id     String
+  token_hash  String    @unique
+  family_id   String
+  expires_at  DateTime  @db.Timestamp(6)
+  revoked_at  DateTime? @db.Timestamp(6)
+  replaced_by String?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
+  user        user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([family_id], map: "refresh_token_family_idx")
+  @@index([user_id], map: "refresh_token_user_idx")
 }
 
 enum attempt_status {

@@ -1,14 +1,20 @@
 /**
- * TokenService — JWT của hệ auth MỚI (plan §3): access token 15 phút, ký
- * ES256 (asymmetric) để về sau gateway/realtime/hocuspocus verify cục bộ
- * bằng public key, không round-trip.
- *
- * Keypair đọc từ env (PEM) — Wave 1 chuyển sang bảng jwks + rotation.
- * Refresh token (30d, rotation + reuse-detection) cũng thuộc Wave 1.
+ * TokenService — JWT của hệ auth mới (plan §3): access token 15 phút, ký
+ * ES256 (asymmetric) để gateway/realtime/hocuspocus verify cục bộ bằng public
+ * key (JWKS), không round-trip. Keypair từ env (scripts/setup-env.mjs sinh).
  */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SignJWT, jwtVerify, importPKCS8, importSPKI, type KeyLike } from 'jose';
+import {
+  SignJWT,
+  calculateJwkThumbprint,
+  exportJWK,
+  importPKCS8,
+  importSPKI,
+  jwtVerify,
+  type JWK,
+  type KeyLike,
+} from 'jose';
 
 import type { AuthUser } from './session.types';
 
@@ -22,13 +28,13 @@ export interface AccessTokenPayload {
   email: string;
   role: string | null;
   plan: string | null;
-  parentalConsentStatus: string | null;
 }
 
 @Injectable()
 export class TokenService {
   private privateKey?: KeyLike;
   private publicKey?: KeyLike;
+  private jwk?: JWK & { kid: string };
 
   constructor(private readonly config: ConfigService) {}
 
@@ -46,15 +52,26 @@ export class TokenService {
     return { privateKey: this.privateKey, publicKey: this.publicKey };
   }
 
+  /** Public key dạng JWK (kid = RFC 7638 thumbprint) — serve tại /auth/jwks. */
+  async getJwks(): Promise<{ keys: JWK[] }> {
+    if (!this.jwk) {
+      const { publicKey } = await this.keys();
+      const jwk = await exportJWK(publicKey);
+      const kid = await calculateJwkThumbprint(jwk);
+      this.jwk = { ...jwk, kid, alg: ALG, use: 'sig' };
+    }
+    return { keys: [this.jwk] };
+  }
+
   async signAccessToken(user: AuthUser): Promise<string> {
     const { privateKey } = await this.keys();
+    const { keys } = await this.getJwks();
     return new SignJWT({
       email: user.email,
       role: user.adminRole ?? null,
       plan: user.plan ?? null,
-      parentalConsentStatus: user.parentalConsentStatus ?? null,
     })
-      .setProtectedHeader({ alg: ALG, typ: 'JWT' })
+      .setProtectedHeader({ alg: ALG, typ: 'JWT', kid: keys[0]?.kid })
       .setSubject(user.id)
       .setIssuer(ISSUER)
       .setAudience(AUDIENCE)
@@ -77,7 +94,6 @@ export class TokenService {
         email: String(payload.email ?? ''),
         role: (payload.role as string | null) ?? null,
         plan: (payload.plan as string | null) ?? null,
-        parentalConsentStatus: (payload.parentalConsentStatus as string | null) ?? null,
       };
     } catch {
       return null;

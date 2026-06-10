@@ -28,7 +28,6 @@ interface SessionRow {
   image: string | null;
   plan: string | null;
   admin_role: string | null;
-  parental_consent_status: string | null;
 }
 
 @Injectable()
@@ -73,7 +72,7 @@ export class LegacySessionService {
 
     const rows = await this.prisma.$queryRaw<SessionRow[]>`
       SELECT s.id, s.token, s.user_id, s.expires_at,
-             u.email, u.name, u.image, u.plan, u.admin_role, u.parental_consent_status
+             u.email, u.name, u.image, u.plan, u.admin_role
       FROM "session" s
       JOIN "user" u ON u.id = s.user_id
       WHERE s.token = ${token} AND s.expires_at > now()
@@ -90,7 +89,6 @@ export class LegacySessionService {
         image: row.image,
         plan: row.plan,
         adminRole: row.admin_role,
-        parentalConsentStatus: row.parental_consent_status,
       },
     };
   }

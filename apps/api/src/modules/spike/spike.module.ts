@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { SpikeController } from './spike.controller';
 
-/** ⚠️ SPIKE Wave 0 — XÓA Ở WAVE 1. */
+/** ⚠️ SPIKE streaming — XÓA khi ChatModule port xong (Wave 7). */
 @Module({
   controllers: [SpikeController],
 })

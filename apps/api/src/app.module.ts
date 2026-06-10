@@ -13,6 +13,7 @@ import { RedisModule } from './infra/redis/redis.module';
 import { AuthCoreModule } from './common/auth/auth-core.module';
 import { AppExceptionFilter } from './common/filters/app-exception.filter';
 import { AuthGuard } from './common/guards/auth.guard';
+import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { SpikeModule } from './modules/spike/spike.module';
 
@@ -31,6 +32,7 @@ import { SpikeModule } from './modules/spike/spike.module';
     PrismaModule,
     RedisModule,
     AuthCoreModule,
+    AuthModule,
     HealthModule,
     SpikeModule,
   ],

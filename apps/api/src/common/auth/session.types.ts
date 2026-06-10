@@ -10,7 +10,6 @@ export interface AuthUser {
   image?: string | null;
   plan?: string | null;
   adminRole?: string | null;
-  parentalConsentStatus?: string | null;
 }
 
 export interface AuthSession {

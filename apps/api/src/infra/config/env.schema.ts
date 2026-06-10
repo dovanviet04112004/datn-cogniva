@@ -11,9 +11,11 @@ const envSchema = z.object({
   DIRECT_DATABASE_URL: z.string().url().startsWith('postgresql').optional(),
   REDIS_URL: z.string().url().startsWith('redis'),
   BETTER_AUTH_SECRET: z.string().min(16, 'BETTER_AUTH_SECRET quá ngắn — phải trùng với apps/web'),
-  // Keypair ES256 (PEM) cho JWT mới — sinh bằng: node scripts/gen-jwt-keys.mjs
+  // Keypair ES256 (PEM) cho JWT mới — sinh bằng: node scripts/setup-env.mjs
   AUTH_JWT_PRIVATE_KEY: z.string().includes('PRIVATE KEY'),
   AUTH_JWT_PUBLIC_KEY: z.string().includes('PUBLIC KEY'),
+  // Origin frontend — chỉ dùng dựng link trong email (reset password…).
+  APP_URL: z.string().url().default('http://localhost:3000'),
 });
 
 export type Env = z.infer<typeof envSchema>;

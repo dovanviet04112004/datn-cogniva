@@ -61,7 +61,6 @@ export class AuthGuard implements CanActivate {
             name: null,
             plan: payload.plan,
             adminRole: payload.role,
-            parentalConsentStatus: payload.parentalConsentStatus,
           },
           session: { id: payload.sub, token: jwtCandidate, userId: payload.sub, expiresAt: new Date() },
         };
