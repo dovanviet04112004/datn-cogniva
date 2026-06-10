@@ -458,6 +458,19 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   cutover → xoá route cũ.
 - Port cron: health-monitor, reconcile-leaderboard (tắt job tương ứng ở worker cũ
   — không double-run).
+- **Tiến độ 2026-06-10 ✅ pilot xong:** `packages/server-core` đã tách (redis ·
+  cache-aside/keys/invalidate/leaderboard · rate-limit · realtime-emitter ·
+  logger — CJS dist, web dùng qua shim re-export giữ nguyên ~60 import path);
+  `UsersModule` (profile/me GET+PATCH, profile/:id, user/status GET+PUT kèm
+  broadcast) + `GamificationModule` (leaderboard ZSET+fallback, analytics
+  $queryRaw) — **GOLDEN DIFF 8/8**: cùng request bắn cả 2 backend (bust cache
+  giữa 2 lần), response normalize giống từng byte, kể cả shape 400 zod;
+  cutover rewrites + XÓA 5 route cũ, verify qua proxy (x-powered-by: Express).
+  Ghi chú kỹ thuật: @cogniva/shared là ESM-source nên api (CJS) chỉ `import
+  type` được — const dùng chung đặt ở server-core; khi Wave 3 cần zod schema
+  shared thì quyết: shared build dual HOẶC api chuyển ESM.
+  **Còn lại Wave 2:** `LearningModule` (atoms/mastery/notes/study-plan),
+  `GraphModule`, `SearchModule` (search/chunks) + 2 cron (cần QueueModule).
 
 ### Wave 3 — Core học tập (≈51 routes, 2–2.5 tuần)
 - `WorkspacesModule`, `DocumentsModule` (Multer 50MB + ingest pipeline service +

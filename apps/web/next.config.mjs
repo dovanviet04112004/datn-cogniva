@@ -22,6 +22,10 @@ const NEST_MIGRATED_PREFIXES = [
   'healthz', // Wave 0 — health của NestJS
   '_spike', // Wave 0 — stream PoC, xóa khi ChatModule port (W7)
   'auth/google', // Wave 1 — OAuth mới (path KHÁC callback/google của Better Auth)
+  'profile', // Wave 2 — UsersModule (golden diff pass, route cũ đã xóa)
+  'user/status', // Wave 2 — UsersModule
+  'leaderboard', // Wave 2 — GamificationModule
+  'analytics', // Wave 2 — GamificationModule
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,

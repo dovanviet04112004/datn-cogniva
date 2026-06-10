@@ -13,6 +13,8 @@
  *
  * Phase 9 v1: hardcoded 10 achievement đại diện. Thêm sau nếu cần variety.
  */
+import { ACHIEVEMENT_META } from '@cogniva/server-core';
+
 import type { UserStatsRow } from './xp';
 
 export type AchievementContext = {
@@ -29,83 +31,26 @@ export type Achievement = {
   check: (stats: UserStatsRow, ctx: AchievementContext) => boolean;
 };
 
-export const ACHIEVEMENTS: Achievement[] = [
-  // ── Onboarding ─────────────────────────────────────
-  {
-    id: 'first_upload',
-    label: 'Tài liệu đầu tiên',
-    description: 'Upload PDF đầu tiên',
-    icon: '📄',
-    check: (_s, c) => c.source === 'document' && (c.totalCount ?? 0) >= 1,
-  },
-  {
-    id: 'first_quiz',
-    label: 'Quiz đầu tiên',
-    description: 'Hoàn thành quiz đầu tiên',
-    icon: '📝',
-    check: (_s, c) => c.source === 'quiz' && (c.totalCount ?? 0) >= 1,
-  },
-  {
-    id: 'first_note',
-    label: 'Note đầu tiên',
-    description: 'Tạo note đầu tiên',
-    icon: '📓',
-    check: (_s, c) => c.source === 'note' && (c.totalCount ?? 0) >= 1,
-  },
-  {
-    id: 'first_flashcard',
-    label: 'Flashcard đầu tiên',
-    description: 'Ôn flashcard đầu tiên',
-    icon: '🎴',
-    check: (_s, c) => c.source === 'flashcard' && (c.totalCount ?? 0) >= 1,
-  },
+type CheckFn = Achievement['check'];
 
-  // ── XP milestones ──────────────────────────────────
-  {
-    id: 'xp_100',
-    label: 'Học viên năng nổ',
-    description: 'Đạt 100 XP',
-    icon: '⭐',
-    check: (s) => s.xp >= 100,
-  },
-  {
-    id: 'xp_500',
-    label: 'Học bá',
-    description: 'Đạt 500 XP',
-    icon: '🌟',
-    check: (s) => s.xp >= 500,
-  },
-  {
-    id: 'xp_1000',
-    label: 'Bậc thầy tri thức',
-    description: 'Đạt 1000 XP',
-    icon: '💎',
-    check: (s) => s.xp >= 1000,
-  },
+/** Logic unlock theo id — metadata (label/icon) ở @cogniva/shared (1 nguồn). */
+const CHECKS: Record<string, CheckFn> = {
+  first_upload: (_s, c) => c.source === 'document' && (c.totalCount ?? 0) >= 1,
+  first_quiz: (_s, c) => c.source === 'quiz' && (c.totalCount ?? 0) >= 1,
+  first_note: (_s, c) => c.source === 'note' && (c.totalCount ?? 0) >= 1,
+  first_flashcard: (_s, c) => c.source === 'flashcard' && (c.totalCount ?? 0) >= 1,
+  xp_100: (s) => s.xp >= 100,
+  xp_500: (s) => s.xp >= 500,
+  xp_1000: (s) => s.xp >= 1000,
+  streak_3: (s) => s.currentStreak >= 3,
+  streak_7: (s) => s.currentStreak >= 7,
+  streak_30: (s) => s.currentStreak >= 30,
+};
 
-  // ── Streak milestones ──────────────────────────────
-  {
-    id: 'streak_3',
-    label: 'Bùng cháy 3 ngày',
-    description: 'Học liên tục 3 ngày',
-    icon: '🔥',
-    check: (s) => s.currentStreak >= 3,
-  },
-  {
-    id: 'streak_7',
-    label: 'Tuần lễ học bá',
-    description: 'Học liên tục 7 ngày',
-    icon: '🚀',
-    check: (s) => s.currentStreak >= 7,
-  },
-  {
-    id: 'streak_30',
-    label: 'Tháng cống hiến',
-    description: 'Học liên tục 30 ngày',
-    icon: '🏆',
-    check: (s) => s.currentStreak >= 30,
-  },
-];
+export const ACHIEVEMENTS: Achievement[] = ACHIEVEMENT_META.map((m) => ({
+  ...m,
+  check: CHECKS[m.id] ?? (() => false),
+}));
 
 /**
  * Check tất cả achievements, trả về list ID mới được unlock so với danh

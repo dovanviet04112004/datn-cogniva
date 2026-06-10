@@ -14,8 +14,10 @@ import { AuthCoreModule } from './common/auth/auth-core.module';
 import { AppExceptionFilter } from './common/filters/app-exception.filter';
 import { AuthGuard } from './common/guards/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
 import { HealthModule } from './modules/health/health.module';
 import { SpikeModule } from './modules/spike/spike.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { SpikeModule } from './modules/spike/spike.module';
     RedisModule,
     AuthCoreModule,
     AuthModule,
+    UsersModule,
+    GamificationModule,
     HealthModule,
     SpikeModule,
   ],

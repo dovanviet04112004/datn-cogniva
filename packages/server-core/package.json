@@ -1,0 +1,35 @@
+{
+  "name": "@cogniva/server-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hạ tầng server dùng CHUNG giữa apps/web (Next) và apps/api (NestJS) trong migration: Redis client, cache-aside + keys + invalidators, leaderboard ZSET, rate-limit, realtime emitter, logger. 1 nguồn format key duy nhất — fork là stale-data (plan §5.3).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./redis": { "types": "./dist/redis.d.ts", "default": "./dist/redis.js" },
+    "./logger": { "types": "./dist/logger.d.ts", "default": "./dist/logger.js" },
+    "./rate-limit": { "types": "./dist/rate-limit.d.ts", "default": "./dist/rate-limit.js" },
+    "./realtime-emitter": { "types": "./dist/realtime-emitter.d.ts", "default": "./dist/realtime-emitter.js" },
+    "./cache/cache-aside": { "types": "./dist/cache/cache-aside.d.ts", "default": "./dist/cache/cache-aside.js" },
+    "./cache/keys": { "types": "./dist/cache/keys.d.ts", "default": "./dist/cache/keys.js" },
+    "./cache/invalidate": { "types": "./dist/cache/invalidate.d.ts", "default": "./dist/cache/invalidate.js" },
+    "./cache/leaderboard": { "types": "./dist/cache/leaderboard.d.ts", "default": "./dist/cache/leaderboard.js" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf node_modules dist .turbo"
+  },
+  "dependencies": {
+    "@socket.io/redis-emitter": "^5.1.0",
+    "@upstash/redis": "^1.38.0",
+    "ioredis": "^5.10.1"
+  },
+  "devDependencies": {
+    "@cogniva/tsconfig": "workspace:*",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  }
+}

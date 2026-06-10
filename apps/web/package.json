@@ -29,6 +29,7 @@
     "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@cogniva/db": "workspace:*",
+    "@cogniva/server-core": "workspace:^",
     "@cogniva/shared": "workspace:*",
     "@excalidraw/excalidraw": "^0.18.1",
     "@fontsource/noto-sans": "^5.2.10",

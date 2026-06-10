@@ -31,6 +31,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@cogniva/server-core':
+        specifier: workspace:^
+        version: link:../../packages/server-core
       '@nestjs/common':
         specifier: ^11.0.0
         version: 11.1.26(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -324,6 +327,9 @@ importers:
       '@cogniva/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@cogniva/server-core':
+        specifier: workspace:^
+        version: link:../../packages/server-core
       '@cogniva/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -653,6 +659,28 @@ importers:
       drizzle-kit:
         specifier: ^0.30.1
         version: 0.30.6
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/server-core:
+    dependencies:
+      '@socket.io/redis-emitter':
+        specifier: ^5.1.0
+        version: 5.1.0
+      '@upstash/redis':
+        specifier: ^1.38.0
+        version: 1.38.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+    devDependencies:
+      '@cogniva/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.19.18
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
