@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { QueueModule } from '../../../infra/queue/queue.module';
-import { AdminGuard } from '../../../common/admin/admin.guard';
-import { AdminAuditService } from '../../../common/admin/admin-audit.service';
+import { AdminSharedModule } from '../../../common/admin/admin-shared.module';
 import { AdminGroupsController } from './admin-groups.controller';
 import { AdminGroupsService } from './admin-groups.service';
 import { AdminMiscController } from './admin-misc.controller';
@@ -16,7 +15,7 @@ import { AdminUsersController } from './admin-users.controller';
 import { AdminUsersService } from './admin-users.service';
 
 @Module({
-  imports: [QueueModule],
+  imports: [QueueModule, AdminSharedModule],
   controllers: [
     AdminUsersController,
     AdminModerationController,
@@ -25,8 +24,6 @@ import { AdminUsersService } from './admin-users.service';
     AdminMiscController,
   ],
   providers: [
-    AdminGuard,
-    AdminAuditService,
     AdminNotifyService,
     AdminUsersService,
     AdminModerationService,

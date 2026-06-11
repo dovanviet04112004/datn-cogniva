@@ -21,5 +21,6 @@ import { QuizGradeService } from './quiz-grade.service';
     QuizGradeService,
     QuestionsService,
   ],
+  exports: [QuizGenerateService],
 })
 export class QuizModule {}

@@ -27,7 +27,7 @@ function extractJwt(request: Request): string | null {
   if (!cookieHeader) return null;
   for (const part of cookieHeader.split(';')) {
     const [k, ...rest] = part.trim().split('=');
-    if (k === 'better-auth.session_token' || k === '__Secure-better-auth.session_token') {
+    if (k === 'cg_at' || k === '__Secure-cg_at') {
       return rest.join('=');
     }
   }

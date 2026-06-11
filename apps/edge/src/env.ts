@@ -9,7 +9,6 @@ export type Env = {
   FLAGS_KV: KVNamespace;
 
   EDGE_SHARED_SECRET?: string;
-  BETTER_AUTH_JWT_SECRET?: string;
 };
 
 export type Variables = {

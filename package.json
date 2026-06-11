@@ -12,6 +12,8 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@cogniva/web",
+    "dev:api": "turbo run dev --filter=@cogniva/api",
+    "dev:realtime": "turbo run dev --filter=@cogniva/realtime",
     "dev:hocus": "turbo run dev --filter=@cogniva/hocuspocus",
     "dev:edge": "turbo run dev --filter=@cogniva/edge",
     "dev:mobile": "turbo run start --filter=@cogniva/mobile",

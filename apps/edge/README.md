@@ -1,4 +1,4 @@
-# @cogniva/edge — Cloudflare Workers Gateway
+﻿# @cogniva/edge — Cloudflare Workers Gateway
 
 Stage 2 (M4-M5) — Edge gateway in front of Vercel origin.
 
@@ -91,27 +91,12 @@ Add GitHub Action với `cloudflare/wrangler-action@v3`. CF API token cần perm
 - Account: Workers Scripts:Edit
 - Zone: Workers Routes:Edit (nếu dùng custom domain)
 
-## Required Better Auth setup (origin side)
+## JWT setup (origin side)
 
-Để edge JWT verify hoạt động, `apps/web/src/lib/auth.ts` cần wire JWT plugin:
-
-```ts
-import { jwt } from 'better-auth/plugins';
-
-plugins: [
-  nextCookies(),
-  jwt({
-    jwks: { keyPairConfig: { alg: 'EdDSA', crv: 'Ed25519' } },
-    jwt: {
-      issuer: 'cogniva',
-      audience: 'cogniva-app',
-      expirationTime: '15m',
-    },
-  }),
-],
-```
-
-JWT plugin tự expose `/api/auth/jwks` endpoint → edge fetch + cache 1h.
+Origin là NestJS `apps/api` — JWT ES256 tự phát hành (cookie `cg_at` 15phút,
+header `Authorization: Bearer`). JWKS công khai tại `GET /api/auth/jwks`
+(TokenService) → set `JWKS_URL` của worker trỏ vào đó; edge fetch + cache 1h.
+`JWT_ISSUER`/`JWT_AUDIENCE` phải khớp giá trị api phát hành.
 
 **KHÔNG có JWT plugin** = edge sẽ fail JWT verify cho mọi request (userId luôn null, rate limit fallback IP). Origin vẫn validate session qua DB-backed cookie → KHÔNG bị broken, chỉ mất edge benefits.
 
