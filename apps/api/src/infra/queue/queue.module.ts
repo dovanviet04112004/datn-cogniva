@@ -10,6 +10,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import IORedis from 'ioredis';
+import { redisOptionsFromUrl } from '@cogniva/server-core/redis';
 
 export const CRON_QUEUE = 'cron-v2';
 
@@ -30,12 +31,17 @@ export const RECORDING_QUEUE = 'recording';
 @Module({
   imports: [
     BullModule.forRootAsync({
-      useFactory: (config: ConfigService) => ({
-        // BullMQ tự .duplicate() connection cho từng queue/worker khi cần.
-        connection: new IORedis(config.getOrThrow<string>('REDIS_URL'), {
-          maxRetriesPerRequest: null,
-        }),
-      }),
+      useFactory: (config: ConfigService) => {
+        // Options object thay chuỗi URL — tránh url.parse() (DEP0169 Node ≥24).
+        const parsed = redisOptionsFromUrl(config.getOrThrow<string>('REDIS_URL'));
+        return {
+          // BullMQ tự .duplicate() connection cho từng queue/worker khi cần.
+          connection:
+            typeof parsed === 'string'
+              ? new IORedis(parsed, { maxRetriesPerRequest: null })
+              : new IORedis({ ...parsed, maxRetriesPerRequest: null }),
+        };
+      },
       inject: [ConfigService],
     }),
     BullModule.registerQueue({ name: CRON_QUEUE }, { name: DOCUMENT_QUEUE }, { name: RECORDING_QUEUE }),

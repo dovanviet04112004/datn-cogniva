@@ -5,18 +5,26 @@
  */
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import Redis, { type RedisOptions } from 'ioredis';
+import { redisOptionsFromUrl } from '@cogniva/server-core/redis';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private readonly client: Redis;
 
   constructor(config: ConfigService) {
-    this.client = new Redis(config.getOrThrow<string>('REDIS_URL'), {
+    // Options object thay chuỗi URL — ioredis parseURL dùng url.parse()
+    // (DeprecationWarning DEP0169 trên Node ≥24).
+    const parsed = redisOptionsFromUrl(config.getOrThrow<string>('REDIS_URL'));
+    const common: RedisOptions = {
       maxRetriesPerRequest: 1,
       lazyConnect: true,
       enableOfflineQueue: false,
-    });
+    };
+    this.client =
+      typeof parsed === 'string'
+        ? new Redis(parsed, common)
+        : new Redis({ ...parsed, ...common });
     this.client.on('error', () => {
       /* fail-open — lỗi đã được caller xử lý qua getSafe() */
     });

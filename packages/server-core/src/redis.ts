@@ -21,9 +21,34 @@
  * Code caller (rate-limit, circuit-breaker, semantic-cache) KHÔNG biết implementation.
  */
 import { Redis as UpstashRedis } from '@upstash/redis';
-import IORedis from 'ioredis';
+import IORedis, { type RedisOptions } from 'ioredis';
 
 export type RedisClient = UpstashRedis | InMemoryRedis | IoRedisAdapter;
+
+/**
+ * Parse REDIS_URL bằng WHATWG URL → options object cho ioredis. Truyền chuỗi
+ * URL thẳng vào `new IORedis(url)` sẽ đi qua parseURL nội bộ dùng
+ * `url.parse()` — Node ≥24 phát DeprecationWarning DEP0169 và Next dev
+ * overlay hiển thị thành Console Error ở lần SSR đầu chạm Redis.
+ * URL dị dạng → fallback trả nguyên chuỗi (đường cũ, chấp nhận warning).
+ */
+export function redisOptionsFromUrl(url: string): RedisOptions | string {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'redis:' && u.protocol !== 'rediss:') return url;
+    const db = u.pathname.length > 1 ? Number(u.pathname.slice(1)) : undefined;
+    return {
+      host: u.hostname,
+      port: u.port ? Number(u.port) : 6379,
+      ...(u.username ? { username: decodeURIComponent(u.username) } : {}),
+      ...(u.password ? { password: decodeURIComponent(u.password) } : {}),
+      ...(db !== undefined && Number.isInteger(db) ? { db } : {}),
+      ...(u.protocol === 'rediss:' ? { tls: {} } : {}),
+    };
+  } catch {
+    return url;
+  }
+}
 
 let _client: RedisClient | null = null;
 let _devWarned = false;
@@ -90,7 +115,8 @@ export class IoRedisAdapter {
   private client: IORedis;
 
   constructor(url: string) {
-    this.client = new IORedis(url, {
+    const parsed = redisOptionsFromUrl(url);
+    const common: RedisOptions = {
       // Lazy connect — không block startup nếu Redis chưa up. Connection tạo
       // ở first command, retry tự động.
       lazyConnect: false,
@@ -105,7 +131,11 @@ export class IoRedisAdapter {
       maxRetriesPerRequest: 2,
       // Reconnect khi network drop
       retryStrategy: (times: number) => Math.min(times * 100, 3000),
-    });
+    };
+    this.client =
+      typeof parsed === 'string'
+        ? new IORedis(parsed, common)
+        : new IORedis({ ...parsed, ...common });
     // Tắt log noisy "connection refused" — caller fail-open đã handle
     this.client.on('error', (err: unknown) => {
       if (process.env.NODE_ENV !== 'production') {
