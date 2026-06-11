@@ -5,7 +5,6 @@
  * remix form.
  */
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { and, desc, eq } from 'drizzle-orm';
@@ -16,7 +15,7 @@ import {
   libraryDocImport,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 import { PageShell } from '@/components/layout/page-shell';
 import { RemixBuilder } from '@/components/library/remix-builder';
@@ -24,7 +23,7 @@ import { RemixBuilder } from '@/components/library/remix-builder';
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryRemixPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) {
     redirect('/sign-in?callbackUrl=/library/remix');
   }

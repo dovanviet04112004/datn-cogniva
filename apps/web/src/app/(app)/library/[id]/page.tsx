@@ -45,10 +45,9 @@ import { PremiumLockedPreview } from '@/components/library/premium-purchase-butt
 import { PrereqWarning } from '@/components/library/prereq-warning';
 import { RelatedDocsSection } from '@/components/library/related-docs-section';
 import { TranslatableText } from '@/components/library/translate-button';
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { checkDocAccess } from '@/lib/library/access';
 import { getServerT } from '@/lib/i18n/server';
-import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,7 +155,7 @@ export default async function LibraryDetailPage({ params }: Params) {
   }
 
   // Phase 4 Step 5 — premium gate
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   const viewerId = session?.user.id ?? null;
   const accessInfo = await checkDocAccess(doc.id, viewerId);
   const isPremiumLocked =

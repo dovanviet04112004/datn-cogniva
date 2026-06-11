@@ -14,6 +14,7 @@ import type { Job } from 'bullmq';
 import { DOCUMENT_QUEUE } from '../../infra/queue/queue.module';
 import { PrismaService } from '../../infra/database/prisma.service';
 import { ConceptsService } from '../documents/concepts.service';
+import { IngestService } from '../documents/ingest.service';
 
 /**
  * Payload job `extract-document-concepts` — NGUỒN CHUẨN ở
@@ -33,6 +34,7 @@ export class DocumentProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly concepts: ConceptsService,
+    private readonly ingest: IngestService,
   ) {
     super();
   }
@@ -41,6 +43,13 @@ export class DocumentProcessor extends WorkerHost {
     switch (job.name) {
       case 'extract-document-concepts':
         return this.extractDocumentConcepts(job.data as DocumentJobData);
+      // Admin reingest (AdminDocumentsService): pipeline chạy ở worker thay
+      // fire-and-forget in-process của web — HTTP process không ăn CPU parse
+      // PDF. attempts=1 (producer không set retry) y semantics cũ: pipeline
+      // tự set status FAILED khi lỗi, UI poll.
+      case 'ingest-document':
+        await this.ingest.ingestDocument((job.data as { documentId: string }).documentId);
+        return { ok: true };
       default:
         this.logger.warn(`document job không có handler: ${job.name}`);
         return undefined;

@@ -19,6 +19,12 @@ const TEST = `%@test.cogniva.local`;
 await prisma.$executeRaw`DELETE FROM library_doc_import WHERE importer_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}) OR doc_id IN (SELECT id FROM library_doc WHERE uploader_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}))`;
 await prisma.$executeRaw`DELETE FROM library_doc_report WHERE reporter_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}) OR doc_id IN (SELECT id FROM library_doc WHERE uploader_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}))`;
 await prisma.$executeRaw`DELETE FROM library_doc WHERE uploader_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST})`;
+// W6: tutoring_payment/tutor_payout FK NoAction từ booking/tutor — dọn trước.
+await prisma.$executeRaw`DELETE FROM tutoring_payment WHERE booking_id IN (SELECT id FROM tutoring_booking WHERE student_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}) OR tutor_id IN (SELECT id FROM tutor_profile WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST})))`;
+await prisma.$executeRaw`DELETE FROM tutor_payout WHERE tutor_id IN (SELECT id FROM tutor_profile WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}))`;
+// W7: admin_audit_log/content_report không cascade từ user.
+await prisma.$executeRaw`DELETE FROM admin_audit_log WHERE admin_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST})`;
+await prisma.$executeRaw`DELETE FROM content_report WHERE reporter_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}) OR (target_type = 'user' AND target_id IN (SELECT id FROM "user" WHERE email LIKE ${TEST}))`;
 const n = await prisma.$executeRaw`DELETE FROM "user" WHERE email LIKE ${TEST}`;
 console.log(`đã xóa ${n} user test`);
 await prisma.$disconnect();

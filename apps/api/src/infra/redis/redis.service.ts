@@ -42,6 +42,16 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  /** Client thô cho pattern phức tạp (pipeline/SCAN/SETNX) — null khi Redis chết (fail-open). */
+  async raw(): Promise<Redis | null> {
+    try {
+      if (this.client.status === 'wait') await this.client.connect();
+      return this.client;
+    } catch {
+      return null;
+    }
+  }
+
   async ping(): Promise<boolean> {
     try {
       if (this.client.status === 'wait') await this.client.connect();

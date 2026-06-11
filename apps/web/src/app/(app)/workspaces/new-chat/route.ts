@@ -10,20 +10,19 @@
  *
  * Dùng cho mọi CTA "Hỏi AI / chat" để không bao giờ dẫn vào ngõ cụt.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
 
 import { db, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getOrCreateDefaultWorkspace } from '@/lib/workspace';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/workspaces');
   const userId = session.user.id;
 

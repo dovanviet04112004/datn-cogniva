@@ -10,7 +10,6 @@
  *
  * Server component — fetch trực tiếp Drizzle thay qua /api để SSR nhanh.
  */
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
@@ -18,7 +17,7 @@ import { CalendarDays, GraduationCap, Plus, UserPlus, Wallet } from 'lucide-reac
 
 import { db, tutorProfile } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
@@ -68,7 +67,7 @@ export default async function TutoringHubPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutoring');
 
   const sp = await searchParams;

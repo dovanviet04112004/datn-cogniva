@@ -11,10 +11,9 @@
  *
  * Auth check ở đây để các sub-route khỏi lặp lại.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { ThreadList } from '@/components/dm/thread-list';
 
 export default async function MessagesLayout({
@@ -22,7 +21,7 @@ export default async function MessagesLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/messages');
 
   return (

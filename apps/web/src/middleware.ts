@@ -12,17 +12,15 @@
  *     (client thấy được để correlate Sentry replay với server log).
  *
  * Lưu ý quan trọng:
- *  - Middleware chỉ kiểm tra **sự tồn tại** của session cookie qua
- *    `getSessionCookie()`. KHÔNG validate token thật vì sẽ kéo theo DB
- *    query — chậm và có thể không tương thích Edge Runtime. Validation
- *    đầy đủ chạy ở server component / route handler.
- *  - matcher loại trừ asset tĩnh + /api/auth (Better Auth tự xử lý cookie
- *    set/clear ở handler).
+ *  - Middleware chỉ kiểm tra **sự tồn tại** của cookie JWT (`cg_at` access
+ *    hoặc `cg_rt` refresh — refresh còn sống thì client tự refresh được).
+ *    KHÔNG verify chữ ký ở đây — validation đầy đủ chạy ở server component
+ *    (getServerSession) / route handler.
+ *  - matcher loại trừ asset tĩnh + /api/auth (NestJS xử lý cookie set/clear).
  *  - trace_id reuse khi client gửi header (vd Sentry distributed tracing),
  *    chỉ gen mới nếu chưa có. Tránh fragment trace giữa client + server.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { getSessionCookie } from 'better-auth/cookies';
 
 // Tất cả route bắt buộc đăng nhập (KHÔNG bao gồm /profile/[id] và /leaderboard
 // vì public profile view có thể truy cập không login)
@@ -121,7 +119,12 @@ function shouldBlockImpersonationMutation(request: NextRequest): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionCookie = getSessionCookie(request);
+  // Presence-only check (JWT stack mới): có access token HOẶC refresh token
+  // coi như "đang đăng nhập". Lưu ý: cg_rt bị scope path=/api/auth nên page
+  // request thực tế chỉ thấy cg_at (maxAge 15') — idle quá 15' điều hướng
+  // SSR sẽ về /sign-in; client còn cg_rt thì refresh xong vào lại bình thường.
+  const sessionCookie =
+    request.cookies.get('cg_at') ?? request.cookies.get('cg_rt') ?? null;
 
   // Impersonation read-only enforcement — chặn mutation khi đang impersonate.
   if (shouldBlockImpersonationMutation(request)) {

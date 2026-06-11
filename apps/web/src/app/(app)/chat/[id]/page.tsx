@@ -10,14 +10,13 @@
  * Server: verify ownership, load messages + workspace name (nếu có).
  * Client: ChatDetailClient render simple chat + composer.
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Message as AIMessage } from 'ai';
 
 import { chunk, conversation, db, document, message, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { ChatDetailClient } from '@/components/chat/chat-detail-client';
 
 export const runtime = 'nodejs';
@@ -27,7 +26,7 @@ type Props = {
 };
 
 export default async function ChatDetailPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id } = await params;
 

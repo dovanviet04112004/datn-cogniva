@@ -9,20 +9,19 @@
  * State management: lưu các step trong localStorage để user khỏi mất dữ liệu
  * nếu reload. Sau khi tạo profile (API call), lấy id để gắn subject + slot.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db, tutorProfile } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { BecomeTutorWizard } from '@/components/tutoring/become-tutor-wizard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function BecomeTutorPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutors/become');
 
   // Check user đã có profile chưa — nếu có thì gửi tới /tutors/me thay vì lặp

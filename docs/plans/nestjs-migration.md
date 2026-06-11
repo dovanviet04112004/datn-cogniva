@@ -635,6 +635,57 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 - **Tắt hẳn worker cũ**; **gỡ Better Auth** (hết dual-accept); **gỡ Drizzle**
   khỏi web (trang SSR còn lại chuyển gọi Nest server-to-server forward
   cookie/Bearer, hoặc client-fetch qua React Query có sẵn).
+- **WAVE 7 HOÀN TẤT 2026-06-11 ✅ — GĐ1 STRANGLER-FIG ĐÓNG.** (NỀN main-loop
+  + workflow 4 agent + 3 agent web/mobile). **GOLDEN DIFF 56/56** + **SMOKE
+  JWT-thuần 11/11**.
+  - **infra/ai đầy đủ**: CircuitBreakerService (Redis cb:* phân tán, port
+    ioredis), RouterService (chain provider AI SDK per-useCase + fallback +
+    circuit + guardrail 3 lớp — lớp COPPA cắt), SemanticCacheService
+    (exact-hash aicache:*); HyDE/quick-gen hợp nhất qua router (getChatModel
+    legacy chết). **ChatModule**: POST /api/chat stream AI SDK v4 Data Stream
+    Protocol từng byte (8: citations → 2: meta conversationId → f/0*/e/d qua
+    pipeDataStreamToResponse; headers X-Vercel-AI-Data-Stream: v1), RAG
+    advanced port (HyDE→vector+BM25→RRF k=60→Cohere rerank REST→MMR λ0.7
+    top-5), conversation auto-create + persist USER/ASSISTANT + recordCost;
+    Posthog/Langfuse bỏ (api không có — ghi ai_usage_log). chat/conversations
+    ×2 + ai/quick-gen.
+  - **Admin 47 route** 2 module (Core: users/audit/search/impersonate
+    HMAC-cookie/system/moderation/groups · Domain:
+    documents/conversations/recordings/kyc/tutoring/ai): NỀN AdminGuard
+    (@AdminRoles + DB re-check suspended + bootstrap ADMIN_EMAILS) +
+    AdminAuditService (withAudit payload y cũ). Deviation chủ đích: KYC
+    đồng nhất AdminGuard + audit (cũ legacy email-guard, không audit);
+    suspend/force-signout REVOKE CẢ refresh family (cũ chỉ xóa session BA);
+    system/jobs cron list = CRON_JOBS_V2 11 cron; reingest → enqueue BullMQ
+    (kèm queue.remove jobId chống dedup-drop bởi job completed cũ).
+    **BUG-FIX #4**: GET admin/ai/circuits cũ LUÔN [] — IoRedisAdapter thiếu
+    method scan, TypeError bị catch nuốt — bản Nest liệt kê đúng.
+  - **AccountModule** (delete GDPR 30d + export + usage + push-token) +
+    /api/health tổng (bỏ dbReplica — api 1 client; cần env
+    NEXT_PUBLIC_REALTIME_URL passthrough). debug/router-test 0-caller — bỏ.
+  - **CHỐT HẠ**: (1) 2FA enable/verify/disable endpoints Nest (format
+    tương thích BA — XChaCha20 secret + backup codes 1-lần, sign-in/2fa
+    nhận cả backup code) thay authClient.twoFactor. (2) Web: getServerSession
+    shim verify cg_at cục bộ (jose JWKS), 42 RSC sed, middleware cg_at/cg_rt,
+    useMe() hook thay useSession, admin sign-in/two-factor qua auth-api,
+    silent-refresh 1-lần ở trang sign-in (KHÔNG middleware-refresh — rotation
+    reuse-detection sẽ revoke family khi race; refreshSchema .default({}) cho
+    POST cookie-only). (3) XÓA: Better Auth toàn bộ (lib/auth + catch-all +
+    secondary-storage + dep), COPPA cluster, 110 file web (51 route api còn
+    lại + chuỗi lib AI/retrieval/chat/concepts/queue mồ côi + evals), spike
+    module, dual-accept + dual-issue api (LegacySession*Service xóa, guard
+    JWT-thuần). (4) **Mobile chuyển JWT**: bỏ set-auth-token header → cặp
+    accessToken/refreshToken SecureStore + refresh-mutex retry-1-lần +
+    realtime handshake getValidAccessToken (decode exp, refresh chủ động
+    <30s). (5) Web package.json gỡ 10 dep (better-auth/bullmq/cohere-ai/
+    langfuse/@ai-sdk server.../posthog-node/redis-emitter).
+  - **CÒN LẠI SAU GĐ1** (chuyển GĐ2): Drizzle GIỮ cho SSR read-only (~45 lib
+    + 33 page — đúng nguyên tắc write-path-first, MỌI write đã qua Nest; bulk
+    rewrite không golden-diff được); new-chat route còn
+    getOrCreateDefaultWorkspace Drizzle-write (cần endpoint Nest); email
+    Resend (W1); mobile 2FA UI; refresh grace-window (hardening); Hocuspocus
+    JWKS (GĐ3). Nest phục vụ 100% /api/** — apps/web/src/app/api KHÔNG còn
+    tồn tại.
 
 **Nguyên tắc xuyên suốt GĐ1:**
 - **Move-once:** port domain = move lib server-only thành service+repository;

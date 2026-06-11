@@ -5,7 +5,6 @@
  *   - Load wallet balance + user.plan + proUntilAt để hiển thị state
  *   - Client child SubscribeProForm xử lý charge wallet
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { eq } from 'drizzle-orm';
@@ -24,14 +23,14 @@ import { db, user as userTable, userWallet } from '@cogniva/db';
 import { PageShell } from '@/components/layout/page-shell';
 import { CancelProButton } from '@/components/library/cancel-pro-button';
 import { SubscribeProForm } from '@/components/library/subscribe-pro-form';
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryProPage() {
   const t = await getServerT();
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?next=/library/pro');
 
   const [row] = await db

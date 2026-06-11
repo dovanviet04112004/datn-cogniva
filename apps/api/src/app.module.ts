@@ -16,8 +16,12 @@ import { StorageModule } from './infra/storage/storage.module';
 import { AuthCoreModule } from './common/auth/auth-core.module';
 import { AppExceptionFilter } from './common/filters/app-exception.filter';
 import { AuthGuard } from './common/guards/auth.guard';
+import { AccountModule } from './modules/account/account.module';
+import { AdminCoreModule } from './modules/admin/core/admin-core.module';
+import { AdminDomainModule } from './modules/admin/domain/admin-domain.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChannelsModule } from './modules/channels/channels.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { ChannelsVoiceModule } from './modules/channels/channels-voice.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -37,7 +41,6 @@ import { QuizModule } from './modules/quiz/quiz.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RoomsModule } from './modules/rooms/rooms.module';
 import { SearchModule } from './modules/search/search.module';
-import { SpikeModule } from './modules/spike/spike.module';
 import { TutoringBookingsModule } from './modules/tutoring/bookings/bookings.module';
 import { TutoringConciergeModule } from './modules/tutoring/concierge/concierge.module';
 import { TutoringMarketModule } from './modules/tutoring/market/market.module';
@@ -90,13 +93,16 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     TutoringMarketModule,
     TutoringConciergeModule,
     WebhooksModule,
+    ChatModule,
+    AdminCoreModule,
+    AdminDomainModule,
+    AccountModule,
     // Library: Content (route tĩnh docs/upload-init|finalize) ĐỨNG TRƯỚC
     // Search (có GET docs/:id catch-all) — Express match theo thứ tự đăng ký.
     LibraryContentModule,
     LibrarySearchModule,
     LibraryAnnotationsModule,
     HealthModule,
-    SpikeModule,
   ],
   providers: [
     // Mọi route mặc định yêu cầu đăng nhập — mở public bằng @Public().

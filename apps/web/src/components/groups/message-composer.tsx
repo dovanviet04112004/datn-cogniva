@@ -21,7 +21,7 @@ import { SlashMenu } from './slash-menu';
 import { useEmitTyping } from './typing-indicator';
 import { EmojiPicker } from './emoji-picker';
 import { executeSlash } from '@/lib/group/slash-commands';
-import { useSession } from '@/lib/auth-client';
+import { useMe } from '@/lib/use-me';
 
 type Attachment = {
   type: 'image' | 'file' | 'audio' | 'video';
@@ -39,7 +39,7 @@ type Props = {
 };
 
 export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: Props) {
-  const { data: session } = useSession();
+  const { data: me } = useMe();
   const [content, setContent] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [cooldown, setCooldown] = React.useState(0);
@@ -127,7 +127,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
     // V2 G7.3: Discord-style slash command — transform client-side trước khi POST.
     // Server vẫn nhận text bình thường (server-agnostic).
     const transformed = executeSlash(rawText, {
-      userName: session?.user?.name ?? 'someone',
+      userName: me?.name ?? 'someone',
     });
     const text = transformed ?? rawText;
     if ((!text && attachments.length === 0) || sending || cooldown > 0) return;

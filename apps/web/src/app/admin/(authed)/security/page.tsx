@@ -1,9 +1,13 @@
 /**
  * /admin/security — security settings cho admin account: 2FA TOTP.
+ *
+ * `twoFactorEnabled` KHÔNG nằm trong claims JWT (cg_at) — đọc thẳng DB,
+ * nhất quán với pattern guard admin re-check DB mỗi request.
  */
-import { headers } from 'next/headers';
+import { eq } from 'drizzle-orm';
 
-import { auth } from '@/lib/auth';
+import { db, user } from '@cogniva/db';
+
 import { requireAdmin } from '@/lib/admin/guard';
 import { TwoFactorClient } from '@/components/admin/two-factor-client';
 
@@ -11,11 +15,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSecurityPage() {
-  await requireAdmin();
-  const session = await auth.api.getSession({ headers: await headers() });
-  // session.user.twoFactorEnabled — plugin tự inject vào additional fields
-  const enabled =
-    (session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled ??
-    false;
-  return <TwoFactorClient enabled={enabled} />;
+  const ctx = await requireAdmin();
+  const [row] = await db
+    .select({ twoFactorEnabled: user.twoFactorEnabled })
+    .from(user)
+    .where(eq(user.id, ctx.userId))
+    .limit(1);
+  return <TwoFactorClient enabled={row?.twoFactorEnabled ?? false} />;
 }

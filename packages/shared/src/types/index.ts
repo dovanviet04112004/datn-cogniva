@@ -30,21 +30,6 @@ export interface UserDTO {
   createdAt: string; // ISO
 }
 
-/**
- * Session response từ Better Auth /api/auth/get-session.
- * Lưu ý: endpoint có thể trả `null` khi không có session — caller phải guard.
- * `session` chứa metadata (id, expiresAt) + `user` riêng (Better Auth shape v1.x).
- */
-export interface SessionDTO {
-  session: {
-    id: string;
-    userId: string;
-    expiresAt: string;
-    token: string;
-  };
-  user: UserDTO;
-}
-
 // ── Document (match real backend shape) ────────────────────────────
 export interface DocumentDTO {
   id: string;

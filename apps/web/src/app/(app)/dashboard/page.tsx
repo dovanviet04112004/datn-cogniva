@@ -14,7 +14,7 @@
  * Server Component — fetch parallel 1 RTT qua Drizzle, không cần client fetch
  * → instant render, không loading flash.
  */
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -26,7 +26,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getDashboardStats } from '@/lib/dashboard/get-dashboard-stats';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
@@ -51,7 +51,7 @@ function greetingByHour(hour: number, name: string | null): string {
 }
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/dashboard');
   const userId = session.user.id;
   const firstName = session.user.name?.split(' ').pop() ?? null;

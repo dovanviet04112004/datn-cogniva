@@ -5,11 +5,10 @@
  *
  * Spec: docs/plans/tutoring-v4.md §7.7.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CalendarDays } from 'lucide-react';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { CalendarClient } from '@/components/tutoring/calendar/calendar-client';
@@ -18,7 +17,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function CalendarPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutoring/calendar');
   return (
     <PageShell size="wide" padded className="space-y-4">

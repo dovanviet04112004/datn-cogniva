@@ -3,7 +3,6 @@
  *
  * URL hash #page-N được PdfViewer đọc để scroll tới trang citation jump-to.
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq, sql } from 'drizzle-orm';
 import { ArrowLeft, FileText } from 'lucide-react';
@@ -11,7 +10,7 @@ import Link from 'next/link';
 
 import { chunk, db, document } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -27,7 +26,7 @@ type Props = {
 };
 
 export default async function DocumentDetailPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id } = await params;
 

@@ -9,7 +9,6 @@
  * Layout này wrap mọi route `/groups/[id]/...` để menu trái luôn hiện.
  */
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { and, asc, eq } from 'drizzle-orm';
 
 import {
@@ -20,7 +19,7 @@ import {
   studyGroupMember,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { GroupShell } from '@/components/groups/group-shell';
 
 type LayoutProps = {
@@ -30,7 +29,7 @@ type LayoutProps = {
 
 export default async function GroupLayout({ children, params }: LayoutProps) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) {
     redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}`)}`);
   }

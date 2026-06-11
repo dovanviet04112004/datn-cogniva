@@ -26,8 +26,16 @@ import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
-import type { AdminSearchHit } from '@/app/api/admin/search/route';
 import { cn } from '@/lib/utils';
+
+/** Hit trả về từ GET /api/admin/search (route giờ ở NestJS, proxy same-origin). */
+export type AdminSearchHit = {
+  type: 'user' | 'document' | 'conversation' | 'group' | 'booking';
+  id: string;
+  title: string;
+  subtitle: string | null;
+  href: string;
+};
 
 const TYPE_ICON: Record<AdminSearchHit['type'], typeof FileText> = {
   user: UsersIcon,

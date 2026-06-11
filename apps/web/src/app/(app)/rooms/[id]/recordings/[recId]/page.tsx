@@ -15,13 +15,12 @@
  *   - FAILED    : hiển thị video + thông báo "Transcribe lỗi, không có
  *     transcript". Mod có thể trigger re-process Phase 16.
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
 import { db, recording, room, roomMember } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { ReplayClient } from '@/components/rooms/replay-client';
 
 export const runtime = 'nodejs';
@@ -30,7 +29,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ id: string; recId: string }> };
 
 export default async function ReplayPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id: roomId, recId } = await params;
 

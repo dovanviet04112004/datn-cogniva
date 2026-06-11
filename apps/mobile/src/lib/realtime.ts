@@ -6,13 +6,15 @@
  * Hook `useRealtimeEvent` GIỮ cùng chữ ký với web (`apps/web/src/lib/realtime-client.ts`)
  * và dùng chung hằng số channel/event ở `@cogniva/shared/realtime` → code màn hình share được.
  *
- * Auth: gateway nhận `auth.token` (bearer) ở handshake → forward `Authorization: Bearer …`
- * sang Next `getServerSession` (Better Auth bearer plugin). Token lấy từ SecureStore.
+ * Auth: gateway nhận `auth.token` = accessToken JWT (ES256) ở handshake và verify
+ * CỤC BỘ bằng JWKS (/api/auth/jwks). Token sống 15' → mỗi lần (re)connect phải đọc
+ * lại async qua getValidAccessToken (tự refresh nếu sắp hết hạn) — socket sống qua
+ * 15' rồi rớt mạng thì reconnect vẫn có token hợp lệ.
  */
 import * as React from 'react';
 import { io, type Socket } from 'socket.io-client';
 
-import { tokenStorage } from './storage';
+import { getValidAccessToken } from './api';
 
 let _socket: Socket | null = null;
 const subCounts = new Map<string, number>();
@@ -29,9 +31,10 @@ export function getSocket(): Socket | null {
 
   _socket = io(url, {
     transports: ['websocket'],
-    // Bearer token (async) — gateway forward sang Next để verify session.
+    // Callback async chạy MỖI lần connect/reconnect — không bake token cũ vào
+    // handshake; hết hạn thì getValidAccessToken refresh trước khi nối.
     auth: (cb) => {
-      void tokenStorage.get().then((token) => cb({ token: token ?? '' }));
+      void getValidAccessToken().then((token) => cb({ token: token ?? '' }));
     },
   });
 

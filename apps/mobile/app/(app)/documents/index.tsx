@@ -30,8 +30,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DocumentDTO } from '@cogniva/shared';
 
-import { api } from '@/lib/api';
-import { tokenStorage } from '@/lib/storage';
+import { api, getValidAccessToken } from '@/lib/api';
 
 const STATUS_COLOR: Record<DocumentDTO['status'], string> = {
   UPLOADING: '#f59e0b',
@@ -101,7 +100,9 @@ export default function DocumentsScreen() {
         type: asset.mimeType ?? 'application/pdf',
       } as unknown as Blob);
 
-      const token = await tokenStorage.get();
+      // Upload FormData đi fetch thẳng (không qua shared client) → tự lấy
+      // accessToken còn hạn, tránh 401 giữa chừng vì JWT 15'.
+      const token = await getValidAccessToken();
       const url = `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/api/documents/upload`;
       const res = await fetch(url, {
         method: 'POST',

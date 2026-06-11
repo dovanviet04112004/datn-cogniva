@@ -1,9 +1,7 @@
 /**
- * AuthGuard toàn cục — JWT-FIRST (plan §3):
- *   (a) Access token JWT mới (Bearer hoặc cookie `cg_at`) → verify ES256 cục bộ.
- *   (b) Dual-accept session Better Auth cũ (cookie/Bearer ký HMAC) — chỉ tồn
- *       tại trong cửa sổ chuyển tiếp, gỡ cuối GĐ1 cùng LegacySessionService.
- * Route public đánh dấu @Public().
+ * AuthGuard toàn cục — JWT thuần (plan §3, dual-accept Better Auth đã gỡ
+ * cuối GĐ1): access token ES256 qua Bearer hoặc cookie `cg_at`, verify cục
+ * bộ không chạm Redis/DB. Route public đánh dấu @Public().
  */
 import {
   CanActivate,
@@ -15,11 +13,9 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { LegacySessionService } from '../auth/legacy-session.service';
 import { TokenService } from '../auth/token.service';
 import type { AuthContext } from '../auth/session.types';
 
-const LEGACY_COOKIES = ['__Secure-better-auth.session_token', 'better-auth.session_token'];
 const ACCESS_COOKIE = 'cg_at';
 
 @Injectable()
@@ -27,7 +23,6 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
-    private readonly legacy: LegacySessionService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -49,32 +44,22 @@ export class AuthGuard implements CanActivate {
     const cookies = parseCookies(req.headers.cookie);
     const bearer = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
 
-    // (a) JWT mới — 3 segment. Verify cục bộ, không chạm Redis/DB.
-    const jwtCandidate = bearer && bearer.split('.').length === 3 ? bearer : cookies[ACCESS_COOKIE];
-    if (jwtCandidate) {
-      const payload = await this.tokens.verifyAccessToken(jwtCandidate);
-      if (payload) {
-        return {
-          user: {
-            id: payload.sub,
-            email: payload.email,
-            name: payload.name,
-            image: payload.picture,
-            plan: payload.plan,
-            adminRole: payload.role,
-          },
-          session: { id: payload.sub, token: jwtCandidate, userId: payload.sub, expiresAt: new Date() },
-        };
-      }
-    }
+    const jwtCandidate = bearer ?? cookies[ACCESS_COOKIE];
+    if (!jwtCandidate) return null;
 
-    // (b) Legacy Better Auth: `<token>.<sig>` (2 phần) qua cookie hoặc Bearer.
-    const legacyValue =
-      LEGACY_COOKIES.map((n) => cookies[n]).find(Boolean) ??
-      (bearer && bearer.split('.').length === 2 ? bearer : undefined);
-    if (legacyValue) return this.legacy.verify(legacyValue);
-
-    return null;
+    const payload = await this.tokens.verifyAccessToken(jwtCandidate);
+    if (!payload) return null;
+    return {
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        image: payload.picture,
+        plan: payload.plan,
+        adminRole: payload.role,
+      },
+      session: { id: payload.sub, token: jwtCandidate, userId: payload.sub, expiresAt: new Date() },
+    };
   }
 }
 

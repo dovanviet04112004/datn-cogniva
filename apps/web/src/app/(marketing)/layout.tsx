@@ -2,22 +2,19 @@
  * Layout cho route group (marketing) — landing, pricing, about…
  *
  * Khác (app) layout: không có sidebar, có top nav công khai + footer.
- * Render Server Component → có thể gọi `auth.api.getSession()` trực tiếp
- * để biết user đã đăng nhập chưa, đổi CTA giữa "Sign in / Sign up" và
- * "Open app".
+ * Render Server Component → gọi `getServerSession()` để biết user đã đăng
+ * nhập chưa, đổi CTA giữa "Sign in / Sign up" và "Open app".
  */
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { BrainCircuit } from 'lucide-react';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
-  // Lấy session ngay lúc SSR — không kéo DB nếu user chưa có cookie.
-  // headers() là async trong Next.js 15 → phải await.
-  const session = await auth.api.getSession({ headers: await headers() });
+  // Lấy session ngay lúc SSR — verify JWT cục bộ, không kéo DB.
+  const session = await getServerSession();
 
   return (
     <div className="flex min-h-screen flex-col">

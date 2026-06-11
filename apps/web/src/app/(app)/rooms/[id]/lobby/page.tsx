@@ -6,7 +6,6 @@
  *
  * Share section: hiển thị joinCode 6 ký tự + nút copy link để mời người khác.
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -14,7 +13,7 @@ import { eq } from 'drizzle-orm';
 
 import { db, room } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Button } from '@/components/ui/button';
 import { LobbyForm } from '@/components/rooms/lobby-form';
 import { RoomShareCode } from '@/components/rooms/room-share-code';
@@ -25,7 +24,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ id: string }> };
 
 export default async function LobbyPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=/rooms`);
   const { id } = await params;
 

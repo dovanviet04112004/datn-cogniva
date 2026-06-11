@@ -22,8 +22,8 @@ import { PasswordService } from '../../common/auth/password.service';
 import { TokenService } from '../../common/auth/token.service';
 import type { AuthUser } from '../../common/auth/session.types';
 import { PrismaService } from '../../infra/database/prisma.service';
-import { LegacySessionIssuerService } from './legacy-session-issuer.service';
 import { RefreshTokenService } from './refresh-token.service';
+import { TwoFactorManageService } from './two-factor-manage.service';
 import { TwoFactorService } from './two-factor.service';
 
 const CREDENTIAL_PROVIDER = 'credential';
@@ -36,9 +36,6 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   refreshExpiresAt: Date;
-  /** DUAL-ISSUE: cookie session Better Auth để SSR cũ nhận user — gỡ cuối GĐ1. */
-  legacyCookieValue?: string;
-  legacyExpiresAt?: Date;
 }
 
 export interface TwoFactorChallenge {
@@ -61,7 +58,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly refreshTokens: RefreshTokenService,
     private readonly twoFactor: TwoFactorService,
-    private readonly legacyIssuer: LegacySessionIssuerService,
+    private readonly twoFactorManage: TwoFactorManageService,
     private readonly config: ConfigService,
   ) {}
 
@@ -76,24 +73,17 @@ export class AuthService {
     return { id: u.id, email: u.email, name: u.name, image: u.image, plan: u.plan, adminRole: u.admin_role };
   }
 
-  /**
-   * Phát cặp token + (dual-issue) session Better Auth. Public vì OAuth
-   * callback cũng dùng. `withLegacy=false` cho refresh (session 30d đã có).
-   */
-  async issueTokens(user: AuthUser, meta: RequestMeta, opts?: { familyId?: string; withLegacy?: boolean }): Promise<AuthTokens> {
-    const withLegacy = opts?.withLegacy ?? true;
-    const [accessToken, refresh, legacy] = await Promise.all([
+  /** Phát cặp access + refresh token. Public vì OAuth callback cũng dùng. */
+  async issueTokens(user: AuthUser, meta: RequestMeta, opts?: { familyId?: string }): Promise<AuthTokens> {
+    const [accessToken, refresh] = await Promise.all([
       this.tokens.signAccessToken(user),
       this.refreshTokens.issue(user.id, { familyId: opts?.familyId, ip: meta.ip, userAgent: meta.userAgent }),
-      withLegacy ? this.legacyIssuer.issue(user.id, meta) : Promise.resolve(undefined),
     ]);
     return {
       user,
       accessToken,
       refreshToken: refresh.raw,
       refreshExpiresAt: refresh.expiresAt,
-      legacyCookieValue: legacy?.cookieValue,
-      legacyExpiresAt: legacy?.expiresAt,
     };
   }
 
@@ -162,7 +152,9 @@ export class AuthService {
 
     const secret = await this.twoFactor.decryptSecret(tf.secret);
     if (!this.twoFactor.verifyTotp(code, secret)) {
-      throw new UnauthorizedException({ error: 'Mã 2FA không đúng' });
+      // Fallback backup code (1 lần) — thay authClient.twoFactor.verifyBackupCode cũ.
+      const usedBackup = await this.twoFactorManage.consumeBackupCode(userId, code);
+      if (!usedBackup) throw new UnauthorizedException({ error: 'Mã 2FA không đúng' });
     }
     return this.issueTokens(this.toAuthUser(user), meta);
   }

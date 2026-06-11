@@ -5,7 +5,6 @@
  * pass xuống client component. Client tự fetch messages/participants + realtime.
  */
 import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 
 import {
@@ -14,7 +13,7 @@ import {
   studyGroupMember,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 import { ChannelView } from '@/components/groups/channel-view';
 
@@ -22,7 +21,7 @@ type PageProps = { params: Promise<{ id: string; channelId: string }> };
 
 export default async function ChannelPage({ params }: PageProps) {
   const { id, channelId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}/${channelId}`)}`);
 
   const [member] = await db

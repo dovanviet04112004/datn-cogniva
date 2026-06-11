@@ -1,11 +1,11 @@
 /**
  * Smoke test cho Stage 1 W1-4 infrastructure changes.
  *
- * Chạy: pnpm tsx scripts/smoke-test.ts [BASE_URL] [SESSION_COOKIE]
+ * Chạy: pnpm tsx scripts/smoke-test.ts [BASE_URL] [ACCESS_TOKEN]
  *
  *   pnpm tsx scripts/smoke-test.ts                                      # default localhost:3000, no auth
  *   pnpm tsx scripts/smoke-test.ts http://localhost:3000                # explicit base
- *   pnpm tsx scripts/smoke-test.ts http://localhost:3000 "abc123..."    # with session cookie
+ *   pnpm tsx scripts/smoke-test.ts http://localhost:3000 "<jwt>"         # with cg_at access token (JWT)
  *
  * Test plan:
  *   ✓ #1 Health endpoint — verify subsystem status
@@ -60,7 +60,7 @@ function record(r: TestResult) {
 async function fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   if (SESSION_COOKIE) {
-    headers.set('Cookie', `better-auth.session_token=${SESSION_COOKIE}`);
+    headers.set('Cookie', `cg_at=${SESSION_COOKIE}`);
   }
   return fetch(`${BASE_URL}${path}`, { ...init, headers });
 }

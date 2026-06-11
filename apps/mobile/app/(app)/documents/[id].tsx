@@ -25,7 +25,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
-import { api } from '@/lib/api';
+import { api, getValidAccessToken } from '@/lib/api';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -61,7 +61,7 @@ export default function DocumentDetailScreen() {
     queryKey: ['documents', 'chunks', id],
     queryFn: async () => {
       const url = `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/api/documents/${id}/chunks?limit=50`;
-      const token = await (await import('@/lib/storage')).tokenStorage.get();
+      const token = await getValidAccessToken();
       const res = await fetch(url, {
         credentials: 'omit',
         headers: {

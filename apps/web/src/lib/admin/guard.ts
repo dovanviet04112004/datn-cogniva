@@ -13,13 +13,12 @@
  * để bootstrap user đầu tiên trước khi có user.adminRole row trong DB.
  * Phase 1+ migrate hết sang adminRole column → xoá fallback.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db, user, type AdminRole } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 const ADMIN_EMAIL_FALLBACK = ['dovanviet04112004@gmail.com'];
 
@@ -57,7 +56,7 @@ export type AdminContext = {
  * @returns AdminContext nếu là admin, null nếu không.
  */
 export async function getAdminContext(): Promise<AdminContext | null> {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session?.user) return null;
 
   const [row] = await db

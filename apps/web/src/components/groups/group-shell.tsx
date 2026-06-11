@@ -49,7 +49,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useSession } from '@/lib/auth-client';
+import { useMe } from '@/lib/use-me';
 import { cn } from '@/lib/utils';
 import type { StudyGroup, StudyGroupChannel } from '@cogniva/db';
 
@@ -814,16 +814,14 @@ function GroupShellInner({
 }
 
 function UserFooter() {
-  // Dùng useSession hook của Better Auth thay vì fetch raw endpoint.
-  // Endpoint `/api/auth/session` không tồn tại — Better Auth dùng catchall
-  // `[...all]` với action `/api/auth/get-session`. useSession() wrap đúng.
-  const { data: session } = useSession();
-  // Mounted guard chống hydration mismatch: SSR `session=null` (render null) ≠
-  // client render đầu có user từ cache (render div) → lệch. Giữ null ở render
-  // đầu (khớp SSR), sau mount mới hiện footer.
+  // useMe() — GET /api/auth/me (JWT stack mới) qua TanStack Query.
+  const { data: user } = useMe();
+  // Mounted guard chống hydration mismatch: SSR `user=null` (render null) ≠
+  // client render đầu có user từ cache persist (render div) → lệch. Giữ null
+  // ở render đầu (khớp SSR), sau mount mới hiện footer.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
-  const me = mounted ? session?.user : null;
+  const me = mounted ? user : null;
   if (!me) return null;
   return (
     <div className="flex h-12 items-center gap-2.5 border-t border-divider bg-card/40 px-3">

@@ -108,6 +108,8 @@ for (const k of [
   'MOMO_RETURN_URL',
   'MOMO_IPN_URL',
   'TUTORING_ESCROW_HOURS',
+  // Wave 7: /api/health check realtime gateway.
+  'NEXT_PUBLIC_REALTIME_URL',
 ]) {
   const v = get(k);
   if (v) lines.push(`${k}="${v}"`);

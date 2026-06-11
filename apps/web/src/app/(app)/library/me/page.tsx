@@ -8,7 +8,6 @@
  *   - Recent karma events tab "Earn history"
  */
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { desc, eq, sql } from 'drizzle-orm';
 import {
@@ -30,7 +29,7 @@ import {
   libraryKarmaEvent,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
@@ -51,7 +50,7 @@ const STATUS_LABEL: Record<string, { labelKey: string; class: string }> = {
 
 export default async function CreatorDashboardPage() {
   const t = await getServerT();
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) {
     redirect('/sign-in?callbackUrl=/library/me');
   }

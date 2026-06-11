@@ -1,12 +1,14 @@
 /**
  * /admin/sign-in — form đăng nhập riêng cho admin.
  *
- * Reuse Better Auth credential sign-in (cùng API với /sign-in của product)
- * — nhưng UI hoàn toàn khác: dark theme, banner cảnh báo, không gợi ý
- * sign-up. Sau khi sign-in thành công + có adminRole, /admin/(authed)
- * layout sẽ pass; nếu không có role, /admin redirect lại đây với toast.
+ * Dùng JWT sign-in mới (NestJS /api/auth/sign-in qua lib/auth-api) — UI
+ * dark theme, banner cảnh báo, không gợi ý sign-up. Sau khi sign-in thành
+ * công + có adminRole, /admin/(authed) layout sẽ pass; nếu không có role,
+ * /admin redirect lại đây với toast.
  *
- * Không reuse component <SignInForm> của product để giữ visual tách biệt.
+ * 2FA: server trả {twoFactorRequired, challengeToken} → giữ challengeToken
+ * trong sessionStorage (key dùng chung với trang two-factor) rồi điều hướng
+ * sang /admin/sign-in/two-factor.
  */
 'use client';
 
@@ -16,7 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { authClient } from '@/lib/auth-client';
+import { signIn, TWO_FACTOR_CHALLENGE_KEY } from '@/lib/auth-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +36,16 @@ export default function AdminSignInPage() {
     if (!email.trim() || !password) return;
     setLoading(true);
     try {
-      const { error } = await authClient.signIn.email({
-        email: email.trim(),
-        password,
-      });
-      if (error) throw new Error(error.message ?? 'Sai email hoặc mật khẩu');
+      const result = await signIn(email.trim(), password);
+      if (!result.ok) throw new Error(result.error);
+      if (result.twoFactorRequired) {
+        // Bước 2: challenge token sống 5' — trang two-factor đọc rồi xoá.
+        sessionStorage.setItem(TWO_FACTOR_CHALLENGE_KEY, result.challengeToken);
+        router.push(
+          `/admin/sign-in/two-factor?redirect=${encodeURIComponent(redirectTo)}`,
+        );
+        return;
+      }
       // Authorization sẽ check ở /admin layout — nếu user không có adminRole
       // sẽ redirect lại đây. Toast guide.
       router.replace(redirectTo);

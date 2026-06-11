@@ -1,6 +1,6 @@
 /**
- * GET /api/healthz — health của riêng NestJS (DB + Redis). Đường /api/health
- * cũ của Next vẫn tồn tại tới khi health-monitor job port xong.
+ * GET /api/healthz — health của riêng NestJS (DB + Redis). Aggregate health
+ * cho LB/monitoring (/api/health) port riêng ở health-public.controller.ts.
  */
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';

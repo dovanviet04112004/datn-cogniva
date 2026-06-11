@@ -1,7 +1,6 @@
 /**
  * /tutors/me/kyc — tutor upload + theo dõi KYC documents.
  */
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
@@ -9,14 +8,14 @@ import { ChevronLeft, ShieldCheck } from 'lucide-react';
 
 import { db, tutorKycDocument, tutorProfile } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { KycUploadForm } from '@/components/tutoring/kyc-upload-form';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function KycPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutors/me/kyc');
 
   const [profile] = await db

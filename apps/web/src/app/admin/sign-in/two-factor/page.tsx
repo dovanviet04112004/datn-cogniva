@@ -1,54 +1,62 @@
 /**
- * /admin/sign-in/two-factor — verify TOTP code sau khi enter password.
+ * /admin/sign-in/two-factor — bước 2 của sign-in khi user bật 2FA.
  *
- * Flow: user login → password OK → better-auth set cookie `two-factor-cookie`
- * → redirect tới đây (qua `onTwoFactorRedirect` ở auth-client). User nhập code
- * 6 chữ số → verifyTotp → session active.
- *
- * Fallback: backup code input cho trường hợp mất phone.
+ * Flow JWT mới: sign-in trả {twoFactorRequired, challengeToken} → trang
+ * sign-in lưu token vào sessionStorage (TWO_FACTOR_CHALLENGE_KEY) rồi điều
+ * hướng tới đây. POST /api/auth/sign-in/2fa nhận CẢ code TOTP 6 số lẫn
+ * backup code (xxxxx-xxxxx) qua cùng 1 endpoint — mode toggle chỉ đổi UI.
+ * Không có challengeToken (vào thẳng URL / token đã dùng) → về sign-in.
  */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { authClient } from '@/lib/auth-client';
+import { signInTwoFactor, TWO_FACTOR_CHALLENGE_KEY } from '@/lib/auth-api';
 import { cn } from '@/lib/utils';
 
 export default function TwoFactorChallengePage() {
   const router = useRouter();
+  const search = useSearchParams();
+  const redirectTo = search.get('redirect') ?? '/admin';
   const [mode, setMode] = React.useState<'totp' | 'backup'>('totp');
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
+  // Không có challenge (refresh trang, vào thẳng URL) → quay về sign-in.
+  React.useEffect(() => {
+    if (!sessionStorage.getItem(TWO_FACTOR_CHALLENGE_KEY)) {
+      toast.error('Phiên xác minh hết hạn — đăng nhập lại.');
+      router.replace('/admin/sign-in');
+    }
+  }, [router]);
+
   const verify = async () => {
     if (loading) return;
+    if (mode === 'totp' && code.length !== 6) {
+      toast.error('Code TOTP 6 chữ số');
+      return;
+    }
+    if (mode === 'backup' && code.trim().length < 4) {
+      toast.error('Backup code không hợp lệ');
+      return;
+    }
+    const challengeToken = sessionStorage.getItem(TWO_FACTOR_CHALLENGE_KEY);
+    if (!challengeToken) {
+      router.replace('/admin/sign-in');
+      return;
+    }
     setLoading(true);
     try {
-      if (mode === 'totp') {
-        if (code.length !== 6) {
-          toast.error('Code TOTP 6 chữ số');
-          setLoading(false);
-          return;
-        }
-        const { error } = await authClient.twoFactor.verifyTotp({ code });
-        if (error) throw new Error(error.message ?? 'Code sai');
-      } else {
-        if (code.trim().length < 4) {
-          toast.error('Backup code không hợp lệ');
-          setLoading(false);
-          return;
-        }
-        const { error } = await authClient.twoFactor.verifyBackupCode({
-          code: code.trim(),
-        });
-        if (error) throw new Error(error.message ?? 'Backup code sai');
-      }
+      // 1 endpoint duy nhất — server tự nhận diện TOTP 6 số vs backup code.
+      const result = await signInTwoFactor(challengeToken, code.trim());
+      if (!result.ok) throw new Error(result.error);
+      sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_KEY);
       toast.success('Đăng nhập thành công');
-      router.push('/admin');
+      router.push(redirectTo);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Verify thất bại');
     } finally {
@@ -79,14 +87,14 @@ export default function TwoFactorChallengePage() {
             type="text"
             inputMode={mode === 'totp' ? 'numeric' : 'text'}
             pattern={mode === 'totp' ? '[0-9]{6}' : undefined}
-            maxLength={mode === 'totp' ? 6 : 16}
+            maxLength={mode === 'totp' ? 6 : 11}
             value={code}
             onChange={(e) =>
               setCode(
                 mode === 'totp' ? e.target.value.replace(/\D/g, '') : e.target.value,
               )
             }
-            placeholder={mode === 'totp' ? '123456' : 'xxxx-xxxx-xxxx'}
+            placeholder={mode === 'totp' ? '123456' : 'xxxxx-xxxxx'}
             autoFocus
             autoComplete="one-time-code"
             onKeyDown={(e) => e.key === 'Enter' && verify()}

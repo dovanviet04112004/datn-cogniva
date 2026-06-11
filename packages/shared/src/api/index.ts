@@ -20,8 +20,8 @@ import type {
   DocumentDTO,
   FlashcardDTO,
   ReviewDTO,
-  SessionDTO,
   UsageDTO,
+  UserDTO,
   ChatMessageDTO,
 } from '../types';
 
@@ -114,11 +114,16 @@ class ApiClient {
     }
   }
 
-  // ── Auth ────────────────────────────────────────────────────────
+  // ── Auth (JWT stack — NestJS /api/auth/*) ───────────────────────
   auth = {
-    // Better Auth trả `null` khi token invalid → SessionDTO | null
-    session: () => this.req<SessionDTO | null>('/api/auth/get-session'),
-    signOut: () => this.req<{ ok: true }>('/api/auth/sign-out', { method: 'POST' }),
+    /** GET /api/auth/me — cần Bearer accessToken; 401 khi hết hạn/invalid. */
+    me: () => this.req<{ user: UserDTO }>('/api/auth/me'),
+    /** Revoke refresh token: mobile gửi qua body, web qua cookie `cg_rt`. */
+    signOut: (refreshToken?: string) =>
+      this.req<{ ok: true }>('/api/auth/sign-out', {
+        method: 'POST',
+        body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+      }),
   };
 
   // ── Account ─────────────────────────────────────────────────────

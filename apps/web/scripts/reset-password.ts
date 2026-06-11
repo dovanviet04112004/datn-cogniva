@@ -1,12 +1,28 @@
 /**
  * Reset password cho 1 user — DEV ONLY.
  *
+ * Hash scrypt cùng format với apps/api PasswordService (kế thừa Better Auth:
+ * N=16384 r=16 p=1 dkLen=64, NFKC, `saltHex:keyHex`) — đổi format phải đổi cả 2 nơi.
+ *
  * Usage:
  *   cd apps/web && pnpm exec tsx --env-file=.env.local scripts/reset-password.ts <email> <newPassword>
  */
-import { hashPassword } from 'better-auth/crypto';
+import { randomBytes, scrypt } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { db, account, user } from '@cogniva/db';
+
+function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  return new Promise((resolve, reject) => {
+    scrypt(
+      password.normalize('NFKC'),
+      salt,
+      64,
+      { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 },
+      (err, key) => (err ? reject(err) : resolve(`${salt}:${key.toString('hex')}`)),
+    );
+  });
+}
 
 const email = process.argv[2];
 const newPassword = process.argv[3];

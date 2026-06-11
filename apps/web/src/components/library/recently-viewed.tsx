@@ -4,13 +4,12 @@
  * Server component fetch docs user đã view gần nhất. Render qua DocCarousel
  * dùng đúng DocCard (giống hệt card ở grid) + cuộn ngang có nút mũi tên.
  */
-import { headers } from 'next/headers';
 import { desc, eq } from 'drizzle-orm';
 import { Clock } from 'lucide-react';
 
 import { db, libraryDoc, libraryDocView, user as userTable } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 import { docCardColumns, toDocCardData } from '@/lib/library/doc-card-data';
 // SectionHeading dùng chung toàn app — thay khối tiêu đề mục eyebrow cũ.
@@ -19,7 +18,7 @@ import { SectionHeading } from '@/components/ui/section-heading';
 import { DocCarousel } from './doc-carousel';
 
 export async function RecentlyViewed() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session?.user.id) return null;
 
   const rows = await db

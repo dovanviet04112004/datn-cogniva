@@ -16,9 +16,8 @@ import {
   Upload,
 } from 'lucide-react';
 
-import { headers } from 'next/headers';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { isUserPro } from '@/lib/library/access';
 import { getLibraryHubStats } from '@/lib/library/get-hub-stats';
 import { getServerT } from '@/lib/i18n/server';
@@ -86,7 +85,7 @@ export default async function LibraryPage({
   const totalStats = await getLibraryHubStats();
 
   // Phase 4 Step 5 — hiển thị PRO upgrade banner cho user FREE
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   const isPro = session ? await isUserPro(session.user.id) : false;
   const t = await getServerT();
 

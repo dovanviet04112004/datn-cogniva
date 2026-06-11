@@ -8,10 +8,9 @@
  * Routes /api/study-plan/today, /api/study-plan, /api/study-plan/{id} GIỮ NGUYÊN
  * (mobile vẫn gọi); query dùng chung lib materialize + getStudyPlanItems.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { materializeProposalForToday } from '@/lib/study-plan/materialize';
 import { getStudyPlanItems } from '@/lib/study-plan/query';
 import { normalizeItem, type Item } from '@/lib/study-plan/item';
@@ -22,7 +21,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function StudyPlanPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/study-plan');
   const userId = session.user.id;
 

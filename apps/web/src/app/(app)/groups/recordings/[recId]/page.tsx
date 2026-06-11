@@ -10,7 +10,6 @@
  * channelId trong path vì PK đủ unique. System message AI Tutor trong channel
  * link đến route này (xem process-recording.ts).
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
@@ -22,7 +21,7 @@ import {
   studyGroupMember,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { ReplayClient } from '@/components/rooms/replay-client';
 
 export const runtime = 'nodejs';
@@ -31,7 +30,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ recId: string }> };
 
 export default async function GroupRecordingReplayPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { recId } = await params;
 

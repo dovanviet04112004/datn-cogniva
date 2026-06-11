@@ -7,7 +7,7 @@
  *   - Render nút "REC" + banner "Đang ghi" cho mọi participant
  *
  * Compliance: banner hiển thị cho TẤT CẢ participant (non-mod cũng thấy)
- * suốt thời gian recording — consent visibility theo GDPR/COPPA.
+ * suốt thời gian recording — consent visibility theo GDPR.
  */
 'use client';
 

@@ -16,6 +16,10 @@
     "clean": "rm -rf node_modules dist .turbo"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.6",
+    "@ai-sdk/google": "^1.2.22",
+    "@ai-sdk/groq": "^1.2.9",
+    "@ai-sdk/openai": "^1.0.13",
     "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@cogniva/server-core": "workspace:^",

@@ -5,12 +5,13 @@
  *   - iOS: Keychain (Secure Enclave nếu device support)
  *   - Android: KeyStore (TEE / StrongBox)
  *
- * Quota: ~2KB per key — đủ cho JWT + refresh token. KHÔNG dùng cho data lớn.
+ * Quota: ~2KB per key — vì vậy cặp token JWT lưu 2 KEY RIÊNG (access + refresh)
+ * thay vì 1 blob JSON. KHÔNG dùng cho data lớn.
  */
 import * as SecureStore from 'expo-secure-store';
 
-const TOKEN_KEY = 'cogniva.auth_token';
-const REFRESH_KEY = 'cogniva.refresh_token';
+const TOKEN_KEY = 'cogniva.auth_token'; // accessToken JWT ES256, sống 15'
+const REFRESH_KEY = 'cogniva.refresh_token'; // opaque 30d, rotation mỗi lần refresh
 const USER_KEY = 'cogniva.user_cache'; // JSON UserDTO
 
 export const tokenStorage = {
@@ -24,6 +25,20 @@ export const refreshStorage = {
   set: (value: string) => SecureStore.setItemAsync(REFRESH_KEY, value),
   clear: () => SecureStore.deleteItemAsync(REFRESH_KEY),
 };
+
+/**
+ * Lưu CẶP token sau sign-in/sign-up/refresh. Refresh token bị server ROTATE
+ * mỗi lần dùng (token cũ revoke) → luôn ghi đè cả cặp cùng lúc, đừng lẻ tẻ.
+ */
+export async function saveTokenPair(
+  accessToken: string,
+  refreshToken: string,
+): Promise<void> {
+  await Promise.all([
+    tokenStorage.set(accessToken),
+    refreshStorage.set(refreshToken),
+  ]);
+}
 
 export const userCache = {
   get: async <T>(): Promise<T | null> => {

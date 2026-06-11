@@ -9,7 +9,6 @@
  *   - Availability matrix (7 ngày x slot)
  *   - "Liên hệ" button → trigger DM modal/redirect
  */
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq, isNull } from 'drizzle-orm';
@@ -41,7 +40,7 @@ import {
   user as userTable,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { BookButton } from '@/components/tutoring/book-button';
@@ -60,7 +59,7 @@ type Params = { params: Promise<{ id: string }> };
 
 export default async function TutorDetailPage({ params }: Params) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=/tutors/${id}`);
 
   const [profile] = await db

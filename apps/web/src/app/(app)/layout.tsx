@@ -13,7 +13,6 @@
 import { AppSidebar } from '@/components/app/sidebar';
 import { AppSidebarProvider } from '@/components/app/app-sidebar-context';
 import { AppTopbar } from '@/components/app/topbar';
-import { CoppaBanner } from '@/components/consent/coppa-banner';
 import { MaintenanceBanner } from '@/components/app/maintenance-banner';
 import { ImpersonationBanner } from '@/components/app/impersonation-banner';
 import { ChatDockProvider } from '@/components/dm/chat-dock';
@@ -52,8 +51,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <ImpersonationBanner />
             {/* Maintenance banner — admin bật ở /admin/system/maintenance. Cache 5s. */}
             <MaintenanceBanner />
-            {/* COPPA banner ngay dưới topbar — show khi user PENDING/REJECTED */}
-            <CoppaBanner />
             {/* main có overflow-y-auto để chỉ phần nội dung scroll, sidebar/topbar đứng yên */}
             <main className="flex-1 overflow-y-auto">{children}</main>
           </div>

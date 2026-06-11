@@ -244,6 +244,62 @@ export class CostGuardrailService {
     }
   }
 
+  /**
+   * Usage daily của 1 user (đọc counter Redis) — port getUserDailyUsage web,
+   * dùng cho GET /api/account/usage. Redis lỗi → trả 0 (fail-open y cũ).
+   */
+  async getUserDailyUsage(
+    userId: string,
+    plan: Plan,
+  ): Promise<{ spentUsd: number; quotaUsd: number; remainingUsd: number; resetAt: string }> {
+    const redis = getRedis();
+    const quota = DAILY_QUOTA_USD[plan];
+    try {
+      const raw = await redis.get(this.userDailyKey(userId));
+      const spent = raw ? Number(raw) / USD_TO_INT : 0;
+      return {
+        spentUsd: spent,
+        quotaUsd: quota,
+        remainingUsd: Math.max(0, quota - spent),
+        resetAt: this.nextMidnightUtcIso(),
+      };
+    } catch {
+      return {
+        spentUsd: 0,
+        quotaUsd: quota,
+        remainingUsd: quota,
+        resetAt: this.nextMidnightUtcIso(),
+      };
+    }
+  }
+
+  /**
+   * Global hourly spend — port getGlobalHourlySpend web, dùng cho health check
+   * + admin dashboard. Redis lỗi → circuit coi như đóng (fail-open).
+   */
+  async getGlobalHourlySpend(): Promise<{
+    spentUsd: number;
+    thresholdUsd: number;
+    circuitOpen: boolean;
+  }> {
+    const redis = getRedis();
+    try {
+      const raw = await redis.get(this.globalHourlyKey());
+      const spent = raw ? Number(raw) / USD_TO_INT : 0;
+      return {
+        spentUsd: spent,
+        thresholdUsd: GLOBAL_HOURLY_THRESHOLD_USD,
+        circuitOpen: spent > GLOBAL_HOURLY_THRESHOLD_USD,
+      };
+    } catch {
+      return {
+        spentUsd: 0,
+        thresholdUsd: GLOBAL_HOURLY_THRESHOLD_USD,
+        circuitOpen: false,
+      };
+    }
+  }
+
   /** Key counter daily 1 user — format YYYY-MM-DD UTC, KHỚP bản web để share counter. */
   private userDailyKey(userId: string, date = new Date()): string {
     const day = date.toISOString().slice(0, 10);

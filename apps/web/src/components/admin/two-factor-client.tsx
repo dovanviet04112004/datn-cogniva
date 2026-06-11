@@ -1,13 +1,13 @@
 /**
  * TwoFactorClient — enroll/disable TOTP cho admin account.
  *
- * Flow enroll:
- *   1. Nhập password admin → POST /two-factor/enable → trả totpURI + backupCodes
- *   2. Hiện QR (URL ngoài → render qua google chart) + secret + backup codes
- *   3. User scan QR + nhập code 6 chữ số → /two-factor/verify-totp → done
+ * Flow enroll (JWT stack mới — NestJS /api/auth/2fa/*):
+ *   1. Nhập password admin → POST /api/auth/2fa/enable → totpURI + backupCodes
+ *   2. Hiện QR + secret + backup codes
+ *   3. User scan QR + nhập code 6 chữ số → POST /api/auth/2fa/verify → done
  *
  * Flow disable:
- *   1. Nhập password → /two-factor/disable → cleared
+ *   1. Nhập password → POST /api/auth/2fa/disable → cleared
  *
  * Phase 6 V1 dùng QR external service (api.qrserver.com) — Phase 6.1 wire
  * `qrcode` package server-side để self-hosted.
@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { authClient } from '@/lib/auth-client';
+import { twoFactorEnable, twoFactorVerify, twoFactorDisable } from '@/lib/auth-api';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -49,10 +49,10 @@ export function TwoFactorClient({ enabled }: Props) {
     }
     setLoading(true);
     try {
-      const { data, error } = await authClient.twoFactor.enable({ password });
-      if (error || !data) throw new Error(error?.message ?? 'Enable thất bại');
-      setTotpUri(data.totpURI);
-      setBackupCodes(data.backupCodes ?? []);
+      const result = await twoFactorEnable(password);
+      if (!result.ok) throw new Error(result.error);
+      setTotpUri(result.totpURI);
+      setBackupCodes(result.backupCodes);
       setStep('verifying');
       setPassword('');
     } catch (e) {
@@ -69,8 +69,8 @@ export function TwoFactorClient({ enabled }: Props) {
     }
     setLoading(true);
     try {
-      const { error } = await authClient.twoFactor.verifyTotp({ code });
-      if (error) throw new Error(error.message ?? 'Code sai');
+      const result = await twoFactorVerify(code);
+      if (!result.ok) throw new Error(result.error);
       toast.success('Đã bật 2FA. Lần đăng nhập tới sẽ yêu cầu code.');
       setStep('idle');
       setTotpUri(null);
@@ -91,8 +91,8 @@ export function TwoFactorClient({ enabled }: Props) {
     }
     setLoading(true);
     try {
-      const { error } = await authClient.twoFactor.disable({ password });
-      if (error) throw new Error(error.message ?? 'Disable thất bại');
+      const result = await twoFactorDisable(password);
+      if (!result.ok) throw new Error(result.error);
       toast.success('Đã tắt 2FA. Bảo mật giảm — bật lại sớm.');
       setPassword('');
       router.refresh();

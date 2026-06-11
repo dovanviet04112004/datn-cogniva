@@ -5,19 +5,18 @@
  * Mỗi tab là sub-component. ADMIN+ mới được truy cập (server-side check).
  */
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 
 import { db, studyGroupMember } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { GroupSettings } from '@/components/groups/group-settings';
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function GroupSettingsPage({ params }: PageProps) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}/settings`)}`);
 
   const [member] = await db

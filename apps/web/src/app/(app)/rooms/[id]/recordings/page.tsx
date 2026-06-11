@@ -4,7 +4,6 @@
  * Server component: list rows recording + link sang [recId].
  * Quyền: member ACTIVE only (cùng pattern với replay page).
  */
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
@@ -12,7 +11,7 @@ import { ArrowLeft, PlayCircle } from 'lucide-react';
 
 import { db, room, roomMember } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getRoomRecordings } from '@/lib/rooms/get-room-recordings';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/layout/empty-state';
@@ -30,7 +29,7 @@ function fmtDuration(sec: number | null): string {
 }
 
 export default async function RecordingsPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id: roomId } = await params;
 

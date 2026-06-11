@@ -5,12 +5,11 @@
  * xuống client component.
  */
 import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { eq } from 'drizzle-orm';
 
 import { db, dmThread, user as userTable } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { isThreadMember } from '@/lib/group/dm';
 import { DmChat } from '@/components/dm/dm-chat';
 
@@ -18,7 +17,7 @@ type PageProps = { params: Promise<{ threadId: string }> };
 
 export default async function DmThreadPage({ params }: PageProps) {
   const { threadId } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=/messages/${threadId}`);
 
   const [thread] = await db.select().from(dmThread).where(eq(dmThread.id, threadId)).limit(1);

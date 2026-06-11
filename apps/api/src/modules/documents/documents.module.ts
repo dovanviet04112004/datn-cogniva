@@ -16,7 +16,8 @@ import { IngestService } from './ingest.service';
   imports: [QueueModule, GamificationModule],
   controllers: [DocumentsController],
   providers: [DocumentsService, IngestService, ConceptsService],
-  // ConceptsService exported cho DocumentProcessor (jobs) dùng lại extract.
-  exports: [ConceptsService],
+  // ConceptsService + IngestService exported cho DocumentProcessor (jobs):
+  // extract concepts + admin reingest (job `ingest-document`).
+  exports: [ConceptsService, IngestService],
 })
 export class DocumentsModule {}

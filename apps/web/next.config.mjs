@@ -20,7 +20,6 @@
 const NEST_ORIGIN = process.env.NEST_API_ORIGIN ?? 'http://localhost:4000';
 const NEST_MIGRATED_PREFIXES = [
   'healthz', // Wave 0 — health của NestJS
-  '_spike', // Wave 0 — stream PoC, xóa khi ChatModule port (W7)
   'auth/google', // Wave 1 — OAuth mới (path KHÁC callback/google của Better Auth)
   'profile', // Wave 2 — UsersModule (golden diff pass, route cũ đã xóa)
   'user/status', // Wave 2 — UsersModule
@@ -53,6 +52,11 @@ const NEST_MIGRATED_PREFIXES = [
   'tutors', // Wave 6 — TutorsModule
   'wallet', // Wave 6 — PaymentsModule (WalletService đầy đủ)
   'webhooks', // Wave 6 — VNPay/MoMo/LiveKit (replay signed fixtures + idempotency)
+  'chat', // Wave 7 — ChatModule (AI SDK v4 data stream, golden diff 56/56)
+  'ai', // Wave 7 — quick-gen (router DI)
+  'admin', // Wave 7 — AdminCore + AdminDomain (40 routes)
+  'account', // Wave 7 — AccountModule (GDPR delete/export/usage/push-token)
+  'health', // Wave 7 — health tổng (db/redis/storage checks)
 ];
 // Path EXACT (không wildcard) — các path auth mới phải match đúng để KHÔNG
 // nuốt path Better Auth còn dùng (sign-in/email của admin page, two-factor/*,
@@ -66,6 +70,9 @@ const NEST_MIGRATED_EXACT = [
   'auth/me',
   'auth/forgot-password',
   'auth/reset-password',
+  'auth/2fa/enable', // Wave 7 — 2FA manage (admin), thay authClient.twoFactor.*
+  'auth/2fa/verify',
+  'auth/2fa/disable',
 ];
 
 const nextConfig = {

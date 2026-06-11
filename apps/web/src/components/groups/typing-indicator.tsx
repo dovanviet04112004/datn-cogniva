@@ -17,7 +17,7 @@
 import * as React from 'react';
 
 import { useRealtimeEvent } from '@/lib/realtime-client';
-import { useSession } from '@/lib/auth-client';
+import { useMe } from '@/lib/use-me';
 
 type TypingEvent = {
   userId: string;
@@ -27,8 +27,8 @@ type TypingEvent = {
 };
 
 export function TypingIndicator({ channelId }: { channelId: string }) {
-  const { data: session } = useSession();
-  const selfId = session?.user?.id ?? null;
+  const { data: me } = useMe();
+  const selfId = me?.id ?? null;
   const [typers, setTypers] = React.useState<Map<string, TypingEvent>>(new Map());
 
   useRealtimeEvent<TypingEvent>(

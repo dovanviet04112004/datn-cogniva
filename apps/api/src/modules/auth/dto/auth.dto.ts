@@ -20,16 +20,31 @@ export const signInSchema = z.object({
 export type SignInInput = z.infer<typeof signInSchema>;
 
 /** refreshToken optional — web gửi qua cookie `cg_rt`, mobile gửi qua body. */
-export const refreshSchema = z.object({
-  refreshToken: z.string().min(20).optional(),
-});
+// .default({}): web silent-refresh POST cookie-only không gửi body (express
+// không parse → undefined) — vẫn hợp lệ, token lấy từ cookie cg_rt.
+export const refreshSchema = z
+  .object({
+    refreshToken: z.string().min(20).optional(),
+  })
+  .default({});
 export type RefreshInput = z.infer<typeof refreshSchema>;
 
 export const twoFactorSchema = z.object({
   challengeToken: z.string().min(20),
-  code: z.string().regex(/^\d{6}$/, 'Mã 2FA gồm 6 chữ số'),
+  // 6 số TOTP hoặc backup code xxxxx-xxxxx (1 lần — thay verifyBackupCode BA).
+  code: z
+    .string()
+    .trim()
+    .regex(/^(\d{6}|[a-z0-9]{5}-[a-z0-9]{5})$/i, 'Mã 2FA gồm 6 chữ số hoặc backup code'),
 });
 export type TwoFactorInput = z.infer<typeof twoFactorSchema>;
+
+export const twoFactorPasswordSchema = z.object({
+  password: z.string().min(1),
+});
+export const twoFactorCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, 'Mã 2FA gồm 6 chữ số'),
+});
 
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),

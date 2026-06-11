@@ -1,24 +1,22 @@
 /**
  * Auth store — Zustand. Lưu user state in-memory + hydrate từ SecureStore.
  *
- * Token strategy (auth V2 — NestJS, xem docs/plans/nestjs-migration.md §3):
- *   1. Sign-in/sign-up gọi endpoint MỚI /api/auth/sign-in|sign-up (NestJS qua
- *      proxy cùng origin). Server dual-issue: response vẫn có header
- *      `set-auth-token` = session token ký HMAC (format `token.signature`)
- *      y hệt Better Auth → mobile lưu làm Bearer như cũ.
- *   2. Bearer này được CẢ 2 hệ chấp nhận: route Next cũ (Better Auth bearer
- *      plugin) lẫn route NestJS mới (nhánh legacy của AuthGuard) — mobile
- *      không phải đổi gì thêm trong suốt migration.
- *   3. Khi 270 route port xong (cuối GĐ1) mobile sẽ chuyển hẳn sang cặp
- *      accessToken/refreshToken JWT (đã có sẵn trong response body).
+ * Token strategy (JWT stack NestJS — xem docs/plans/nestjs-migration.md §3):
+ *   - Sign-in/sign-up trả CẶP token trong BODY: accessToken (JWT ES256, 15')
+ *     + refreshToken (opaque 30d, rotation) → lưu SecureStore.
+ *   - Mọi API gắn `Authorization: Bearer <accessToken>`; hết hạn thì
+ *     lib/api.ts tự refresh + retry (xem fetchWithRefresh).
+ *   - Header `set-auth-token` (session Better Auth cũ) KHÔNG dùng nữa —
+ *     backend sắp gỡ dual-accept, token BA sẽ bị 401.
  */
 import { create } from 'zustand';
 import type { UserDTO } from '@cogniva/shared';
 
-import { api } from '@/lib/api';
+import { api, setOnAuthLost } from '@/lib/api';
 import {
   clearAllAuthStorage,
-  tokenStorage,
+  refreshStorage,
+  saveTokenPair,
   userCache,
 } from '@/lib/storage';
 import { getCachedPushToken } from '@/lib/notifications';
@@ -62,18 +60,22 @@ async function postAuth(path: string, body: unknown): Promise<Response> {
   });
 }
 
-/** Xử lý response sign-in/sign-up: lưu token (header set-auth-token) + user. */
+/** Xử lý response sign-in/sign-up: lưu cặp JWT (từ BODY) + user cache. */
 async function captureAuth(res: Response): Promise<UserDTO> {
   const data = (await res.json()) as {
     user: UserDTO;
+    accessToken?: string;
+    refreshToken?: string;
     twoFactorRequired?: boolean;
   };
   if (data.twoFactorRequired) {
     // UI nhập TOTP trên mobile chưa có — user 2FA đăng nhập trên web trước.
     throw new Error('Tài khoản bật 2FA — vui lòng đăng nhập trên web.');
   }
-  const sessionToken = res.headers.get('set-auth-token');
-  if (sessionToken) await tokenStorage.set(sessionToken);
+  if (!data.accessToken || !data.refreshToken) {
+    throw new Error('Server không trả token — vui lòng thử lại.');
+  }
+  await saveTokenPair(data.accessToken, data.refreshToken);
   await userCache.set(data.user);
   return data.user;
 }
@@ -88,9 +90,10 @@ export const useAuth = create<AuthState>((set) => ({
     set({ hydrating: true });
     const cached = await userCache.get<UserDTO>();
     if (cached) {
-      // Re-validate qua API — token expired/invalid → null → bắt sign-in lại.
-      const result = await api.auth.session();
-      if (result.ok && result.data && result.data.user) {
+      // Re-validate qua /api/auth/me — accessToken hết hạn thì fetchWithRefresh
+      // tự refresh+retry; refresh cũng fail → signed-out, bắt sign-in lại.
+      const result = await api.auth.me();
+      if (result.ok && result.data?.user) {
         set({ user: result.data.user, hydrating: false });
         await userCache.set(result.data.user);
         return;
@@ -149,7 +152,9 @@ export const useAuth = create<AuthState>((set) => ({
       // Ignore — token stale sẽ được cron dọn khi Expo trả DeviceNotRegistered.
     }
     try {
-      await api.auth.signOut();
+      // Gửi refreshToken trong body để server revoke đúng phiên này.
+      const refreshToken = await refreshStorage.get();
+      await api.auth.signOut(refreshToken ?? undefined);
     } catch {
       // Ignore — vẫn clear local state dù API fail.
     }
@@ -157,3 +162,7 @@ export const useAuth = create<AuthState>((set) => ({
     set({ user: null, busy: false });
   },
 }));
+
+// Refresh token bị server từ chối giữa chừng (revoked/reuse-detected) →
+// lib/api.ts đã clear storage, đẩy UI về signed-out ngay không đợi hydrate.
+setOnAuthLost(() => useAuth.setState({ user: null }));

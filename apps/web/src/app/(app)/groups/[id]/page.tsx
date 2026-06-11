@@ -6,18 +6,17 @@
  * tới settings.
  */
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { and, asc, eq } from 'drizzle-orm';
 
 import { db, studyGroupChannel, studyGroupMember } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export default async function GroupRootPage({ params }: PageProps) {
   const { id } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}`)}`);
 
   // Layout đã verify membership; ở đây chỉ pick channel default.

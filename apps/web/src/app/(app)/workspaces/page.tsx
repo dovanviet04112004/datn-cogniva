@@ -14,20 +14,19 @@
  * client fetch cũ. CRUD interactions extract sang client component
  * `WorkspacesDashboardClient` qua callback router.refresh().
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { asc, count, desc, eq, sql } from 'drizzle-orm';
 
 import { db, document, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { WorkspacesDashboardClient } from '@/components/workspaces/workspaces-dashboard-client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function WorkspacesPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/workspaces');
   const userId = session.user.id;
 

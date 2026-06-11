@@ -12,13 +12,12 @@
  *
  * Phase C (atom-centric). Spec: docs/plans/atom-centric.md §5.1 (Atom detail).
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
 import { db, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getAtomView } from '@/lib/atoms/get-atom';
 import { PageShell } from '@/components/layout/page-shell';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
@@ -32,7 +31,7 @@ type Props = {
 };
 
 export default async function AtomDetailPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
 
   const { id: workspaceId, atomId } = await params;

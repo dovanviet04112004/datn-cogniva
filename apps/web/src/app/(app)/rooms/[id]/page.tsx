@@ -6,13 +6,12 @@
  * vào thẳng đây mà localStorage trống, RoomClient vẫn fetch token được
  * (default displayName = user.name từ session).
  */
-import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db, room } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { RoomClient } from '@/components/rooms/room-client';
 
 export const runtime = 'nodejs';
@@ -21,7 +20,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ id: string }> };
 
 export default async function RoomPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/rooms');
   const { id } = await params;
 

@@ -14,7 +14,6 @@
  * pagination cursor.
  */
 import { Suspense } from 'react';
-import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
@@ -22,7 +21,7 @@ import { ChevronRight, FileText } from 'lucide-react';
 
 import { db, document, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { EmptyState } from '@/components/layout/empty-state';
@@ -34,7 +33,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function DocumentsListPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
 
   const rows = await db

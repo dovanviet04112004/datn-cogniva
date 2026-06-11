@@ -10,51 +10,33 @@
 import { Injectable } from '@nestjs/common';
 import type { Request } from 'express';
 
-import { LegacySessionService } from './legacy-session.service';
 import { TokenService } from './token.service';
 import type { AuthUser } from './session.types';
 
-const LEGACY_COOKIES = ['__Secure-better-auth.session_token', 'better-auth.session_token'];
 const ACCESS_COOKIE = 'cg_at';
 
 @Injectable()
 export class OptionalAuthService {
-  constructor(
-    private readonly tokens: TokenService,
-    private readonly legacy: LegacySessionService,
-  ) {}
+  constructor(private readonly tokens: TokenService) {}
 
-  /** Trả AuthUser nếu request có token/session hợp lệ, ngược lại null (không throw). */
+  /** Trả AuthUser nếu request có JWT hợp lệ, ngược lại null (không throw). */
   async resolveUser(req: Request): Promise<AuthUser | null> {
     const cookies = parseCookies(req.headers.cookie);
     const bearer = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
 
-    // (a) JWT mới — 3 segment, verify cục bộ.
-    const jwtCandidate = bearer && bearer.split('.').length === 3 ? bearer : cookies[ACCESS_COOKIE];
-    if (jwtCandidate) {
-      const payload = await this.tokens.verifyAccessToken(jwtCandidate);
-      if (payload) {
-        return {
-          id: payload.sub,
-          email: payload.email,
-          name: payload.name,
-          image: payload.picture,
-          plan: payload.plan,
-          adminRole: payload.role,
-        };
-      }
-    }
+    const jwtCandidate = bearer ?? cookies[ACCESS_COOKIE];
+    if (!jwtCandidate) return null;
 
-    // (b) Legacy Better Auth: `<token>.<sig>` (2 phần) qua cookie hoặc Bearer.
-    const legacyValue =
-      LEGACY_COOKIES.map((n) => cookies[n]).find(Boolean) ??
-      (bearer && bearer.split('.').length === 2 ? bearer : undefined);
-    if (legacyValue) {
-      const ctx = await this.legacy.verify(legacyValue);
-      return ctx?.user ?? null;
-    }
-
-    return null;
+    const payload = await this.tokens.verifyAccessToken(jwtCandidate);
+    if (!payload) return null;
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      image: payload.picture,
+      plan: payload.plan,
+      adminRole: payload.role,
+    };
   }
 
   /** Tiện ích cho caller chỉ cần userId (annotations/endorse/atoms). */

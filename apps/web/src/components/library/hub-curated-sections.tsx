@@ -12,7 +12,6 @@
  * Ẩn khi user đang search (có active filter) — focus search UX không bị nhiễu.
  */
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { Sparkles, TrendingUp } from 'lucide-react';
 
@@ -24,7 +23,7 @@ import {
   user as userTable,
 } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 import { docCardColumns, toDocCardData } from '@/lib/library/doc-card-data';
 // SectionHeading dùng chung toàn app — thay khối tiêu đề mục gradient cũ.
@@ -66,7 +65,7 @@ export async function HubCuratedSections({
   if (hasActiveSearch) return null; // ẩn khi user đang search
 
   const t = await getServerT();
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   const userId = session?.user.id ?? null;
 
   // "Dành cho bạn" — content-based: gom môn từ lịch sử view + import của user,

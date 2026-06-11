@@ -39,7 +39,7 @@ async function bootstrap() {
     .setDescription('Backend NestJS — xem docs/plans/nestjs-migration.md')
     .setVersion('0.1')
     .addBearerAuth()
-    .addCookieAuth('better-auth.session_token')
+    .addCookieAuth('cg_at')
     .build();
   SwaggerModule.setup('api/docs', app, () =>
     SwaggerModule.createDocument(app, swaggerConfig),

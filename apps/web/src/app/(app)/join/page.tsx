@@ -12,11 +12,10 @@
  *   - Nếu chưa login: nhảy sang sign-in, sau login auto continue đến exam
  */
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { eq } from 'drizzle-orm';
 
 import { db, exam } from '@cogniva/db';
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 import { JoinForm } from './join-form';
 
@@ -30,7 +29,7 @@ export default async function JoinExamPage({ searchParams }: Props) {
   const { code } = await searchParams;
   const cleanedCode = code?.trim().toUpperCase();
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
 
   // Chưa login → redirect sign-in giữ lại code qua returnTo.
   // Route group `(auth)` không vào URL → path thực là `/sign-in`.

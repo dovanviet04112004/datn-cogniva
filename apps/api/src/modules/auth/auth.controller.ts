@@ -22,17 +22,19 @@ import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { LegacySessionService } from '../../common/auth/legacy-session.service';
 import { TokenService } from '../../common/auth/token.service';
 import type { AuthUser } from '../../common/auth/session.types';
 import { AuthService, type AuthTokens, type TwoFactorChallenge } from './auth.service';
 import { GoogleOauthService } from './google-oauth.service';
+import { TwoFactorManageService } from './two-factor-manage.service';
 import {
   forgotPasswordSchema,
   refreshSchema,
   resetPasswordSchema,
   signInSchema,
   signUpSchema,
+  twoFactorCodeSchema,
+  twoFactorPasswordSchema,
   twoFactorSchema,
   type ForgotPasswordInput,
   type RefreshInput,
@@ -47,8 +49,6 @@ const REFRESH_COOKIE = 'cg_rt';
 const OAUTH_STATE_COOKIE = 'cg_oauth';
 const ACCESS_MAX_AGE_MS = 15 * 60 * 1000;
 const PROD = () => process.env.NODE_ENV === 'production';
-const LEGACY_COOKIE = () =>
-  PROD() ? '__Secure-better-auth.session_token' : 'better-auth.session_token';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -57,7 +57,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly tokens: TokenService,
     private readonly google: GoogleOauthService,
-    private readonly legacySessions: LegacySessionService,
+    private readonly twoFactorManage: TwoFactorManageService,
   ) {}
 
   private setCookies(res: Response, t: AuthTokens) {
@@ -76,24 +76,11 @@ export class AuthController {
       path: '/api/auth',
       expires: t.refreshExpiresAt,
     });
-    if (t.legacyCookieValue) {
-      res.cookie(LEGACY_COOKIE(), t.legacyCookieValue, {
-        httpOnly: true,
-        secure,
-        sameSite: 'lax',
-        path: '/',
-        expires: t.legacyExpiresAt,
-      });
-      // Mobile (credentials: omit) đọc token qua header — đúng convention
-      // `set-auth-token` của Better Auth nên client mobile KHÔNG phải đổi code.
-      res.setHeader('set-auth-token', t.legacyCookieValue);
-    }
   }
 
   private clearCookies(res: Response) {
     res.clearCookie(ACCESS_COOKIE, { path: '/' });
     res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
-    res.clearCookie(LEGACY_COOKIE(), { path: '/' });
   }
 
   private readCookie(req: Request, name: string): string | undefined {
@@ -180,15 +167,7 @@ export class AuthController {
   ) {
     const raw = body.refreshToken ?? this.readCookie(req, REFRESH_COOKIE);
     const user = (req as Request & { user?: AuthUser }).user;
-    // Session BA đến từ cookie (web) HOẶC Bearer 2-phần (mobile) — revoke cả 2 đường.
-    const bearer = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
-    const legacyValue =
-      this.readCookie(req, LEGACY_COOKIE()) ??
-      (bearer && bearer.split('.').length === 2 ? bearer : undefined);
-    await Promise.all([
-      this.auth.signOut(raw, user?.id),
-      legacyValue ? this.legacySessions.revoke(legacyValue) : Promise.resolve(),
-    ]);
+    await this.auth.signOut(raw, user?.id);
     this.clearCookies(res);
     return { ok: true };
   }
@@ -196,6 +175,37 @@ export class AuthController {
   @Get('me')
   async me(@CurrentUser() user: AuthUser) {
     return { user: await this.auth.me(user.id) };
+  }
+
+  // ── 2FA enable/verify/disable — thay authClient.twoFactor.* (Better Auth) ──
+
+  @HttpCode(200)
+  @Post('2fa/enable')
+  async twoFactorEnable(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(twoFactorPasswordSchema)) body: { password: string },
+  ) {
+    return this.twoFactorManage.enable({ id: user.id, email: user.email }, body.password);
+  }
+
+  @HttpCode(200)
+  @Post('2fa/verify')
+  async twoFactorVerifyEnable(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(twoFactorCodeSchema)) body: { code: string },
+  ) {
+    await this.twoFactorManage.verifyEnable(user.id, body.code);
+    return { ok: true };
+  }
+
+  @HttpCode(200)
+  @Post('2fa/disable')
+  async twoFactorDisable(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(twoFactorPasswordSchema)) body: { password: string },
+  ) {
+    await this.twoFactorManage.disable(user.id, body.password);
+    return { ok: true };
   }
 
   /** Public keys (RFC 7517) — realtime/hocuspocus/gateway verify cục bộ. */

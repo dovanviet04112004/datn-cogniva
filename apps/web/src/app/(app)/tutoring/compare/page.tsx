@@ -5,10 +5,9 @@
  *
  * Spec: docs/plans/tutoring-v4.md §7.6.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { CompareClient } from '@/components/tutoring/compare/compare-client';
 
@@ -22,7 +21,7 @@ export default async function ComparePage({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutoring/compare');
 
   const sp = await searchParams;

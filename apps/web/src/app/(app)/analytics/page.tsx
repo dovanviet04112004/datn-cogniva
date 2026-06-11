@@ -8,12 +8,11 @@
  *
  * Phase 10 API đã giới hạn 30 ngày; UI render rỗng nếu user chưa chat.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { TrendingUp } from 'lucide-react';
 
 import { getUserAnalytics } from '@/lib/analytics/get-user-analytics';
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { Card } from '@/components/ui/card';
 // Tiêu đề mục dùng chung — thay khối eyebrow gạch + uppercase hardcode cũ.
 import { SectionHeading } from '@/components/ui/section-heading';
@@ -25,7 +24,7 @@ export const dynamic = 'force-dynamic';
 export default async function AnalyticsPage() {
   // Server Component: fetch aggregate thẳng DB qua lib dùng chung với route
   // /api/analytics (mobile vẫn gọi route) → HTML có data ngay, không skeleton.
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/analytics');
   const data = await getUserAnalytics(session.user.id);
 

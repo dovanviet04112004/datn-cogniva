@@ -48,7 +48,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { isAdminEmailClient } from '@/lib/admin/guard-client';
-import { useSession } from '@/lib/auth-client';
+import { useMe } from '@/lib/use-me';
 import { useT } from '@/lib/i18n/context';
 
 import { useAppSidebar } from './app-sidebar-context';
@@ -177,17 +177,17 @@ type SidebarBodyProps = {
 function SidebarBody({ expanded, onItemClick }: SidebarBodyProps) {
   const pathname = usePathname();
   const { collapsed, toggle } = useCollapseState();
-  const { data: session } = useSession();
+  const { data: me } = useMe();
   const t = useT();
 
-  // Mounted guard chống hydration mismatch: useSession() trả null lúc SSR nhưng
-  // có thể trả user (từ cache) ngay ở client render đầu → isAdmin lệch → số nav
-  // item (mỗi item bọc radix Tooltip dùng useId) khác nhau → lệch useId của MỌI
-  // radix sau đó (vd dropdown trong GroupShell) → cảnh báo hydrate. Giữ isAdmin
-  // = false ở render đầu (khớp SSR), sau mount mới lộ item admin (update client).
+  // Mounted guard chống hydration mismatch: useMe() trả null lúc SSR nhưng
+  // có thể trả user (từ cache persist) ngay ở client render đầu → isAdmin lệch
+  // → số nav item (mỗi item bọc radix Tooltip dùng useId) khác nhau → lệch
+  // useId của MỌI radix sau đó (vd dropdown trong GroupShell) → cảnh báo
+  // hydrate. Giữ isAdmin = false ở render đầu (khớp SSR), sau mount mới lộ.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
-  const isAdmin = mounted && isAdminEmailClient(session?.user?.email ?? null);
+  const isAdmin = mounted && isAdminEmailClient(me?.email ?? null);
 
   return (
     <>

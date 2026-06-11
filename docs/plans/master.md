@@ -1544,7 +1544,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] README với deploy guide (workers.dev free tier OK)
 
 **Shared types (`packages/shared/`):**
-- [x] `UserDTO` / `SessionDTO` / `DocumentDTO` / `FlashcardDTO` / `ReviewDTO` / `MasteryDTO` / `ChatMessageDTO` / `UsageDTO` / `ApiResult<T>` — plain DTO, KHÔNG re-export DB types
+- [x] `UserDTO` / `DocumentDTO` / `FlashcardDTO` / `ReviewDTO` / `MasteryDTO` / `ChatMessageDTO` / `UsageDTO` / `ApiResult<T>` — plain DTO, KHÔNG re-export DB types (`SessionDTO` đã xoá khi mobile chuyển JWT: /api/auth/me chỉ trả `{user}`)
 - [x] Zod schemas: `signUpSchema`, `signInSchema`, `documentMetaSchema`, `reviewRatingSchema`, `chatSendSchema`
 - [x] `createApiClient()` — fetch-based, getToken callback (cookie cho web, SecureStore cho mobile), retry/error envelope
 

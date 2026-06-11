@@ -6,18 +6,17 @@
  * chức năng, route này chỉ redirect về tab Tổng quan. Chưa có profile thì sang
  * /tutors/become.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db, tutorProfile } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 export const runtime = 'nodejs';
 
 export default async function TutorMePage() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutors/me');
 
   const [profile] = await db

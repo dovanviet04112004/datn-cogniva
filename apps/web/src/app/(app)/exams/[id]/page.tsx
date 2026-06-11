@@ -19,11 +19,10 @@
  * Không còn full-page builder; tránh trỏ lại trang cũ.
  */
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { and, eq } from 'drizzle-orm';
 
 import { db, exam, examAttempt } from '@cogniva/db';
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 
 export const runtime = 'nodejs';
 
@@ -34,7 +33,7 @@ type Props = {
 export default async function ExamRedirectPage({ params }: Props) {
   const { id } = await params;
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) {
     redirect(`/sign-in?redirect=${encodeURIComponent(`/exams/${id}`)}`);
   }

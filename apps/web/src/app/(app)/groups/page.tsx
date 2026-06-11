@@ -12,14 +12,13 @@
  * use case 99% (user vào group quen). Switch group qua sidebar trong
  * group detail.
  */
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
 import { Users } from 'lucide-react';
 
 import { db, studyGroup, studyGroupMember } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 // Hero band CHUNG — thay onboarding header tự-chế để đồng bộ ngôn ngữ hero toàn app.
 import { PageHero } from '@/components/layout/page-hero';
@@ -35,7 +34,7 @@ export default async function GroupsHubPage({
 }: {
   searchParams: Promise<{ invite?: string }>;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/groups');
 
   // Link mời `/groups?invite=CODE` → mở sẵn dialog vào group + điền code.

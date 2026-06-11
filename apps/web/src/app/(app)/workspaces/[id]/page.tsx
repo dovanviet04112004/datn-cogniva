@@ -10,13 +10,13 @@
  * Backward-compat: query string `?view=session|flashcard|quiz|...` deep
  * link vào recipe.
  */
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, count, desc, eq, sql } from 'drizzle-orm';
 
 import { chunk, db, document, workspace } from '@cogniva/db';
 
-import { auth } from '@/lib/auth';
+import { getServerSession } from '@/lib/auth-server';
 import { WorkspaceNotebook } from '@/components/workspaces/v5/workspace-notebook';
 
 /** Cookie persist trạng thái panel — đọc SSR tránh flicker (V6). */
@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ id: string }> };
 
 export default async function WorkspaceDetailPage({ params }: Props) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session) redirect('/sign-in');
 
   const { id } = await params;
