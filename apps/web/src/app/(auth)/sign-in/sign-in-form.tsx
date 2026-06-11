@@ -41,8 +41,9 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
   const [code, setCode] = useState('');
 
   useEffect(() => {
-    if (sessionStorage.getItem(SILENT_REFRESH_KEY)) return;
-    sessionStorage.setItem(SILENT_REFRESH_KEY, '1');
+    const lastTried = Number(sessionStorage.getItem(SILENT_REFRESH_KEY) ?? 0);
+    if (Date.now() - lastTried < 15_000) return;
+    sessionStorage.setItem(SILENT_REFRESH_KEY, String(Date.now()));
     void (async () => {
       try {
         const res = await fetch('/api/auth/refresh', { method: 'POST' });

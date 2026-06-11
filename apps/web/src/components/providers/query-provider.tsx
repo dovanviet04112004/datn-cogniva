@@ -7,8 +7,10 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 import { configureApi } from '@cogniva/shared/api';
 
+import { installGlobalFetchRefresh } from '@/lib/fetch-with-refresh';
 import { idbPersister } from '@/lib/query/idb-persister';
 
+installGlobalFetchRefresh();
 configureApi({ baseUrl: '', credentials: 'include' });
 
 const PERSIST_BUSTER = 'v2';
