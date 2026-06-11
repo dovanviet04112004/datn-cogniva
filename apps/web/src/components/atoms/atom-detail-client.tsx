@@ -1,21 +1,3 @@
-/**
- * AtomDetailClient — render full info 1 atom + load items async.
- *
- * Phase C (atom-centric). Spec: docs/plans/atom-centric.md §5.1.
- *
- * Layout:
- *   ┌──────────────────────────────────────────────────────┐
- *   │ Header: name + domain + mastery chip + actions       │
- *   ├──────────────────────────────────────────────────────┤
- *   │ Definition + examples + preview Q/A                  │
- *   ├──────────────────────────────────────────────────────┤
- *   │ Mastery card                                          │
- *   ├──────────────────────────────────────────────────────┤
- *   │ Flashcards section (load async)                      │
- *   │ Quiz questions section                               │
- *   │ Exam questions section                               │
- *   └──────────────────────────────────────────────────────┘
- */
 'use client';
 
 import * as React from 'react';
@@ -106,9 +88,6 @@ type Props = {
   atom: Atom;
 };
 
-// Icons không nên pass từ Server Component (LucideIcon là React component
-// object có method `render`, KHÔNG serializable qua RSC boundary). Import
-// trực tiếp trong client component.
 const ICONS: {
   flashcards: LucideIcon;
   quizzes: LucideIcon;
@@ -122,9 +101,6 @@ const ICONS: {
 };
 
 export function AtomDetailClient({ workspaceId, atom }: Props) {
-  // V6: bỏ AI Tutor drawer global. User muốn hỏi AI về atom → bấm
-  // "Mở trong workspace" → chat ở center, atom có thể pin qua Sources checkbox.
-  // React Query: cache theo (atom, workspace); lỗi → coi như rỗng (giữ UX cũ).
   const { data: items, isLoading: loading } = useQuery({
     queryKey: qk.atomItems(atom.id, workspaceId),
     queryFn: () =>
@@ -142,30 +118,25 @@ export function AtomDetailClient({ workspaceId, atom }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* ── Header card ───────────────────────────────────── */}
       <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2">
-              <AtomIcon className="h-4 w-4 text-primary" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+              <AtomIcon className="text-primary h-4 w-4" />
+              <span className="text-primary text-[11px] font-semibold uppercase tracking-[0.16em]">
                 Atom · {atom.domain}
               </span>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">{atom.name}</h1>
             {atom.description && (
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {atom.description}
-              </p>
+              <p className="text-muted-foreground text-sm leading-relaxed">{atom.description}</p>
             )}
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {/* V6: "Mở trong workspace" là entry point chính để chat / học —
-                AI Tutor drawer riêng đã bỏ. */}
             <Link
               href={`/workspaces/${workspaceId}?view=chat`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium shadow-sm transition-colors"
               title="Quay về workspace notebook (Sources · Chat · Studio)"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -186,9 +157,9 @@ export function AtomDetailClient({ workspaceId, atom }: Props) {
               )}
             </div>
             {atom.difficulty !== null && (
-              <div className="rounded-lg border border-divider bg-card px-3 py-2 text-center text-[10.5px] text-muted-foreground">
+              <div className="border-divider bg-card text-muted-foreground rounded-lg border px-3 py-2 text-center text-[10.5px]">
                 <div className="uppercase tracking-wider">Khó</div>
-                <div className="mt-0.5 font-mono text-base text-foreground">
+                <div className="text-foreground mt-0.5 font-mono text-base">
                   {(atom.difficulty * 100).toFixed(0)}%
                 </div>
               </div>
@@ -196,15 +167,14 @@ export function AtomDetailClient({ workspaceId, atom }: Props) {
           </div>
         </div>
 
-        {/* Examples */}
         {atom.examples.length > 0 && (
           <div className="mt-4 border-t pt-4">
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-foreground/80">
+            <h3 className="text-foreground/80 mb-2 text-[11px] font-semibold uppercase tracking-wider">
               Ví dụ
             </h3>
             <ul className="space-y-1 text-sm">
               {atom.examples.map((ex, i) => (
-                <li key={i} className="flex gap-2 text-muted-foreground">
+                <li key={i} className="text-muted-foreground flex gap-2">
                   <span className="text-primary">·</span>
                   <span>{ex}</span>
                 </li>
@@ -213,39 +183,33 @@ export function AtomDetailClient({ workspaceId, atom }: Props) {
           </div>
         )}
 
-        {/* Preview Q/A */}
         {atom.previewQuestion && (
           <div className="mt-4 border-t pt-4">
-            <h3 className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/80">
-              <Sparkles className="h-3 w-3 text-primary" />
+            <h3 className="text-foreground/80 mb-2 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
+              <Sparkles className="text-primary h-3 w-3" />
               Tự hỏi
             </h3>
-            <div className="rounded-lg border bg-muted/30 p-3">
+            <div className="bg-muted/30 rounded-lg border p-3">
               <p className="text-sm font-medium">{atom.previewQuestion}</p>
               {atom.previewAnswer && (
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  → {atom.previewAnswer}
-                </p>
+                <p className="text-muted-foreground mt-1.5 text-sm">→ {atom.previewAnswer}</p>
               )}
             </div>
           </div>
         )}
       </Card>
 
-      {/* ── Mastery card (chỉ show nếu đã có mastery) ───── */}
       {mastery && (
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
-              <Target className="h-3.5 w-3.5 text-primary" />
+              <Target className="text-primary h-3.5 w-3.5" />
               Tiến độ học atom
             </h2>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-muted-foreground text-[11px]">
               {mastery.attempts} lần ·{' '}
-              {mastery.attempts > 0
-                ? Math.round((mastery.correct / mastery.attempts) * 100)
-                : 0}
-              % chính xác
+              {mastery.attempts > 0 ? Math.round((mastery.correct / mastery.attempts) * 100) : 0}%
+              chính xác
             </span>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -268,10 +232,9 @@ export function AtomDetailClient({ workspaceId, atom }: Props) {
         </Card>
       )}
 
-      {/* ── Items: flashcards + quiz + exam ───────────────── */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
         </div>
       ) : items ? (
         <>
@@ -323,14 +286,14 @@ function MasteryTimestamp({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-divider bg-card p-3">
-      <div className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="border-divider bg-card rounded-lg border p-3">
+      <div className="text-muted-foreground inline-flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider">
         {icon}
         {label}
       </div>
       <div className="mt-1 text-xs">
         {ts ? (
-          <span className="inline-flex items-center gap-1 text-foreground">
+          <span className="text-foreground inline-flex items-center gap-1">
             <Clock className="h-3 w-3 opacity-60" />
             {formatRelative(ts)}
           </span>
@@ -355,20 +318,18 @@ function formatRelative(ts: string): string {
   return d.toLocaleDateString('vi-VN');
 }
 
-function SectionFlashcards({
-  items,
-  icon: Icon,
-}: {
-  items: FlashcardItem[];
-  icon: LucideIcon;
-}) {
+function SectionFlashcards({ items, icon: Icon }: { items: FlashcardItem[]; icon: LucideIcon }) {
   if (items.length === 0) return null;
   return (
     <section>
-      <SectionHeading label="Flashcards" count={items.length} icon={<Icon className="h-3.5 w-3.5" />}>
+      <SectionHeading
+        label="Flashcards"
+        count={items.length}
+        icon={<Icon className="h-3.5 w-3.5" />}
+      >
         <Link
           href="/flashcards/review"
-          className="inline-flex h-7 items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+          className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-[11px] font-medium"
         >
           <Play className="h-3 w-3" />
           Ôn ngay
@@ -378,18 +339,18 @@ function SectionFlashcards({
         {items.map((c) => (
           <li
             key={c.id}
-            className="flex items-start gap-3 rounded-lg border border-divider bg-card p-3 text-sm"
+            className="border-divider bg-card flex items-start gap-3 rounded-lg border p-3 text-sm"
           >
-            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
               {c.cardType}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{c.front}</p>
-              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
                 {c.back || '(cloze auto)'}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
               {c.state}
             </span>
           </li>
@@ -407,7 +368,6 @@ function SectionQuizQuestions({
   icon: LucideIcon;
 }) {
   if (items.length === 0) return null;
-  // Group by quiz
   const byQuiz = new Map<
     string,
     { title: string; createdAt: string; questions: QuizQuestionItem[] }
@@ -436,17 +396,17 @@ function SectionQuizQuestions({
         {Array.from(byQuiz.entries()).map(([quizId, info]) => (
           <li
             key={quizId}
-            className="flex items-center gap-3 rounded-lg border border-divider bg-card p-3 text-sm"
+            className="border-divider bg-card flex items-center gap-3 rounded-lg border p-3 text-sm"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{info.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-0.5 text-xs">
                 {info.questions.length} câu · {new Date(info.createdAt).toLocaleDateString('vi-VN')}
               </p>
             </div>
             <Link
               href={`/quiz/${quizId}/attempt`}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+              className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-[11px] font-medium"
             >
               <Play className="h-3 w-3" />
               Làm
@@ -466,10 +426,7 @@ function SectionExamQuestions({
   icon: LucideIcon;
 }) {
   if (items.length === 0) return null;
-  const byExam = new Map<
-    string,
-    { title: string; questions: ExamQuestionItem[] }
-  >();
+  const byExam = new Map<string, { title: string; questions: ExamQuestionItem[] }>();
   for (const q of items) {
     const existing = byExam.get(q.examId);
     if (existing) existing.questions.push(q);
@@ -487,17 +444,15 @@ function SectionExamQuestions({
         {Array.from(byExam.entries()).map(([examId, info]) => (
           <li
             key={examId}
-            className="flex items-center gap-3 rounded-lg border border-divider bg-card p-3 text-sm"
+            className="border-divider bg-card flex items-center gap-3 rounded-lg border p-3 text-sm"
           >
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{info.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {info.questions.length} câu
-              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{info.questions.length} câu</p>
             </div>
             <Link
               href={`/exams/${examId}`}
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-divider bg-card px-2.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary"
+              className="border-divider bg-card text-muted-foreground hover:border-primary/30 hover:text-primary inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-[11px]"
             >
               Xem exam
             </Link>
@@ -524,9 +479,7 @@ function SectionHeading({
       <h2 className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight">
         {icon}
         {label}
-        <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
-          {count}
-        </span>
+        <span className="text-muted-foreground/70 font-mono text-xs tabular-nums">{count}</span>
       </h2>
       {children}
     </div>

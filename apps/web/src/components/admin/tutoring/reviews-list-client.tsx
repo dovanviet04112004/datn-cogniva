@@ -1,26 +1,9 @@
-/**
- * ReviewsListClient — list tutor reviews + hide/restore.
- *
- * UX:
- *   - Toggle visibility (visible/hidden/all)
- *   - Filter rating 1-5
- *   - Search comment + email
- *   - Card per review với inline hide/restore button
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Eye,
-  EyeOff,
-  Flag,
-  Loader2,
-  Search,
-  Star,
-  X,
-} from 'lucide-react';
+import { Eye, EyeOff, Flag, Loader2, Search, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
@@ -62,9 +45,9 @@ export function ReviewsListClient({ adminRole }: { adminRole: AdminRole }) {
   const [q, setQ] = React.useState('');
   const [debouncedQ, setDebouncedQ] = React.useState('');
 
-  const [active, setActive] = React.useState<
-    { type: 'hide' | 'restore'; review: Review } | null
-  >(null);
+  const [active, setActive] = React.useState<{ type: 'hide' | 'restore'; review: Review } | null>(
+    null,
+  );
   const [actionLoading, setActionLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -91,21 +74,14 @@ export function ReviewsListClient({ adminRole }: { adminRole: AdminRole }) {
     fetchNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: qk.adminTutoringReviews(
-      JSON.stringify({ visibility, rating, q: debouncedQ }),
-    ),
+    queryKey: qk.adminTutoringReviews(JSON.stringify({ visibility, rating, q: debouncedQ })),
     queryFn: ({ pageParam }) =>
-      apiGet<Page>(
-        `/api/admin/tutoring/reviews?${buildQuery(pageParam ?? undefined)}`,
-      ),
+      apiGet<Page>(`/api/admin/tutoring/reviews?${buildQuery(pageParam ?? undefined)}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const reviews = React.useMemo(
-    () => data?.pages.flatMap((p) => p.reviews) ?? [],
-    [data],
-  );
+  const reviews = React.useMemo(() => data?.pages.flatMap((p) => p.reviews) ?? [], [data]);
   const hiddenCount = data?.pages[0]?.hiddenCount ?? 0;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -149,12 +125,11 @@ export function ReviewsListClient({ adminRole }: { adminRole: AdminRole }) {
           )}
         </div>
         <p className="text-sm text-slate-400">
-          Reviews từ student đánh giá tutor. Hide review vi phạm — vẫn lưu DB để
-          forensic + có thể restore.
+          Reviews từ student đánh giá tutor. Hide review vi phạm — vẫn lưu DB để forensic + có thể
+          restore.
         </p>
       </header>
 
-      {/* Visibility tabs */}
       <div className="flex flex-wrap items-center gap-1.5">
         {(['visible', 'hidden', 'all'] as Visibility[]).map((v) => (
           <button
@@ -267,8 +242,8 @@ export function ReviewsListClient({ adminRole }: { adminRole: AdminRole }) {
             </span>
           ) : (
             <span>
-              Review sẽ hiện lại trên tutor profile bình thường. KHÔNG notify
-              reviewer (admin restore là quyết định nội bộ).
+              Review sẽ hiện lại trên tutor profile bình thường. KHÔNG notify reviewer (admin
+              restore là quyết định nội bộ).
             </span>
           )
         }
@@ -293,9 +268,7 @@ function ReviewCard({
   onRestore: () => void;
 }) {
   const hidden = !!r.hiddenAt;
-  const reviewerInitial = (
-    r.reviewerName?.[0] ?? r.reviewerEmail?.[0] ?? '?'
-  ).toUpperCase();
+  const reviewerInitial = (r.reviewerName?.[0] ?? r.reviewerEmail?.[0] ?? '?').toUpperCase();
 
   return (
     <article
@@ -348,9 +321,7 @@ function ReviewCard({
                 key={i}
                 className={cn(
                   'h-3 w-3',
-                  i < r.rating
-                    ? 'fill-amber-400 text-amber-400'
-                    : 'fill-slate-700 text-slate-700',
+                  i < r.rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-700 text-slate-700',
                 )}
               />
             ))}

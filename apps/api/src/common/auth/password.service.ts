@@ -1,12 +1,3 @@
-/**
- * PasswordService — hash/verify TƯƠNG THÍCH 2 CHIỀU với Better Auth
- * (@better-auth/utils/password, đã đọc source v1.6.10): scrypt N=16384 r=16
- * p=1 dkLen=64, password NFKC, format `saltHex:keyHex`.
- *
- * Vì sao không argon2: trong cửa sổ dual-stack, account tạo từ flow MỚI vẫn
- * phải đăng nhập được qua Better Auth cũ (và ngược lại) → cùng format là bắt
- * buộc. Đổi thuật toán (nếu muốn) chỉ làm SAU khi gỡ Better Auth.
- */
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';

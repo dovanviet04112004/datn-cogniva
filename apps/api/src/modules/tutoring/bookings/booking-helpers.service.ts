@@ -1,15 +1,3 @@
-/**
- * BookingHelpersService — port từ apps/web/src/lib/tutoring/booking-helpers.ts:
- * slot validate + study group auto-create + cached counter tutor_profile.
- *
- * Bẫy giữ NGUYÊN khi port:
- *  - isSlotInAvailability dùng Date#getDay/getHours theo TZ LOCAL của server
- *    (so với cột text HH:MM weekly) — đổi TZ semantics là lệch lịch rảnh.
- *  - hasConflictBooking overlap bằng lte/gte INCLUSIVE — slot chạm mép vẫn
- *    tính conflict (y bản cũ).
- *  - refreshTutorStats CHỈ đếm review hidden_at IS NULL (khác bản cron
- *    tutoring-auto-complete cố ý không filter).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -19,14 +7,10 @@ import { generateInviteCode } from '../../groups/group-code';
 
 export type CancelPolicy = {
   allowed: boolean;
-  /** Phí phạt VND nếu huỷ — V2 chỉ flag, chưa charge thực. */
   penaltyVnd: number;
   reason: string;
 };
 
-/**
- * Plan §8.1: huỷ trước 24h free. Huỷ trong 24h → flag charge 10% (V2 stub).
- */
 export function evaluateCancelPolicy(
   startAt: Date,
   rateVnd: number,
@@ -56,13 +40,8 @@ export type AutoGroupResult = {
 export class BookingHelpersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Kiểm tra time slot có khớp với 1 availability weekly của tutor không.
-   * VD: tutor available Mon 19:00-21:00, slot Mon 19:30-20:30 → OK.
-   * Slot phải nằm hoàn toàn trong 1 availability window cùng ngày trong tuần.
-   */
   async isSlotInAvailability(tutorId: string, startAt: Date, endAt: Date): Promise<boolean> {
-    const day = startAt.getDay(); // 0..6
+    const day = startAt.getDay();
     const slots = await this.prisma.tutor_availability.findMany({
       where: { tutor_id: tutorId, day_of_week: day },
       select: { start_time: true, end_time: true },
@@ -81,11 +60,6 @@ export class BookingHelpersService {
     return slots.some((s) => s.start_time <= start && s.end_time >= end);
   }
 
-  /**
-   * Kiểm tra tutor có bị double-book không — booking khác overlap với
-   * [startAt, endAt] và status còn active (PENDING_TUTOR/CONFIRMED/IN_PROGRESS).
-   * Pass `excludeBookingId` nếu update 1 booking sẵn — không tự conflict.
-   */
   async hasConflictBooking(
     tutorId: string,
     startAt: Date,
@@ -96,7 +70,6 @@ export class BookingHelpersService {
       where: {
         tutor_id: tutorId,
         status: { in: ['PENDING_TUTOR', 'CONFIRMED', 'IN_PROGRESS'] },
-        // Overlap: existing.startAt <= new.endAt AND existing.endAt >= new.startAt
         start_at: { lte: endAt },
         end_at: { gte: startAt },
         ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
@@ -106,13 +79,6 @@ export class BookingHelpersService {
     return Boolean(conflict);
   }
 
-  /**
-   * Tạo study group cho cặp tutor + student trong transaction confirm. 3 channel:
-   * TEXT #chung / VOICE #phòng-học (livekitRoomName='tutoring:{bookingId}') /
-   * FORUM #q-a. Members: tutor=OWNER, student=MEMBER, isPublic=false.
-   *
-   * Plan §7.2: group KHÔNG xoá khi booking COMPLETED — student lưu transcript.
-   */
   async autoCreateBookingGroup(
     tx: Prisma.TransactionClient,
     params: {
@@ -134,7 +100,7 @@ export class BookingHelpersService {
         owner_user_id: params.tutorUserId,
         invite_code: legacyCode,
         is_public: false,
-        max_members: 5, // tutor + student + buffer
+        max_members: 5,
       },
     });
 
@@ -145,7 +111,6 @@ export class BookingHelpersService {
       ],
     });
 
-    // createMany không returning — sinh id app-side để trả về cho booking flow.
     const textChannelId = randomUUID();
     const voiceChannelId = randomUUID();
     await tx.study_group_channel.createMany({
@@ -193,11 +158,6 @@ export class BookingHelpersService {
     return { groupId, textChannelId, voiceChannelId };
   }
 
-  /**
-   * Recompute rating_avg + rating_count + sessions_completed sau khi insert
-   * review / complete booking. Subquery tương quan → giữ raw UPDATE (Prisma
-   * client không express được); updated_at lấy app time như bản cũ.
-   */
   async refreshTutorStats(tutorId: string): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       UPDATE tutor_profile SET

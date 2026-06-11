@@ -26,6 +26,7 @@ Cogniva Study Group  ←≡ Discord Server
 ```
 
 **Use case mẫu (lớp KTPM-K15):**
+
 - Group "KTPM-K15" — 30 members
   - `#chung` (TEXT) — chat tổng cho tất cả
   - `#thông-báo` (TEXT, mod-only post) — announcement từ lớp trưởng
@@ -62,13 +63,15 @@ export const channelTypeEnum = pgEnum('channel_type', ['TEXT', 'VOICE', 'ANNOUNC
 export const studyGroupChannel = pgTable(
   'study_group_channel',
   {
-    id: text('id').primaryKey().$defaultFn(() => createId()),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
     groupId: text('group_id')
       .notNull()
       .references(() => studyGroup.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),                 // 'chung', 'toán-cao-cấp'
+    name: text('name').notNull(), // 'chung', 'toán-cao-cấp'
     type: channelTypeEnum('type').notNull(),
-    topic: text('topic'),                          // mô tả ngắn dưới header
+    topic: text('topic'), // mô tả ngắn dưới header
     /** Order trong sidebar — nhỏ nhất trên cùng. Drag-drop reorder update. */
     position: integer('position').notNull().default(0),
     /** Private channel: chỉ user có override-permission mới thấy. V2. */
@@ -97,7 +100,9 @@ export const studyGroupChannel = pgTable(
 export const studyGroupMessage = pgTable(
   'study_group_message',
   {
-    id: text('id').primaryKey().$defaultFn(() => createId()),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
     channelId: text('channel_id')
       .notNull()
       .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
@@ -110,13 +115,15 @@ export const studyGroupMessage = pgTable(
     /** Reply to một message khác — render thread chip. */
     replyToId: text('reply_to_id'),
     /** [{ type: 'image'|'file', url, name, size, mime }] — V2 upload R2. */
-    attachments: jsonb('attachments').$type<Array<{
-      type: 'image' | 'file' | 'audio';
-      url: string;
-      name: string;
-      size: number;
-      mime: string;
-    }>>(),
+    attachments: jsonb('attachments').$type<
+      Array<{
+        type: 'image' | 'file' | 'audio';
+        url: string;
+        name: string;
+        size: number;
+        mime: string;
+      }>
+    >(),
     /** { '👍': ['userId1','userId2'], '❤️': ['userId3'] } — aggregate count + who reacted. */
     reactions: jsonb('reactions').$type<Record<string, string[]>>(),
     /** Pin lên top channel — V2. */
@@ -124,14 +131,11 @@ export const studyGroupMessage = pgTable(
     /** Mentions cho notification — [{ type: 'user'|'channel'|'everyone', id }]. */
     mentions: jsonb('mentions').$type<Array<{ type: string; id: string }>>(),
     editedAt: timestamp('edited_at'),
-    deletedAt: timestamp('deleted_at'),  // soft delete để giữ thread context
+    deletedAt: timestamp('deleted_at'), // soft delete để giữ thread context
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => ({
-    channelTimeIdx: index('study_group_message_channel_time_idx').on(
-      t.channelId,
-      t.createdAt,
-    ),
+    channelTimeIdx: index('study_group_message_channel_time_idx').on(t.channelId, t.createdAt),
     authorIdx: index('study_group_message_author_idx').on(t.authorId),
   }),
 );
@@ -147,6 +151,7 @@ ALTER TABLE study_group_member
 ```
 
 Mở rộng `groupRoleEnum`:
+
 ```sql
 -- Cũ: OWNER, MEMBER
 -- Mới: OWNER, ADMIN, MODERATOR, MEMBER
@@ -184,23 +189,22 @@ export const studyGroupReadState = pgTable(
 > Thay thế `studyGroup.inviteCode` (single code) bằng multi-invite với expiry + use limit.
 
 ```typescript
-export const studyGroupInvite = pgTable(
-  'study_group_invite',
-  {
-    id: text('id').primaryKey().$defaultFn(() => createId()),
-    groupId: text('group_id')
-      .notNull()
-      .references(() => studyGroup.id, { onDelete: 'cascade' }),
-    code: text('code').notNull().unique(),        // 8-char base32, share-friendly
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    maxUses: integer('max_uses'),                  // NULL = unlimited
-    usesCount: integer('uses_count').notNull().default(0),
-    expiresAt: timestamp('expires_at'),            // NULL = never
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-);
+export const studyGroupInvite = pgTable('study_group_invite', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  groupId: text('group_id')
+    .notNull()
+    .references(() => studyGroup.id, { onDelete: 'cascade' }),
+  code: text('code').notNull().unique(), // 8-char base32, share-friendly
+  createdBy: text('created_by')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  maxUses: integer('max_uses'), // NULL = unlimited
+  usesCount: integer('uses_count').notNull().default(0),
+  expiresAt: timestamp('expires_at'), // NULL = never
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
 ```
 
 ### 1.7. Bảng mới `study_group_voice_state` (in-memory mirror)
@@ -228,7 +232,7 @@ export const studyGroupVoiceState = pgTable(
     screenShare: boolean('screen_share').notNull().default(false),
   },
   (t) => ({
-    pk: primaryKey({ columns: [t.userId] }),  // 1 user chỉ trong 1 voice channel
+    pk: primaryKey({ columns: [t.userId] }), // 1 user chỉ trong 1 voice channel
     channelIdx: index('study_group_voice_state_channel_idx').on(t.channelId),
   }),
 );
@@ -240,62 +244,62 @@ export const studyGroupVoiceState = pgTable(
 
 ### 2.1. Group CRUD
 
-| Endpoint | Mô tả |
-|---|---|
-| `GET /api/groups` | List group user đã join (owned + member) |
-| `POST /api/groups` | Tạo group mới — auto create `#chung` TEXT channel + invite code |
-| `GET /api/groups/[id]` | Detail group + channels list + members list |
-| `PUT /api/groups/[id]` | Update name/description/iconUrl (owner/admin) |
-| `DELETE /api/groups/[id]` | Xoá group (owner only) — cascade kênh + message |
+| Endpoint                  | Mô tả                                                           |
+| ------------------------- | --------------------------------------------------------------- |
+| `GET /api/groups`         | List group user đã join (owned + member)                        |
+| `POST /api/groups`        | Tạo group mới — auto create `#chung` TEXT channel + invite code |
+| `GET /api/groups/[id]`    | Detail group + channels list + members list                     |
+| `PUT /api/groups/[id]`    | Update name/description/iconUrl (owner/admin)                   |
+| `DELETE /api/groups/[id]` | Xoá group (owner only) — cascade kênh + message                 |
 
 ### 2.2. Member management
 
-| Endpoint | Mô tả |
-|---|---|
-| `POST /api/groups/join` | Body `{ code }` → resolve invite → add member |
-| `GET /api/groups/[id]/members` | List members + role + online status |
-| `PUT /api/groups/[id]/members/[userId]` | Update role / nickname (admin) |
-| `DELETE /api/groups/[id]/members/[userId]` | Kick (admin) hoặc leave (self) |
-| `POST /api/groups/[id]/members/[userId]/mute` | Body `{ duration: 3600 }` → temporary mute |
-| `POST /api/groups/[id]/members/[userId]/ban` | Permanent ban — block re-invite |
+| Endpoint                                      | Mô tả                                         |
+| --------------------------------------------- | --------------------------------------------- |
+| `POST /api/groups/join`                       | Body `{ code }` → resolve invite → add member |
+| `GET /api/groups/[id]/members`                | List members + role + online status           |
+| `PUT /api/groups/[id]/members/[userId]`       | Update role / nickname (admin)                |
+| `DELETE /api/groups/[id]/members/[userId]`    | Kick (admin) hoặc leave (self)                |
+| `POST /api/groups/[id]/members/[userId]/mute` | Body `{ duration: 3600 }` → temporary mute    |
+| `POST /api/groups/[id]/members/[userId]/ban`  | Permanent ban — block re-invite               |
 
 ### 2.3. Invite codes
 
-| Endpoint | Mô tả |
-|---|---|
-| `GET /api/groups/[id]/invites` | List active invites (mod) |
-| `POST /api/groups/[id]/invites` | Body `{ maxUses?, expiresInSec? }` → tạo invite mới |
-| `DELETE /api/groups/[id]/invites/[code]` | Revoke invite |
+| Endpoint                                 | Mô tả                                               |
+| ---------------------------------------- | --------------------------------------------------- |
+| `GET /api/groups/[id]/invites`           | List active invites (mod)                           |
+| `POST /api/groups/[id]/invites`          | Body `{ maxUses?, expiresInSec? }` → tạo invite mới |
+| `DELETE /api/groups/[id]/invites/[code]` | Revoke invite                                       |
 
 ### 2.4. Channels
 
-| Endpoint | Mô tả |
-|---|---|
-| `GET /api/groups/[id]/channels` | List channels của group (sorted by position) |
-| `POST /api/groups/[id]/channels` | Body `{ name, type, topic? }` → tạo channel. Mod+ only |
-| `PUT /api/groups/[id]/channels/[channelId]` | Update name/topic/position |
-| `DELETE /api/groups/[id]/channels/[channelId]` | Xoá channel (cascade messages) |
-| `POST /api/groups/[id]/channels/reorder` | Body `{ orders: [{id, position}] }` — drag-drop |
+| Endpoint                                       | Mô tả                                                  |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| `GET /api/groups/[id]/channels`                | List channels của group (sorted by position)           |
+| `POST /api/groups/[id]/channels`               | Body `{ name, type, topic? }` → tạo channel. Mod+ only |
+| `PUT /api/groups/[id]/channels/[channelId]`    | Update name/topic/position                             |
+| `DELETE /api/groups/[id]/channels/[channelId]` | Xoá channel (cascade messages)                         |
+| `POST /api/groups/[id]/channels/reorder`       | Body `{ orders: [{id, position}] }` — drag-drop        |
 
 ### 2.5. Messages (TEXT channel)
 
-| Endpoint | Mô tả |
-|---|---|
-| `GET /api/channels/[id]/messages?before=X&limit=50` | Pagination cursor-based |
-| `POST /api/channels/[id]/messages` | Body `{ content, replyToId?, attachments?, mentions? }` |
-| `PUT /api/channels/[id]/messages/[msgId]` | Edit own message |
-| `DELETE /api/channels/[id]/messages/[msgId]` | Soft delete (mod có thể delete bất kỳ) |
-| `POST /api/channels/[id]/messages/[msgId]/react` | Body `{ emoji }` toggle reaction |
-| `POST /api/channels/[id]/read` | Body `{ lastMessageId }` → update read state |
+| Endpoint                                            | Mô tả                                                   |
+| --------------------------------------------------- | ------------------------------------------------------- |
+| `GET /api/channels/[id]/messages?before=X&limit=50` | Pagination cursor-based                                 |
+| `POST /api/channels/[id]/messages`                  | Body `{ content, replyToId?, attachments?, mentions? }` |
+| `PUT /api/channels/[id]/messages/[msgId]`           | Edit own message                                        |
+| `DELETE /api/channels/[id]/messages/[msgId]`        | Soft delete (mod có thể delete bất kỳ)                  |
+| `POST /api/channels/[id]/messages/[msgId]/react`    | Body `{ emoji }` toggle reaction                        |
+| `POST /api/channels/[id]/read`                      | Body `{ lastMessageId }` → update read state            |
 
 ### 2.6. Voice (VOICE channel)
 
-| Endpoint | Mô tả |
-|---|---|
-| `POST /api/channels/[id]/voice/token` | Trả LiveKit JWT cho user join channel |
-| `POST /api/channels/[id]/voice/leave` | Manually leave + clear voice state |
-| `GET /api/channels/[id]/voice/participants` | List user đang trong voice channel |
-| `POST /api/webhooks/livekit-group` | LiveKit webhook → update `study_group_voice_state` |
+| Endpoint                                    | Mô tả                                              |
+| ------------------------------------------- | -------------------------------------------------- |
+| `POST /api/channels/[id]/voice/token`       | Trả LiveKit JWT cho user join channel              |
+| `POST /api/channels/[id]/voice/leave`       | Manually leave + clear voice state                 |
+| `GET /api/channels/[id]/voice/participants` | List user đang trong voice channel                 |
+| `POST /api/webhooks/livekit-group`          | LiveKit webhook → update `study_group_voice_state` |
 
 ### 2.7. Realtime auth extension
 
@@ -311,21 +315,21 @@ Extend `/api/realtime/auth` để authorize 3 channel mới:
 
 ### 3.1. Events qua Socket.IO (gateway `apps/realtime`)
 
-| Channel | Event | Payload | Khi nào fire |
-|---|---|---|---|
-| `private-channel-{channelId}` | `message:new` | `{ id, content, authorId, createdAt, ... }` | POST /messages |
-| `private-channel-{channelId}` | `message:edit` | `{ id, content, editedAt }` | PUT /messages/[id] |
-| `private-channel-{channelId}` | `message:delete` | `{ id }` | DELETE /messages/[id] |
-| `private-channel-{channelId}` | `message:react` | `{ id, reactions }` | POST /react |
-| `private-channel-{channelId}` | `typing` | `{ userId, userName }` | Client emit khi gõ |
-| `presence-group-{groupId}` | `member:join` | `{ userId, userName }` | POST /join thành công |
-| `presence-group-{groupId}` | `member:leave` | `{ userId }` | DELETE /members |
-| `presence-group-{groupId}` | `member:role-change` | `{ userId, role }` | PUT role |
-| `presence-group-{groupId}` | `channel:created` | `{ channel }` | POST /channels |
-| `presence-group-{groupId}` | `channel:deleted` | `{ channelId }` | DELETE /channels |
-| `presence-voice-{channelId}` | `voice:join` | `{ userId, userName }` | LiveKit webhook participant_joined |
-| `presence-voice-{channelId}` | `voice:leave` | `{ userId }` | participant_left |
-| `presence-voice-{channelId}` | `voice:mute` | `{ userId, selfMuted, serverMuted }` | trackPublished/Unpublished |
+| Channel                       | Event                | Payload                                     | Khi nào fire                       |
+| ----------------------------- | -------------------- | ------------------------------------------- | ---------------------------------- |
+| `private-channel-{channelId}` | `message:new`        | `{ id, content, authorId, createdAt, ... }` | POST /messages                     |
+| `private-channel-{channelId}` | `message:edit`       | `{ id, content, editedAt }`                 | PUT /messages/[id]                 |
+| `private-channel-{channelId}` | `message:delete`     | `{ id }`                                    | DELETE /messages/[id]              |
+| `private-channel-{channelId}` | `message:react`      | `{ id, reactions }`                         | POST /react                        |
+| `private-channel-{channelId}` | `typing`             | `{ userId, userName }`                      | Client emit khi gõ                 |
+| `presence-group-{groupId}`    | `member:join`        | `{ userId, userName }`                      | POST /join thành công              |
+| `presence-group-{groupId}`    | `member:leave`       | `{ userId }`                                | DELETE /members                    |
+| `presence-group-{groupId}`    | `member:role-change` | `{ userId, role }`                          | PUT role                           |
+| `presence-group-{groupId}`    | `channel:created`    | `{ channel }`                               | POST /channels                     |
+| `presence-group-{groupId}`    | `channel:deleted`    | `{ channelId }`                             | DELETE /channels                   |
+| `presence-voice-{channelId}`  | `voice:join`         | `{ userId, userName }`                      | LiveKit webhook participant_joined |
+| `presence-voice-{channelId}`  | `voice:leave`        | `{ userId }`                                | participant_left                   |
+| `presence-voice-{channelId}`  | `voice:mute`         | `{ userId, selfMuted, serverMuted }`        | trackPublished/Unpublished         |
 
 ### 3.2. Voice flow
 
@@ -452,23 +456,23 @@ MUTED     — read-only (auto-clear sau mutedUntil)
 
 ### 5.2. Permission matrix
 
-| Action | OWNER | ADMIN | MOD | MEMBER |
-|---|---|---|---|---|
-| Send message | ✓ | ✓ | ✓ | ✓ |
-| Edit own message | ✓ | ✓ | ✓ | ✓ |
-| Delete any message | ✓ | ✓ | ✓ | ✗ |
-| React to message | ✓ | ✓ | ✓ | ✓ |
-| Connect voice | ✓ | ✓ | ✓ | ✓ |
-| Mute voice (server) | ✓ | ✓ | ✓ | ✗ |
-| Create channel | ✓ | ✓ | ✗ | ✗ |
-| Delete channel | ✓ | ✓ | ✗ | ✗ |
-| Mute member | ✓ | ✓ | ✓ | ✗ |
-| Kick member | ✓ | ✓ | ✗ | ✗ |
-| Ban member | ✓ | ✓ | ✗ | ✗ |
-| Change role | ✓ | ✓ (≤ self) | ✗ | ✗ |
-| Update group meta | ✓ | ✓ | ✗ | ✗ |
-| Delete group | ✓ | ✗ | ✗ | ✗ |
-| Invite link create | ✓ | ✓ | ✓ | ✓ (only own) |
+| Action              | OWNER | ADMIN      | MOD | MEMBER       |
+| ------------------- | ----- | ---------- | --- | ------------ |
+| Send message        | ✓     | ✓          | ✓   | ✓            |
+| Edit own message    | ✓     | ✓          | ✓   | ✓            |
+| Delete any message  | ✓     | ✓          | ✓   | ✗            |
+| React to message    | ✓     | ✓          | ✓   | ✓            |
+| Connect voice       | ✓     | ✓          | ✓   | ✓            |
+| Mute voice (server) | ✓     | ✓          | ✓   | ✗            |
+| Create channel      | ✓     | ✓          | ✗   | ✗            |
+| Delete channel      | ✓     | ✓          | ✗   | ✗            |
+| Mute member         | ✓     | ✓          | ✓   | ✗            |
+| Kick member         | ✓     | ✓          | ✗   | ✗            |
+| Ban member          | ✓     | ✓          | ✗   | ✗            |
+| Change role         | ✓     | ✓ (≤ self) | ✗   | ✗            |
+| Update group meta   | ✓     | ✓          | ✗   | ✗            |
+| Delete group        | ✓     | ✗          | ✗   | ✗            |
+| Invite link create  | ✓     | ✓          | ✓   | ✓ (only own) |
 
 V2: custom roles + per-channel permission override (Discord style).
 
@@ -493,6 +497,7 @@ V2: custom roles + per-channel permission override (Discord style).
 ### 6.3. Audit log
 
 Reuse `audit_log` table (Phase 9). Log mọi action mod:
+
 - `study_group.member.kick` { groupId, kickedUserId, by, reason }
 - `study_group.member.ban`
 - `study_group.message.delete` { messageId, by, content }
@@ -527,15 +532,16 @@ Owner xem `/groups/[id]/settings/audit` (V2).
 
 ### 8.0. Scale tiers — lộ trình từ MVP → big scale
 
-| Tier | DAU | Concurrent | Msg/day | Voice min/mo | Stack | Cost/mo |
-|---|---|---|---|---|---|---|
-| **T1 MVP** | < 100 | 30 | 5K | 9K | Pusher free + LK Cloud free + Neon free | $0 |
-| **T2 Growth** | 100–1K | 300 | 100K | 100K | Pusher $49 + LK Cloud $99 + Neon $19 | ~$170 |
-| **T3 Scale** | 1K–10K | 3K | 1M | 1M | Soketi self-host + LK Cloud Scale + Neon Scale + Redis Cloud | ~$500 |
-| **T4 Big** | 10K–100K | 30K | 10M | 10M | Soketi cluster + LK OSS multi-region + Citus shard + Redis Cluster + CDN | ~$3K |
-| **T5 Mega** | > 100K | 300K+ | 100M+ | regional CDN | Cassandra/ScyllaDB shard + custom WebRTC SFU + Kafka events | $20K+ |
+| Tier          | DAU      | Concurrent | Msg/day | Voice min/mo | Stack                                                                    | Cost/mo |
+| ------------- | -------- | ---------- | ------- | ------------ | ------------------------------------------------------------------------ | ------- |
+| **T1 MVP**    | < 100    | 30         | 5K      | 9K           | Pusher free + LK Cloud free + Neon free                                  | $0      |
+| **T2 Growth** | 100–1K   | 300        | 100K    | 100K         | Pusher $49 + LK Cloud $99 + Neon $19                                     | ~$170   |
+| **T3 Scale**  | 1K–10K   | 3K         | 1M      | 1M           | Soketi self-host + LK Cloud Scale + Neon Scale + Redis Cloud             | ~$500   |
+| **T4 Big**    | 10K–100K | 30K        | 10M     | 10M          | Soketi cluster + LK OSS multi-region + Citus shard + Redis Cluster + CDN | ~$3K    |
+| **T5 Mega**   | > 100K   | 300K+      | 100M+   | regional CDN | Cassandra/ScyllaDB shard + custom WebRTC SFU + Kafka events              | $20K+   |
 
 > **Architectural pivot points** giữa tiers:
+>
 > - T1 → T2: chỉ đổi env keys (vendor upgrade), code không sửa
 > - T2 → T3: switch Pusher → Soketi (interface giống, env), thêm Redis cache layer
 > - T3 → T4: schema partition + sharding + multi-region LiveKit SFU
@@ -546,11 +552,13 @@ Plan này design **T1–T3 ready bằng env switch, T4 cần refactor có chủ 
 ### 8.1. Database — partition + replica + index strategy
 
 #### 8.1.1. Hot path indices (đã có trong schema)
+
 - `study_group_message_channel_time_idx (channel_id, created_at)` — list messages của channel
 - `study_group_channel_group_pos_idx (group_id, position)` — list channels của group
 - `study_group_member_user_idx (user_id)` — list groups của user
 
 #### 8.1.2. Partitioning `study_group_message` (T3+)
+
 Khi message table > 50M rows (≈ 10GB), query single channel còn nhanh nhưng `VACUUM`, `pg_dump`, index rebuild chậm. Solution: **list partitioning by channel_id hash** hoặc **range by created_at**.
 
 ```sql
@@ -573,12 +581,12 @@ Pros: query 1 channel chỉ touch 1-2 partition (recent + maybe last month). DRO
 
 `@cogniva/db` đã có `dbReplica` (xem `packages/db/src/index.ts`). Route study group queries:
 
-| Query | Pool |
-|---|---|
-| List messages, members, channels (read) | `dbReplica` (lag 1-2s OK) |
-| Send message, react, edit (write) | `db` (primary) |
+| Query                                           | Pool                              |
+| ----------------------------------------------- | --------------------------------- |
+| List messages, members, channels (read)         | `dbReplica` (lag 1-2s OK)         |
+| Send message, react, edit (write)               | `db` (primary)                    |
 | Read-your-own-write (message vừa send + reload) | `db` (force primary 5s sau write) |
-| Mod action (kick, mute) | `db` |
+| Mod action (kick, mute)                         | `db`                              |
 
 Pattern: write → primary → invalidate Redis cache → next read hit cache (fresh) hoặc replica.
 
@@ -592,11 +600,11 @@ Khi user "search messages chứa concept X", PG FTS đủ (xem 8.5). Khi T3 mu�
 
 1 message send → fanout đến N concurrent subscribers. Cost ≈ N events.
 
-| Scenario | Send/day | Avg subscribers | Fanout events/day |
-|---|---|---|---|
-| 30-user group, 50 msg/user/day | 1.5K | 30 | 45K |
-| 100-user group, 100 msg/user/day | 10K | 100 | 1M |
-| 1K-user group, 20 msg/user/day | 20K | 1K | 20M |
+| Scenario                         | Send/day | Avg subscribers | Fanout events/day |
+| -------------------------------- | -------- | --------------- | ----------------- |
+| 30-user group, 50 msg/user/day   | 1.5K     | 30              | 45K               |
+| 100-user group, 100 msg/user/day | 10K      | 100             | 1M                |
+| 1K-user group, 20 msg/user/day   | 20K      | 1K              | 20M               |
 
 Pusher Cloud free: 200K/day → đủ scenario 1, vượt 2-3.
 
@@ -640,16 +648,17 @@ Phase 19 đã có Redis (cogniva-redis Docker / Upstash REST / ioredis adapter).
 
 #### 8.3.1. Cache schema
 
-| Key pattern | Value | TTL | Use |
-|---|---|---|---|
-| `grp:{id}:channels` | JSON channel list | 5min | sidebar load |
-| `grp:{id}:members` | JSON member list | 1min | member sidebar |
-| `chn:{id}:recent50` | JSON last 50 msg | 30s | scroll initial load |
-| `chn:{id}:unread:{uid}` | int count | 5min | badge |
-| `usr:{uid}:groups` | JSON list groupIds | 5min | sidebar groups list |
-| `voice:{chn}:participants` | Set userIds | 30s | participant stack |
+| Key pattern                | Value              | TTL  | Use                 |
+| -------------------------- | ------------------ | ---- | ------------------- |
+| `grp:{id}:channels`        | JSON channel list  | 5min | sidebar load        |
+| `grp:{id}:members`         | JSON member list   | 1min | member sidebar      |
+| `chn:{id}:recent50`        | JSON last 50 msg   | 30s  | scroll initial load |
+| `chn:{id}:unread:{uid}`    | int count          | 5min | badge               |
+| `usr:{uid}:groups`         | JSON list groupIds | 5min | sidebar groups list |
+| `voice:{chn}:participants` | Set userIds        | 30s  | participant stack   |
 
 Invalidation:
+
 - Message send → DEL `chn:{id}:recent50` + INCR unread cho mỗi member chưa read
 - Member join/leave → DEL `grp:{id}:members` + DEL `usr:{uid}:groups`
 - Channel CRUD → DEL `grp:{id}:channels`
@@ -663,7 +672,7 @@ Multi tab cùng user reload → đồng loạt cache miss → 30 query DB. Mitig
 async function getCached(key, ttl, loader) {
   const cached = await redis.get(key);
   if (cached) return JSON.parse(cached);
-  
+
   // Try set lock (NX + EX 10s) — only 1 process loads
   const locked = await redis.set(`lock:${key}`, '1', { nx: true, ex: 10 });
   if (locked === 'OK') {
@@ -712,6 +721,7 @@ inngest.send({ name: 'msg/indexed', data: { msgId, channelId, content, authorId 
 #### 8.4.3. T4+ Hybrid: semantic + FTS
 
 Wire voyage-3 embedding cho message > 50 chars → store vector. Search:
+
 1. FTS keyword match → top 200
 2. Vector cosine với query embedding → rerank top 20
 3. Cohere rerank-3 → top 10 final
@@ -751,22 +761,24 @@ CDN cache → subsequent loads hit edge, không touch R2 (saving egress cost).
 
 #### 8.6.1. T2-T3 — LiveKit Cloud paid
 
-| Tier | $/mo | min/mo | concurrent | rooms |
-|---|---|---|---|---|
-| Build | $0 | 10K | 100 | unlimited |
-| Ship | $50 | 50K | 500 | unlimited |
-| Scale | $300 | 500K | 5K | unlimited |
-| Enterprise | custom | unlimited | unlimited | unlimited |
+| Tier       | $/mo   | min/mo    | concurrent | rooms     |
+| ---------- | ------ | --------- | ---------- | --------- |
+| Build      | $0     | 10K       | 100        | unlimited |
+| Ship       | $50    | 50K       | 500        | unlimited |
+| Scale      | $300   | 500K      | 5K         | unlimited |
+| Enterprise | custom | unlimited | unlimited  | unlimited |
 
 Switch chỉ đổi env `LIVEKIT_URL` + API keys.
 
 #### 8.6.2. T4 — Self-host LiveKit OSS multi-region
 
 LiveKit là SFU OSS (Apache 2.0). Self-host khi:
+
 - > 1M min/mo (cost cloud > self-host)
 - Cần region custom (Asia → SG/HCMC node giảm latency)
 
 Architecture:
+
 ```
 Client ── join token ──→ Cogniva backend
                               ↓ gen LiveKit JWT
@@ -782,6 +794,7 @@ Other clients ←──── selected forwarding ───┘
 #### 8.6.3. Voice quality adaptive
 
 Khi LiveKit detect bandwidth < 200kbps:
+
 - Force audio-only (no video)
 - Mono 16kHz Opus
 - Disable simulcast
@@ -793,10 +806,10 @@ Server-side hint qua LiveKit metadata API.
 
 #### 8.7.1. Hai loại workload tách biệt
 
-| Loại | Latency yêu cầu | Volume | Tool T1-T3 | Tool T4+ |
-|---|---|---|---|---|
-| **Realtime broadcast** (msg → subscribers) | < 100ms | High (fanout × N) | Pusher/Soketi direct | Soketi + Redis pub/sub |
-| **Async job** (index, notify, cleanup) | < 5s OK | Medium | BullMQ jobs | Kafka + worker pool |
+| Loại                                       | Latency yêu cầu | Volume            | Tool T1-T3           | Tool T4+               |
+| ------------------------------------------ | --------------- | ----------------- | -------------------- | ---------------------- |
+| **Realtime broadcast** (msg → subscribers) | < 100ms         | High (fanout × N) | Pusher/Soketi direct | Soketi + Redis pub/sub |
+| **Async job** (index, notify, cleanup)     | < 5s OK         | Medium            | BullMQ jobs          | Kafka + worker pool    |
 
 KHÔNG dồn cả 2 vào 1 hệ thống — broadcast cần in-memory fast path, job cần durable retry.
 
@@ -804,20 +817,21 @@ KHÔNG dồn cả 2 vào 1 hệ thống — broadcast cần in-memory fast path,
 
 Phase M7 đã có BullMQ. Study group thêm:
 
-| Event | Trigger | Job | Priority | Concurrency |
-|---|---|---|---|---|
-| `msg/created` | POST /messages | Index Meilisearch + extract mentions | high | 50 |
-| `msg/mentioned` | Mention parsed | Push notification fanout (qua Phase M7 pipeline) | urgent | 100 |
-| `msg/cleanup-soft-deleted` | Cron daily 3am | DELETE rows có deletedAt > 30d (10K batch) | low | 1 |
-| `grp/partition-create` | Cron monthly 25th | CREATE partition tháng kế | low | 1 |
-| `voice/participant-joined` | LiveKit webhook | UPSERT voice_state + broadcast presence | high | 200 |
-| `voice/session-ended` | LiveKit webhook | Aggregate stats → analytics + audit_log | normal | 20 |
-| `grp/digest-email` | Cron daily 7am | Send digest email per user (V3) | low | 10 |
-| `grp/member-invited` | POST /invites used | Send welcome message + audit | normal | 30 |
-| `attachment/uploaded` | R2 webhook | Image resize + AI NSFW scan (V2) | normal | 20 |
-| `gdpr/user-deleted` | Better Auth delete | Cascade purge user msg + voice_state | low | 5 |
+| Event                      | Trigger            | Job                                              | Priority | Concurrency |
+| -------------------------- | ------------------ | ------------------------------------------------ | -------- | ----------- |
+| `msg/created`              | POST /messages     | Index Meilisearch + extract mentions             | high     | 50          |
+| `msg/mentioned`            | Mention parsed     | Push notification fanout (qua Phase M7 pipeline) | urgent   | 100         |
+| `msg/cleanup-soft-deleted` | Cron daily 3am     | DELETE rows có deletedAt > 30d (10K batch)       | low      | 1           |
+| `grp/partition-create`     | Cron monthly 25th  | CREATE partition tháng kế                        | low      | 1           |
+| `voice/participant-joined` | LiveKit webhook    | UPSERT voice_state + broadcast presence          | high     | 200         |
+| `voice/session-ended`      | LiveKit webhook    | Aggregate stats → analytics + audit_log          | normal   | 20          |
+| `grp/digest-email`         | Cron daily 7am     | Send digest email per user (V3)                  | low      | 10          |
+| `grp/member-invited`       | POST /invites used | Send welcome message + audit                     | normal   | 30          |
+| `attachment/uploaded`      | R2 webhook         | Image resize + AI NSFW scan (V2)                 | normal   | 20          |
+| `gdpr/user-deleted`        | Better Auth delete | Cascade purge user msg + voice_state             | low      | 5           |
 
 Inngest config:
+
 - **Concurrency limit per fn** — tránh DB overload (max 200 fn run đồng thời cho msg/created)
 - **Retry**: exponential backoff 4 lần (1s, 10s, 1min, 10min), fail → DLQ
 - **Throttle**: rate-limit per user key (vd `msg/mentioned` throttle 10/min/user để chống spam push)
@@ -826,10 +840,12 @@ Inngest config:
 #### 8.7.3. Outbox pattern — reliable broadcast
 
 **Problem:** message POST flow hiện tại:
+
 ```
 1. INSERT message into DB    ← txn commit
 2. Pusher trigger broadcast  ← network call AFTER commit
 ```
+
 Step 2 fail (Pusher down 3s, network blip) → message lưu DB nhưng KHÔNG broadcast → user khác miss.
 
 **Solution outbox pattern (T2+):**
@@ -864,6 +880,7 @@ for (const evt of pending) {
 ```
 
 Bảng mới:
+
 ```sql
 CREATE TABLE outbox_event (
   id text PRIMARY KEY,
@@ -879,6 +896,7 @@ CREATE INDEX outbox_pending_idx ON outbox_event(status, created_at) WHERE status
 ```
 
 Lợi:
+
 - Guarantee at-least-once delivery — message KHÔNG bao giờ mất broadcast
 - Crash recovery — restart worker resume từ outbox
 - Trade-off: thêm 1 query/message + latency broadcast 1-2s (acceptable cho group chat, KHÔNG cho voice signaling)
@@ -900,6 +918,7 @@ inngest.createFunction(
 ```
 
 Convention:
+
 - **urgent** — mention notification, voice presence (user-facing realtime)
 - **normal** — index, audit log, member welcome
 - **low** — cleanup, digest, partition maintenance
@@ -924,7 +943,7 @@ inngest.createFunction(
     if (CRITICAL_EVENTS.has(event.data.function_id)) {
       await sendSlackAlert(`Inngest DLQ: ${event.data.function_id}`);
     }
-  }
+  },
 );
 ```
 
@@ -933,15 +952,18 @@ Owner ops xem `/admin/dlq` (V3) → manual replay sau khi fix bug.
 #### 8.7.6. T4 — Kafka migration
 
 Khi T4 (>10M events/day):
+
 - Inngest Cloud pricing cao (~$0.001/run × 10M = $10K/mo)
 - Self-host Inngest possible nhưng complexity tương đương Kafka
 
 **Migration path:**
+
 1. Producer side đổi `inngest.send()` → `kafka.produce(topic, payload)` qua thin wrapper
 2. Consumer: viết worker Node.js subscribe Kafka topic → process → commit offset
 3. Outbox worker đổi target Pusher → Kafka topic `realtime-fanout` → Soketi nodes subscribe + push WS
 
 Kafka topology:
+
 ```
 Topics:
   - msg.created       (partitioned by channelId, 32 partitions)
@@ -964,6 +986,7 @@ Kafka cluster: 3 brokers × 4 vCPU = ~$120/mo (Hetzner) hoặc Confluent Cloud $
 Mọi consumer phải idempotent — Kafka at-least-once, Inngest cũng vậy → 1 event có thể được process 2 lần.
 
 Pattern:
+
 ```typescript
 // Indexer fn
 async function indexMessage(event) {
@@ -983,14 +1006,14 @@ Mọi event payload include `version` (incrementing timestamp ms) — consumer c
 
 Phase M4 đã có rate-limit qua Redis. Wire cho group endpoints:
 
-| Action | Limit | Key |
-|---|---|---|
-| Send message | 5 / 10s | `rl:msg:{uid}:{channelId}` |
-| Voice connect | 3 / 60s | `rl:voice:{uid}` |
-| React toggle | 30 / 60s | `rl:react:{uid}` |
-| Invite create | 10 / 3600s | `rl:invite:{uid}` |
-| Channel create | 5 / 3600s | `rl:chn-create:{uid}` |
-| Mention `@everyone` | 1 / 60s | `rl:mention-all:{groupId}` |
+| Action              | Limit      | Key                        |
+| ------------------- | ---------- | -------------------------- |
+| Send message        | 5 / 10s    | `rl:msg:{uid}:{channelId}` |
+| Voice connect       | 3 / 60s    | `rl:voice:{uid}`           |
+| React toggle        | 30 / 60s   | `rl:react:{uid}`           |
+| Invite create       | 10 / 3600s | `rl:invite:{uid}`          |
+| Channel create      | 5 / 3600s  | `rl:chn-create:{uid}`      |
+| Mention `@everyone` | 1 / 60s    | `rl:mention-all:{groupId}` |
 
 Sliding window via ZADD timestamp + ZREMRANGEBYSCORE oldest. Edge case: clock skew giữa node — accept 1-2s slop.
 
@@ -1021,23 +1044,25 @@ Sliding window via ZADD timestamp + ZREMRANGEBYSCORE oldest. Edge case: clock sk
 
 ### 8.10. Cost model & break-even
 
-| Tier | Pusher/Soketi | LiveKit | DB | Redis | CDN | **Total/mo** | $/user |
-|---|---|---|---|---|---|---|---|
-| T1 (100 users) | $0 (Pusher free) | $0 (LK free) | $0 (Neon free) | $0 (Upstash free) | $0 | **$0** | $0 |
-| T2 (1K users) | $49 (Pusher) | $99 (LK Ship) | $19 (Neon) | $0 (Upstash free) | $5 (CF) | **$172** | $0.17 |
-| T3 (10K users) | $20 (Soketi VPS) | $300 (LK Scale) | $100 (Neon Scale) | $30 (Redis) | $20 (CF) | **$470** | $0.05 |
-| T4 (100K users) | $150 (Soketi cluster) | $240 (LK self-host) | $500 (Aurora/Citus) | $100 (Redis Cluster) | $100 (CF Pro) | **$1,090** | $0.011 |
+| Tier            | Pusher/Soketi         | LiveKit             | DB                  | Redis                | CDN           | **Total/mo** | $/user |
+| --------------- | --------------------- | ------------------- | ------------------- | -------------------- | ------------- | ------------ | ------ |
+| T1 (100 users)  | $0 (Pusher free)      | $0 (LK free)        | $0 (Neon free)      | $0 (Upstash free)    | $0            | **$0**       | $0     |
+| T2 (1K users)   | $49 (Pusher)          | $99 (LK Ship)       | $19 (Neon)          | $0 (Upstash free)    | $5 (CF)       | **$172**     | $0.17  |
+| T3 (10K users)  | $20 (Soketi VPS)      | $300 (LK Scale)     | $100 (Neon Scale)   | $30 (Redis)          | $20 (CF)      | **$470**     | $0.05  |
+| T4 (100K users) | $150 (Soketi cluster) | $240 (LK self-host) | $500 (Aurora/Citus) | $100 (Redis Cluster) | $100 (CF Pro) | **$1,090**   | $0.011 |
 
 **Break-even points:**
+
 - Pusher → Soketi: 5K active concurrent users (Pusher $99 > Soketi VPS $20)
 - LK Cloud → LK self-host: 1.5M min/mo
 - Neon → Aurora/Citus: > 100GB hot data + > 1K QPS
 
 **Revenue assumption** (V3+):
+
 - Free: 1 group, 30 members, 10MB attachments — covers T1 acquisition
 - Pro $5/mo: unlimited groups, 100 members/group, 1GB attachments
 - Team $20/mo per group: 500 members, custom branding, audit log, priority support
-→ Break-even Pro: 35 paying users cover T2 cost
+  → Break-even Pro: 35 paying users cover T2 cost
 
 ### 8.11. Data lifecycle & GDPR
 
@@ -1186,18 +1211,21 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 ## 10. Implementation batches
 
 ### Batch A — Schema + foundations (~1 ngày)
+
 - [ ] Migration `0011_study_group_channels.sql` applied
 - [ ] Drizzle schema export + relations + types
 - [ ] Helper `lib/group/permissions.ts` — check role can do action
 - [ ] Helper `lib/group/code.ts` — gen 8-char invite code
 
 ### Batch B — Channel CRUD + group settings (~1 ngày)
+
 - [ ] APIs: `/api/groups/[id]/channels` GET/POST/PUT/DELETE + reorder
 - [ ] APIs: `/api/groups/[id]/invites` CRUD
 - [ ] APIs: `/api/groups/[id]/members` PUT role/nickname + DELETE kick/leave
 - [ ] UI: `/groups/[id]/settings/{members,channels,invites}` pages
 
 ### Batch C — Text channel chat (~2 ngày)
+
 - [ ] APIs: `/api/channels/[id]/messages` GET (cursor) + POST + PUT + DELETE
 - [ ] APIs: `/api/channels/[id]/messages/[msgId]/react`
 - [ ] APIs: `/api/channels/[id]/read`
@@ -1207,6 +1235,7 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - [ ] Rate limit + slow mode
 
 ### Batch D — Voice channel (~1 ngày)
+
 - [ ] API: `/api/channels/[id]/voice/token` — gen LiveKit JWT
 - [ ] Webhook: `/api/webhooks/livekit-group` — sync voice_state
 - [ ] Realtime: `presence-voice-{channelId}` channel auth
@@ -1214,18 +1243,21 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - [ ] UI: participant avatar stack trong channel sidebar
 
 ### Batch E — Group UI shell (~1 ngày)
+
 - [ ] Layout `/groups/[id]/layout.tsx` — 3-col Discord
 - [ ] `group-sidebar` + `channel-list` + `member-sidebar`
 - [ ] Routing `/groups/[id]/[channelId]` + redirect default channel
 - [ ] Mobile responsive — collapse sidebars to bottom drawer
 
 ### Batch F — Moderation + notifications (~1 ngày)
+
 - [ ] Mute/kick/ban member actions + UI confirm
 - [ ] Audit log entries cho mod actions
 - [ ] Mention parser + notify (push qua Phase M7 pipeline)
 - [ ] Slow mode UI control trong channel settings
 
 ### Batch G — Polish (~0.5 ngày)
+
 - [ ] Emoji picker (re-use existing chat component nếu có)
 - [ ] Reply chip + jump-to-original
 - [ ] Reaction picker + hover detail
@@ -1314,59 +1346,64 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 ## 14. Risk register
 
 ### 14.1. Functional risks
-| Risk | Severity | Mitigation |
-|---|---|---|
-| Race condition trong reaction toggle | Medium | Upsert qua atomic UPDATE với CHECK trong WHERE clause |
-| Mod xoá nhầm message | Low | Soft delete + 7-day undo window, audit log immutable |
-| Mention notification spam | Medium | Rate limit `@everyone` 1/min/group, opt-out per channel |
-| Mobile WebRTC fail trên 3G yếu | Medium | Voice-only fallback + reconnect 3 retry + degrade audio quality |
-| Webhook LiveKit drop → voice_state stale | Medium | BullMQ cron mỗi 5 min reconcile state từ LiveKit list API |
+
+| Risk                                     | Severity | Mitigation                                                      |
+| ---------------------------------------- | -------- | --------------------------------------------------------------- |
+| Race condition trong reaction toggle     | Medium   | Upsert qua atomic UPDATE với CHECK trong WHERE clause           |
+| Mod xoá nhầm message                     | Low      | Soft delete + 7-day undo window, audit log immutable            |
+| Mention notification spam                | Medium   | Rate limit `@everyone` 1/min/group, opt-out per channel         |
+| Mobile WebRTC fail trên 3G yếu           | Medium   | Voice-only fallback + reconnect 3 retry + degrade audio quality |
+| Webhook LiveKit drop → voice_state stale | Medium   | BullMQ cron mỗi 5 min reconcile state từ LiveKit list API       |
 
 ### 14.2. Scale risks
-| Risk | Trigger | Mitigation |
-|---|---|---|
-| Pusher free hit limit | > 200K msg fanout/day | Auto-alert 80%, switch Soketi self-host (1 day work, env-only) |
-| LiveKit quota exhaust | > 10K min/mo | Voice-only mode + upgrade LK Ship $50/mo |
-| DB message table > 50M rows | T3 onset (~1M msg/month) | Partition by created_at month, drop cold partition |
-| Cache hit rate < 50% | Hot channel re-render storm | Cache stampede protection (lock-aside pattern) |
-| WebSocket disconnect cascade | LB sticky session fail | Redis pub/sub backbone giữ state cross-node |
-| Search latency > 2s | > 5M messages PG FTS | Switch Meilisearch async indexer |
-| CDN egress cost spike | Attachment hot viral | Cloudflare CDN cache 90% + image resize |
-| Voice latency > 300ms | Cross-region | Self-host LiveKit SFU per region (SG/SF/EU) |
-| Single Soketi node OOM | > 10K concurrent WS | Cluster 5 nodes + sticky session LB |
-| GDPR delete chain timeout | User delete với 100K msg | Async qua BullMQ worker, retry idempotent |
+
+| Risk                         | Trigger                     | Mitigation                                                     |
+| ---------------------------- | --------------------------- | -------------------------------------------------------------- |
+| Pusher free hit limit        | > 200K msg fanout/day       | Auto-alert 80%, switch Soketi self-host (1 day work, env-only) |
+| LiveKit quota exhaust        | > 10K min/mo                | Voice-only mode + upgrade LK Ship $50/mo                       |
+| DB message table > 50M rows  | T3 onset (~1M msg/month)    | Partition by created_at month, drop cold partition             |
+| Cache hit rate < 50%         | Hot channel re-render storm | Cache stampede protection (lock-aside pattern)                 |
+| WebSocket disconnect cascade | LB sticky session fail      | Redis pub/sub backbone giữ state cross-node                    |
+| Search latency > 2s          | > 5M messages PG FTS        | Switch Meilisearch async indexer                               |
+| CDN egress cost spike        | Attachment hot viral        | Cloudflare CDN cache 90% + image resize                        |
+| Voice latency > 300ms        | Cross-region                | Self-host LiveKit SFU per region (SG/SF/EU)                    |
+| Single Soketi node OOM       | > 10K concurrent WS         | Cluster 5 nodes + sticky session LB                            |
+| GDPR delete chain timeout    | User delete với 100K msg    | Async qua BullMQ worker, retry idempotent                      |
 
 ### 14.2b. Queue & event bus risks
-| Risk | Trigger | Mitigation |
-|---|---|---|
-| Pusher broadcast fail → message persist nhưng KHÔNG fanout | Network blip giữa DB write + Pusher trigger | **Outbox pattern** (8.7.3) — guarantee at-least-once |
-| Inngest cost spike T4 | > 5M event/day × $0.001 | Migrate Kafka self-host (~$120/mo) |
-| Duplicate side-effect (push noti × 2) | At-least-once consumer | Idempotency key + version compare (8.7.7) |
-| DLQ silent failure | Critical event fail không ai biết | DLQ handler fn alert Slack/Sentry cho CRITICAL_EVENTS set |
-| Outbox table bloat | Worker fail → pending events accumulate | Cron purge sent rows > 7 days + alert pending > 10K |
-| Hot partition Kafka (1 channel 90% traffic) | Skewed group activity | Re-partition message topic by `hash(channelId + bucket)` thay vì pure channelId |
-| Consumer lag tăng | Slow Meilisearch / push API | Auto-scale worker replicas + back-pressure (pause produce nếu lag > 60s) |
-| Cron partition-create skip | Inngest down ngày 25 | Idempotent: re-run cron 26, 27 cũng OK; alert nếu tháng kế chưa có partition vào ngày 30 |
-| Event order mismatch (msg edit trước create deliver) | Multi-partition + parallel consumer | Order key = messageId trong partition; consumer dedupe theo version |
+
+| Risk                                                       | Trigger                                     | Mitigation                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Pusher broadcast fail → message persist nhưng KHÔNG fanout | Network blip giữa DB write + Pusher trigger | **Outbox pattern** (8.7.3) — guarantee at-least-once                                     |
+| Inngest cost spike T4                                      | > 5M event/day × $0.001                     | Migrate Kafka self-host (~$120/mo)                                                       |
+| Duplicate side-effect (push noti × 2)                      | At-least-once consumer                      | Idempotency key + version compare (8.7.7)                                                |
+| DLQ silent failure                                         | Critical event fail không ai biết           | DLQ handler fn alert Slack/Sentry cho CRITICAL_EVENTS set                                |
+| Outbox table bloat                                         | Worker fail → pending events accumulate     | Cron purge sent rows > 7 days + alert pending > 10K                                      |
+| Hot partition Kafka (1 channel 90% traffic)                | Skewed group activity                       | Re-partition message topic by `hash(channelId + bucket)` thay vì pure channelId          |
+| Consumer lag tăng                                          | Slow Meilisearch / push API                 | Auto-scale worker replicas + back-pressure (pause produce nếu lag > 60s)                 |
+| Cron partition-create skip                                 | Inngest down ngày 25                        | Idempotent: re-run cron 26, 27 cũng OK; alert nếu tháng kế chưa có partition vào ngày 30 |
+| Event order mismatch (msg edit trước create deliver)       | Multi-partition + parallel consumer         | Order key = messageId trong partition; consumer dedupe theo version                      |
 
 ### 14.3. Abuse risks
-| Risk | Mitigation |
-|---|---|
-| Spam khi public invite | Rate limit invite create + email verification gate trước join |
-| Coordinated harassment | Per-user block list + mod kick + ban IP optional |
-| NSFW attachment upload | V2 AI NSFW classifier pre-accept (Cohere Vision hoặc Replicate) |
-| Bot signup massive group join | Cloudflare Turnstile captcha + rate limit `/api/groups/join` |
-| Voice channel DDoS qua join spam | Rate limit voice connect 3/min/user, IP-based 10/min |
-| Crypto/scam link in messages | URL filter blocklist + AI link safety scan async |
+
+| Risk                             | Mitigation                                                      |
+| -------------------------------- | --------------------------------------------------------------- |
+| Spam khi public invite           | Rate limit invite create + email verification gate trước join   |
+| Coordinated harassment           | Per-user block list + mod kick + ban IP optional                |
+| NSFW attachment upload           | V2 AI NSFW classifier pre-accept (Cohere Vision hoặc Replicate) |
+| Bot signup massive group join    | Cloudflare Turnstile captcha + rate limit `/api/groups/join`    |
+| Voice channel DDoS qua join spam | Rate limit voice connect 3/min/user, IP-based 10/min            |
+| Crypto/scam link in messages     | URL filter blocklist + AI link safety scan async                |
 
 ### 14.4. Compliance risks
-| Risk | Mitigation |
-|---|---|
-| COPPA — < 13 yo trong group adult | Tận dụng existing `coppa-pending` flow, parent consent gate trước join |
-| GDPR — message retention forever | Soft delete 30 ngày + hard delete cold tier 1 năm + user export endpoint |
-| Vietnam cybersecurity law (data localization V3) | Sẵn sàng deploy DB region VN khi user > 1K |
-| Audit log mutation | Append-only audit_log table + cryptographic hash chain (V3) |
-| Cross-border data export EU users | Standard Contractual Clauses (SCC) khi Pusher/LK Cloud US |
+
+| Risk                                             | Mitigation                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| COPPA — < 13 yo trong group adult                | Tận dụng existing `coppa-pending` flow, parent consent gate trước join   |
+| GDPR — message retention forever                 | Soft delete 30 ngày + hard delete cold tier 1 năm + user export endpoint |
+| Vietnam cybersecurity law (data localization V3) | Sẵn sàng deploy DB region VN khi user > 1K                               |
+| Audit log mutation                               | Append-only audit_log table + cryptographic hash chain (V3)              |
+| Cross-border data export EU users                | Standard Contractual Clauses (SCC) khi Pusher/LK Cloud US                |
 
 ---
 
@@ -1401,33 +1438,43 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 ### 15.2. Internal integration points (12 feature)
 
 #### 15.2.1. Documents & Notes (Phase 1-2)
+
 **Use case:** Share document Cogniva trong group chat.
+
 - Message attachment type mới: `{ type: 'cogniva_doc', documentId, title, snippet }`
-- Render trong message → preview card với link mở `/documents/[id]` 
+- Render trong message → preview card với link mở `/documents/[id]`
 - Permission check: viewer phải có access document (workspace member hoặc public doc)
 - API: `POST /api/channels/[id]/messages` accept `documentRefs: [docId]` → server resolve + validate access trước khi insert
 
 #### 15.2.2. Flashcards (Phase 6)
+
 **Use case:** Share deck flashcards trong channel để cả lớp luyện chung.
+
 - Mới: `study_group_shared_deck` link table (channelId, deckId, sharedBy, sharedAt)
 - Channel sidebar có tab "Decks" → list deck đã share trong channel này
 - Click → fork deck vào my decks (no edit gốc) hoặc study live
 - API: `POST /api/channels/[id]/decks` body { deckId }
 
 #### 15.2.3. Exams (Phase 16)
+
 **Use case:** Share exam code trong channel để cả nhóm cùng làm.
+
 - Khi message content match regex `^EXAM-[A-Z0-9]{6}$` → auto-render exam card với title + mode + Start button
 - Tạo bảng `study_group_shared_exam` (channelId, examId) để track + analytics
 - **Group leaderboard:** GET `/api/groups/[id]/exams/[examId]/leaderboard` → top score của members trong group này (filter examAttempt.userId ∈ group members)
 
 #### 15.2.4. Knowledge Graph + Concept (Phase 8)
+
 **Use case:** Message mention concept `[[Đạo hàm]]` → pill link tới concept page + auto-link mastery.
+
 - Markdown render: `[[X]]` → fetch concept by name → render pill với link `/graph?concept=X`
 - Khi user gõ tin nhắn có `[[concept]]` → server parse + INSERT `study_group_message_concept` link table (channelId, messageId, conceptId)
 - Analytics: top 10 concept được discuss nhiều nhất trong group → trending topics widget
 
 #### 15.2.5. AI Tutor (Phase 7)
+
 **Use case:** Summon AI vào channel — `@AI giải thích bài 3.4`.
+
 - Mention parser detect `@AI` → enqueue BullMQ job `ai/tutor-respond`
 - AI fn:
   - Load 50 message context cuối channel (group conversation)
@@ -1437,7 +1484,9 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - Cost: count vào group owner's AI quota (V3 add billing per group)
 
 #### 15.2.6. Notifications (Phase M7)
+
 **Use case:** Mention → push notification mobile.
+
 - Mention parser → enqueue BullMQ job `msg/mentioned` ({ targetUserId, ... })
 - Notification fn:
   - Load `pushToken` của user
@@ -1447,13 +1496,17 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - Reuse Phase M7 pipeline + `notification_log` table
 
 #### 15.2.7. Audit Log (Phase 9)
+
 **Use case:** Mọi mod action → append immutable log.
+
 - Action: `study_group.channel.create`, `.delete`, `.member.kick`, `.member.ban`, `.message.delete`, `.role.change`
 - Schema: `audit_log` table đã tồn tại — extend `entityType` enum thêm `study_group`, `study_group_channel`, `study_group_message`
 - Owner xem `/groups/[id]/settings/audit` (V2) → filter by action type + actor + date
 
 #### 15.2.8. GDPR pipeline (Phase 9)
+
 **Use case:** User request delete account → cascade purge data study group.
+
 - Extend `processGdprDeletion` BullMQ job:
   - `study_group_message`: anonymize `authorId → 'deleted-user'` + content → "[Tin nhắn đã xoá]". KHÔNG hard delete vì sẽ break replies + thread context. (Discord's approach)
   - `study_group_voice_state`: hard delete
@@ -1463,7 +1516,9 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - Test idempotent (re-run safe)
 
 #### 15.2.9. Mastery aggregation (Phase 6)
+
 **Use case:** Group dashboard → "Concepts cả lớp đang yếu nhất".
+
 - BullMQ cron `grp/mastery-aggregate` mỗi 6h:
   - Cho mỗi group: aggregate `mastery` rows của tất cả members
   - Tìm top 10 concept có average mastery thấp nhất trong group
@@ -1471,19 +1526,24 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - UI: `/groups/[id]/insights` (V2) → biểu đồ + action button "Sinh quiz từ concept yếu"
 
 #### 15.2.10. Search (Phase 4)
+
 **Use case:** Unified search Ctrl+K — tìm messages + documents + concepts + members.
+
 - Extend `/api/search` endpoint accept `entityTypes: ['document', 'message', 'concept', 'member']`
 - Indexer: Meilisearch index riêng `messages` collection với filter `channel_id IN (user's accessible channels)`
 - RBAC filter at search time — user chỉ search được message của group họ là member ACTIVE
 
 #### 15.2.11. Recordings (Phase 15) — ✅ V3 shipped
+
 **Use case:** Voice channel record session → playback sau.
+
 - Reuse LiveKit egress pipeline đã có (Phase 15) — chỉ cần wire UI button "Record" trong voice channel
 - LiveKit recording → R2 → BullMQ `process-recording` extract audio → Whisper transcript → tóm tắt
 - Lưu vào `recording` table (migration `0016_channel_recording.sql`): `room_id` nullable + thêm `study_group_channel_id` + CHECK XOR constraint
 - Privacy: explicit consent prompt mọi participant trước khi start record
 
 **Implementation V3:**
+
 - Schema: `recording.room_id` nullable; thêm `study_group_channel_id` (FK CASCADE), `created_by`, CHECK `recording_owner_xor`, index `recording_channel_idx`
 - API:
   - `POST /api/channels/[id]/record` — mod start composite egress (perm `voice.record` = MODERATOR+)
@@ -1499,7 +1559,9 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - Realtime events qua `presence-voice-{channelId}`: `recording:started` / `recording:stopped` / `recording:ended` / `recording:processed`
 
 #### 15.2.12. Workspaces (Phase 1)
+
 **Use case:** Tự động sync workspace ↔ group (1 workspace = 1 study group cho team).
+
 - Optional: khi tạo workspace với `type: 'team'` → auto-create matching study group với same members
 - Sync: workspace.members ↔ group.members bidirectional
 - KHÔNG bắt buộc V1 — pattern explicit user create separately
@@ -1510,37 +1572,39 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 
 #### 15.3.1. Events study group EMIT
 
-| Event | Payload | Subscribers (feature khác) |
-|---|---|---|
-| `group/created` | `{ groupId, ownerId, name }` | Analytics, Audit |
-| `group/member-joined` | `{ groupId, userId, role }` | Analytics, Push (welcome), Mastery aggregator (add user vào cohort) |
-| `group/member-left` | `{ groupId, userId }` | Analytics, Mastery aggregator (remove) |
-| `group/channel-created` | `{ groupId, channelId, type }` | Audit, Search indexer (register channel) |
-| `group/message-sent` | `{ messageId, channelId, authorId, mentions, conceptRefs, documentRefs }` | Notification (mention fanout), Search indexer, Concept linker, Mod scanner |
-| `group/voice-session-ended` | `{ channelId, durationSec, participants[] }` | Analytics, Recording processor, Mastery (track study time) |
-| `group/exam-shared` | `{ groupId, examId, sharedBy }` | Notification (broadcast tới members), Analytics |
-| `group/deck-shared` | `{ groupId, deckId, sharedBy }` | Notification, Flashcard recommender |
+| Event                       | Payload                                                                   | Subscribers (feature khác)                                                 |
+| --------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `group/created`             | `{ groupId, ownerId, name }`                                              | Analytics, Audit                                                           |
+| `group/member-joined`       | `{ groupId, userId, role }`                                               | Analytics, Push (welcome), Mastery aggregator (add user vào cohort)        |
+| `group/member-left`         | `{ groupId, userId }`                                                     | Analytics, Mastery aggregator (remove)                                     |
+| `group/channel-created`     | `{ groupId, channelId, type }`                                            | Audit, Search indexer (register channel)                                   |
+| `group/message-sent`        | `{ messageId, channelId, authorId, mentions, conceptRefs, documentRefs }` | Notification (mention fanout), Search indexer, Concept linker, Mod scanner |
+| `group/voice-session-ended` | `{ channelId, durationSec, participants[] }`                              | Analytics, Recording processor, Mastery (track study time)                 |
+| `group/exam-shared`         | `{ groupId, examId, sharedBy }`                                           | Notification (broadcast tới members), Analytics                            |
+| `group/deck-shared`         | `{ groupId, deckId, sharedBy }`                                           | Notification, Flashcard recommender                                        |
 
 #### 15.3.2. Events study group CONSUME
 
-| Event source | Event | Reaction trong study group |
-|---|---|---|
-| `documents/uploaded` | New doc trong workspace | Suggest share vào group channel nếu doc relate môn nào (concept tag match channel topic) |
-| `concept/mastery-changed` | User mastery thay đổi | Update group leaderboard cache + insights |
-| `notification/preferences-changed` | User mute group | Disable push events cho user trong group đó |
-| `user/deleted` | GDPR delete | Cascade anonymize (15.2.8) |
-| `exam/attempt-submitted` | Student xong exam | Nếu exam được share trong group → post auto-message "{user} vừa hoàn thành {exam} điểm {X}" vào channel |
-| `recording/transcribed` | LiveKit recording done | Post transcript + summary vào channel làm message system |
+| Event source                       | Event                   | Reaction trong study group                                                                              |
+| ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `documents/uploaded`               | New doc trong workspace | Suggest share vào group channel nếu doc relate môn nào (concept tag match channel topic)                |
+| `concept/mastery-changed`          | User mastery thay đổi   | Update group leaderboard cache + insights                                                               |
+| `notification/preferences-changed` | User mute group         | Disable push events cho user trong group đó                                                             |
+| `user/deleted`                     | GDPR delete             | Cascade anonymize (15.2.8)                                                                              |
+| `exam/attempt-submitted`           | Student xong exam       | Nếu exam được share trong group → post auto-message "{user} vừa hoàn thành {exam} điểm {X}" vào channel |
+| `recording/transcribed`            | LiveKit recording done  | Post transcript + summary vào channel làm message system                                                |
 
 ### 15.4. External integrations
 
 #### 15.4.1. Email (V1.5)
+
 - Daily digest 7am — recap activity của groups user joined hôm qua
 - Mention email — nếu user không mở app trong 1h sau khi bị mention → send email với deep link
 - Magic link join — invite qua email link thay vì code
 - Stack: existing Resend/SendGrid pipeline (Phase M2)
 
 #### 15.4.2. Slack bridge (V2)
+
 - 1 group có thể bridge 1 Slack channel (2 chiều)
 - Cogniva message → Slack post via webhook
 - Slack message → Cogniva message via Slack Events API
@@ -1548,26 +1612,31 @@ WHERE NOT EXISTS (SELECT 1 FROM study_group_channel WHERE group_id = g.id);
 - Use case: 1 lớp dùng Slack chính, Cogniva mirror cho member chưa có Slack
 
 #### 15.4.3. Discord bridge (V2)
+
 - Tương tự Slack — qua Discord Bot API
 - Use case: cộng đồng học sinh dùng Discord chính
 
 #### 15.4.4. Calendar — Google Calendar / iCal (V2)
+
 - Voice channel scheduled event → publish iCal feed
 - User subscribe iCal URL → event hiện trên Google Calendar / Outlook
 - Reverse: user share Google Calendar → Cogniva pull events vào group calendar
 
 #### 15.4.5. LMS — Moodle / Canvas / Google Classroom (V3)
+
 - LTI 1.3 standard — Cogniva làm LTI Tool
 - Course trong Moodle → Cogniva auto-create matching study group
 - Roster sync: enroll student trong Moodle → auto-join Cogniva group
 - Grade passback: exam điểm push ngược lại Moodle gradebook
 
 #### 15.4.6. SSO — SAML/OIDC (V3 enterprise)
+
 - Trường đại học có Microsoft 365 / Google Workspace → SSO login
 - Sync attributes: department → auto-assign group, role
 - SCIM provisioning: HR system tạo user → auto-create Cogniva account
 
 #### 15.4.7. Outbound webhooks (V2)
+
 - Owner add webhook URL trong group settings
 - Cogniva POST events tới URL (mention, member-joined, voice-started, ...)
 - Use case: integrate Zapier, n8n, custom dashboard
@@ -1583,6 +1652,7 @@ study_group_webhook (
 Retry exponential backoff, disable sau 10 fail liên tiếp + email owner.
 
 #### 15.4.8. Public API + OAuth apps (V3)
+
 - Third-party dev đăng ký app → user authorize → app post messages on behalf
 - Discord-style "bot" — accept OAuth scope `study_group.messages.write`, `study_group.read`
 - Rate limit per app: 100 req/min, 10K/day

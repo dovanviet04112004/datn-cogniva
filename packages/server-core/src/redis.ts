@@ -1,37 +1,8 @@
-/**
- * Redis client — 3 implementation theo env, expose interface giống nhau.
- *
- * Pick logic (priority cao xuống thấp):
- *   1. REDIS_URL  → ioredis (TCP) — dùng cho dev local Docker (redis://localhost:6379)
- *   2. UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN → @upstash/redis (REST) —
- *      dùng cho Vercel production (serverless cần HTTP REST vì TCP socket
- *      không persist giữa cold start)
- *   3. Không có gì → InMemoryRedis fallback (dev/test, không share giữa process)
- *
- * Vì sao 2 implementation:
- *   - Production Vercel: Upstash REST chạy ở edge runtime, không cần connection
- *     pool, mỗi command 1 HTTP request idempotent
- *   - Dev local: muốn tận dụng Redis Docker đã chạy cho LiveKit/Socket.IO pub/sub,
- *     ioredis nhanh hơn ~10ms vs REST khi cùng máy
- *   - Production Hetzner (Stage 3): có thể self-host DragonflyDB qua ioredis
- *     compat → switch sang ioredis path bằng cách set REDIS_URL
- *
- * Adapter pattern: cả 3 client đều expose subset:
- *   get / set { ex?, nx?, px? } / incr / incrby / expire / del / ttl / pipeline
- * Code caller (rate-limit, circuit-breaker, semantic-cache) KHÔNG biết implementation.
- */
 import { Redis as UpstashRedis } from '@upstash/redis';
 import IORedis, { type RedisOptions } from 'ioredis';
 
 export type RedisClient = UpstashRedis | InMemoryRedis | IoRedisAdapter;
 
-/**
- * Parse REDIS_URL bằng WHATWG URL → options object cho ioredis. Truyền chuỗi
- * URL thẳng vào `new IORedis(url)` sẽ đi qua parseURL nội bộ dùng
- * `url.parse()` — Node ≥24 phát DeprecationWarning DEP0169 và Next dev
- * overlay hiển thị thành Console Error ở lần SSR đầu chạm Redis.
- * URL dị dạng → fallback trả nguyên chuỗi (đường cũ, chấp nhận warning).
- */
 export function redisOptionsFromUrl(url: string): RedisOptions | string {
   try {
     const u = new URL(url);
@@ -53,21 +24,15 @@ export function redisOptionsFromUrl(url: string): RedisOptions | string {
 let _client: RedisClient | null = null;
 let _devWarned = false;
 
-/**
- * Lấy Redis client. Singleton — Vercel function instance tái dùng giữa các
- * cold start cùng container; dev Node process tái dùng cả lifecycle.
- */
 export function getRedis(): RedisClient {
   if (_client) return _client;
 
-  // Priority 1: ioredis qua REDIS_URL (dev local Docker)
   const tcpUrl = process.env.REDIS_URL;
   if (tcpUrl) {
     _client = new IoRedisAdapter(tcpUrl);
     return _client;
   }
 
-  // Priority 2: Upstash REST (production serverless)
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (url && token) {
@@ -79,7 +44,6 @@ export function getRedis(): RedisClient {
     return _client;
   }
 
-  // Priority 3: in-memory fallback
   if (process.env.NODE_ENV === 'production') {
     console.error(
       '[redis] Cần REDIS_URL hoặc UPSTASH_REDIS_REST_URL+TOKEN trong production. ' +
@@ -96,47 +60,22 @@ export function getRedis(): RedisClient {
   return _client;
 }
 
-// ──────────────────────────────────────────────────────────
-// IoRedisAdapter — wrap ioredis TCP client thành Upstash API shape
-// ──────────────────────────────────────────────────────────
-/**
- * Adapter giúp `ioredis` expose API giống `@upstash/redis` để caller (rate-limit,
- * circuit-breaker, semantic-cache) KHÔNG phải branch theo provider.
- *
- * Khác biệt chính cần dịch:
- *   - set: ioredis dùng args `'EX', sec` / `'NX'` / `'PX', ms` (variadic),
- *     Upstash dùng object `{ ex, nx, px }`
- *   - pipeline.exec(): ioredis trả `[[err, result], ...]` (Redis convention),
- *     Upstash trả `[result, result, ...]` — strip err để match
- *   - eval: ioredis nhận `script, numkeys, ...keys, ...args` (variadic),
- *     Upstash nhận `script, keys[], args[]` — wrap args
- */
 export class IoRedisAdapter {
   private client: IORedis;
 
   constructor(url: string) {
     const parsed = redisOptionsFromUrl(url);
     const common: RedisOptions = {
-      // Lazy connect — không block startup nếu Redis chưa up. Connection tạo
-      // ở first command, retry tự động.
       lazyConnect: false,
-      // ── Cân bằng: IM khi bình thường + fail-open có GIỚI HẠN khi Redis chết ──
-      // GIỮ enableOfflineQueue=true (mặc định): connection chưa sẵn (startup/HMR/reconnect
-      // blip) → command XẾP HÀNG chờ thay vì fail ngay → KHÔNG spam "Stream isn't writeable".
-      // `commandTimeout` cap: Redis thực sự DOWN → command fail trong ~2s (fail-open → DB)
-      // thay vì treo 20s (root: connectTimeout mặc định 10s × retry). connectTimeout ngắn +
-      // maxRetriesPerRequest thấp để fail nhanh.
       commandTimeout: 2000,
       connectTimeout: 2000,
       maxRetriesPerRequest: 2,
-      // Reconnect khi network drop
       retryStrategy: (times: number) => Math.min(times * 100, 3000),
     };
     this.client =
       typeof parsed === 'string'
         ? new IORedis(parsed, common)
         : new IORedis({ ...parsed, ...common });
-    // Tắt log noisy "connection refused" — caller fail-open đã handle
     this.client.on('error', (err: unknown) => {
       if (process.env.NODE_ENV !== 'production') {
         console.warn('[redis/ioredis] connection error:', err instanceof Error ? err.message : err);
@@ -148,10 +87,6 @@ export class IoRedisAdapter {
     return this.client.get(key);
   }
 
-  /**
-   * SET với options. Map Upstash style `{ ex, nx, px }` → ioredis variadic.
-   * Lưu ý ioredis trả 'OK' khi success, null khi NX fail (cùng Upstash).
-   */
   async set(
     key: string,
     value: string | number,
@@ -161,7 +96,6 @@ export class IoRedisAdapter {
     if (opts?.ex) args.push('EX', opts.ex);
     if (opts?.px) args.push('PX', opts.px);
     if (opts?.nx) args.push('NX');
-    // ioredis typing complicates variadic — cast về any-side để pass-through
     const v = typeof value === 'number' ? value.toString() : value;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await (this.client.set as any)(key, v, ...args);
@@ -189,79 +123,61 @@ export class IoRedisAdapter {
     return this.client.ttl(key);
   }
 
-  // ── Sorted Set ops (Phase 17 leaderboard) ──────────────────
-  /** ZINCRBY key inc member → trả về điểm mới sau khi tăng. */
   async zincrby(key: string, increment: number, member: string): Promise<number> {
     const v = await this.client.zincrby(key, increment, member);
     return Number(v);
   }
 
-  /**
-   * ZREVRANGE WITHSCORES — top N descending. Trả format flat `[member,score,...]`
-   * giống Upstash để caller pair lại được.
-   */
-  async zrevrange(key: string, start: number, stop: number, withScores: boolean): Promise<string[]> {
+  async zrevrange(
+    key: string,
+    start: number,
+    stop: number,
+    withScores: boolean,
+  ): Promise<string[]> {
     if (withScores) {
       return this.client.zrevrange(key, start, stop, 'WITHSCORES');
     }
     return this.client.zrevrange(key, start, stop);
   }
 
-  /** ZREVRANK — rank 0-indexed (cao nhất = 0). Null nếu member không có. */
   async zrevrank(key: string, member: string): Promise<number | null> {
     const v = await this.client.zrevrank(key, member);
     return v ?? null;
   }
 
-  /** ZSCORE — null nếu member không có. */
   async zscore(key: string, member: string): Promise<number | null> {
     const v = await this.client.zscore(key, member);
     return v === null ? null : Number(v);
   }
 
-  /** ZCARD — số members trong sorted set. */
   async zcard(key: string): Promise<number> {
     return this.client.zcard(key);
   }
 
-  /** ZREM — xoá members. Trả về số removed. */
   async zrem(key: string, ...members: string[]): Promise<number> {
     if (members.length === 0) return 0;
     return this.client.zrem(key, ...members);
   }
 
-  // ── Set ops (presence count: live exam joined users) ───────
-  /** SADD — trả về số members mới thêm (đã có không count). */
   async sadd(key: string, ...members: string[]): Promise<number> {
     if (members.length === 0) return 0;
     return this.client.sadd(key, ...members);
   }
-  /** SREM — trả về số members removed. */
   async srem(key: string, ...members: string[]): Promise<number> {
     if (members.length === 0) return 0;
     return this.client.srem(key, ...members);
   }
-  /** SCARD — số members hiện tại. */
   async scard(key: string): Promise<number> {
     return this.client.scard(key);
   }
-  /** SMEMBERS — list members. */
   async smembers(key: string): Promise<string[]> {
     return this.client.smembers(key);
   }
 
-  /**
-   * EVAL Lua — ioredis: `eval(script, numkeys, ...keys, ...args)`;
-   * Upstash: `eval(script, keys: string[], args: string[])`.
-   */
   async eval(script: string, keys: string[], args: string[]): Promise<unknown> {
     return this.client.eval(script, keys.length, ...keys, ...args);
   }
 
-  /**
-   * Pipeline — execute commands trên cùng connection.
-   * exec() strip err prefix `[[err, result], ...]` → `[result, ...]` để khớp Upstash.
-   */
   pipeline() {
     const pl = this.client.pipeline();
     const chainable = {
@@ -293,8 +209,6 @@ export class IoRedisAdapter {
       async exec(): Promise<unknown[]> {
         const results = await pl.exec();
         if (!results) return [];
-        // ioredis trả [[Error|null, result], ...] → strip err, return only results.
-        // Throw nếu có command fail (giống cách Upstash báo lỗi qua reject promise).
         return results.map(([err, result]) => {
           if (err) throw err;
           return result;
@@ -304,26 +218,14 @@ export class IoRedisAdapter {
     return chainable;
   }
 
-  /** Cleanup — gọi khi process exit. Singleton nên rarely needed. */
   async disconnect(): Promise<void> {
     await this.client.quit();
   }
 }
 
-// ──────────────────────────────────────────────────────────
-// InMemoryRedis — fallback minimal cho dev/test khi không có Redis
-// ──────────────────────────────────────────────────────────
-/**
- * InMemoryRedis — implement subset Redis API ta dùng:
- *   get / set với EX/NX/PX, incr / incrby, expire, del, ttl, pipeline.
- *
- * KHÔNG share giữa Node process. Reset khi server restart. KHÔNG production.
- */
 export class InMemoryRedis {
   private store = new Map<string, { value: string; expireAt: number | null }>();
-  /** Sorted set storage: key → Map<member, score>. */
   private zsets = new Map<string, Map<string, number>>();
-  /** Plain set storage: key → Set<member>. */
   private sets = new Map<string, Set<string>>();
 
   private isExpired(entry: { expireAt: number | null }): boolean {
@@ -378,7 +280,6 @@ export class InMemoryRedis {
   async del(...keys: string[]): Promise<number> {
     let deleted = 0;
     for (const key of keys) {
-      // Del cover cả 3 namespace: string store, sorted set, plain set
       let hit = false;
       if (this.store.delete(key)) hit = true;
       if (this.zsets.delete(key)) hit = true;
@@ -395,12 +296,10 @@ export class InMemoryRedis {
     return Math.max(0, Math.floor((entry.expireAt - Date.now()) / 1000));
   }
 
-  /** Eval Lua — InMemory không hỗ trợ. Caller phải fallback path. */
   async eval(_script: string, _keys: string[], _args: string[]): Promise<unknown> {
     throw new Error('[InMemoryRedis] eval() chưa implement — set REDIS_URL hoặc UPSTASH_*');
   }
 
-  // ── Sorted Set ops (in-memory simulation) ───────────────────
   private getZset(key: string): Map<string, number> {
     let zset = this.zsets.get(key);
     if (!zset) {
@@ -417,15 +316,18 @@ export class InMemoryRedis {
     return next;
   }
 
-  async zrevrange(key: string, start: number, stop: number, withScores: boolean): Promise<string[]> {
+  async zrevrange(
+    key: string,
+    start: number,
+    stop: number,
+    withScores: boolean,
+  ): Promise<string[]> {
     const zset = this.zsets.get(key);
     if (!zset) return [];
-    // Sort desc theo score, tiebreak theo member alphabetic ASC (giống Redis)
     const sorted = [...zset.entries()].sort((a, b) => {
       if (b[1] !== a[1]) return b[1] - a[1];
       return a[0].localeCompare(b[0]);
     });
-    // Redis: stop -1 = last
     const sliceStop = stop === -1 ? sorted.length : stop + 1;
     const slice = sorted.slice(start, sliceStop);
     if (withScores) {
@@ -464,7 +366,6 @@ export class InMemoryRedis {
     return removed;
   }
 
-  // ── Set ops (in-memory simulation) ──────────────────────────
   private getSet(key: string): Set<string> {
     let set = this.sets.get(key);
     if (!set) {
@@ -543,10 +444,6 @@ export class InMemoryRedis {
   }
 }
 
-/**
- * Check Redis health — gọi từ /api/health.
- * Trả về { ok, latencyMs, mode: 'redis-tcp' | 'redis-rest' | 'inmemory' }.
- */
 export async function checkRedisHealth(): Promise<{
   ok: boolean;
   latencyMs: number;
@@ -578,23 +475,12 @@ export async function checkRedisHealth(): Promise<{
   }
 }
 
-/**
- * ZSET top-N giảm dần kèm score — PORTABLE qua cả 3 provider.
- *
- * Vì sao cần wrapper: `@upstash/redis` KHÔNG có `zrevrange` (chỉ `zrange`+`{rev}`),
- * còn IoRedisAdapter/InMemoryRedis chỉ có `zrevrange` (chưa `zrange`). Gọi thẳng
- * trên union → vỡ type/runtime. Branch theo instanceof để mỗi provider dùng API nó có.
- *
- * @returns flat `[member, score, member, score, ...]` (string) — caller pair lại.
- *          Lỗi để caller bắt (leaderboard.ts fail-open → null → fallback DB).
- */
 export async function zRevRangeWithScores(key: string, n: number): Promise<string[]> {
   if (n <= 0) return [];
   const r = getRedis();
   if (r instanceof IoRedisAdapter || r instanceof InMemoryRedis) {
     return r.zrevrange(key, 0, n - 1, true);
   }
-  // Còn lại = Upstash REST: zrange với rev + withScores → flat array.
   const flat = (await r.zrange(key, 0, n - 1, { rev: true, withScores: true })) as unknown[];
   return flat.map((v) => String(v));
 }

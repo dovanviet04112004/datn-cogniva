@@ -1,15 +1,3 @@
-/**
- * EndorseSection — Phase 3 Tutor Endorsement UI (2026-05-27).
- *
- * Hai phần:
- *   1. List endorsers (avatar + headline + note nếu có) — visible cho mọi user
- *   2. "Endorse doc này" button — chỉ hiện khi user là tutor verified
- *
- * Side effect endorse: gọi /api/library/docs/[id]/endorse POST → quality
- * recompute auto-grant badge educator_approved.
- *
- * Spec: docs/plans/library-share.md §Phase 3 tutor endorsement.
- */
 'use client';
 
 import * as React from 'react';
@@ -51,10 +39,13 @@ export function EndorseSection({ docId }: { docId: string }) {
   const [submitting, setSubmitting] = React.useState(false);
 
   type EndorseData = { endorsements: Endorsement[]; viewer: TutorEligibility };
-  const { data, isLoading: loading, refetch } = useQuery({
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.libraryDocEndorse(docId),
-    queryFn: () =>
-      apiGet<EndorseData>(`/api/library/docs/${docId}/endorse`),
+    queryFn: () => apiGet<EndorseData>(`/api/library/docs/${docId}/endorse`),
     enabled: !!docId,
   });
   const endorsements = data?.endorsements ?? [];
@@ -90,7 +81,7 @@ export function EndorseSection({ docId }: { docId: string }) {
   };
 
   if (loading && endorsements.length === 0) {
-    return null; // hidden lúc đầu để không gây flash UI
+    return null;
   }
 
   const canEndorse =
@@ -100,7 +91,6 @@ export function EndorseSection({ docId }: { docId: string }) {
     !eligibility.hasEndorsed;
   const hasEndorsed = eligibility?.hasEndorsed ?? false;
 
-  // Hide section nếu không có endorsement AND không phải tutor verified
   if (endorsements.length === 0 && !canEndorse && !hasEndorsed) return null;
 
   return (
@@ -123,7 +113,7 @@ export function EndorseSection({ docId }: { docId: string }) {
           <button
             type="button"
             onClick={revoke}
-            className="text-[10px] text-muted-foreground hover:text-rose-600"
+            className="text-muted-foreground text-[10px] hover:text-rose-600"
           >
             {t('library.endorse.revoke')}
           </button>
@@ -131,9 +121,7 @@ export function EndorseSection({ docId }: { docId: string }) {
       </div>
 
       {endorsements.length === 0 ? (
-        <p className="text-[11.5px] text-muted-foreground">
-          {t('library.endorse.empty')}
-        </p>
+        <p className="text-muted-foreground text-[11.5px]">{t('library.endorse.empty')}</p>
       ) : (
         <ul className="space-y-2">
           {endorsements.slice(0, 4).map((e) => (
@@ -147,15 +135,13 @@ export function EndorseSection({ docId }: { docId: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-[11.5px] font-semibold leading-tight">
                   {e.tutorName ?? t('library.endorse.tutor')}{' '}
-                  <span className="font-normal text-emerald-700 dark:text-emerald-300">
-                    ✓ KYC
-                  </span>
+                  <span className="font-normal text-emerald-700 dark:text-emerald-300">✓ KYC</span>
                 </p>
-                <p className="line-clamp-1 text-[10.5px] text-muted-foreground">
+                <p className="text-muted-foreground line-clamp-1 text-[10.5px]">
                   {e.tutorHeadline}
                 </p>
                 {e.note && (
-                  <p className="mt-1 rounded bg-background/60 px-2 py-1 text-[11px] italic text-foreground/85">
+                  <p className="bg-background/60 text-foreground/85 mt-1 rounded px-2 py-1 text-[11px] italic">
                     &quot;{e.note}&quot;
                   </p>
                 )}
@@ -163,16 +149,16 @@ export function EndorseSection({ docId }: { docId: string }) {
             </li>
           ))}
           {endorsements.length > 4 && (
-            <li className="text-[10.5px] text-muted-foreground">
-              {t('library.endorse.others_prefix')} {endorsements.length - 4} {t('library.endorse.others_suffix')}
+            <li className="text-muted-foreground text-[10.5px]">
+              {t('library.endorse.others_prefix')} {endorsements.length - 4}{' '}
+              {t('library.endorse.others_suffix')}
             </li>
           )}
         </ul>
       )}
 
-      {/* Endorse form */}
       {formOpen && (
-        <div className="mt-2.5 rounded-lg border border-emerald-500/30 bg-background p-2.5">
+        <div className="bg-background mt-2.5 rounded-lg border border-emerald-500/30 p-2.5">
           <div className="mb-2 flex items-center justify-between">
             <p className="flex items-center gap-1 text-[11.5px] font-semibold">
               <Sparkles className="h-3 w-3 text-emerald-600" />
@@ -181,7 +167,7 @@ export function EndorseSection({ docId }: { docId: string }) {
             <button
               type="button"
               onClick={() => setFormOpen(false)}
-              className="rounded p-0.5 hover:bg-muted"
+              className="hover:bg-muted rounded p-0.5"
             >
               <X className="h-3.5 w-3.5" />
             </button>

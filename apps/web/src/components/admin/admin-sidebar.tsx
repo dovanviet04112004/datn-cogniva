@@ -1,10 +1,3 @@
-/**
- * AdminSidebar — nav cố định 240px cho admin console.
- *
- * KHÔNG hover-expand như AppSidebar — admin cần label luôn rõ. 7 group theo
- * docs/plans/admin.md §4.2. Item adminOnly filter theo role (SUPER_ADMIN thấy hết,
- * ADMIN thiếu billing/refund, SUPPORT view-only).
- */
 'use client';
 
 import * as React from 'react';
@@ -40,9 +33,7 @@ type NavItem = {
   href: string;
   label: string;
   icon: typeof Users;
-  /** Roles được phép thấy item — undefined = mọi role. */
   roles?: AdminRole[];
-  /** Match thêm pattern phụ cho active state. */
   match?: string[];
 };
 
@@ -149,9 +140,7 @@ export function AdminSidebar({ role }: { role: AdminRole }) {
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-4">
         {NAV_GROUPS.map((group) => {
-          const items = group.items.filter(
-            (it) => !it.roles || it.roles.includes(role),
-          );
+          const items = group.items.filter((it) => !it.roles || it.roles.includes(role));
           if (items.length === 0) return null;
           return (
             <div key={group.label} className="flex flex-col gap-1">

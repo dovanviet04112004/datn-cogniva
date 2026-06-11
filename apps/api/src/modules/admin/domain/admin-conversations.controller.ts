@@ -1,16 +1,4 @@
-/**
- * /api/admin/conversations/* + /api/admin/recordings/:id — port từ
- * apps/web/src/app/api/admin/{conversations,recordings}/**.
- */
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import {
@@ -29,7 +17,6 @@ import { adminReasonSchema, type AdminReasonInput } from './dto/admin-domain.dto
 export class AdminConversationsController {
   constructor(private readonly conversations: AdminConversationsService) {}
 
-  /** GET /admin/conversations — list + messageCount + lastMessageAt. */
   @Get('conversations')
   list(
     @Query('q') q?: string,
@@ -40,13 +27,11 @@ export class AdminConversationsController {
     return this.conversations.list({ q, userEmail, cursor, limit });
   }
 
-  /** GET /admin/conversations/:id — full thread + owner. */
   @Get('conversations/:id')
   detail(@Param('id') id: string) {
     return this.conversations.getDetail(id);
   }
 
-  /** DELETE /admin/conversations/:id — hard delete, FK cascade messages. */
   @Delete('conversations/:id')
   @AdminRoles('SUPER_ADMIN', 'ADMIN')
   removeConversation(
@@ -57,7 +42,6 @@ export class AdminConversationsController {
     return this.conversations.deleteConversation(ctx, id, body.reason);
   }
 
-  /** DELETE /admin/recordings/:id — xoá DB row + bust cache room (R2 giữ). */
   @Delete('recordings/:id')
   @AdminRoles('SUPER_ADMIN', 'ADMIN')
   removeRecording(

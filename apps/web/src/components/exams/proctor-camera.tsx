@@ -1,16 +1,3 @@
-/**
- * ProctorCamera (Phase 19) — webcam preview + mic monitor + snapshot capture.
- *
- * UX:
- *   - Component cố định ở góc dưới phải, kích thước 200x150 video preview
- *   - Hiện badge LIVE đỏ + thanh mic level (volume) nếu enabled
- *   - Permission denied → onViolation('webcam_denied') / ('mic_denied')
- *   - Track không có signal (camera che) → onViolation('webcam_missing') sau 10s
- *   - Snapshot canvas mỗi 30s (chỉ khi enabled.snapshot)
- *
- * Privacy note: stream local-only, KHÔNG upload server V1. Snapshot lưu
- * IndexedDB client (component cha có thể download/inspect sau exam).
- */
 'use client';
 
 import * as React from 'react';
@@ -18,15 +5,10 @@ import { Video, VideoOff, Mic, MicOff } from 'lucide-react';
 import type { ViolationEvent } from '@/lib/anti-cheat/detectors';
 
 type Props = {
-  /** Bật webcam — false sẽ KHÔNG request permission. */
   webcam: boolean;
-  /** Bật mic — false sẽ KHÔNG request permission. */
   mic: boolean;
-  /** Interval (ms) capture snapshot. 0 = không capture. */
   snapshotIntervalMs?: number;
-  /** Callback khi có violation (denied/missing/silent). */
   onViolation: (v: ViolationEvent) => void;
-  /** Callback khi snapshot tạo xong — base64 JPEG (q=0.6, ~30-50KB). */
   onSnapshot?: (dataUrl: string, timestamp: number) => void;
 };
 
@@ -47,7 +29,6 @@ export function ProctorCamera({
   const [micLevel, setMicLevel] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Init media + cleanup
   React.useEffect(() => {
     if (!webcam && !mic) return;
 
@@ -103,7 +84,6 @@ export function ProctorCamera({
       }
     })();
 
-    // Mic level monitor loop
     let micRAF = 0;
     const tick = () => {
       const analyser = analyserRef.current;
@@ -111,10 +91,9 @@ export function ProctorCamera({
         const data = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(data);
         const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        const norm = avg / 128; // 0..2 nominal
+        const norm = avg / 128;
         setMicLevel(Math.min(1, norm));
 
-        // Silent detection: mic on but nothing for 30s
         if (mic && norm < 0.05) {
           if (silentSince === null) silentSince = Date.now();
           else if (Date.now() - silentSince > 30_000) {
@@ -124,7 +103,7 @@ export function ProctorCamera({
               timestamp: Date.now(),
               metadata: { silentSeconds: 30 },
             });
-            silentSince = Date.now(); // reset để không spam
+            silentSince = Date.now();
           }
         } else {
           silentSince = null;
@@ -144,7 +123,6 @@ export function ProctorCamera({
     };
   }, [webcam, mic, onViolation]);
 
-  // Snapshot loop
   React.useEffect(() => {
     if (!webcam || !snapshotIntervalMs || !onSnapshot) return;
     const id = setInterval(() => {
@@ -152,7 +130,6 @@ export function ProctorCamera({
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
       if (video.videoWidth === 0) {
-        // Camera available nhưng không có signal (che, off) — violation sau 10s
         return;
       }
       canvas.width = video.videoWidth;
@@ -166,14 +143,11 @@ export function ProctorCamera({
     return () => clearInterval(id);
   }, [webcam, snapshotIntervalMs, onSnapshot]);
 
-  // Detect "camera covered" — no pixel change after 10s
   React.useEffect(() => {
     if (!webcam || !hasVideo) return;
     const id = setInterval(() => {
       const video = videoRef.current;
       if (!video || video.videoWidth === 0) return;
-      // Heuristic: check if videoElement actually receiving frames
-      // Browser API không có direct "is frame fresh" → bỏ qua V1
     }, 10_000);
     return () => clearInterval(id);
   }, [webcam, hasVideo]);
@@ -181,7 +155,7 @@ export function ProctorCamera({
   if (!webcam && !mic) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 rounded-md border bg-card shadow-lg">
+    <div className="bg-card fixed bottom-4 right-4 z-50 rounded-md border shadow-lg">
       {webcam && (
         <div className="relative">
           <video
@@ -193,7 +167,7 @@ export function ProctorCamera({
           />
           <canvas ref={canvasRef} className="hidden" />
           {hasVideo ? (
-            <span className="absolute top-1 left-1 flex items-center gap-1 rounded bg-recording-live/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <span className="bg-recording-live/90 absolute left-1 top-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-white">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> LIVE
             </span>
           ) : (
@@ -205,23 +179,23 @@ export function ProctorCamera({
         </div>
       )}
       <div className="flex items-center justify-between gap-2 px-2 py-1">
-        {webcam && <Video className={`h-3.5 w-3.5 ${hasVideo ? 'text-success' : 'text-destructive'}`} />}
+        {webcam && (
+          <Video className={`h-3.5 w-3.5 ${hasVideo ? 'text-success' : 'text-destructive'}`} />
+        )}
         {mic && (
           <>
             <Mic className={`h-3.5 w-3.5 ${hasAudio ? 'text-success' : 'text-destructive'}`} />
-            <div className="flex-1 h-1 overflow-hidden rounded-full bg-muted">
+            <div className="bg-muted h-1 flex-1 overflow-hidden rounded-full">
               <div
-                className="h-full bg-success transition-all"
+                className="bg-success h-full transition-all"
                 style={{ width: `${micLevel * 100}%` }}
               />
             </div>
           </>
         )}
-        {!mic && !webcam && <MicOff className="h-3.5 w-3.5 text-muted-foreground" />}
+        {!mic && !webcam && <MicOff className="text-muted-foreground h-3.5 w-3.5" />}
       </div>
-      {error && (
-        <p className="px-2 pb-1 text-[10px] text-destructive">{error.slice(0, 60)}</p>
-      )}
+      {error && <p className="text-destructive px-2 pb-1 text-[10px]">{error.slice(0, 60)}</p>}
     </div>
   );
 }

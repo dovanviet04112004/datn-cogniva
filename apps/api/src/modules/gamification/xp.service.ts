@@ -1,22 +1,9 @@
-/**
- * XpService — XP + Streak engine, port từ apps/web/src/lib/gamification/
- * {xp,achievements}.ts. Choke point gamification: mọi route thưởng XP
- * (flashcard/quiz/note/upload) đều gọi awardXp → hook onXpChanged 1 chỗ
- * bust profile + dashboard cache + cộng ZSET leaderboard cho TẤT CẢ.
- *
- * XP rules (Phase 9 v1): xem XP_AMOUNTS. Streak: hôm nay giữ nguyên,
- * hôm qua +1, khác → reset 1; longestStreak update max.
- *
- * Race condition: 2 activity cùng lúc → UPDATE đè nhau, có thể mất 1-2 XP.
- * Chấp nhận như lib cũ (Phase 9 v1).
- */
 import { Injectable } from '@nestjs/common';
 import { ACHIEVEMENT_META } from '@cogniva/server-core';
 import { onXpChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 
-/** XP awards predefined theo source — dùng trong route handlers (giá trị y lib cũ). */
 export const XP_AMOUNTS = {
   FLASHCARD_REVIEW_PASS: 5,
   FLASHCARD_REVIEW_FAIL: 2,
@@ -25,7 +12,6 @@ export const XP_AMOUNTS = {
   DOCUMENT_UPLOAD: 20,
 } as const;
 
-/** Shape stats trả caller — camelCase khớp UserStatsRow của lib web cũ. */
 export type UserStatsRow = {
   userId: string;
   xp: number;
@@ -37,11 +23,9 @@ export type UserStatsRow = {
 
 export type AchievementContext = {
   source: 'flashcard' | 'quiz' | 'note' | 'document' | 'streak';
-  /** Tổng số object loại đó user đã tạo (caller query trước khi check). */
   totalCount?: number;
 };
 
-/** Logic unlock theo id — metadata (label/icon) ở ACHIEVEMENT_META (server-core). */
 const ACHIEVEMENT_CHECKS: Record<string, (s: UserStatsRow, c: AchievementContext) => boolean> = {
   first_upload: (_s, c) => c.source === 'document' && (c.totalCount ?? 0) >= 1,
   first_quiz: (_s, c) => c.source === 'quiz' && (c.totalCount ?? 0) >= 1,
@@ -59,12 +43,10 @@ const ACHIEVEMENT_CHECKS: Record<string, (s: UserStatsRow, c: AchievementContext
 export class XpService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** YYYY-MM-DD (UTC) — đủ cho v1, không quá khác giờ VN +7 (như lib cũ). */
   private todayString(): string {
     return new Date().toISOString().slice(0, 10);
   }
 
-  /** Tính streak mới: hôm nay giữ nguyên, hôm qua +1, còn lại reset về 1. */
   private computeStreak(lastDate: string | null, currentStreak: number): number {
     const today = this.todayString();
     if (lastDate === today) return currentStreak;
@@ -75,7 +57,6 @@ export class XpService {
     return 1;
   }
 
-  /** Đảm bảo có row user_stats — upsert idempotent. */
   private async ensureStats(userId: string): Promise<UserStatsRow> {
     const row =
       (await this.prisma.user_stats.findUnique({ where: { user_id: userId } })) ??
@@ -90,7 +71,6 @@ export class XpService {
     };
   }
 
-  /** Check toàn bộ achievements, trả list id MỚI unlock so với list hiện có. */
   private checkNewAchievements(stats: UserStatsRow, ctx: AchievementContext): string[] {
     const already = new Set(stats.achievements);
     const unlocked: string[] = [];
@@ -102,14 +82,6 @@ export class XpService {
     return unlocked;
   }
 
-  /**
-   * Award XP + cập nhật streak + check achievement.
-   *
-   * @param userId - User nhận XP
-   * @param amount - Số XP cộng (luôn ≥ 0)
-   * @param ctx    - Source + count để check achievement
-   * @returns      - Stats sau update + list achievement mới unlock
-   */
   async awardXp(
     userId: string,
     amount: number,
@@ -128,9 +100,10 @@ export class XpService {
       lastActivityDate: today,
     };
 
-    // Check achievement TRƯỚC khi persist — merge vào UPDATE cùng câu.
     const unlocked = this.checkNewAchievements(nextStats, ctx);
-    const merged = unlocked.length ? [...nextStats.achievements, ...unlocked] : nextStats.achievements;
+    const merged = unlocked.length
+      ? [...nextStats.achievements, ...unlocked]
+      : nextStats.achievements;
 
     const updated = await this.prisma.user_stats.update({
       where: { user_id: userId },
@@ -144,8 +117,6 @@ export class XpService {
       },
     });
 
-    // Choke point: bust profile/dashboard + cộng ZSET leaderboard.
-    // Fail-open (Redis lỗi không làm hỏng award).
     await onXpChanged(userId, amount);
 
     return {

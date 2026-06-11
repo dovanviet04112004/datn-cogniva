@@ -1,11 +1,3 @@
-/**
- * AdminCommandPalette — ⌘K global search cho admin console.
- *
- * Pattern Notion/Linear: dropdown ngay dưới input. Click input hoặc Cmd+K mở,
- * gõ debounce 200ms → fetch /api/admin/search, Enter/click navigate.
- *
- * Phím tắt: ⌘K / Ctrl+K toggle. Esc đóng. ↑↓ navigate, Enter chọn.
- */
 'use client';
 
 import * as React from 'react';
@@ -28,7 +20,6 @@ import { qk } from '@cogniva/shared/query';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-/** Hit trả về từ GET /api/admin/search (route giờ ở NestJS, proxy same-origin). */
 export type AdminSearchHit = {
   type: 'user' | 'document' | 'conversation' | 'group' | 'booking';
   id: string;
@@ -62,12 +53,10 @@ export function AdminCommandPalette() {
 
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Detect Mac sau mount để swap Ctrl↔⌘ (hydration-safe)
   React.useEffect(() => {
     setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform));
   }, []);
 
-  // Cmd+K / Ctrl+K toggle
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -80,14 +69,11 @@ export function AdminCommandPalette() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Debounce + fetch
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
 
-  // Search-as-you-type qua React Query — chỉ chạy khi ≥2 ký tự, cache theo query
-  // nên gõ lại từ khoá cũ trả ngay từ cache. isFetching → spinner mỗi lần gõ.
   const { data: hits = [], isFetching: loading } = useQuery({
     queryKey: qk.adminSearch(debouncedQ),
     queryFn: () =>
@@ -99,11 +85,10 @@ export function AdminCommandPalette() {
 
   const select = (hit: AdminSearchHit) => {
     setOpen(false);
-    setQ(''); // debouncedQ về '' → query tự disable, không cần clear hits thủ công
+    setQ('');
     router.push(hit.href);
   };
 
-  // Group by type
   const groups = React.useMemo(() => {
     const map = new Map<AdminSearchHit['type'], AdminSearchHit[]>();
     for (const h of hits) {
@@ -137,11 +122,7 @@ export function AdminCommandPalette() {
         sideOffset={4}
         className="w-[min(560px,calc(100vw-2rem))] border-slate-800 bg-slate-950 p-0 text-slate-100"
       >
-        <Command
-          shouldFilter={false}
-          className="overflow-hidden"
-          loop
-        >
+        <Command shouldFilter={false} className="overflow-hidden" loop>
           <div className="flex items-center gap-2 border-b border-slate-800 px-3">
             <Search className="h-3.5 w-3.5 text-slate-500" />
             <Command.Input

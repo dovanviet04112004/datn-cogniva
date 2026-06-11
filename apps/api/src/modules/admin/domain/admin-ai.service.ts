@@ -1,11 +1,3 @@
-/**
- * AdminAiService — port từ apps/web/src/app/api/admin/ai/**.
- *
- * cost: `sql.raw(NOW() - INTERVAL '<days> days')` cũ ĐỔI sang parameterized
- * `${days}::int * INTERVAL '1 day'` (days vẫn Number + clamp y cũ).
- * circuits: đọc qua CircuitBreakerService (cùng key cb:* với pipeline AI) —
- * circuit healthy không có key nên không xuất hiện trong list (by design).
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -38,20 +30,15 @@ export class AdminAiService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  /* ── Circuits ──────────────────────────────────────────────────────────── */
-
-  /** GET /admin/ai/circuits — chỉ circuit non-healthy có entry. */
   async listCircuits() {
     const circuits = await this.circuitBreaker.listCircuits();
     return { circuits };
   }
 
-  /** POST /admin/ai/circuits/reset — force CLOSED; không validate circuit tồn tại. */
   async resetCircuit(ctx: AdminContext, name: string, reason: string) {
     await this.audit.withAudit(ctx, 'circuit.reset', { type: 'circuit', id: name }, async () => {
       await this.circuitBreaker.resetCircuit(name);
       return {
-        // before hardcode y route cũ — không đọc state thật (quirk giữ nguyên)
         before: { state: 'OPEN_OR_HALF_OPEN' },
         after: { state: 'CLOSED' },
         reason,
@@ -62,9 +49,6 @@ export class AdminAiService {
     return { ok: true };
   }
 
-  /* ── Cost dashboard ────────────────────────────────────────────────────── */
-
-  /** GET /admin/ai/cost — aggregate ai_usage_log theo ngày/provider/feature/user. */
   async cost(daysParam: string | undefined) {
     const daysRaw = Number(daysParam ?? 30);
     const days = Number.isFinite(daysRaw)
@@ -169,9 +153,7 @@ export class AdminAiService {
         callCount: Number(s.call_count) || 0,
         cacheHitCount: Number(s.cache_hit_count) || 0,
         cacheHitRatio:
-          Number(s.call_count) > 0
-            ? Number(s.cache_hit_count) / Number(s.call_count)
-            : 0,
+          Number(s.call_count) > 0 ? Number(s.cache_hit_count) / Number(s.call_count) : 0,
         uniqueUsers: Number(s.unique_users) || 0,
       },
       byDay: byDay.map((r) => ({
@@ -202,9 +184,6 @@ export class AdminAiService {
     };
   }
 
-  /* ── Per-user usage ────────────────────────────────────────────────────── */
-
-  /** GET /admin/ai/usage — groupBy user; format=csv trả file export. */
   async usage(params: {
     from?: string;
     to?: string;
@@ -214,8 +193,7 @@ export class AdminAiService {
     format?: string;
     limit?: string;
   }): Promise<
-    | { kind: 'csv'; csv: string; filename: string }
-    | { kind: 'json'; body: Record<string, unknown> }
+    { kind: 'csv'; csv: string; filename: string } | { kind: 'json'; body: Record<string, unknown> }
   > {
     const userEmail = params.userEmail?.trim() ?? '';
     const limit = clampLimit(params.limit, 200, 1000);
@@ -313,7 +291,6 @@ function defaultFrom(): Date {
   return d;
 }
 
-/** CSV escape thủ công (quote khi có , " newline) — header snake_case y cũ. */
 function toCsv(items: UsageRow[], from: Date, to: Date): string {
   const header = [
     'user_id',

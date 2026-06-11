@@ -1,14 +1,3 @@
-/**
- * /tutors/[id] — tutor profile detail.
- *
- * Server fetch profile + subjects + availability. Hiển thị:
- *   - Hero header với banner + avatar + headline + verify badge
- *   - Stats row: rating / sessions / price
- *   - Bio markdown
- *   - Subjects list với verify chip
- *   - Availability matrix (7 ngày x slot)
- *   - "Liên hệ" button → trigger DM modal/redirect
- */
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq, isNull } from 'drizzle-orm';
@@ -77,7 +66,6 @@ export default async function TutorDetailPage({ params }: Params) {
       ratingCount: tutorProfile.ratingCount,
       verificationStatus: tutorProfile.verificationStatus,
       status: tutorProfile.status,
-      // V4 T2 + T5 trust signals
       instantBookEnabled: tutorProfile.instantBookEnabled,
       trialSessionEnabled: tutorProfile.trialSessionEnabled,
       avgResponseMinutes: tutorProfile.avgResponseMinutes,
@@ -97,75 +85,61 @@ export default async function TutorDetailPage({ params }: Params) {
   const isOwner = profile.userId === session.user.id;
   if (profile.status !== 'PUBLISHED' && !isOwner) notFound();
 
-  const [subjects, availability, reviews, packs, isFavorited, hasTrialUsed] =
-    await Promise.all([
-      db.select().from(tutorSubject).where(eq(tutorSubject.tutorId, id)),
-      db
-        .select()
-        .from(tutorAvailability)
-        .where(eq(tutorAvailability.tutorId, id))
-        .orderBy(
-          asc(tutorAvailability.dayOfWeek),
-          asc(tutorAvailability.startTime),
-        ),
-      db
-        .select({
-          id: tutorReview.id,
-          rating: tutorReview.rating,
-          comment: tutorReview.comment,
-          createdAt: tutorReview.createdAt,
-          reviewerName: userTable.name,
-          reviewerImage: userTable.image,
-        })
-        .from(tutorReview)
-        .innerJoin(userTable, eq(userTable.id, tutorReview.reviewerId))
-        .where(and(eq(tutorReview.tutorId, id), isNull(tutorReview.hiddenAt)))
-        .orderBy(desc(tutorReview.createdAt))
-        .limit(20),
-      // V4 T3 — fetch active packs
-      db
-        .select()
-        .from(tutoringPack)
-        .where(and(eq(tutoringPack.tutorId, id), eq(tutoringPack.status, 'ACTIVE'))),
-      // V4 T5 — check user đã favorite tutor này chưa
-      session
-        ? db
-            .select({ tutorId: tutorFavorite.tutorId })
-            .from(tutorFavorite)
-            .where(
-              and(
-                eq(tutorFavorite.userId, session.user.id),
-                eq(tutorFavorite.tutorId, id),
-              ),
-            )
-            .limit(1)
-            .then((rows) => rows.length > 0)
-        : Promise.resolve(false),
-      // V4 T2 — check user đã từng dùng trial với tutor này chưa
-      session
-        ? db
-            .select({ id: tutoringBooking.id })
-            .from(tutoringBooking)
-            .where(
-              and(
-                eq(tutoringBooking.studentId, session.user.id),
-                eq(tutoringBooking.tutorId, id),
-                eq(tutoringBooking.isTrial, true),
-              ),
-            )
-            .limit(1)
-            .then((rows) => rows.length > 0)
-        : Promise.resolve(false),
-    ]);
+  const [subjects, availability, reviews, packs, isFavorited, hasTrialUsed] = await Promise.all([
+    db.select().from(tutorSubject).where(eq(tutorSubject.tutorId, id)),
+    db
+      .select()
+      .from(tutorAvailability)
+      .where(eq(tutorAvailability.tutorId, id))
+      .orderBy(asc(tutorAvailability.dayOfWeek), asc(tutorAvailability.startTime)),
+    db
+      .select({
+        id: tutorReview.id,
+        rating: tutorReview.rating,
+        comment: tutorReview.comment,
+        createdAt: tutorReview.createdAt,
+        reviewerName: userTable.name,
+        reviewerImage: userTable.image,
+      })
+      .from(tutorReview)
+      .innerJoin(userTable, eq(userTable.id, tutorReview.reviewerId))
+      .where(and(eq(tutorReview.tutorId, id), isNull(tutorReview.hiddenAt)))
+      .orderBy(desc(tutorReview.createdAt))
+      .limit(20),
+    db
+      .select()
+      .from(tutoringPack)
+      .where(and(eq(tutoringPack.tutorId, id), eq(tutoringPack.status, 'ACTIVE'))),
+    session
+      ? db
+          .select({ tutorId: tutorFavorite.tutorId })
+          .from(tutorFavorite)
+          .where(and(eq(tutorFavorite.userId, session.user.id), eq(tutorFavorite.tutorId, id)))
+          .limit(1)
+          .then((rows) => rows.length > 0)
+      : Promise.resolve(false),
+    session
+      ? db
+          .select({ id: tutoringBooking.id })
+          .from(tutoringBooking)
+          .where(
+            and(
+              eq(tutoringBooking.studentId, session.user.id),
+              eq(tutoringBooking.tutorId, id),
+              eq(tutoringBooking.isTrial, true),
+            ),
+          )
+          .limit(1)
+          .then((rows) => rows.length > 0)
+      : Promise.resolve(false),
+  ]);
 
-  const trialEligible =
-    !!profile.trialSessionEnabled && !hasTrialUsed && !isOwner;
+  const trialEligible = !!profile.trialSessionEnabled && !hasTrialUsed && !isOwner;
 
   const isVerified = profile.verificationStatus === 'KYC_VERIFIED';
   const priceK = Math.round(profile.hourlyRateVnd / 1000);
   const ratingAvg = profile.ratingAvg ? Number(profile.ratingAvg) : null;
 
-  // Group availability theo day
   const availByDay: Record<number, typeof availability> = {};
   for (const a of availability) {
     (availByDay[a.dayOfWeek] ??= []).push(a);
@@ -173,19 +147,16 @@ export default async function TutorDetailPage({ params }: Params) {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 p-4 sm:p-6">
-      {/* Back link */}
       <Link
         href="/tutoring?tab=tutors"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         Quay lại danh sách
       </Link>
 
-      {/* ══ Hero header (gọn) ══════════════════════════════ */}
-      <header className="relative overflow-hidden rounded-2xl bg-card shadow-soft">
-        {/* Banner mỏng — chỉ là dải trang trí, không chiếm chỗ */}
-        <div className="relative h-20 overflow-hidden bg-gradient-to-br from-primary/15 via-primary/5 to-transparent">
+      <header className="bg-card shadow-soft relative overflow-hidden rounded-2xl">
+        <div className="from-primary/15 via-primary/5 relative h-20 overflow-hidden bg-gradient-to-br to-transparent">
           {profile.bannerUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={profile.bannerUrl} alt="" className="h-full w-full object-cover" />
@@ -198,7 +169,7 @@ export default async function TutorDetailPage({ params }: Params) {
         <div className="relative px-5 pb-5 pt-0 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="relative -mt-10 shrink-0">
-              <Avatar className="h-20 w-20 ring-4 ring-card">
+              <Avatar className="ring-card h-20 w-20 ring-4">
                 <AvatarImage
                   src={profile.avatarUrl ?? profile.userImage ?? undefined}
                   alt={profile.userName ?? ''}
@@ -210,9 +181,12 @@ export default async function TutorDetailPage({ params }: Params) {
               {isVerified && (
                 <div
                   title="Đã xác thực CCCD"
-                  className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-card"
+                  className="bg-card absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full"
                 >
-                  <CheckCircle2 className="h-5 w-5 fill-primary text-primary-foreground" strokeWidth={2} />
+                  <CheckCircle2
+                    className="fill-primary text-primary-foreground h-5 w-5"
+                    strokeWidth={2}
+                  />
                 </div>
               )}
             </div>
@@ -220,22 +194,21 @@ export default async function TutorDetailPage({ params }: Params) {
               <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
                 {profile.userName ?? 'Anonymous'}
               </h1>
-              <p className="text-[13px] leading-relaxed text-muted-foreground">
+              <p className="text-muted-foreground text-[13px] leading-relaxed">
                 {profile.headline}
               </p>
-              {/* Trust badge row */}
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 {isVerified && (
                   <span
                     title="Đã xác thực CCCD + bằng cấp"
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-semibold text-primary"
+                    className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
                   >
                     <CheckCircle2 className="h-2.5 w-2.5" />
                     Đã xác thực
                   </span>
                 )}
                 {profile.instantBookEnabled && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-discovery-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-discovery-700 dark:text-discovery-300">
+                  <span className="bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold">
                     <Zap className="h-2.5 w-2.5" />
                     Đặt ngay
                   </span>
@@ -263,18 +236,12 @@ export default async function TutorDetailPage({ params }: Params) {
         </div>
       </header>
 
-      {/* ══ Layout 2 cột: nội dung + card hành động sticky ══ */}
       <div className="grid items-start gap-5 md:grid-cols-[1fr_300px]">
-        {/* Card hành động — gom giá + nút + stats. DOM đứng trước nên trên
-            mobile nổi ngay dưới hero; desktop đẩy sang phải qua md:order. */}
-        <aside className="order-first space-y-3 md:order-last md:sticky md:top-5">
-          <div className="rounded-2xl border border-divider bg-card p-4 shadow-soft">
+        <aside className="order-first space-y-3 md:sticky md:top-5 md:order-last">
+          <div className="border-divider bg-card shadow-soft rounded-2xl border p-4">
             <div className="flex items-baseline gap-1">
-              {/* Giá metric to → dùng sans Geist (bỏ font-mono), giữ tabular-nums */}
-              <span className="text-2xl font-semibold tabular-nums tracking-tight">
-                {priceK}K
-              </span>
-              <span className="text-xs text-text-muted">vnd/giờ</span>
+              <span className="text-2xl font-semibold tabular-nums tracking-tight">{priceK}K</span>
+              <span className="text-text-muted text-xs">vnd/giờ</span>
             </div>
 
             {!isOwner ? (
@@ -307,14 +274,13 @@ export default async function TutorDetailPage({ params }: Params) {
             ) : (
               <Link
                 href="/tutoring?tab=mine"
-                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-divider bg-surface px-3 py-2 text-xs font-medium shadow-soft transition-colors hover:bg-muted"
+                className="border-divider bg-surface shadow-soft hover:bg-muted mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-colors"
               >
                 Về dashboard
               </Link>
             )}
 
-            {/* Stats gọn trong card */}
-            <div className="mt-4 space-y-2 border-t border-divider pt-3">
+            <div className="border-divider mt-4 space-y-2 border-t pt-3">
               <StatRow
                 icon={Star}
                 label="Đánh giá"
@@ -343,230 +309,213 @@ export default async function TutorDetailPage({ params }: Params) {
           </div>
         </aside>
 
-        {/* Cột nội dung chính */}
         <main className="order-last min-w-0 space-y-5 md:order-first">
-      {/* ══ Bio ═══════════════════════════════════════════ */}
-      <section>
-        {/* Tiêu đề mục dùng SectionHeading chung */}
-        <SectionHeading>Giới thiệu</SectionHeading>
-        <div className="rounded-xl bg-card p-5 shadow-soft">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
-            {profile.bio}
-          </p>
-        </div>
-      </section>
+          <section>
+            <SectionHeading>Giới thiệu</SectionHeading>
+            <div className="bg-card shadow-soft rounded-xl p-5">
+              <p className="text-foreground/85 whitespace-pre-wrap text-sm leading-relaxed">
+                {profile.bio}
+              </p>
+            </div>
+          </section>
 
-      {/* ══ Subjects ══════════════════════════════════════ */}
-      <section>
-        {/* Tiêu đề mục — số môn truyền qua prop count */}
-        <SectionHeading count={subjects.length}>Môn dạy</SectionHeading>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {subjects.map((s) => {
-            const def = SUBJECT_BY_SLUG[s.subjectSlug];
-            const isVer = s.verifiedAt !== null;
-            return (
-              <div
-                key={s.id}
-                className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft"
-              >
-                <span className="text-2xl">{def?.emoji ?? '📚'}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold tracking-tight">
-                    {def?.name ?? s.subjectSlug}
-                  </p>
-                  <p className="text-[11px] text-text-muted">
-                    {LEVEL_NAMES[s.level as keyof typeof LEVEL_NAMES] ?? s.level}
-                  </p>
-                </div>
-                {isOwner ? (
-                  <SubjectVerifyButton
-                    tutorId={profile.id}
-                    subjectId={s.id}
-                    isVerified={isVer}
-                    verifyScore={s.verifyScore}
-                  />
-                ) : (
-                  isVer && (
-                    <span
-                      title={`Verified ${s.verifyScore}%`}
-                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10.5px] font-semibold text-primary"
-                    >
-                      <Verified className="h-3 w-3" />
-                      Verified
-                    </span>
-                  )
-                )}
+          <section>
+            <SectionHeading count={subjects.length}>Môn dạy</SectionHeading>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {subjects.map((s) => {
+                const def = SUBJECT_BY_SLUG[s.subjectSlug];
+                const isVer = s.verifiedAt !== null;
+                return (
+                  <div
+                    key={s.id}
+                    className="bg-card shadow-soft flex items-center gap-3 rounded-xl px-4 py-3"
+                  >
+                    <span className="text-2xl">{def?.emoji ?? '📚'}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold tracking-tight">
+                        {def?.name ?? s.subjectSlug}
+                      </p>
+                      <p className="text-text-muted text-[11px]">
+                        {LEVEL_NAMES[s.level as keyof typeof LEVEL_NAMES] ?? s.level}
+                      </p>
+                    </div>
+                    {isOwner ? (
+                      <SubjectVerifyButton
+                        tutorId={profile.id}
+                        subjectId={s.id}
+                        isVerified={isVer}
+                        verifyScore={s.verifyScore}
+                      />
+                    ) : (
+                      isVer && (
+                        <span
+                          title={`Verified ${s.verifyScore}%`}
+                          className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+                        >
+                          <Verified className="h-3 w-3" />
+                          Verified
+                        </span>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section>
+            <SectionHeading>Khung giờ</SectionHeading>
+            <div className="bg-card shadow-soft rounded-xl p-5">
+              <div className="grid grid-cols-7 gap-2">
+                {DAY_NAMES.map((day, i) => {
+                  const slots = availByDay[i] ?? [];
+                  return (
+                    <div key={i} className="space-y-1.5">
+                      <p className="text-text-muted text-center font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em]">
+                        {day}
+                      </p>
+                      {slots.length === 0 ? (
+                        <div className="border-divider text-text-muted/60 rounded-md border border-dashed py-2 text-center text-[10px]">
+                          —
+                        </div>
+                      ) : (
+                        slots.map((s) => (
+                          <div
+                            key={s.id}
+                            className="bg-primary/10 text-primary rounded-md px-1 py-1 text-center font-mono text-[10.5px] tabular-nums"
+                          >
+                            <Clock className="mx-auto mb-0.5 h-2.5 w-2.5" />
+                            {s.startTime}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </div>
+          </section>
 
-      {/* ══ Availability ═════════════════════════════════ */}
-      <section>
-        {/* Tiêu đề mục dùng SectionHeading chung */}
-        <SectionHeading>Khung giờ</SectionHeading>
-        <div className="rounded-xl bg-card p-5 shadow-soft">
-          <div className="grid grid-cols-7 gap-2">
-            {DAY_NAMES.map((day, i) => {
-              const slots = availByDay[i] ?? [];
-              return (
-                <div key={i} className="space-y-1.5">
-                  <p className="text-center font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-text-muted">
-                    {day}
-                  </p>
-                  {slots.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-divider py-2 text-center text-[10px] text-text-muted/60">
-                      —
-                    </div>
-                  ) : (
-                    slots.map((s) => (
-                      <div
-                        key={s.id}
-                        className="rounded-md bg-primary/10 px-1 py-1 text-center font-mono text-[10.5px] tabular-nums text-primary"
-                      >
-                        <Clock className="mx-auto mb-0.5 h-2.5 w-2.5" />
-                        {s.startTime}
-                      </div>
-                    ))
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ Video intro (V4 T5) ═══════════════════════════ */}
-      {profile.introVideoUrl && (
-        <section>
-          {/* Tiêu đề mục dùng SectionHeading chung */}
-          <SectionHeading>Video giới thiệu</SectionHeading>
-          <div className="overflow-hidden rounded-2xl bg-card shadow-soft">
-            <video
-              controls
-              poster={profile.introVideoThumbUrl ?? undefined}
-              className="aspect-video w-full bg-black"
-              preload="metadata"
-            >
-              <source src={profile.introVideoUrl} type="video/mp4" />
-            </video>
-          </div>
-        </section>
-      )}
-
-      {/* ══ Packs giảm giá (V4 T3) ════════════════════════ */}
-      {packs.length > 0 && !isOwner && (
-        <section>
-          {/* Tiêu đề mục — số pack truyền qua prop count */}
-          <SectionHeading count={packs.length}>Pack giảm giá</SectionHeading>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {packs.map((p) => {
-              const subjDef = SUBJECT_BY_SLUG[p.subjectSlug];
-              return (
-                <div
-                  key={p.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-discovery-500/20 bg-gradient-to-br from-discovery-500/5 to-transparent p-4 shadow-soft"
+          {profile.introVideoUrl && (
+            <section>
+              <SectionHeading>Video giới thiệu</SectionHeading>
+              <div className="bg-card shadow-soft overflow-hidden rounded-2xl">
+                <video
+                  controls
+                  poster={profile.introVideoThumbUrl ?? undefined}
+                  className="aspect-video w-full bg-black"
+                  preload="metadata"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1 text-[12px] font-semibold">
-                      {subjDef?.emoji} {subjDef?.name ?? p.subjectSlug}
-                    </span>
-                    {p.discountPct > 0 && (
-                      <span className="rounded-full bg-discovery-500/15 px-2 py-0.5 text-[10px] font-bold text-discovery-700 dark:text-discovery-300">
-                        -{p.discountPct}%
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm font-semibold tracking-tight">
-                    {p.sessionCount} buổi × {p.durationMin} phút
-                  </p>
-                  {p.description && (
-                    <p className="line-clamp-2 text-[11.5px] text-muted-foreground">
-                      {p.description}
-                    </p>
-                  )}
-                  <div className="mt-auto flex items-end justify-between border-t border-divider pt-2.5">
-                    <div>
-                      <p className="font-mono text-lg font-semibold tabular-nums">
-                        {(p.totalVnd / 1000).toLocaleString('vi-VN')}k
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        ≈ {(p.ratePerSessionVnd / 1000).toFixed(0)}k/buổi
-                      </p>
-                    </div>
-                    <form action={`/api/tutoring/packs/${p.id}/purchase`} method="POST">
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-discovery-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-discovery-700"
-                      >
-                        Mua pack
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                  <source src={profile.introVideoUrl} type="video/mp4" />
+                </video>
+              </div>
+            </section>
+          )}
 
-      {/* ══ Reviews ═══════════════════════════════════════ */}
-      {reviews.length > 0 && (
-        <section>
-          {/* Tiêu đề mục — số đánh giá truyền qua prop count */}
-          <SectionHeading count={reviews.length}>
-            Đánh giá từ học sinh
-          </SectionHeading>
-          <ul className="space-y-2">
-            {reviews.map((r) => (
-              <li key={r.id} className="rounded-xl bg-card p-4 shadow-soft">
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={r.reviewerImage ?? undefined} />
-                    <AvatarFallback className="text-xs">
-                      {(r.reviewerName ?? '?')[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{r.reviewerName ?? 'Anonymous'}</p>
-                      <span className="inline-flex items-center gap-0.5 text-[11px]">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={
-                              i < r.rating
-                                ? 'h-3 w-3 fill-amber-500 text-amber-500'
-                                : 'h-3 w-3 text-muted-foreground/30'
-                            }
-                          />
-                        ))}
-                      </span>
-                      <span className="text-[10.5px] text-text-muted">
-                        {r.createdAt.toLocaleDateString('vi-VN')}
-                      </span>
-                    </div>
-                    {r.comment && (
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
-                        {r.comment}
+          {packs.length > 0 && !isOwner && (
+            <section>
+              <SectionHeading count={packs.length}>Pack giảm giá</SectionHeading>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {packs.map((p) => {
+                  const subjDef = SUBJECT_BY_SLUG[p.subjectSlug];
+                  return (
+                    <div
+                      key={p.id}
+                      className="border-discovery-500/20 from-discovery-500/5 shadow-soft flex flex-col gap-2 rounded-2xl border bg-gradient-to-br to-transparent p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1 text-[12px] font-semibold">
+                          {subjDef?.emoji} {subjDef?.name ?? p.subjectSlug}
+                        </span>
+                        {p.discountPct > 0 && (
+                          <span className="bg-discovery-500/15 text-discovery-700 dark:text-discovery-300 rounded-full px-2 py-0.5 text-[10px] font-bold">
+                            -{p.discountPct}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold tracking-tight">
+                        {p.sessionCount} buổi × {p.durationMin} phút
                       </p>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                      {p.description && (
+                        <p className="text-muted-foreground line-clamp-2 text-[11.5px]">
+                          {p.description}
+                        </p>
+                      )}
+                      <div className="border-divider mt-auto flex items-end justify-between border-t pt-2.5">
+                        <div>
+                          <p className="font-mono text-lg font-semibold tabular-nums">
+                            {(p.totalVnd / 1000).toLocaleString('vi-VN')}k
+                          </p>
+                          <p className="text-muted-foreground text-[10px]">
+                            ≈ {(p.ratePerSessionVnd / 1000).toFixed(0)}k/buổi
+                          </p>
+                        </div>
+                        <form action={`/api/tutoring/packs/${p.id}/purchase`} method="POST">
+                          <button
+                            type="submit"
+                            className="bg-discovery-600 hover:bg-discovery-700 rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white"
+                          >
+                            Mua pack
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
+          {reviews.length > 0 && (
+            <section>
+              <SectionHeading count={reviews.length}>Đánh giá từ học sinh</SectionHeading>
+              <ul className="space-y-2">
+                {reviews.map((r) => (
+                  <li key={r.id} className="bg-card shadow-soft rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={r.reviewerImage ?? undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(r.reviewerName ?? '?')[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">{r.reviewerName ?? 'Anonymous'}</p>
+                          <span className="inline-flex items-center gap-0.5 text-[11px]">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={
+                                  i < r.rating
+                                    ? 'h-3 w-3 fill-amber-500 text-amber-500'
+                                    : 'text-muted-foreground/30 h-3 w-3'
+                                }
+                              />
+                            ))}
+                          </span>
+                          <span className="text-text-muted text-[10.5px]">
+                            {r.createdAt.toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                        {r.comment && (
+                          <p className="text-foreground/85 mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+                            {r.comment}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </main>
       </div>
     </div>
   );
 }
 
-/** Hàng thống kê gọn trong card hành động: icon + nhãn trái, giá trị phải. */
 function StatRow({
   icon: Icon,
   label,
@@ -580,13 +529,13 @@ function StatRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+      <span className="text-muted-foreground inline-flex items-center gap-1.5 text-[12px]">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </span>
       <span className="text-right">
         <span className="font-mono text-sm font-semibold tabular-nums">{value}</span>
-        {hint && <span className="ml-1 text-[10.5px] text-text-muted">{hint}</span>}
+        {hint && <span className="text-text-muted ml-1 text-[10.5px]">{hint}</span>}
       </span>
     </div>
   );

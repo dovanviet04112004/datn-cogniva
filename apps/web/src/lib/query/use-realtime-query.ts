@@ -1,13 +1,3 @@
-/**
- * Cầu nối realtime (Socket.IO) → cache React Query.
- *
- * Vùng có realtime (groups, rooms, chat, DM) KHÔNG được `setState` cục bộ nữa —
- * phải đẩy event vào CACHE để cache là source-of-truth duy nhất, các component
- * đang đọc cùng key tự cập nhật.
- *
- * - `useRealtimeSetData` : patch THẲNG vào cache (append/sửa) — KHÔNG refetch.
- * - `useRealtimeInvalidate`: chỉ đánh dấu stale → React Query refetch ngầm.
- */
 'use client';
 
 import * as React from 'react';
@@ -22,7 +12,6 @@ export function useRealtimeSetData<TData, TEvent = unknown>(
   updater: (prev: TData | undefined, payload: TEvent) => TData | undefined,
 ) {
   const qc = useQueryClient();
-  // key là mảng → stringify để dependency ổn định (tránh re-subscribe mỗi render).
   const keyStr = JSON.stringify(key);
   const cb = React.useCallback(
     (payload: TEvent) => {

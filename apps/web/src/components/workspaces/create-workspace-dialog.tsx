@@ -1,16 +1,3 @@
-/**
- * CreateWorkspaceDialog — dialog modal để tạo workspace mới.
- *
- * Thay thế pattern cũ `showForm` toggle inline expand trên /workspaces. Dialog
- * cho UX rõ ràng hơn:
- *   - Click button → modal mở
- *   - Esc / click overlay → close
- *   - Submit thành công → close + callback `onCreated()` để parent refresh list
- *
- * Form fields:
- *   - name (required)
- *   - description (optional)
- */
 'use client';
 
 import * as React from 'react';
@@ -34,24 +21,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Props = {
-  /** Callback sau khi tạo thành công — parent gọi refresh list. */
   onCreated?: () => void;
-  /** Override trigger button. Default: "+ Workspace mới". */
   trigger?: React.ReactNode;
-  /** Controlled mode — parent quản lý open state. Nếu provide thì
-   *  KHÔNG cần `trigger` (parent tự trigger ngoài dialog). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
 
-export function CreateWorkspaceDialog({
-  onCreated,
-  trigger,
-  open: openProp,
-  onOpenChange,
-}: Props) {
+export function CreateWorkspaceDialog({ onCreated, trigger, open: openProp, onOpenChange }: Props) {
   const [openLocal, setOpenLocal] = React.useState(false);
-  // Controlled nếu parent pass openProp, uncontrolled nếu không
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : openLocal;
   const setOpen = React.useCallback(
@@ -84,8 +61,6 @@ export function CreateWorkspaceDialog({
         description: description.trim() || undefined,
       });
       toast.success('Đã tạo workspace');
-      // Bust React Query cache list workspace (qk.workspaces) — picker upload,
-      // list, mọi nơi dùng useQuery sẽ thấy workspace mới NGAY (choke-point chung).
       queryClient.invalidateQueries({ queryKey: qk.workspaces() });
       reset();
       setOpen(false);
@@ -99,8 +74,6 @@ export function CreateWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {/* Render trigger CHỈ khi uncontrolled — controlled mode parent
-          tự gọi setOpen(true) từ ngoài. */}
       {!isControlled && (
         <DialogTrigger asChild>
           {trigger ?? (
@@ -144,9 +117,9 @@ export function CreateWorkspaceDialog({
                 rows={3}
                 maxLength={500}
                 placeholder='Vd: "Tài liệu môn hệ phân tán, MapReduce, Paxos..."'
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-muted-foreground text-[11px]">
                 Mô tả giúp bạn nhận ra workspace nhanh hơn (tuỳ chọn).
               </p>
             </div>

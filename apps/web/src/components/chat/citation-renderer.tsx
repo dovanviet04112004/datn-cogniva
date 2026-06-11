@@ -1,19 +1,3 @@
-/**
- * CitationRenderer — render message content có chứa marker `[N]` thành
- * text + clickable citation badge.
- *
- * V8 (2026-05-20). LLM sinh assistant response với marker `[1]`, `[2]` …
- * trỏ tới chunk được retrieve. Server gửi citations qua message annotation
- * `{ type: 'citations', citations: [{n, chunkId, documentId, filename, page, ...}] }`.
- *
- * Behavior:
- *   - Parse content split `[N]` markers
- *   - Mỗi marker → CitationBadge với Popover (KHÔNG mở tab mới)
- *   - Popover content: filename + page + full snippet + "Mở document"
- *     button (Next Link, client-side navigate same window)
- *
- * Dùng chung cho workspace chat (ChatView) + /chat/[id] (ChatDetailClient).
- */
 'use client';
 
 import * as React from 'react';
@@ -32,10 +16,7 @@ export type CitationData = {
   snippet: string;
 };
 
-/** Extract citations từ AI SDK message annotation. */
-export function extractCitations(
-  annotations: unknown[] | undefined,
-): CitationData[] {
+export function extractCitations(annotations: unknown[] | undefined): CitationData[] {
   if (!Array.isArray(annotations)) return [];
   for (const ann of annotations) {
     if (
@@ -57,7 +38,6 @@ type Props = {
 };
 
 export function CitationRenderer({ content, citations, className }: Props) {
-  // Split theo `[N]` — group `(\[\d+\])` giữ marker trong kết quả split
   const parts = React.useMemo(() => content.split(/(\[\d+\])/g), [content]);
 
   return (
@@ -82,8 +62,6 @@ function CitationBadge({ n, citation }: { n: number; citation: CitationData }) {
   const baseClass =
     'mx-0.5 inline-flex h-[1.1em] min-w-[1.1em] items-center justify-center rounded bg-primary/15 px-1 align-baseline font-mono text-[0.7em] font-semibold text-primary no-underline transition-colors hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/40';
 
-  // Khi có DocPreviewProvider (workspace chat / chat detail) → click mở
-  // panel sticky bên phải. Fallback: dùng Next Link navigate.
   if (docPreview) {
     return (
       <button
@@ -98,9 +76,7 @@ function CitationBadge({ n, citation }: { n: number; citation: CitationData }) {
     );
   }
 
-  const href = `/documents/${citation.documentId}${
-    citation.page ? `#page-${citation.page}` : ''
-  }`;
+  const href = `/documents/${citation.documentId}${citation.page ? `#page-${citation.page}` : ''}`;
   return (
     <Link
       href={href}

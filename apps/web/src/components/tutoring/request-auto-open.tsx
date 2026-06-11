@@ -1,10 +1,3 @@
-/**
- * RequestAutoOpen — auto mở RequestDetailModal theo deep-link ?request=<id>.
- *
- * Mount 1 lần trong RequestsTab. Dùng cho các link cũ (mine-tab, concierge, tạo
- * yêu cầu xong…) trỏ /tutoring/requests/[id] nay redirect về
- * /tutoring?tab=requests&request=<id>. Render rỗng nếu không có param.
- */
 'use client';
 
 import * as React from 'react';

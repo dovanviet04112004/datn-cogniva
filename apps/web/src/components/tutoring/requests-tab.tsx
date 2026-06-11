@@ -1,8 +1,3 @@
-/**
- * RequestsTab — list student request OPEN cho tutor browse + apply.
- *
- * Server component. Filter qua searchParams (subject/level/modality/urgency).
- */
 import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import { ChevronRight, Users } from 'lucide-react';
 
@@ -18,10 +13,7 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/layout/empty-state';
-import {
-  ListToolbar,
-  type ActiveFilterChip,
-} from '@/components/tutoring/list-toolbar';
+import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
 import { Pagination } from '@/components/tutoring/pagination';
 import { RequestAutoOpen } from '@/components/tutoring/request-auto-open';
 import { RequestCardOpener } from '@/components/tutoring/request-card-opener';
@@ -131,7 +123,6 @@ export async function RequestsTab({
   const totalCount = countRow?.n ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  // Active filter chips
   const activeFilters: ActiveFilterChip[] = [];
   if (sp.subject) {
     const s = SUBJECT_BY_SLUG[sp.subject];
@@ -163,7 +154,6 @@ export async function RequestsTab({
 
   return (
     <section className="space-y-4">
-      {/* Deep-link ?request=<id> → mở modal chi tiết */}
       <RequestAutoOpen />
 
       <ListToolbar
@@ -190,9 +180,8 @@ export async function RequestsTab({
               <li key={r.id}>
                 <RequestCardOpener
                   requestId={r.id}
-                  className="group/r relative flex w-full flex-col gap-3 overflow-hidden rounded-2xl border border-divider bg-card p-5 text-left shadow-soft transition-all duration-base ease-expo-out hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated"
+                  className="group/r border-divider bg-card shadow-soft duration-base ease-expo-out hover:border-primary/30 hover:shadow-elevated relative flex w-full flex-col gap-3 overflow-hidden rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5"
                 >
-                  {/* Urgency strip on left */}
                   <div
                     className={cn(
                       'absolute inset-y-0 left-0 w-1 transition-all',
@@ -203,9 +192,8 @@ export async function RequestsTab({
                     )}
                   />
 
-                  {/* Header: student + time + urgency */}
                   <div className="flex items-start gap-3">
-                    <Avatar className="h-10 w-10 shrink-0 ring-2 ring-primary/10">
+                    <Avatar className="ring-primary/10 h-10 w-10 shrink-0 ring-2">
                       <AvatarImage src={r.studentImage ?? undefined} />
                       <AvatarFallback className="text-sm">
                         {(r.studentName ?? '?')[0]?.toUpperCase()}
@@ -215,12 +203,12 @@ export async function RequestsTab({
                       <p className="truncate text-sm font-semibold tracking-tight">
                         {r.studentName ?? 'Anonymous'}
                         {isOwn && (
-                          <span className="ml-1.5 text-[11px] font-normal text-text-muted">
+                          <span className="text-text-muted ml-1.5 text-[11px] font-normal">
                             (bạn)
                           </span>
                         )}
                       </p>
-                      <p className="mt-0.5 font-mono text-[11px] tabular-nums text-text-muted">
+                      <p className="text-text-muted mt-0.5 font-mono text-[11px] tabular-nums">
                         <RelativeTime date={r.createdAt.toISOString()} />
                       </p>
                     </div>
@@ -235,57 +223,50 @@ export async function RequestsTab({
                     </span>
                   </div>
 
-                  {/* Title + description */}
                   <div>
                     <h3 className="line-clamp-1 text-[15px] font-semibold tracking-tight">
                       {r.title}
                     </h3>
-                    <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                    <p className="text-muted-foreground mt-1 line-clamp-2 text-[13px] leading-relaxed">
                       {r.description}
                     </p>
                   </div>
 
-                  {/* Subject + modality chips */}
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/8 px-2 py-0.5 font-medium text-primary ring-1 ring-inset ring-primary/15">
+                    <span className="bg-primary/8 text-primary ring-primary/15 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ring-1 ring-inset">
                       <span>{subjectDef?.emoji ?? '📚'}</span>
                       {subjectDef?.name ?? r.subjectSlug}
                       <span className="opacity-70">
                         · {LEVEL_NAMES[r.level as keyof typeof LEVEL_NAMES]}
                       </span>
                     </span>
-                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                    <span className="bg-muted text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5">
                       {MODALITY_NAMES[r.modality]}
                     </span>
                   </div>
 
-                  {/* Footer: budget prominent + CTA */}
-                  <div className="mt-auto flex items-center justify-between gap-2 border-t border-divider pt-3">
+                  <div className="border-divider mt-auto flex items-center justify-between gap-2 border-t pt-3">
                     <div>
                       {budgetK !== null ? (
                         <>
                           <p className="font-mono text-base font-semibold tabular-nums tracking-tight">
                             ≤{budgetK}K
-                            <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
+                            <span className="text-muted-foreground ml-0.5 text-[11px] font-normal">
                               /giờ
                             </span>
                           </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Budget tối đa
-                          </p>
+                          <p className="text-muted-foreground text-[10px]">Budget tối đa</p>
                         </>
                       ) : (
                         <>
-                          <p className="text-sm font-semibold italic text-muted-foreground">
+                          <p className="text-muted-foreground text-sm font-semibold italic">
                             Thoả thuận
                           </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Mở mức giá
-                          </p>
+                          <p className="text-muted-foreground text-[10px]">Mở mức giá</p>
                         </>
                       )}
                     </div>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary transition-colors group-hover/r:bg-primary group-hover/r:text-primary-foreground">
+                    <span className="bg-primary/10 text-primary group-hover/r:bg-primary group-hover/r:text-primary-foreground inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors">
                       {isOwn ? 'Xem chi tiết' : 'Ứng tuyển'}
                       <ChevronRight className="h-3 w-3 transition-transform group-hover/r:translate-x-0.5" />
                     </span>

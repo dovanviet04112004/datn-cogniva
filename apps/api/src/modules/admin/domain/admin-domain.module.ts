@@ -1,12 +1,3 @@
-/**
- * AdminDomainModule — admin routes thao tác trên domain data (documents,
- * conversations, recordings, KYC, tutoring bookings/reviews, AI ops), port từ
- * apps/web/src/app/api/admin/**. Mount /api/admin.
- *
- * QueueModule: reingest enqueue job `ingest-document` lên queue `document`
- * (thay fire-and-forget in-process của web). AdminGuard/AdminAuditService
- * provide tại đây — common/admin không có module riêng.
- */
 import { Module } from '@nestjs/common';
 
 import { QueueModule } from '../../../infra/queue/queue.module';

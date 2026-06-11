@@ -1,32 +1,9 @@
-/**
- * ConciergePanel — V4 T1 (2026-05-22).
- *
- * Slide-in drawer panel bên phải cho AI Concierge tìm gia sư.
- * Layout: sub-header (thread switcher) + chat scroll + input.
- *
- * Features:
- *   - SSE stream từ POST /api/tutoring/concierge/threads/[id]/messages
- *   - 3 event types: text (char-by-char), tutors (array), action (clarify/search/no_match)
- *   - Suggestion chip dưới câu hỏi clarify — click auto-send
- *   - Thread switcher dropdown (lịch sử cuộc cũ)
- *   - Cmd+J shortcut mở panel
- *   - Empty state với 4 quick suggestion
- *
- * Spec: docs/plans/tutoring-v4.md §7.5.
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  ChevronDown,
-  Loader2,
-  Plus,
-  Send,
-  Sparkles,
-  X,
-} from 'lucide-react';
+import { ChevronDown, Loader2, Plus, Send, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -62,7 +39,6 @@ type StoredMessage = {
     total?: number;
     filters?: Record<string, unknown>;
   } | null;
-  /** V5.2: server-hydrated payload — restore cards/FAQ khi load lịch sử. */
   hydrated?: {
     tutors: TutorMatch[];
     requests: RequestMatch[];
@@ -75,24 +51,15 @@ type LiveMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  /** Khi đang stream, attach tutors array nếu có search action (student-side). */
   tutors?: TutorMatch[];
-  /** Khi đang stream, attach requests array nếu là tutor-side search. */
   requests?: RequestMatch[];
-  /** V5.1 deep Q&A — detail của 1 tutor + askAbout */
   tutorDetail?: TutorDetailPayload;
   tutorDetailAskAbout?: 'reviews' | 'availability' | 'price' | 'profile' | 'other';
-  /** V5.2 FAQ — platform-level answer */
   faqEntry?: FaqEntry;
-  /** V6 Library — doc cards inline. */
   libraryDocs?: LibraryDocMatch[];
-  /** Action type cho UI hint chip dưới message. */
   action?: 'clarify' | 'search' | 'no_match' | 'tutor_detail' | 'faq' | 'library_search';
-  /** Concierge role detect — UI render khác giữa student/tutor. */
   conciergeRole?: 'student' | 'tutor';
-  /** Suggestion chips cho clarify question — click auto-send. */
   chips?: string[];
-  /** Filter đã relax server-side (vd: ["hình thức","ngân sách"]). */
   relaxed?: string[];
 };
 
@@ -111,7 +78,6 @@ export type TutorMatch = {
   matchReason?: string;
 };
 
-/** Request match cho tutor-side concierge. */
 export type RequestMatch = {
   id: string;
   studentId: string;
@@ -127,7 +93,6 @@ export type RequestMatch = {
   score: number;
 };
 
-/** FAQ entry — V5.2 platform-level Q&A. */
 export type FaqEntry = {
   id: string;
   question: string;
@@ -135,7 +100,6 @@ export type FaqEntry = {
   cta?: { label: string; href: string };
 };
 
-/** Library doc card — V6 inline trong concierge. */
 export type LibraryDocMatch = {
   id: string;
   title: string;
@@ -152,7 +116,6 @@ export type LibraryDocMatch = {
   badges: string[];
 };
 
-/** Tutor detail event payload — V5.1 deep Q&A. */
 export type TutorDetailPayload = {
   id: string;
   name: string | null;
@@ -202,7 +165,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
 
-  // Load thread list lần đầu mở
   React.useEffect(() => {
     if (!open) return;
     fetch('/api/tutoring/concierge/threads')
@@ -211,13 +173,11 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
       .catch(() => {});
   }, [open]);
 
-  // Auto scroll bottom khi message thay đổi
   React.useEffect(() => {
     const el = scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]');
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  // Cleanup stream khi panel đóng
   React.useEffect(() => {
     if (!open) {
       abortRef.current?.abort();
@@ -225,13 +185,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
     }
   }, [open]);
 
-  /**
-   * Load thread history (khi switch sang thread cũ).
-   *
-   * V5.2: Server đã hydrate sẵn tutor/request/FAQ payload qua `hydrated` field.
-   * Client chỉ cần map sang LiveMessage để render đầy đủ card / bubble như khi
-   * stream lần đầu — tránh user thấy "trống" sau khi reload thread.
-   */
   const loadThread = async (threadId: string) => {
     setActiveThreadId(threadId);
     setLoading(true);
@@ -244,14 +197,7 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
         .filter((m) => m.role !== 'tool')
         .map((m) => {
           const action = m.metadata?.action;
-          // Map server action → LiveMessage action (chỉ subset enums hợp lệ)
-          const liveAction:
-            | 'clarify'
-            | 'search'
-            | 'no_match'
-            | 'tutor_detail'
-            | 'faq'
-            | undefined =
+          const liveAction: 'clarify' | 'search' | 'no_match' | 'tutor_detail' | 'faq' | undefined =
             action === 'clarify' ||
             action === 'search' ||
             action === 'no_match' ||
@@ -278,7 +224,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
     }
   };
 
-  /** Tạo thread mới — server trả thread id rồi gửi message ngay. */
   const createThread = async (firstMessage?: string): Promise<string | null> => {
     try {
       const res = await fetch('/api/tutoring/concierge/threads', { method: 'POST' });
@@ -297,7 +242,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
     }
   };
 
-  /** Gửi message + stream SSE response. */
   const sendMessage = async (threadId: string, text: string) => {
     const userMsg: LiveMessage = {
       id: `local-${Date.now()}`,
@@ -326,12 +270,9 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
       });
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => null);
-        throw new Error(
-          (err as { error?: string } | null)?.error ?? 'Gửi message thất bại',
-        );
+        throw new Error((err as { error?: string } | null)?.error ?? 'Gửi message thất bại');
       }
 
-      // Parse SSE
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -358,7 +299,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
         }
       }
 
-      // Stream kết thúc — đảm bảo bubble không bao giờ trống
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantMsg.id && !m.content
@@ -414,13 +354,7 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
           }
           case 'action': {
             const a = data as {
-              type:
-                | 'clarify'
-                | 'search'
-                | 'no_match'
-                | 'tutor_detail'
-                | 'faq'
-                | 'library_search';
+              type: 'clarify' | 'search' | 'no_match' | 'tutor_detail' | 'faq' | 'library_search';
               role?: 'student' | 'tutor';
               chips?: string[];
             };
@@ -436,8 +370,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
             return { ...m, relaxed: r.dropped };
           }
           case 'error': {
-            // Backend cũng emit 'text' fallback, nhưng phòng trường hợp stream
-            // bị cắt trước 'text' → đảm bảo bubble không trống.
             const e = data as { message?: string };
             if (!m.content) {
               return { ...m, content: `⚠ ${e.message ?? 'Có lỗi, thử lại sau nhé.'}` };
@@ -451,7 +383,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
     );
   };
 
-  /** Submit user input. */
   const handleSubmit = async () => {
     const text = input.trim();
     if (!text || sending) return;
@@ -463,7 +394,6 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
     }
   };
 
-  /** Click chip suggestion → auto-send. */
   const handleChip = async (chip: string) => {
     if (sending) return;
     if (!activeThreadId) {
@@ -485,24 +415,21 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
   return (
     <div
       className={cn(
-        'fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-divider bg-card shadow-2xl transition-transform sm:w-[420px]',
+        'border-divider bg-card fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l shadow-2xl transition-transform sm:w-[420px]',
         open ? 'translate-x-0' : 'translate-x-full',
       )}
       role="dialog"
       aria-label="AI Concierge tìm gia sư"
       aria-hidden={!open}
     >
-      {/* Header */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-divider px-3">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-discovery-500/15 text-discovery-500">
+      <header className="border-divider flex h-12 shrink-0 items-center gap-2 border-b px-3">
+        <span className="bg-discovery-500/15 text-discovery-500 flex h-7 w-7 items-center justify-center rounded-md">
           <Sparkles className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">AI Concierge</p>
           {activeThread?.title && (
-            <p className="truncate text-[10.5px] text-muted-foreground">
-              {activeThread.title}
-            </p>
+            <p className="text-muted-foreground truncate text-[10.5px]">{activeThread.title}</p>
           )}
         </div>
         <DropdownMenu>
@@ -519,7 +446,7 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
             {threads.length > 0 && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                <DropdownMenuLabel className="text-muted-foreground text-[11px] uppercase tracking-wider">
                   Lịch sử
                 </DropdownMenuLabel>
                 {threads.slice(0, 8).map((t) => (
@@ -542,12 +469,11 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
         </Button>
       </header>
 
-      {/* Body */}
       <div className="min-h-0 flex-1">
         <ScrollArea ref={scrollRef} className="h-full">
           <div className="space-y-3 px-3 py-3">
             {loading && (
-              <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Đang tải…
               </div>
@@ -573,8 +499,8 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
             ))}
 
             {sending && (
-              <div className="flex items-center gap-1.5 px-2 text-[11px] text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin text-discovery-500" />
+              <div className="text-muted-foreground flex items-center gap-1.5 px-2 text-[11px]">
+                <Loader2 className="text-discovery-500 h-3 w-3 animate-spin" />
                 <span className="animate-pulse">Đang tìm gia sư phù hợp...</span>
               </div>
             )}
@@ -582,9 +508,8 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
         </ScrollArea>
       </div>
 
-      {/* Input */}
-      <footer className="shrink-0 border-t border-divider bg-background p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-input bg-surface px-3 py-2 transition-colors focus-within:border-discovery-500/40 focus-within:ring-4 focus-within:ring-discovery-500/10">
+      <footer className="border-divider bg-background shrink-0 border-t p-3">
+        <div className="border-input bg-surface focus-within:border-discovery-500/40 focus-within:ring-discovery-500/10 flex items-end gap-2 rounded-xl border px-3 py-2 transition-colors focus-within:ring-4">
           <textarea
             ref={inputRef}
             value={input}
@@ -598,7 +523,7 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
             placeholder="Hỏi mình về gia sư, môn học..."
             rows={1}
             maxLength={500}
-            className="max-h-24 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="placeholder:text-muted-foreground max-h-24 flex-1 resize-none bg-transparent text-sm outline-none"
           />
           <Button
             onClick={handleSubmit}
@@ -619,20 +544,19 @@ export function ConciergePanel({ open, onOpenChange }: Props) {
   );
 }
 
-/* ─── Empty state ─────────────────────────────────────────────────── */
 function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-discovery-500/10 text-discovery-500">
+      <span className="bg-discovery-500/10 text-discovery-500 flex h-12 w-12 items-center justify-center rounded-full">
         <Sparkles className="h-5 w-5" />
       </span>
       <div>
         <p className="text-sm font-semibold">Tìm gia sư phù hợp</p>
-        <p className="mt-1 text-[12px] text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-[12px]">
           Mình giúp bạn match gia sư trong 1 phút.
         </p>
       </div>
-      <p className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-muted-foreground mt-2 text-[11px] font-semibold uppercase tracking-wider">
         Thử bắt đầu
       </p>
       <div className="flex flex-wrap justify-center gap-1.5">
@@ -641,7 +565,7 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
             key={s}
             type="button"
             onClick={() => onPick(s)}
-            className="rounded-full border border-divider bg-card px-3 py-1 text-[11.5px] font-medium text-muted-foreground transition-colors hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700"
+            className="border-divider bg-card text-muted-foreground hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700 rounded-full border px-3 py-1 text-[11.5px] font-medium transition-colors"
           >
             {s}
           </button>
@@ -651,7 +575,6 @@ function EmptyState({ onPick }: { onPick: (s: string) => void }) {
   );
 }
 
-/* ─── Library Doc mini card (V6 in concierge) ──────────────────────── */
 const DOC_TYPE_LABEL_MINI: Record<string, string> = {
   lecture_notes: 'Bài giảng',
   summary: 'Đề cương',
@@ -661,30 +584,19 @@ const DOC_TYPE_LABEL_MINI: Record<string, string> = {
   reference_book: 'Tham khảo',
 };
 
-function LibraryDocMiniCard({
-  doc,
-  onOpen,
-}: {
-  doc: LibraryDocMatch;
-  onOpen: () => void;
-}) {
+function LibraryDocMiniCard({ doc, onOpen }: { doc: LibraryDocMatch; onOpen: () => void }) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className="group/d flex w-full gap-2.5 rounded-xl border border-divider bg-card p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated"
+      className="group/d border-divider bg-card hover:border-primary/30 hover:shadow-elevated flex w-full gap-2.5 rounded-xl border p-2.5 text-left transition-all hover:-translate-y-0.5"
     >
-      {/* Thumbnail */}
-      <div className="relative h-14 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+      <div className="bg-muted relative h-14 w-11 shrink-0 overflow-hidden rounded-md">
         {doc.previewThumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={doc.previewThumbUrl}
-            alt=""
-            className="h-full w-full object-cover"
-          />
+          <img src={doc.previewThumbUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[11px] font-bold text-muted-foreground/60">
+          <div className="text-muted-foreground/60 flex h-full w-full items-center justify-center text-[11px] font-bold">
             {doc.fileFormat.toUpperCase()}
           </div>
         )}
@@ -692,13 +604,10 @@ function LibraryDocMiniCard({
           {doc.fileFormat}
         </span>
       </div>
-      {/* Meta */}
       <div className="min-w-0 flex-1">
-        <p className="line-clamp-2 text-[12px] font-semibold leading-tight">
-          {doc.title}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-          <span className="rounded bg-muted px-1 py-0">
+        <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{doc.title}</p>
+        <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+          <span className="bg-muted rounded px-1 py-0">
             {DOC_TYPE_LABEL_MINI[doc.docType] ?? doc.docType}
           </span>
           {doc.grade && (
@@ -714,7 +623,7 @@ function LibraryDocMiniCard({
             </>
           )}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="text-muted-foreground mt-1 flex items-center gap-2 text-[11px]">
           {doc.ratingAvg ? (
             <span className="inline-flex items-center gap-0.5">
               ★ {doc.ratingAvg.toFixed(1)}
@@ -740,20 +649,18 @@ function LibraryDocMiniCard({
   );
 }
 
-/* ─── FAQ bubble (V5.2 platform Q&A) ──────────────────────────────── */
 function FaqBubble({ entry }: { entry: FaqEntry }) {
   return (
-    <div className="w-full rounded-xl border border-discovery-500/20 bg-discovery-500/5 p-3">
+    <div className="border-discovery-500/20 bg-discovery-500/5 w-full rounded-xl border p-3">
       <div className="flex items-start gap-2">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-discovery-500/20 text-[11px]">
+        <span className="bg-discovery-500/20 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px]">
           💡
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11.5px] font-semibold leading-snug text-foreground/90">
+          <p className="text-foreground/90 text-[11.5px] font-semibold leading-snug">
             {entry.question}
           </p>
           {entry.cta && (
-            // CTA primary qua <Button asChild> (tự có shadow-primary + focus-ring)
             <Button asChild size="sm" className="mt-2">
               <a href={entry.cta.href}>{entry.cta.label} →</a>
             </Button>
@@ -764,7 +671,6 @@ function FaqBubble({ entry }: { entry: FaqEntry }) {
   );
 }
 
-/* ─── Tutor detail bubble (V5.1 deep Q&A) ─────────────────────────── */
 function TutorDetailBubble({
   detail,
   askAbout,
@@ -776,10 +682,9 @@ function TutorDetailBubble({
 }) {
   const showReviews = askAbout === 'reviews' || askAbout === 'profile' || !askAbout;
   return (
-    <div className="w-full rounded-xl border border-divider bg-card p-3 shadow-soft">
-      {/* Header — avatar + name + rating */}
+    <div className="border-divider bg-card shadow-soft w-full rounded-xl border p-3">
       <div className="flex items-start gap-2.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-discovery-500/10 text-sm font-bold text-discovery-700 dark:text-discovery-300">
+        <div className="bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold">
           {detail.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -793,28 +698,23 @@ function TutorDetailBubble({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold">{detail.name}</p>
-          <p className="line-clamp-1 text-[10.5px] text-muted-foreground">
-            {detail.headline}
-          </p>
+          <p className="text-muted-foreground line-clamp-1 text-[10.5px]">{detail.headline}</p>
         </div>
         {detail.ratingAvg != null && (
           <div className="text-right">
             <p className="font-mono text-[12px] font-bold tabular-nums">
               ★ {detail.ratingAvg.toFixed(1)}
             </p>
-            <p className="text-[9.5px] text-muted-foreground">
-              {detail.ratingCount} review
-            </p>
+            <p className="text-muted-foreground text-[9.5px]">{detail.ratingCount} review</p>
           </div>
         )}
       </div>
 
-      {/* Stats row */}
       <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px]">
-        <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono font-semibold tabular-nums">
+        <span className="bg-muted rounded-md px-1.5 py-0.5 font-mono font-semibold tabular-nums">
           {(detail.hourlyRateVnd / 1000).toLocaleString('vi-VN')}K/h
         </span>
-        <span className="rounded-md bg-muted px-1.5 py-0.5">
+        <span className="bg-muted rounded-md px-1.5 py-0.5">
           🏆 {detail.sessionsCompleted} buổi
         </span>
         {detail.verificationStatus === 'KYC_VERIFIED' && (
@@ -823,7 +723,7 @@ function TutorDetailBubble({
           </span>
         )}
         {detail.instantBookEnabled && (
-          <span className="rounded-md bg-discovery-500/15 px-1.5 py-0.5 text-discovery-700 dark:text-discovery-300">
+          <span className="bg-discovery-500/15 text-discovery-700 dark:text-discovery-300 rounded-md px-1.5 py-0.5">
             ⚡ Đặt ngay
           </span>
         )}
@@ -839,34 +739,29 @@ function TutorDetailBubble({
         )}
       </div>
 
-      {/* Reviews — chỉ show khi askAbout = reviews | profile */}
       {showReviews && detail.reviews.length > 0 && (
-        <div className="mt-2.5 space-y-1.5 border-t border-divider pt-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="border-divider mt-2.5 space-y-1.5 border-t pt-2.5">
+          <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
             Review nổi bật
           </p>
           {detail.reviews.slice(0, 3).map((r) => (
-            <div key={r.id} className="rounded-md bg-muted/40 p-2">
+            <div key={r.id} className="bg-muted/40 rounded-md p-2">
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-[10.5px] font-bold tabular-nums text-amber-600 dark:text-amber-400">
                   {'★'.repeat(r.rating)}
                   <span className="text-muted-foreground/40">{'☆'.repeat(5 - r.rating)}</span>
                 </span>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {r.reviewerName}
-                </span>
+                <span className="text-muted-foreground truncate text-[11px]">{r.reviewerName}</span>
               </div>
               {r.comment && (
-                <p className="mt-1 line-clamp-2 text-[11px] leading-snug">
-                  {r.comment}
-                </p>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-snug">{r.comment}</p>
               )}
               {r.tags && r.tags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {r.tags.slice(0, 3).map((t) => (
                     <span
                       key={t}
-                      className="rounded bg-card px-1 py-0.5 text-[11px] text-muted-foreground"
+                      className="bg-card text-muted-foreground rounded px-1 py-0.5 text-[11px]"
                     >
                       {t}
                     </span>
@@ -878,20 +773,13 @@ function TutorDetailBubble({
         </div>
       )}
 
-      {/* CTA — primary qua <Button> mặc định, full-width giữ qua className */}
-      <Button
-        type="button"
-        size="sm"
-        onClick={onOpen}
-        className="mt-3 w-full"
-      >
+      <Button type="button" size="sm" onClick={onOpen} className="mt-3 w-full">
         Xem profile đầy đủ →
       </Button>
     </div>
   );
 }
 
-/* ─── Request match card (tutor-side) ────────────────────────────── */
 const URGENCY_LABEL: Record<string, { label: string; color: string }> = {
   ASAP: { label: 'Gấp', color: 'bg-rose-500/15 text-rose-700 dark:text-rose-300' },
   THIS_WEEK: { label: 'Tuần này', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
@@ -907,16 +795,14 @@ function RequestMatchCard({ request, rank }: { request: RequestMatch; rank: numb
   return (
     <a
       href={`/tutoring/requests/${request.id}`}
-      className="flex flex-col gap-1.5 rounded-xl border border-divider bg-card p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-discovery-500/30 hover:shadow-elevated"
+      className="border-divider bg-card hover:border-discovery-500/30 hover:shadow-elevated flex flex-col gap-1.5 rounded-xl border p-2.5 text-left transition-all hover:-translate-y-0.5"
     >
       <div className="flex items-start gap-2">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-discovery-500/15 text-[11px] font-bold text-discovery-700 dark:text-discovery-300">
+        <span className="bg-discovery-500/15 text-discovery-700 dark:text-discovery-300 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold">
           {rank + 1}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-[12.5px] font-semibold leading-tight">
-            {request.title}
-          </p>
+          <p className="line-clamp-2 text-[12.5px] font-semibold leading-tight">{request.title}</p>
         </div>
         <span
           className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold ${urgency.color}`}
@@ -924,15 +810,21 @@ function RequestMatchCard({ request, rank }: { request: RequestMatch; rank: numb
           {urgency.label}
         </span>
       </div>
-      <p className="line-clamp-2 text-[11px] text-muted-foreground">
-        {request.description}
-      </p>
-      <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
-        <span className="rounded bg-muted px-1.5 py-0.5 font-mono font-semibold tabular-nums">
+      <p className="text-muted-foreground line-clamp-2 text-[11px]">{request.description}</p>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-[10.5px]">
+        <span className="bg-muted rounded px-1.5 py-0.5 font-mono font-semibold tabular-nums">
           {budget}
         </span>
         <span>·</span>
-        <span>{request.modality === 'ONLINE' ? 'Online' : request.modality === 'OFFLINE_HN' ? 'Offline HN' : request.modality === 'OFFLINE_HCM' ? 'Offline HCM' : 'Hybrid'}</span>
+        <span>
+          {request.modality === 'ONLINE'
+            ? 'Online'
+            : request.modality === 'OFFLINE_HN'
+              ? 'Offline HN'
+              : request.modality === 'OFFLINE_HCM'
+                ? 'Offline HCM'
+                : 'Hybrid'}
+        </span>
         {request.studentName && (
           <>
             <span>·</span>
@@ -944,7 +836,6 @@ function RequestMatchCard({ request, rank }: { request: RequestMatch; rank: numb
   );
 }
 
-/* ─── Message bubble ──────────────────────────────────────────────── */
 function MessageBubble({
   msg,
   isLast,
@@ -965,14 +856,13 @@ function MessageBubble({
         className={cn(
           'max-w-[90%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed',
           isUser
-            ? 'rounded-tr-sm bg-primary text-primary-foreground'
-            : 'rounded-tl-sm bg-muted text-foreground',
+            ? 'bg-primary text-primary-foreground rounded-tr-sm'
+            : 'bg-muted text-foreground rounded-tl-sm',
         )}
       >
         {msg.content || (isLast ? <span className="opacity-60">...</span> : null)}
       </div>
 
-      {/* Suggestion chips dưới câu hỏi clarify */}
       {!isUser && msg.chips && msg.chips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-1">
           {msg.chips.map((chip) => (
@@ -980,7 +870,7 @@ function MessageBubble({
               key={chip}
               type="button"
               onClick={() => onChipClick(chip)}
-              className="rounded-full border border-divider bg-card px-2.5 py-1 text-[11px] font-medium transition-colors hover:border-discovery-500/40 hover:bg-discovery-500/5"
+              className="border-divider bg-card hover:border-discovery-500/40 hover:bg-discovery-500/5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
             >
               {chip}
             </button>
@@ -988,28 +878,20 @@ function MessageBubble({
         </div>
       )}
 
-      {/* Relaxed filter banner */}
       {!isUser && msg.relaxed && msg.relaxed.length > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
           Mình đã mở rộng bộ lọc ({msg.relaxed.join(' · ')}) để hiển thị thêm gia sư gần khớp.
         </div>
       )}
 
-      {/* Tutor match cards (student-side) */}
       {!isUser && msg.tutors && msg.tutors.length > 0 && (
         <div className="w-full space-y-2 pt-1">
           {msg.tutors.map((t, idx) => (
-            <TutorMatchCard
-              key={t.id}
-              tutor={t}
-              rank={idx}
-              onOpen={() => onCardClick(t.id)}
-            />
+            <TutorMatchCard key={t.id} tutor={t} rank={idx} onOpen={() => onCardClick(t.id)} />
           ))}
         </div>
       )}
 
-      {/* Request match cards (tutor-side) */}
       {!isUser && msg.requests && msg.requests.length > 0 && (
         <div className="w-full space-y-2 pt-1">
           {msg.requests.map((r, idx) => (
@@ -1018,7 +900,6 @@ function MessageBubble({
         </div>
       )}
 
-      {/* Tutor detail bubble — V5.1 deep Q&A */}
       {!isUser && msg.tutorDetail && (
         <div className="w-full pt-1">
           <TutorDetailBubble
@@ -1029,39 +910,32 @@ function MessageBubble({
         </div>
       )}
 
-      {/* FAQ bubble — V5.2 platform Q&A */}
       {!isUser && msg.faqEntry && (
         <div className="w-full pt-1">
           <FaqBubble entry={msg.faqEntry} />
         </div>
       )}
 
-      {/* Library doc cards — V6 */}
       {!isUser && msg.libraryDocs && msg.libraryDocs.length > 0 && (
         <div className="w-full space-y-2 pt-1">
           {msg.libraryDocs.map((d) => (
-            <LibraryDocMiniCard
-              key={d.id}
-              doc={d}
-              onOpen={() => onLibraryClick(d.id)}
-            />
+            <LibraryDocMiniCard key={d.id} doc={d} onOpen={() => onLibraryClick(d.id)} />
           ))}
         </div>
       )}
 
-      {/* No match action — 2 CTA */}
       {!isUser && msg.action === 'no_match' && (
         <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => onChipClick('Đổi sang môn khác')}
-            className="rounded-full border border-divider bg-card px-2.5 py-1 text-[11px] font-medium hover:border-discovery-500/40 hover:bg-discovery-500/5"
+            className="border-divider bg-card hover:border-discovery-500/40 hover:bg-discovery-500/5 rounded-full border px-2.5 py-1 text-[11px] font-medium"
           >
             Đổi môn khác
           </button>
           <Link
             href="/tutoring/requests/new"
-            className="inline-flex items-center gap-1 rounded-full border border-discovery-500/30 bg-discovery-500/5 px-3 py-1 text-[11.5px] font-medium text-discovery-700 hover:bg-discovery-500/10 dark:text-discovery-300"
+            className="border-discovery-500/30 bg-discovery-500/5 text-discovery-700 hover:bg-discovery-500/10 dark:text-discovery-300 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11.5px] font-medium"
           >
             Đăng yêu cầu để gia sư đề xuất
           </Link>

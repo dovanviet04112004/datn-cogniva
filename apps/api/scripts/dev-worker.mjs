@@ -1,11 +1,3 @@
-/**
- * Supervisor worker ở DEV — chạy song song với `nest start --watch` (process
- * http) trong cùng `pnpm dev`. Không build riêng (tránh 2 watcher giẫm dist):
- *   - đợi dist/worker.js xuất hiện + ỔN ĐỊNH (mtime đứng yên ≥2s — nest đang
- *     ghi dở thì chưa chạy),
- *   - spawn `node dist/worker.js`; nest rebuild (mtime đổi) → kill + respawn;
- *     dist bị deleteOutDir lúc nest boot → child chết → đợi file quay lại.
- */
 import { spawn } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -32,7 +24,6 @@ process.on('SIGTERM', () => {
 });
 
 for (;;) {
-  // Đợi file tồn tại + ổn định (2 lần đo mtime giống nhau cách 1s).
   let m = mtime();
   while (m === null || m !== (await sleep(1000), mtime())) {
     m = mtime();
@@ -43,7 +34,6 @@ for (;;) {
   child = spawn(process.execPath, [workerJs], { stdio: 'inherit' });
   const exited = new Promise((r) => child.on('exit', r));
 
-  // Chờ: child chết (crash/deleteOutDir) HOẶC nest rebuild xong (mtime đổi).
   let done = false;
   void exited.then(() => (done = true));
   while (!done) {

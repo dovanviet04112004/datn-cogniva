@@ -1,12 +1,3 @@
-/**
- * LivekitWebhookService — xử lý webhook từ LiveKit Server.
- * Port từ apps/web/src/app/api/webhooks/livekit/route.ts.
- *
- * Authorization header = JWT ký HMAC bằng LIVEKIT_API_SECRET; receive() của
- * livekit-server-sdk verify cả chữ ký lẫn claim sha256 của RAW body — vì vậy
- * controller phải đưa req.rawBody (main.ts bật rawBody:true), parse JSON
- * trước là vỡ verify.
- */
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, UnauthorizedException } from '@nestjs/common';
@@ -19,21 +10,18 @@ import { PrismaService } from '../../infra/database/prisma.service';
 import { RECORDING_QUEUE } from '../../infra/queue/queue.module';
 import { RecordingPipelineService } from '../channels/recording-pipeline.service';
 
-/** Build public URL từ R2 key — NGUỒN CHUẨN ở apps/web/src/lib/r2-url.ts. */
 function buildR2PublicUrl(filename: string): string {
   if (!filename) return '';
   const publicUrl = process.env.R2_PUBLIC_URL;
   if (publicUrl) {
     return `${publicUrl.replace(/\/+$/, '')}/${filename.replace(/^\/+/, '')}`;
   }
-  // Fallback: internal endpoint — chỉ download được nếu có credentials
   const accountId = process.env.R2_ACCOUNT_ID;
   const bucket = process.env.R2_BUCKET_NAME ?? 'cogniva-recordings';
   if (!accountId) return filename;
   return `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${filename}`;
 }
 
-/** Ưu tiên filename (URL public play được) → location → null nếu egress fail thật. */
 function resolveEgressFileUrl(input: {
   filename?: string | null;
   location?: string | null;
@@ -53,7 +41,6 @@ export class LivekitWebhookService {
     @InjectQueue(RECORDING_QUEUE) private readonly recordingQueue: Queue,
   ) {}
 
-  /** Lazy receiver — env thiếu thì throw, catch ở handle() trả 401 y bản cũ. */
   private getReceiver(): WebhookReceiver {
     if (this.receiver) return this.receiver;
     const key = process.env.LIVEKIT_API_KEY;
@@ -79,13 +66,10 @@ export class LivekitWebhookService {
       return { ok: true, skipped: 'no room name' };
     }
 
-    // Route theo prefix: `group:XXX` → study group voice channel webhook.
-    // Còn lại fallthrough qua xử lý room cũ (Phase 13 standalone rooms).
     if (await this.handleGroupVoiceEvent(roomName, event)) {
       return { ok: true, kind: 'group-voice' };
     }
 
-    // roomName = room.id theo convention (xem POST /api/rooms)
     switch (event.event) {
       case 'room_started':
         await this.prisma.room.updateMany({
@@ -133,7 +117,6 @@ export class LivekitWebhookService {
         break;
 
       case 'egress_started': {
-        // Đã set RECORDING khi POST /record — ở đây chỉ confirm + log.
         const egressId = event.egressInfo?.egressId;
         if (egressId) {
           console.log(`[livekit-webhook] egress_started ${egressId} for ${roomName}`);
@@ -149,18 +132,10 @@ export class LivekitWebhookService {
     return { ok: true };
   }
 
-  /**
-   * Group voice channel có roomName convention `group:{channelId}`.
-   * Webhook nhận sự kiện → sync `study_group_voice_state` + broadcast presence-voice.
-   */
-  private async handleGroupVoiceEvent(
-    roomName: string,
-    event: WebhookEvent,
-  ): Promise<boolean> {
+  private async handleGroupVoiceEvent(roomName: string, event: WebhookEvent): Promise<boolean> {
     if (!roomName.startsWith('group:')) return false;
     const channelId = roomName.slice('group:'.length);
 
-    // Verify channel còn tồn tại (có thể đã bị delete)
     const ch = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
       select: { id: true },
@@ -199,7 +174,6 @@ export class LivekitWebhookService {
         break;
       }
       case 'room_finished':
-        // Clear toàn bộ state cho channel (mọi participant đã out)
         await this.prisma.study_group_voice_state.deleteMany({
           where: { channel_id: channelId },
         });
@@ -213,7 +187,6 @@ export class LivekitWebhookService {
     const egressId = info?.egressId;
     if (!egressId) return;
 
-    // Tìm recording row theo egressId — có thể thuộc về room HOẶC voice channel
     const rec = await this.prisma.recording.findUnique({
       where: { egress_id: egressId },
       select: { id: true, room_id: true, study_group_channel_id: true, storage_key: true },
@@ -223,8 +196,6 @@ export class LivekitWebhookService {
       return;
     }
 
-    // Extract fileUrl + size từ egressInfo.fileResults.
-    // Ưu tiên storageKey lưu sẵn lúc start record (reliable nhất).
     const fileResult = info?.fileResults?.[0];
     const fileUrl = rec.storage_key
       ? buildR2PublicUrl(rec.storage_key)
@@ -233,7 +204,6 @@ export class LivekitWebhookService {
           location: fileResult?.location,
         });
     const fileSize = fileResult?.size ? Number(fileResult.size) : null;
-    // egressInfo.startedAt/endedAt là timestamp NANOSECOND (bigint)
     const duration =
       info?.endedAt && info?.startedAt
         ? Math.round((Number(info.endedAt) - Number(info.startedAt)) / 1_000_000_000)
@@ -250,9 +220,6 @@ export class LivekitWebhookService {
       },
     });
 
-    // Pipeline trigger: channel recording chạy inline fire-and-forget (pipeline
-    // KHÔNG throw — fail tự set DB FAILED, user retry qua /sync); room recording
-    // enqueue BullMQ — jobId=recordingId dedup với producer cũ ở web (dual window).
     if (fileUrl) {
       if (rec.study_group_channel_id) {
         void this.pipeline.run({
@@ -289,7 +256,6 @@ export class LivekitWebhookService {
       });
     }
 
-    // Notify UI realtime — route đúng channel tuỳ owner
     if (rec.study_group_channel_id) {
       await triggerEvent(`presence-voice-${rec.study_group_channel_id}`, 'recording:ended', {
         recordingId: rec.id,

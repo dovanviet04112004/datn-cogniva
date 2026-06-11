@@ -1,9 +1,3 @@
-/**
- * Label — wrap @radix-ui/react-label, ưu điểm so với <label> native:
- *  - Tự click vào label sẽ focus đúng input (kể cả custom component).
- *  - peer-disabled state: nếu input có class peer + disabled, label tự
- *    ẩn opacity (hữu ích cho form ẩn/hiện).
- */
 'use client';
 
 import * as React from 'react';

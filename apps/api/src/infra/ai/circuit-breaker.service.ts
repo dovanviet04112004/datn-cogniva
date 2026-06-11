@@ -1,12 +1,3 @@
-/**
- * CircuitBreakerService — port từ apps/web/src/lib/ai/circuit-breaker.ts
- * (Upstash idiom → ioredis). State machine CLOSED/OPEN/HALF_OPEN lưu Redis
- * (phân tán giữa nhiều instance), key contract GIỮ NGUYÊN — admin dashboard
- * đọc cùng key: cb:state:{name} (TTL 30s), cb:fail:{name} (INCR window 60s,
- * threshold 5), cb:probe:{name} (SETNX 10s — 1 instance probe). Circuit
- * CLOSED không có key (setState xoá) → listCircuits chỉ thấy non-healthy.
- * Redis lỗi → fail-open mọi nhánh.
- */
 import { Injectable, Logger } from '@nestjs/common';
 
 import { RedisService } from '../redis/redis.service';
@@ -73,7 +64,6 @@ export class CircuitBreakerService {
     return { state: await this.getState(name), failCount: failRaw ? Number(failRaw) : 0 };
   }
 
-  /** Chỉ circuit non-healthy có key — CLOSED hoàn toàn không xuất hiện. */
   async listCircuits(): Promise<
     Array<{ name: string; state: CircuitState; failCount: number; stateTtl: number }>
   > {
@@ -90,19 +80,21 @@ export class CircuitBreakerService {
       if (names.size === 0) return [];
 
       return await Promise.all(
-        Array.from(names).sort().map(async (name) => {
-          const [state, failRaw, ttl] = await Promise.all([
-            this.getState(name),
-            client.get(failKey(name)),
-            client.ttl(stateKey(name)),
-          ]);
-          return {
-            name,
-            state,
-            failCount: failRaw ? Number(failRaw) : 0,
-            stateTtl: typeof ttl === 'number' ? ttl : -1,
-          };
-        }),
+        Array.from(names)
+          .sort()
+          .map(async (name) => {
+            const [state, failRaw, ttl] = await Promise.all([
+              this.getState(name),
+              client.get(failKey(name)),
+              client.ttl(stateKey(name)),
+            ]);
+            return {
+              name,
+              state,
+              failCount: failRaw ? Number(failRaw) : 0,
+              stateTtl: typeof ttl === 'number' ? ttl : -1,
+            };
+          }),
       );
     } catch (err) {
       this.logger.error(`circuit.list.failed: ${(err as Error).message}`);
@@ -166,7 +158,11 @@ export class CircuitBreakerService {
     const client = await this.redis.raw();
     if (!client) return;
     try {
-      const replies = await client.pipeline().incr(failKey(name)).expire(failKey(name), config.windowSec).exec();
+      const replies = await client
+        .pipeline()
+        .incr(failKey(name))
+        .expire(failKey(name), config.windowSec)
+        .exec();
       const count = Number(replies?.[0]?.[1] ?? 0);
       if (count >= config.failureThreshold) {
         await this.setState(name, 'OPEN', config.resetTimeoutSec);

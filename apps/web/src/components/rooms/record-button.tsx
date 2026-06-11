@@ -1,20 +1,3 @@
-/**
- * RecordButton — toggle record buổi học (chỉ mod/owner thấy).
- *
- * State machine (sync với realtime events):
- *   - IDLE       : chưa có recording active → hiện Circle red
- *   - STARTING   : đang call POST /record → spinner
- *   - RECORDING  : có recording, blink red dot + "REC" label
- *   - STOPPING   : đang call /stop → spinner
- *
- * Khi recording active, các participant non-mod sẽ thấy banner "Buổi học đang
- * được ghi" qua realtime event `recording:started` (handled bởi RecordingBanner
- * trong room-client). Compliance: banner BẮT BUỘC hiển thị suốt thời gian REC.
- *
- * Polling: khi mount, GET /record → tìm recording status='RECORDING' → init
- * state. Sau đó dựa hoàn toàn vào realtime `recording:started` / `recording:stopped`
- * cho realtime sync giữa các mod (nhiều mod cùng phòng có thể thấy state nhau).
- */
 'use client';
 
 import * as React from 'react';
@@ -28,7 +11,6 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   roomId: string;
-  /** Chỉ render khi true — parent (ControlBar) check role. */
   visible: boolean;
 };
 
@@ -44,7 +26,6 @@ export function RecordButton({ roomId, visible }: Props) {
   const [state, setState] = React.useState<RecState>('IDLE');
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  // Initial: check có recording active không
   React.useEffect(() => {
     if (!visible) return;
     fetch(`/api/rooms/${roomId}/record`)
@@ -59,7 +40,6 @@ export function RecordButton({ roomId, visible }: Props) {
       .catch((err) => console.error('[record-btn] init fail:', err));
   }, [roomId, visible]);
 
-  // Realtime sync giữa mod (chỉ khi visible) — recording:started/stopped/ended.
   const channel = `presence-room-${roomId}`;
   useRealtimeEvent<{ recordingId: string; byUserName?: string }>(
     channel,
@@ -94,12 +74,8 @@ export function RecordButton({ roomId, visible }: Props) {
   const start = async () => {
     setState('STARTING');
     try {
-      const data = await apiSend<{ recordingId: string }>(
-        `/api/rooms/${roomId}/record`,
-        'POST',
-      );
+      const data = await apiSend<{ recordingId: string }>(`/api/rooms/${roomId}/record`, 'POST');
       toast.success('Đã bắt đầu ghi hình');
-      // State sẽ flip thành RECORDING qua realtime event (kể cả mod khác)
       setActiveId(data.recordingId);
       setState('RECORDING');
     } catch (err) {
@@ -117,7 +93,7 @@ export function RecordButton({ roomId, visible }: Props) {
       setActiveId(null);
       setState('IDLE');
     } catch (err) {
-      setState('RECORDING'); // rollback
+      setState('RECORDING');
       toast.error((err as Error).message);
     }
   };
@@ -133,10 +109,7 @@ export function RecordButton({ roomId, visible }: Props) {
       size="icon"
       aria-label={isRecording ? 'Dừng ghi (REC đang chạy)' : 'Bắt đầu ghi buổi học'}
       title={isRecording ? 'Dừng ghi (đang record)' : 'Bắt đầu ghi (chỉ mod)'}
-      className={cn(
-        'relative',
-        isRecording && 'animate-pulse',
-      )}
+      className={cn('relative', isRecording && 'animate-pulse')}
     >
       {isLoading ? (
         <Loader2 className="h-4 w-4 animate-spin" />

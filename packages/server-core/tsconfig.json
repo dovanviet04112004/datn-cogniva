@@ -1,5 +1,3 @@
-// Emit CJS + d.ts để CẢ Next (bundler) lẫn NestJS (node16/CJS) cùng tiêu thụ
-// qua dist — không cần transpilePackages, không vướng rootDir của nest build.
 {
   "extends": "@cogniva/tsconfig/base.json",
   "compilerOptions": {

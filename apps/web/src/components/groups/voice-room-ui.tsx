@@ -1,12 +1,3 @@
-/**
- * VoiceRoomUI — phần UI BÊN TRONG LiveKitRoom (tách khỏi voice-channel.tsx để
- * VoiceSessionProvider lift connection lên global mà giữ nguyên giao diện).
- *
- * KHÔNG tự mount LiveKitRoom — render bên trong context room do
- * VoiceSessionProvider cung cấp. Gồm: header, VoiceStage, control
- * bar, sidebar (chat/notes/whiteboard). Audio do <RoomAudioRenderer> trong
- * VoiceStage đảm nhiệm (1 instance duy nhất).
- */
 'use client';
 
 import * as React from 'react';
@@ -44,7 +35,6 @@ const WhiteboardPanel = dynamic(
   { ssr: false, loading: () => <PanelLoading label="Đang tải Whiteboard..." /> },
 );
 
-/** Chỉ báo trạng thái kết nối voice — "Đang kết nối..." (animate) → "Đã kết nối". */
 function ConnStatus() {
   const state = useConnectionState();
   const connected = state === ConnectionState.Connected;
@@ -68,7 +58,7 @@ function ConnStatus() {
 
 function PanelLoading({ label }: { label: string }) {
   return (
-    <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
       <Loader2 className="h-4 w-4 animate-spin" />
       <span>{label}</span>
     </div>
@@ -99,20 +89,14 @@ export function VoiceRoomUI({
   currentUserName: string;
   currentUserImage: string | null;
   onLeave: () => void;
-  /** Mở cửa sổ nổi PiP — undefined nếu trình duyệt không hỗ trợ. */
   onPiP?: () => void;
 }) {
-  // Voice room VIDEO-FIRST: mặc định ĐÓNG sidebar (video full-width căn giữa, hết
-  // cảm giác "lệch trái" do chat panel 360px trống bên phải). Mở chat/notes/bảng
-  // khi user bấm toggle; lựa chọn được nhớ qua localStorage ('0' = đã mở).
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(true);
 
   React.useEffect(() => {
     try {
       if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === '0') setSidebarCollapsed(false);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, []);
 
   const toggleSidebar = React.useCallback(() => {
@@ -120,17 +104,11 @@ export function VoiceRoomUI({
       const next = !prev;
       try {
         localStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       return next;
     });
   }, []);
 
-  // Deferred pre-warm: vào phòng KHÔNG tải Notes/Whiteboard ngay (mount nhẹ,
-  // không chặn render voice + không kéo Excalidraw/2 WS lên đầu). Sau ~1.2s
-  // (voice đã interactive) mới render ngầm để connect/sync Yjs trước → bấm tab là
-  // synced sẵn. Nếu user bấm SỚM hơn (onValueChange) thì warm ngay, không chờ.
   const [warm, setWarm] = React.useState(false);
   React.useEffect(() => {
     const id = window.setTimeout(() => setWarm(true), 1200);
@@ -142,12 +120,8 @@ export function VoiceRoomUI({
     [currentUserId]: { avatar: currentUserImage, role: myRole },
   };
 
-  // Ref tới ROOT (cả stage + control bar + CHAT aside) → fullscreen gồm CẢ chat
-  // bên phải (trước fullscreen mỗi <main> nên không mở được chat khi full).
   const rootRef = React.useRef<HTMLDivElement>(null);
 
-  // Fullscreen + auto-ẩn chrome (header/control bar) khi RẢNH, hiện lại khi DI
-  // CHUỘT — kiểu Discord/video player. Chỉ áp dụng khi đang toàn màn hình.
   const [isFs, setIsFs] = React.useState(false);
   const [chromeHidden, setChromeHidden] = React.useState(false);
 
@@ -167,7 +141,7 @@ export function VoiceRoomUI({
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => setChromeHidden(true), 3000); // 3s rảnh → ẩn
+      timer = setTimeout(() => setChromeHidden(true), 3000);
     };
     const reveal = () => {
       setChromeHidden(false);
@@ -187,21 +161,20 @@ export function VoiceRoomUI({
     <div
       ref={rootRef}
       className={cn(
-        'grid h-full grid-cols-1 transition-[grid-template-columns] duration-200 bg-zinc-950',
+        'grid h-full grid-cols-1 bg-zinc-950 transition-[grid-template-columns] duration-200',
         sidebarCollapsed ? 'lg:grid-cols-1' : 'lg:grid-cols-[1fr_360px]',
       )}
     >
       <VoiceStateSync channelId={channel.id} currentUserId={currentUserId} />
 
       <main
-        className={cn('relative flex min-h-0 flex-col bg-zinc-950', isFs && chromeHidden && 'cursor-none')}
+        className={cn(
+          'relative flex min-h-0 flex-col bg-zinc-950',
+          isFs && chromeHidden && 'cursor-none',
+        )}
       >
-        {/* Header dùng token theme. Khi fullscreen → overlay top + auto-ẩn. */}
         <header
           className={cn(
-            // pl-12/pr-12 mobile: chừa chỗ cho nút PanelLeft (trái, md:hidden) +
-            // Users (phải, lg:hidden) của group-shell float đè lên → tên kênh
-            // không bị cắt. md:pl-4 (PanelLeft ẩn) · lg:pr-14 (Users ẩn, nút PiP).
             'flex h-12 shrink-0 items-center gap-2 border-b border-white/10 bg-zinc-900/90 pl-12 pr-12 text-white backdrop-blur md:pl-4 lg:pr-14',
             isFs && 'absolute inset-x-0 top-0 z-30 transition-all duration-300',
             isFs && chromeHidden && '-translate-y-full opacity-0',
@@ -229,7 +202,11 @@ export function VoiceRoomUI({
             title={sidebarCollapsed ? 'Mở sidebar (chat / notes / bảng)' : 'Đóng sidebar'}
             className="hidden h-7 w-7 items-center justify-center rounded-md text-white/60 transition-colors hover:bg-white/10 hover:text-white lg:inline-flex"
           >
-            {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronsLeft className="h-4 w-4" />
+            )}
           </button>
         </header>
         <VoiceRecordingBanner channelId={channel.id} />
@@ -237,7 +214,6 @@ export function VoiceRoomUI({
           <VoiceStage participantMeta={localMeta} fullscreenRef={rootRef} />
           <ReactionsLayer />
         </div>
-        {/* Control bar — fullscreen thì overlay đáy + auto-ẩn khi rảnh */}
         <div
           className={cn(
             isFs && 'absolute inset-x-0 bottom-0 z-30 transition-all duration-300',
@@ -255,11 +231,7 @@ export function VoiceRoomUI({
 
       <aside
         className={cn(
-          'min-h-0 border-l bg-background',
-          // collapse → 'hidden' (ẩn mọi breakpoint). Trước đây base có 'lg:flex'
-          // CỐ ĐỊNH nên ở màn lg nó THẮNG 'hidden' → đóng sidebar vẫn hiện, grid
-          // về 1 cột → chat rớt xuống dưới stage. Bỏ lg:flex khỏi base, chỉ bật
-          // ở nhánh chưa collapse.
+          'bg-background min-h-0 border-l',
           sidebarCollapsed ? 'hidden' : 'hidden lg:flex lg:flex-col',
         )}
       >
@@ -282,11 +254,6 @@ export function VoiceRoomUI({
             </TabsTrigger>
           </TabsList>
 
-          {/* forceMount + data-[state=inactive]:hidden: panel ở lại DOM khi đổi tab
-              (Radix tự ẩn panel inactive bằng display:none, KHÔNG chồng nhau, Yjs
-              không reconnect). Notes/Whiteboard chỉ render khi `warm` (deferred
-              pre-warm ~1.2s sau mount HOẶC ngay khi user bấm tab) → mount nhẹ +
-              vẫn synced sẵn lúc bấm. */}
           <TabsContent
             value="chat"
             forceMount

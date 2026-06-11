@@ -1,8 +1,3 @@
-/**
- * CronProcessor — worker BullMQ queue `cron-v2`, dispatch theo job.name.
- * Concurrency 1 (serial) + attempts mặc định 1 (KHÔNG retry) — đúng semantics
- * worker cũ: cron lỡ 1 lần thì lần schedule sau chạy lại.
- */
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';

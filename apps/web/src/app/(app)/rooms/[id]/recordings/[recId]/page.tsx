@@ -1,20 +1,3 @@
-/**
- * /rooms/[id]/recordings/[recId] — Replay page cho 1 buổi học đã ghi.
- *
- * Server component:
- *   1. Auth + verify user là member ACTIVE của room (chống IDOR — user khác
- *      không vào được URL replay).
- *   2. Load recording row + room name.
- *   3. Render ReplayClient (video + transcript + chapters).
- *
- * Trạng thái recording:
- *   - RECORDING : chưa kết thúc → redirect về room (replay chưa có video).
- *   - PROCESSING: video sẵn nhưng chưa có transcript/summary → hiển thị
- *     placeholder + auto refresh khi worker BullMQ xong.
- *   - PROCESSED : full UI có transcript + chapters + summary.
- *   - FAILED    : hiển thị video + thông báo "Transcribe lỗi, không có
- *     transcript". Mod có thể trigger re-process Phase 16.
- */
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
@@ -33,7 +16,6 @@ export default async function ReplayPage({ params }: Props) {
   if (!session) redirect('/sign-in');
   const { id: roomId, recId } = await params;
 
-  // Verify member ACTIVE
   const [member] = await db
     .select()
     .from(roomMember)
@@ -60,7 +42,6 @@ export default async function ReplayPage({ params }: Props) {
     .where(eq(room.id, roomId))
     .limit(1);
 
-  // Recording chưa kết thúc → quay lại room (live)
   if (rec.status === 'RECORDING') {
     redirect(`/rooms/${roomId}`);
   }

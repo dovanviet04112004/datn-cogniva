@@ -1,26 +1,3 @@
-/**
- * ConfirmDialog — modal xác nhận với textarea bắt buộc cho destructive admin
- * action. Pattern docs/plans/admin.md §4.4: reason min 10 chars, button disabled
- * tới khi reason đủ length, audit log ghi reason.
- *
- * Usage:
- *   const [open, setOpen] = useState(false);
- *   const [loading, setLoading] = useState(false);
- *   ...
- *   <Button onClick={() => setOpen(true)} variant="destructive">Suspend</Button>
- *   <ConfirmDialog
- *     open={open} onOpenChange={setOpen}
- *     title="Suspend user X?"
- *     description="..."
- *     confirmLabel="Suspend"
- *     variant="destructive"
- *     loading={loading}
- *     onConfirm={async (reason) => {
- *       setLoading(true);
- *       try { await fetch(...); } finally { setLoading(false); setOpen(false); }
- *     }}
- *   />
- */
 'use client';
 
 import * as React from 'react';
@@ -50,10 +27,8 @@ type Props = {
   confirmLabel: string;
   cancelLabel?: string;
   variant?: Variant;
-  /** Khi false, không yêu cầu reason (vd action không destructive). */
   reasonRequired?: boolean;
   loading?: boolean;
-  /** Callback nhận reason đã trim. Bao try/catch + setOpen(false) bên caller. */
   onConfirm: (reason: string) => void | Promise<void>;
 };
 
@@ -71,7 +46,6 @@ export function ConfirmDialog({
 }: Props) {
   const [reason, setReason] = React.useState('');
 
-  // Reset reason khi dialog close
   React.useEffect(() => {
     if (!open) {
       const t = setTimeout(() => setReason(''), 200);
@@ -81,8 +55,7 @@ export function ConfirmDialog({
 
   const trimmedLen = reason.trim().length;
   const reasonValid =
-    !reasonRequired ||
-    (trimmedLen >= MIN_REASON_LEN && trimmedLen <= MAX_REASON_LEN);
+    !reasonRequired || (trimmedLen >= MIN_REASON_LEN && trimmedLen <= MAX_REASON_LEN);
 
   const handleConfirm = async () => {
     if (!reasonValid) return;
@@ -111,10 +84,7 @@ export function ConfirmDialog({
 
         {reasonRequired && (
           <div className="space-y-1.5">
-            <label
-              htmlFor="confirm-reason"
-              className="text-xs font-medium text-slate-300"
-            >
+            <label htmlFor="confirm-reason" className="text-xs font-medium text-slate-300">
               Lý do <span className="text-red-400">*</span>
               <span className="ml-1.5 font-mono text-[10px] text-slate-500">
                 ({MIN_REASON_LEN}-{MAX_REASON_LEN} ký tự, ghi audit log)
@@ -133,9 +103,7 @@ export function ConfirmDialog({
             <p
               className={cn(
                 'text-right font-mono text-[10px] tabular-nums',
-                trimmedLen < MIN_REASON_LEN
-                  ? 'text-slate-500'
-                  : 'text-emerald-500',
+                trimmedLen < MIN_REASON_LEN ? 'text-slate-500' : 'text-emerald-500',
               )}
             >
               {trimmedLen}/{MAX_REASON_LEN}

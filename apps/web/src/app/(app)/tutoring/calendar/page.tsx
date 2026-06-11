@@ -1,10 +1,3 @@
-/**
- * /tutoring/calendar — V4 T4 (2026-05-22).
- *
- * Calendar week/month view cho user (tutor + student unified).
- *
- * Spec: docs/plans/tutoring-v4.md §7.7.
- */
 import { redirect } from 'next/navigation';
 import { CalendarDays } from 'lucide-react';
 
@@ -21,7 +14,6 @@ export default async function CalendarPage() {
   if (!session) redirect('/sign-in?redirect=/tutoring/calendar');
   return (
     <PageShell size="wide" padded className="space-y-4">
-      {/* Hero CHUNG thay header tự-chế — h1 → title, p → description. */}
       <PageHero
         eyebrow="Lịch học"
         eyebrowIcon={CalendarDays}

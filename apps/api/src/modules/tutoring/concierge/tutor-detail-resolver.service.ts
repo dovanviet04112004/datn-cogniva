@@ -1,13 +1,3 @@
-/**
- * TutorDetailResolverService — port từ
- * apps/web/src/lib/tutoring/tutor-detail-resolver.ts.
- *
- * Resolve "tutorRef" fragment từ planner thành tutor cụ thể trong DB.
- * Pattern: ưu tiên tutor đã shown trong thread (context-aware), fuzzy
- * match theo tên user. Fallback global search nếu không tìm thấy.
- *
- * Sau khi resolve → fetch tutor profile + N reviews mới nhất + stats.
- */
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../infra/database/prisma.service';
@@ -26,7 +16,6 @@ export type TutorDetailPayload = {
   trialSessionEnabled: boolean;
   instantBookEnabled: boolean;
   avgResponseMinutes: number | null;
-  /** Top N review mới nhất. */
   reviews: Array<{
     id: string;
     rating: number;
@@ -42,12 +31,6 @@ export type TutorDetailPayload = {
 export class TutorDetailResolverService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Resolve tutor reference từ context thread + fuzzy name match.
-   *
-   * @param tutorRef User-typed fragment, vd "cô Mai", "thầy David", "tutor số 2"
-   * @param shownTutorIds Tutor IDs đã hiển thị trong thread (ưu tiên match)
-   */
   async resolveTutorDetail({
     tutorRef,
     shownTutorIds,
@@ -57,14 +40,11 @@ export class TutorDetailResolverService {
     shownTutorIds: string[];
     reviewLimit?: number;
   }): Promise<TutorDetailPayload | null> {
-    // ── Step 1: Extract name fragment ────────────────────────────────
-    // Strip honorifics + filler words để fuzzy match đúng tên
     const cleanedRef = tutorRef
       .replace(/^(cô|thầy|chị|anh|tutor|gia sư|gs|teacher|mr\.|mrs\.|ms\.)\s+/iu, '')
       .replace(/\s+(số\s+\d+|#\d+|thứ\s+\w+)$/iu, '')
       .trim();
 
-    // ── Step 2: "tutor số N" — match theo position trong shown list ──
     const posMatch = tutorRef.match(/(?:số|thứ|#)\s*(\d+)/iu);
     if (posMatch && shownTutorIds.length > 0) {
       const idx = parseInt(posMatch[1] ?? '0', 10) - 1;
@@ -74,7 +54,6 @@ export class TutorDetailResolverService {
       }
     }
 
-    // ── Step 3: Fuzzy match trong shown list trước (context-aware) ────
     if (shownTutorIds.length > 0 && cleanedRef.length >= 2) {
       const candidate = await this.prisma.tutor_profile.findFirst({
         where: {
@@ -89,7 +68,6 @@ export class TutorDetailResolverService {
       if (candidate) return this.fetchTutorDetail(candidate.id, reviewLimit);
     }
 
-    // ── Step 4: Global fuzzy match (toàn DB) — fallback ──────────────
     if (cleanedRef.length >= 2) {
       const global = await this.prisma.tutor_profile.findFirst({
         where: {

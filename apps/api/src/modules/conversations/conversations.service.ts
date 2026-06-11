@@ -1,19 +1,9 @@
-/**
- * ConversationsService — list/delete conversation + load messages (hydrate
- * citations). Port từ apps/web/src/app/api/conversations/** — GIỮ NGUYÊN wire
- * shape (camelCase + ISO date string) + cùng invalidator onConversationsChanged
- * để Next/Nest sống chung không lệch cache.
- *
- * POST /api/chat (streaming, auto-create conversation) KHÔNG thuộc wave này —
- * vẫn ở apps/web tới Wave 7.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { onConversationsChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 
-/** Row từ query list — last_message_at là correlated max() nên cần $queryRaw. */
 type ConversationListRow = {
   id: string;
   title: string | null;
@@ -26,11 +16,6 @@ type ConversationListRow = {
 export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * GET /conversations — list của user, filter optional theo workspaceId
-   * (`'null'` literal = conversation toàn cục không gắn workspace).
-   * Correlated subquery max(message.created_at) copy nguyên semantics Drizzle cũ.
-   */
   async listConversations(userId: string, workspaceParam: string | null, limit: number) {
     const conditions = [Prisma.sql`c.user_id = ${userId}`];
     if (workspaceParam === 'null') {
@@ -58,11 +43,6 @@ export class ConversationsService {
     };
   }
 
-  /**
-   * DELETE /conversations/:id — verify ownership trước khi xoá (chống IDOR,
-   * user khác có thể guess id). FK message → conversation có ON DELETE CASCADE
-   * nên xoá conversation auto xoá messages.
-   */
   async deleteConversation(userId: string, id: string) {
     const conv = await this.prisma.conversation.findFirst({
       where: { id, user_id: userId },
@@ -71,17 +51,10 @@ export class ConversationsService {
     if (!conv) throw new NotFoundException({ error: 'Not found' });
 
     await this.prisma.conversation.delete({ where: { id } });
-    // Conversation biến khỏi sidebar chat list → bust.
     await onConversationsChanged(userId);
     return { ok: true };
   }
 
-  /**
-   * GET /conversations/:id/messages — messages + hydrate citations.
-   * Citation jsonb compact chỉ lưu chunkId + score + snippet; JOIN chunk +
-   * document (1 query, tránh N+1) để restore documentId/filename/page cho UI.
-   * Role enum UPPERCASE → lowercase cho AI SDK.
-   */
   async getMessages(userId: string, id: string) {
     const conv = await this.prisma.conversation.findFirst({
       where: { id, user_id: userId },
@@ -110,7 +83,6 @@ export class ConversationsService {
       { documentId: string; filename: string; page: number | null }
     >();
     if (allChunkIds.size > 0) {
-      // Relation chunk.document là required → include tương đương INNER JOIN cũ.
       const rows = await this.prisma.chunk.findMany({
         where: { id: { in: Array.from(allChunkIds) } },
         select: {

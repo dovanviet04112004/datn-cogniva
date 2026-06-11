@@ -1,8 +1,3 @@
-/**
- * /api/rooms/* — port từ apps/web/src/app/api/rooms/** (10 route).
- * Status code y route cũ: POST /rooms 201 (Nest default), các POST còn lại
- * @HttpCode(200). Guard mặc định lo 401 {error:'Unauthorized'}.
- */
 import {
   Body,
   Controller,
@@ -43,13 +38,11 @@ export class RoomsController {
     private readonly recordings: RoomRecordingsService,
   ) {}
 
-  /** GET /rooms — {mine, joined} (cache-aside 60s). */
   @Get()
   list(@CurrentUser() user: AuthUser) {
     return this.rooms.listRooms(user.id);
   }
 
-  /** POST /rooms — tạo room (201 = Nest default, y route cũ). */
   @Post()
   create(
     @CurrentUser() user: AuthUser,
@@ -58,7 +51,6 @@ export class RoomsController {
     return this.rooms.createRoom(user.id, body);
   }
 
-  /** POST /rooms/join — join qua code (parse trong service: 400 'Invalid body'). */
   @Post('join')
   @HttpCode(200)
   join(@CurrentUser() user: AuthUser, @Body() raw: unknown) {
@@ -75,7 +67,6 @@ export class RoomsController {
     return this.rooms.deleteRoom(user.id, id);
   }
 
-  /** POST /rooms/:id/token — LiveKit JWT (parse 400 trước room 404, y route cũ). */
   @Post(':id/token')
   @HttpCode(200)
   token(
@@ -86,7 +77,6 @@ export class RoomsController {
     return this.rooms.issueToken(user, id, body);
   }
 
-  /** POST /rooms/:id/collab-token — Hocuspocus JWT (parse trong service). */
   @Post(':id/collab-token')
   @HttpCode(200)
   collabToken(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
@@ -98,18 +88,12 @@ export class RoomsController {
     return this.chat.listMessages(user.id, id);
   }
 
-  /** POST /rooms/:id/chat — member 403 TRƯỚC parse 400 → parse trong service. */
   @Post(':id/chat')
   @HttpCode(200)
   postChat(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.chat.postMessage(user, id, raw);
   }
 
-  /**
-   * POST /rooms/:id/ai-message — thứ tự status y route cũ:
-   * 403 member → 429 rate-limit (Retry-After) → 400 parse → 404/403 trong service.
-   * Rate limit theo PHIÊN HỌC (key gồm roomId), preset aiGenerate 10 req/phút.
-   */
   @Post(':id/ai-message')
   @HttpCode(200)
   async aiMessage(
@@ -131,7 +115,6 @@ export class RoomsController {
     return this.chat.aiMessage(user, id, raw);
   }
 
-  /** POST /rooms/:id/moderate — parse 400 (flatten) TRƯỚC role check, y route cũ. */
   @Post(':id/moderate')
   @HttpCode(200)
   moderate(
@@ -142,20 +125,17 @@ export class RoomsController {
     return this.rooms.moderate(user.id, id, body);
   }
 
-  /** POST /rooms/:id/record — start composite egress (mod only). */
   @Post(':id/record')
   @HttpCode(200)
   startRecord(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.recordings.startRecording(user, id);
   }
 
-  /** GET /rooms/:id/record — list recordings (member ACTIVE). */
   @Get(':id/record')
   listRecord(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.recordings.listRecordings(user.id, id);
   }
 
-  /** POST /rooms/:id/record/:recordingId/stop — stop egress (idempotent). */
   @Post(':id/record/:recordingId/stop')
   @HttpCode(200)
   stopRecord(

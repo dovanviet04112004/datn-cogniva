@@ -1,19 +1,4 @@
-/**
- * /api/groups/:id/* (sub-resource) — categories + channels (CRUD/reorder/
- * typing) + invites + members (mute) + roles. Port từ
- * apps/web/src/app/api/groups/[id]/**. Body để raw `unknown` — service tự
- * safeParse SAU check membership/permission (giữ thứ tự 403/404 trước 400).
- */
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -29,20 +14,13 @@ export class GroupAdminController {
     private readonly members: GroupMembersService,
   ) {}
 
-  /* ── Categories ─────────────────────────────────────────── */
-
   @Get(':id/categories')
   listCategories(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.channels.listCategories(user.id, id);
   }
 
-  /** POST 201 mặc định của Nest = status route cũ. */
   @Post(':id/categories')
-  createCategory(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() raw: unknown,
-  ) {
+  createCategory(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.channels.createCategory(user.id, id, raw);
   }
 
@@ -65,30 +43,19 @@ export class GroupAdminController {
     return this.channels.deleteCategory(user.id, id, catId);
   }
 
-  /* ── Channels ───────────────────────────────────────────── */
-
   @Get(':id/channels')
   listChannels(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.channels.listChannels(user.id, id);
   }
 
   @Post(':id/channels')
-  createChannel(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() raw: unknown,
-  ) {
+  createChannel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.channels.createChannel(user.id, id, raw);
   }
 
-  /** POST /groups/:id/channels/reorder — drag-drop bulk (route cũ trả 200). */
   @Post(':id/channels/reorder')
   @HttpCode(200)
-  reorderChannels(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() raw: unknown,
-  ) {
+  reorderChannels(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.channels.reorderChannels(user.id, id, raw);
   }
 
@@ -111,7 +78,6 @@ export class GroupAdminController {
     return this.channels.deleteChannel(user.id, id, channelId);
   }
 
-  /** POST typing — ephemeral broadcast (route cũ trả 200). */
   @Post(':id/channels/:channelId/typing')
   @HttpCode(200)
   typing(
@@ -122,23 +88,13 @@ export class GroupAdminController {
     return this.channels.typing(user.id, id, channelId);
   }
 
-  /* Route permission-overrides (V2 G1) + bulk member-roles KHÔNG port —
-     0 caller (caller-analysis Wave 4); engine PermissionsService vẫn ĐỌC
-     override từ DB nếu có. */
-
-  /* ── Invites ────────────────────────────────────────────── */
-
   @Get(':id/invites')
   listInvites(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.members.listInvites(user.id, id);
   }
 
   @Post(':id/invites')
-  createInvite(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() raw: unknown,
-  ) {
+  createInvite(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.members.createInvite(user.id, id, raw);
   }
 
@@ -150,8 +106,6 @@ export class GroupAdminController {
   ) {
     return this.members.revokeInvite(user.id, id, code);
   }
-
-  /* ── Members ────────────────────────────────────────────── */
 
   @Get(':id/members')
   listMembers(@CurrentUser() user: AuthUser, @Param('id') id: string) {
@@ -186,7 +140,6 @@ export class GroupAdminController {
     return this.members.removeMember(user.id, id, userId);
   }
 
-  /** POST mute — route cũ trả 200. */
   @Post(':id/members/:userId/mute')
   @HttpCode(200)
   muteMember(
@@ -207,19 +160,13 @@ export class GroupAdminController {
     return this.members.unmuteMember(user.id, id, userId);
   }
 
-  /* ── Roles ──────────────────────────────────────────────── */
-
   @Get(':id/roles')
   listRoles(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.members.listRoles(user.id, id);
   }
 
   @Post(':id/roles')
-  createRole(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() raw: unknown,
-  ) {
+  createRole(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {
     return this.members.createRole(user.id, id, raw);
   }
 

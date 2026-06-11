@@ -1,14 +1,3 @@
-/**
- * Job `tutoring-recurring-rollout` ('30 2 * * *' UTC = 09:30 VN daily) — V4 T4.
- * Port NGUYÊN semantics từ apps/web/src/jobs/tutoring-recurring-rollout.ts:
- * pack_purchase ACTIVE còn remaining_sessions có recurring_schedule
- * "WEEKLY|BIWEEKLY:DAY:HH:MM" → tạo booking cho slot kế tiếp trong 7 ngày tới
- * (CONFIRMED nếu tutor bật instant_book, ngược lại PENDING_TUTOR) + trừ
- * remaining_sessions, hết → EXHAUSTED — tất cả trong 1 tx/purchase.
- *
- * Idempotent: trước khi tạo check trùng (pack_purchase_id + start_at) — chạy
- * lại không tạo booking trùng. Lỗi 1 purchase chỉ log, không hỏng cả batch.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -17,10 +6,15 @@ import { logger } from '@cogniva/server-core';
 import { PrismaService } from '../../../infra/database/prisma.service';
 
 const DAY_MAP: Record<string, number> = {
-  SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6,
+  SUN: 0,
+  MON: 1,
+  TUE: 2,
+  WED: 3,
+  THU: 4,
+  FRI: 5,
+  SAT: 6,
 };
 
-/** Parse "WEEKLY:TUE:19:00" → { freq, day, hour, minute } */
 function parseSchedule(s: string): {
   freq: 'WEEKLY' | 'BIWEEKLY';
   day: number;
@@ -39,7 +33,6 @@ function parseSchedule(s: string): {
   };
 }
 
-/** Compute next occurrence within `aheadDays` (default 7). */
 function nextOccurrence(
   schedule: ReturnType<typeof parseSchedule>,
   fromDate: Date,
@@ -86,7 +79,6 @@ export class TutoringRecurringRolloutJob {
       const next = nextOccurrence(schedule, now);
       if (!next) continue;
 
-      // Idempotent: đã có booking ở slot này từ pack này → bỏ qua
       const existing = await this.prisma.tutoring_booking.findFirst({
         where: { pack_purchase_id: purchase.id, start_at: next },
         select: { id: true },
@@ -112,7 +104,6 @@ export class TutoringRecurringRolloutJob {
               pack_purchase_id: purchase.id,
             },
           });
-          // Decrement + flip EXHAUSTED atomic cùng 1 câu SQL như bản Drizzle cũ.
           await tx.$executeRaw(Prisma.sql`
             UPDATE tutoring_pack_purchase
             SET remaining_sessions = remaining_sessions - 1,

@@ -1,11 +1,3 @@
-/**
- * iCal — V4 T4 (2026-05-22). Port NGUYÊN VĂN từ apps/web/src/lib/tutoring/ical.ts
- * (web còn dùng bản gốc tới cutover — đổi format thì sửa CẢ HAI).
- *
- * Helper generate RFC 5545 .ics format từ booking + class data.
- * Dùng cho `/api/tutoring/ical/[token].ics` — public token-protected feed
- * Google/Outlook subscribe được.
- */
 import { randomBytes } from 'node:crypto';
 
 export type IcalEvent = {
@@ -18,30 +10,22 @@ export type IcalEvent = {
   url?: string;
 };
 
-/** Generate random 32-char token (rotate quarterly admin). */
 export function generateIcalToken(): string {
   return randomBytes(16).toString('hex');
 }
 
-/** Format Date → ICS DATETIME UTC (YYYYMMDDTHHMMSSZ). */
 function fmtIcsDate(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return d
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 }
 
-/** Escape special chars per RFC 5545. */
 function escapeIcs(s: string): string {
-  return s
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\n/g, '\\n');
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
-/** Build complete .ics feed string. */
-export function buildIcsFeed(opts: {
-  title: string;
-  events: IcalEvent[];
-}): string {
+export function buildIcsFeed(opts: { title: string; events: IcalEvent[] }): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -66,6 +50,5 @@ export function buildIcsFeed(opts: {
   }
 
   lines.push('END:VCALENDAR');
-  // RFC 5545: lines kết thúc CRLF
   return lines.join('\r\n');
 }

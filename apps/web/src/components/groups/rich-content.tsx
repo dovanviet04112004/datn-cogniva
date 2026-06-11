@@ -1,16 +1,3 @@
-/**
- * RichContent — parse message content thành React node:
- *   - `[label](/documents/X)` → DocCard (fetch title từ API)
- *   - `[label](/flashcards/X)` → FlashcardCard
- *   - `[label](/exams/X)`     → ExamCard với leaderboard link
- *   - `[label](/graph?concept=X)` → ConceptPill
- *   - `[[Concept Name]]`      → ConceptPill (inline, parse name → link /graph?q=)
- *   - URL bình thường         → link external
- *   - text                    → plain
- *
- * Strategy: regex split content thành tokens, render từng token.
- * Cogniva cards render compact với icon + title + nút mở.
- */
 'use client';
 
 import * as React from 'react';
@@ -30,7 +17,6 @@ const LINK_RE = /\[([^\]]+)\]\(([^)]+)\)/g;
 const WIKI_RE = /\[\[([^\]]+)\]\]/g;
 
 function tokenize(content: string): Token[] {
-  // 2-pass: 1st extract markdown links, 2nd extract [[wiki]] in plain segments
   const out: Token[] = [];
   let last = 0;
   for (const m of content.matchAll(LINK_RE)) {
@@ -77,7 +63,6 @@ function classifyUrl(url: string, label: string): Token {
 export function RichContent({ content }: { content: string }) {
   const tokens = React.useMemo(() => tokenize(content), [content]);
 
-  // Có inline token (text/wiki/extern) vs block token (doc/flashcard/exam card)
   const inline: Token[] = [];
   const blocks: Token[] = [];
   for (const t of tokens) {
@@ -116,7 +101,7 @@ function InlineToken({ token }: { token: Token }) {
       return (
         <Link
           href={`/graph?q=${encodeURIComponent(token.name)}`}
-          className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary hover:bg-primary/20"
+          className="bg-primary/10 text-primary hover:bg-primary/20 mx-0.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs"
         >
           <Network className="h-3 w-3" />
           {token.name}
@@ -126,7 +111,7 @@ function InlineToken({ token }: { token: Token }) {
       return (
         <Link
           href={`/graph?q=${encodeURIComponent(token.query)}`}
-          className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary hover:bg-primary/20"
+          className="bg-primary/10 text-primary hover:bg-primary/20 mx-0.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs"
         >
           <Network className="h-3 w-3" />
           {token.label || token.query}
@@ -138,7 +123,7 @@ function InlineToken({ token }: { token: Token }) {
           href={token.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-0.5 text-primary underline hover:text-primary/80"
+          className="text-primary hover:text-primary/80 inline-flex items-center gap-0.5 underline"
         >
           {token.label}
           <ExternalLink className="h-3 w-3" />
@@ -154,11 +139,11 @@ function BlockCard({ token }: { token: Token }) {
     return (
       <Link
         href={`/documents/${token.id}`}
-        className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:bg-accent/50"
+        className="bg-card hover:bg-accent/50 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
       >
         <FileText className="h-4 w-4 shrink-0 text-blue-500" />
         <span className="min-w-0 flex-1 truncate font-medium">{token.label}</span>
-        <span className="text-[10px] text-muted-foreground">Document</span>
+        <span className="text-muted-foreground text-[10px]">Document</span>
       </Link>
     );
   }
@@ -166,11 +151,11 @@ function BlockCard({ token }: { token: Token }) {
     return (
       <Link
         href={`/flashcards/${token.id}`}
-        className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:bg-accent/50"
+        className="bg-card hover:bg-accent/50 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
       >
         <BrainCircuit className="h-4 w-4 shrink-0 text-purple-500" />
         <span className="min-w-0 flex-1 truncate font-medium">{token.label}</span>
-        <span className="text-[10px] text-muted-foreground">Flashcard</span>
+        <span className="text-muted-foreground text-[10px]">Flashcard</span>
       </Link>
     );
   }
@@ -178,11 +163,11 @@ function BlockCard({ token }: { token: Token }) {
     return (
       <Link
         href={`/exams/${token.id}`}
-        className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:bg-accent/50"
+        className="bg-card hover:bg-accent/50 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
       >
         <ClipboardList className="h-4 w-4 shrink-0 text-amber-500" />
         <span className="min-w-0 flex-1 truncate font-medium">{token.label}</span>
-        <span className="text-[10px] text-muted-foreground">Exam</span>
+        <span className="text-muted-foreground text-[10px]">Exam</span>
       </Link>
     );
   }

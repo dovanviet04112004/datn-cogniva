@@ -1,14 +1,3 @@
-/**
- * CreateExamDialog — V8.10 (2026-05-20).
- *
- * Modal in-workspace tạo exam, reuse logic của /exams/new nhưng KHÔNG navigate
- * ra trang riêng. Sau submit thành công:
- *   - Toast success
- *   - Có thể navigate /exams/[id] để thêm câu hỏi (user click button) HOẶC
- *     đóng modal stay ở workspace
- *
- * Dùng bởi Studio recipe "Tạo Exam" (workspace V5+).
- */
 'use client';
 
 import * as React from 'react';
@@ -31,22 +20,11 @@ import { cn } from '@/lib/utils';
 type Props = {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  /** Workspace context — exam tạo ra có thể link workspaceId (server tự handle). */
   workspaceId?: string;
-  /**
-   * V8.21: callback sau khi tạo exam thành công + user bấm "Thêm câu hỏi".
-   * Khi pass, parent tự handle (vd mở ExamEditorDialog inline) → bỏ link
-   * `/exams/[id]` (navigation ra trang cũ).
-   */
   onCreated?: (newExamId: string) => void;
 };
 
-export function CreateExamDialog({
-  open,
-  onOpenChange,
-  workspaceId,
-  onCreated,
-}: Props) {
+export function CreateExamDialog({ open, onOpenChange, workspaceId, onCreated }: Props) {
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [mode, setMode] = React.useState<'PRACTICE' | 'TIMED'>('PRACTICE');
@@ -57,7 +35,6 @@ export function CreateExamDialog({
   const [submitting, setSubmitting] = React.useState(false);
   const [createdExamId, setCreatedExamId] = React.useState<string | null>(null);
 
-  // Reset state khi đóng dialog (tránh state cũ leak vào lần mở tiếp)
   React.useEffect(() => {
     if (!open) {
       setTitle('');
@@ -91,7 +68,6 @@ export function CreateExamDialog({
         workspaceId,
       });
       toast.success('Tạo exam thành công');
-      // Step 2: show success state với button "Thêm câu hỏi" → /exams/[id]
       setCreatedExamId(data.exam.id);
     } catch (err) {
       toast.error('Tạo thất bại: ' + (err as Error).message);
@@ -104,27 +80,20 @@ export function CreateExamDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         {createdExamId ? (
-          // Success state — exam tạo xong, hỏi tiếp gì
           <>
             <DialogHeader>
               <DialogTitle>Đã tạo exam</DialogTitle>
               <DialogDescription>
-                Exam ở trạng thái DRAFT. Bước tiếp theo: thêm câu hỏi (manual
-                hoặc AI gen) rồi publish.
+                Exam ở trạng thái DRAFT. Bước tiếp theo: thêm câu hỏi (manual hoặc AI gen) rồi
+                publish.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Để sau
               </Button>
-              {/* V8.24: legacy `/exams/[id]` builder đã xoá → bắt buộc
-                  workspace flow. Nếu không có onCreated (gọi từ ngoài
-                  workspace), redirect đến `/exams/[id]` (smart-redirect về
-                  workspace tương ứng). */}
               {onCreated ? (
-                <Button onClick={() => onCreated(createdExamId)}>
-                  Thêm câu hỏi →
-                </Button>
+                <Button onClick={() => onCreated(createdExamId)}>Thêm câu hỏi →</Button>
               ) : (
                 <Button
                   onClick={() => {
@@ -137,7 +106,6 @@ export function CreateExamDialog({
             </DialogFooter>
           </>
         ) : (
-          // Create form state
           <>
             <DialogHeader>
               <DialogTitle>Tạo exam mới</DialogTitle>
@@ -168,7 +136,7 @@ export function CreateExamDialog({
                   placeholder="Mô tả ngắn về phạm vi, yêu cầu…"
                   maxLength={2000}
                   rows={2}
-                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="border-input focus-visible:ring-ring flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1"
                 />
               </div>
 
@@ -228,9 +196,7 @@ export function CreateExamDialog({
                   />
                   <div className="text-sm">
                     <div className="font-medium">Xáo trộn câu hỏi</div>
-                    <div className="text-xs text-muted-foreground">
-                      Thứ tự random từng học sinh
-                    </div>
+                    <div className="text-muted-foreground text-xs">Thứ tự random từng học sinh</div>
                   </div>
                 </label>
                 <label className="flex cursor-pointer items-start gap-2">
@@ -242,19 +208,13 @@ export function CreateExamDialog({
                   />
                   <div className="text-sm">
                     <div className="font-medium">Xáo trộn đáp án MCQ</div>
-                    <div className="text-xs text-muted-foreground">
-                      A/B/C/D random vị trí
-                    </div>
+                    <div className="text-muted-foreground text-xs">A/B/C/D random vị trí</div>
                   </div>
                 </label>
               </div>
 
               <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                   Huỷ
                 </Button>
                 <Button type="submit" disabled={submitting}>
@@ -290,7 +250,7 @@ function ModeButton({
       )}
     >
       <div className="font-medium">{title}</div>
-      <div className="text-xs text-muted-foreground">{desc}</div>
+      <div className="text-muted-foreground text-xs">{desc}</div>
     </button>
   );
 }

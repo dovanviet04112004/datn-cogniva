@@ -7,10 +7,12 @@
 ## 1. Vision & differentiator
 
 **Vấn đề user hiện tại gặp:**
+
 - Học sinh: tìm gia sư qua nhóm Facebook / Zalo, không có hồ sơ chuẩn, dễ gặp scam, không có công cụ học chung sau khi match.
 - Gia sư: đăng vào group nhỏ lẻ, không reach được nhiều học sinh, không có công cụ chuyên môn để giảng (chỉ Zoom/Meet).
 
 **Differentiator Cogniva:**
+
 1. **Tích hợp study tool** — match xong, tự tạo study group (Phase 20) cho cặp gia sư-học sinh, có voice channel + whiteboard + AI Tutor + flashcards.
 2. **AI matching** — không chỉ filter tag, dùng embedding để match yêu cầu học sinh ↔ chuyên môn gia sư (qua bio + subjects).
 3. **Verified knowledge** — gia sư upload tài liệu mẫu, AI quiz đánh giá → badge "verified" trên môn đó.
@@ -21,6 +23,7 @@
 ## 2. User stories
 
 ### Học sinh (Student)
+
 1. **Tìm gia sư**: filter môn + lớp + budget + lịch + online/offline → list profile match.
 2. **Đăng yêu cầu**: nếu chưa thấy ai phù hợp → đăng post mô tả nhu cầu → gia sư đề xuất ngược.
 3. **Liên hệ**: chat DM trước khi book → confirm price + schedule.
@@ -30,6 +33,7 @@
 7. **Lịch sử**: xem các session đã học, transcript, flashcard generate.
 
 ### Gia sư (Tutor)
+
 1. **Tạo hồ sơ**: bio, ảnh, môn dạy, level, giá, availability matrix, kinh nghiệm.
 2. **Verify chuyên môn**: upload tài liệu giảng + làm AI quiz để được badge.
 3. **Browse requests**: list student requests phù hợp môn + lịch.
@@ -38,6 +42,7 @@
 6. **Earnings dashboard** (V3): tổng thu + bị giữ + đã rút.
 
 ### Admin (Cogniva ops)
+
 - Verify gia sư (CCCD + bằng cấp), mod review feedback, dispute resolution, payout (V3).
 
 ---
@@ -45,6 +50,7 @@
 ## 3. Scope theo phase
 
 ### V1 — Listings + DM (SHIPPED 2026-05-15)
+
 - ✅ Tutor profile CRUD (subjects, level, hourly rate, bio, hourly availability)
 - ✅ Student request CRUD
 - ✅ Search/filter cả 2 chiều
@@ -52,6 +58,7 @@
 - ✅ Manual book — chat thoả thuận
 
 ### V2 — Booking + Sessions (SHIPPED 2026-05-15)
+
 - ✅ Booking system: slot + confirm + cancel (24h policy)
 - ✅ Auto-create study group (TEXT + VOICE + FORUM) khi confirmed
 - ✅ Calendar API + upcoming bookings trên mine tab
@@ -59,27 +66,29 @@
 - ✅ AI matching (lazy embed bio + request, cosine via pgvector `<=>`)
 
 ### V3 — Verification + Payment (SHIPPED 2026-05-15)
+
 - ✅ KYC upload (CCCD + bằng cấp) + admin review queue
 - ✅ Subject verification: AI generate quiz 10 câu MCQ → tutor làm bài qua
-     quiz attempt UI hiện có → score auto sync vào `tutor_subject_verify_quiz`
-     + cập nhật `tutor_subject.verifiedAt` nếu ≥ passThreshold
+  quiz attempt UI hiện có → score auto sync vào `tutor_subject_verify_quiz`
+  - cập nhật `tutor_subject.verifiedAt` nếu ≥ passThreshold
 - ✅ Payment integration full code-ready:
-     - **STUB** (dev): auto-capture local, không gọi API ngoài
-     - **VNPAY**: pay URL (HMAC-SHA512) + IPN webhook + refund API call.
-       Env cần: `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL`,
-       `VNPAY_PAY_URL`, `VNPAY_REFUND_URL`. Nạp env → switch
-       `PAYMENT_PROVIDER=VNPAY` để live.
-     - **MoMo**: create payment qua HMAC-SHA256 + IPN webhook + refund API.
-       Env: `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`,
-       `MOMO_CREATE_URL`, `MOMO_REFUND_URL`, `MOMO_RETURN_URL`, `MOMO_IPN_URL`.
+  - **STUB** (dev): auto-capture local, không gọi API ngoài
+  - **VNPAY**: pay URL (HMAC-SHA512) + IPN webhook + refund API call.
+    Env cần: `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL`,
+    `VNPAY_PAY_URL`, `VNPAY_REFUND_URL`. Nạp env → switch
+    `PAYMENT_PROVIDER=VNPAY` để live.
+  - **MoMo**: create payment qua HMAC-SHA256 + IPN webhook + refund API.
+    Env: `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`,
+    `MOMO_CREATE_URL`, `MOMO_REFUND_URL`, `MOMO_RETURN_URL`, `MOMO_IPN_URL`.
 - ✅ Refund: cancel booking gọi `refundPayment()` — STUB flag local,
-     VNPay/MoMo gọi API refund thật. Refund fail → giữ status CAPTURED,
-     admin xử lý manual.
+  VNPay/MoMo gọi API refund thật. Refund fail → giữ status CAPTURED,
+  admin xử lý manual.
 - ✅ Earning dashboard + payout request (admin manual approve PAID)
 - ✅ BullMQ cron `tutoring-auto-complete` mỗi giờ — auto mark COMPLETED
-     booking có `endAt + 1h < NOW()` + set escrow release.
+  booking có `endAt + 1h < NOW()` + set escrow release.
 
 ### V4+ — Scale (optional)
+
 - Group classes (1 tutor → N student)
 - Marketplace fee tier
 - Tutor leaderboard / featured
@@ -91,12 +100,16 @@
 ## 4. Schema design
 
 ### 4.1. `tutor_profile`
+
 1 user có TỐI ĐA 1 tutor profile. Tạo lazy khi user click "Trở thành gia sư".
 
 ```ts
 export const tutorProfile = pgTable('tutor_profile', {
   id: text('id').primaryKey().$defaultFn(createId),
-  userId: text('user_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: 'cascade' }),
   /** Headline ngắn — vd "Gia sư Toán cao cấp 5 năm kinh nghiệm". */
   headline: text('headline').notNull(),
   /** Bio chi tiết Markdown, 200-2000 chars. */
@@ -126,126 +139,172 @@ export const tutorProfile = pgTable('tutor_profile', {
 ```
 
 ### 4.2. `tutor_subject`
+
 Nhiều môn / 1 tutor. Cho phép tutor verify từng môn riêng.
 
 ```ts
-export const tutorSubject = pgTable('tutor_subject', {
-  id: text('id').primaryKey().$defaultFn(createId),
-  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
-  /** Slug standard: 'math', 'physics', 'english', 'cs-basics', 'cs-ds-algo', ... */
-  subjectSlug: text('subject_slug').notNull(),
-  /** PRIMARY | SECONDARY | HIGH_SCHOOL | UNIVERSITY | ADULT. */
-  level: text('level').notNull(),
-  /** Verified bởi AI quiz V3 — NULL = chưa verify. */
-  verifiedAt: timestamp('verified_at'),
-  /** Score quiz nếu đã làm (0-100). */
-  verifyScore: integer('verify_score'),
-}, (t) => ({
-  uniq: uniqueIndex('tutor_subject_uniq').on(t.tutorId, t.subjectSlug, t.level),
-}));
+export const tutorSubject = pgTable(
+  'tutor_subject',
+  {
+    id: text('id').primaryKey().$defaultFn(createId),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** Slug standard: 'math', 'physics', 'english', 'cs-basics', 'cs-ds-algo', ... */
+    subjectSlug: text('subject_slug').notNull(),
+    /** PRIMARY | SECONDARY | HIGH_SCHOOL | UNIVERSITY | ADULT. */
+    level: text('level').notNull(),
+    /** Verified bởi AI quiz V3 — NULL = chưa verify. */
+    verifiedAt: timestamp('verified_at'),
+    /** Score quiz nếu đã làm (0-100). */
+    verifyScore: integer('verify_score'),
+  },
+  (t) => ({
+    uniq: uniqueIndex('tutor_subject_uniq').on(t.tutorId, t.subjectSlug, t.level),
+  }),
+);
 ```
 
 ### 4.3. `tutor_availability`
+
 Recurring weekly slots. V2 sẽ override theo ngày cụ thể.
 
 ```ts
-export const tutorAvailability = pgTable('tutor_availability', {
-  id: text('id').primaryKey().$defaultFn(createId),
-  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
-  /** 0=Sunday, 1=Monday, ..., 6=Saturday. */
-  dayOfWeek: integer('day_of_week').notNull(),
-  /** "HH:MM" 24h format. */
-  startTime: text('start_time').notNull(),
-  endTime: text('end_time').notNull(),
-  /** Time zone — default 'Asia/Ho_Chi_Minh'. */
-  timezone: text('timezone').notNull().default('Asia/Ho_Chi_Minh'),
-}, (t) => ({
-  tutorIdx: index('tutor_availability_tutor_idx').on(t.tutorId),
-}));
+export const tutorAvailability = pgTable(
+  'tutor_availability',
+  {
+    id: text('id').primaryKey().$defaultFn(createId),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** 0=Sunday, 1=Monday, ..., 6=Saturday. */
+    dayOfWeek: integer('day_of_week').notNull(),
+    /** "HH:MM" 24h format. */
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    /** Time zone — default 'Asia/Ho_Chi_Minh'. */
+    timezone: text('timezone').notNull().default('Asia/Ho_Chi_Minh'),
+  },
+  (t) => ({
+    tutorIdx: index('tutor_availability_tutor_idx').on(t.tutorId),
+  }),
+);
 ```
 
 ### 4.4. `tutor_request`
+
 Student post tìm gia sư. Public, các tutor browse + apply.
 
 ```ts
-export const tutorRequest = pgTable('tutor_request', {
-  id: text('id').primaryKey().$defaultFn(createId),
-  studentId: text('student_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  description: text('description').notNull(),
-  subjectSlug: text('subject_slug').notNull(),
-  level: text('level').notNull(),
-  /** Budget VND/giờ tối đa. */
-  budgetVnd: integer('budget_vnd'),
-  modality: text('modality').notNull().default('ONLINE'),
-  /** ASAP | THIS_WEEK | THIS_MONTH | FLEXIBLE. */
-  urgency: text('urgency').notNull().default('FLEXIBLE'),
-  /** OPEN | MATCHED | CLOSED. */
-  status: text('status').notNull().default('OPEN'),
-  /** Embedding description — match với tutor bioEmbedding. */
-  embedding: vector('embedding', 1024),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  expiresAt: timestamp('expires_at'),
-}, (t) => ({
-  subjectIdx: index('tutor_request_subject_idx').on(t.subjectSlug, t.level, t.status),
-  studentIdx: index('tutor_request_student_idx').on(t.studentId, t.createdAt),
-}));
+export const tutorRequest = pgTable(
+  'tutor_request',
+  {
+    id: text('id').primaryKey().$defaultFn(createId),
+    studentId: text('student_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    subjectSlug: text('subject_slug').notNull(),
+    level: text('level').notNull(),
+    /** Budget VND/giờ tối đa. */
+    budgetVnd: integer('budget_vnd'),
+    modality: text('modality').notNull().default('ONLINE'),
+    /** ASAP | THIS_WEEK | THIS_MONTH | FLEXIBLE. */
+    urgency: text('urgency').notNull().default('FLEXIBLE'),
+    /** OPEN | MATCHED | CLOSED. */
+    status: text('status').notNull().default('OPEN'),
+    /** Embedding description — match với tutor bioEmbedding. */
+    embedding: vector('embedding', 1024),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (t) => ({
+    subjectIdx: index('tutor_request_subject_idx').on(t.subjectSlug, t.level, t.status),
+    studentIdx: index('tutor_request_student_idx').on(t.studentId, t.createdAt),
+  }),
+);
 ```
 
 ### 4.5. `tutor_application`
+
 Tutor apply vào request của student.
 
 ```ts
-export const tutorApplication = pgTable('tutor_application', {
-  id: text('id').primaryKey().$defaultFn(createId),
-  requestId: text('request_id').notNull().references(() => tutorRequest.id, { onDelete: 'cascade' }),
-  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
-  /** Lời chào ngắn + đề xuất giá. */
-  message: text('message').notNull(),
-  proposedRateVnd: integer('proposed_rate_vnd').notNull(),
-  /** PENDING | ACCEPTED | REJECTED | WITHDRAWN. */
-  status: text('status').notNull().default('PENDING'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (t) => ({
-  uniq: uniqueIndex('tutor_application_uniq').on(t.requestId, t.tutorId),
-}));
+export const tutorApplication = pgTable(
+  'tutor_application',
+  {
+    id: text('id').primaryKey().$defaultFn(createId),
+    requestId: text('request_id')
+      .notNull()
+      .references(() => tutorRequest.id, { onDelete: 'cascade' }),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'cascade' }),
+    /** Lời chào ngắn + đề xuất giá. */
+    message: text('message').notNull(),
+    proposedRateVnd: integer('proposed_rate_vnd').notNull(),
+    /** PENDING | ACCEPTED | REJECTED | WITHDRAWN. */
+    status: text('status').notNull().default('PENDING'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    uniq: uniqueIndex('tutor_application_uniq').on(t.requestId, t.tutorId),
+  }),
+);
 ```
 
 ### 4.6. `tutoring_booking` (V2)
 
 ```ts
-export const tutoringBooking = pgTable('tutoring_booking', {
-  id: text('id').primaryKey().$defaultFn(createId),
-  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'restrict' }),
-  studentId: text('student_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  /** Link tới study group auto-create khi confirmed. */
-  studyGroupId: text('study_group_id').references(() => studyGroup.id, { onDelete: 'set null' }),
-  subjectSlug: text('subject_slug').notNull(),
-  startAt: timestamp('start_at').notNull(),
-  endAt: timestamp('end_at').notNull(),
-  rateVnd: integer('rate_vnd').notNull(),
-  /** PENDING_TUTOR | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED. */
-  status: text('status').notNull().default('PENDING_TUTOR'),
-  /** Notes tutor để lại sau buổi học. */
-  sessionNotes: text('session_notes'),
-  /** Recording ID nếu có (Phase 20 V3 voice recording). */
-  recordingId: text('recording_id'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  cancelledAt: timestamp('cancelled_at'),
-  cancelledBy: text('cancelled_by'),
-}, (t) => ({
-  tutorTimeIdx: index('tutoring_booking_tutor_time_idx').on(t.tutorId, t.startAt),
-  studentTimeIdx: index('tutoring_booking_student_time_idx').on(t.studentId, t.startAt),
-}));
+export const tutoringBooking = pgTable(
+  'tutoring_booking',
+  {
+    id: text('id').primaryKey().$defaultFn(createId),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfile.id, { onDelete: 'restrict' }),
+    studentId: text('student_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Link tới study group auto-create khi confirmed. */
+    studyGroupId: text('study_group_id').references(() => studyGroup.id, { onDelete: 'set null' }),
+    subjectSlug: text('subject_slug').notNull(),
+    startAt: timestamp('start_at').notNull(),
+    endAt: timestamp('end_at').notNull(),
+    rateVnd: integer('rate_vnd').notNull(),
+    /** PENDING_TUTOR | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED. */
+    status: text('status').notNull().default('PENDING_TUTOR'),
+    /** Notes tutor để lại sau buổi học. */
+    sessionNotes: text('session_notes'),
+    /** Recording ID nếu có (Phase 20 V3 voice recording). */
+    recordingId: text('recording_id'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    cancelledAt: timestamp('cancelled_at'),
+    cancelledBy: text('cancelled_by'),
+  },
+  (t) => ({
+    tutorTimeIdx: index('tutoring_booking_tutor_time_idx').on(t.tutorId, t.startAt),
+    studentTimeIdx: index('tutoring_booking_student_time_idx').on(t.studentId, t.startAt),
+  }),
+);
 ```
 
 ### 4.7. `tutor_review` (V2)
+
 ```ts
 export const tutorReview = pgTable('tutor_review', {
   id: text('id').primaryKey().$defaultFn(createId),
-  bookingId: text('booking_id').notNull().unique().references(() => tutoringBooking.id, { onDelete: 'cascade' }),
-  reviewerId: text('reviewer_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  tutorId: text('tutor_id').notNull().references(() => tutorProfile.id, { onDelete: 'cascade' }),
+  bookingId: text('booking_id')
+    .notNull()
+    .unique()
+    .references(() => tutoringBooking.id, { onDelete: 'cascade' }),
+  reviewerId: text('reviewer_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  tutorId: text('tutor_id')
+    .notNull()
+    .references(() => tutorProfile.id, { onDelete: 'cascade' }),
   /** 1-5. */
   rating: integer('rating').notNull(),
   comment: text('comment'),
@@ -258,6 +317,7 @@ export const tutorReview = pgTable('tutor_review', {
 ## 5. API design
 
 ### V1 endpoints
+
 ```
 # Tutor profile
 GET    /api/tutors                       — list (filter subject/level/budget/modality)
@@ -291,6 +351,7 @@ POST   /api/dm  body { peerUserId: tutor.userId }
 ```
 
 ### V2 endpoints
+
 ```
 POST   /api/tutoring/bookings            — student tạo booking
 POST   /api/tutoring/bookings/[id]/confirm   — tutor confirm
@@ -302,6 +363,7 @@ GET    /api/tutoring/matches             — AI-suggested matches (vector cosine
 ```
 
 ### V3 endpoints
+
 ```
 POST   /api/tutors/[id]/kyc              — upload CCCD/bằng cấp
 POST   /api/tutors/[id]/subjects/[sid]/verify-quiz  — generate AI quiz
@@ -315,6 +377,7 @@ POST   /api/tutoring/payments/payout     — tutor request rút tiền
 ## 6. UI flow
 
 ### V1 pages
+
 - `/tutors` — browse tutors (grid card)
 - `/tutors/[id]` — profile detail + "Liên hệ" button → DM
 - `/tutors/become` — upgrade flow (3 steps: bio → subjects → availability → preview → publish)
@@ -324,7 +387,9 @@ POST   /api/tutoring/payments/payout     — tutor request rút tiền
 - `/tutoring/requests/[id]` — detail + apply (tutor) / list applications (student)
 
 ### Sidebar
+
 Thêm section "SOCIAL → Tutoring" với 2 link:
+
 - "Tìm gia sư" → `/tutors`
 - "Yêu cầu học" → `/tutoring`
 
@@ -335,37 +400,47 @@ Nếu user `tutor_profile.status='PUBLISHED'` → thêm "Tutor dashboard" → `/
 ## 7. Integration với feature hiện có
 
 ### 7.1. DM (Phase 20 V2)
+
 Reuse hoàn toàn. Student bấm "Liên hệ" trên tutor profile → POST `/api/dm { peerUserId }` → navigate `/messages/[threadId]`. Không cần endpoint mới.
 
 ### 7.2. Study group (Phase 20 V1-V3)
+
 Khi booking confirmed:
+
 - Auto-create `study_group` với 2 member (tutor=OWNER, student=MEMBER)
 - 1 TEXT channel `chung` + 1 VOICE channel `phòng-học` + 1 FORUM `q-a`
 - Khi booking complete → group **không xoá** (lưu lại để học sinh xem lại transcript + flashcards)
 - Recording voice channel (V3) tự attach vào booking qua `tutoringBooking.recordingId`
 
 ### 7.3. Documents + AI Tutor (Phase 1-2)
+
 Tutor có thể share document Cogniva với student trong group dedicated → AI Tutor chat scope theo workspace của tutor → student hỏi đáp về tài liệu giảng.
 
 ### 7.4. Flashcards (Phase 6)
+
 Khi recording session done → flashcard auto-gen (10 cards) → share cho student → ôn lại.
 
 ### 7.5. Notifications (Phase M7)
+
 Events push:
+
 - Tutor: `tutoring/application-received`, `booking/confirmed`, `booking/cancelled`, `booking/reminder-30min`
 - Student: `tutoring/application-accepted`, `booking/confirmed`, `booking/reminder-30min`, `review/request`
 
 ### 7.6. Audit log
+
 - `tutor.kyc.submitted/verified/rejected`
 - `tutoring.booking.created/confirmed/cancelled/completed`
 - `tutoring.review.submitted`
 - `tutoring.payment.processed/refunded`
 
 ### 7.7. GDPR
+
 - User xoá account → `tutor_profile` cascade (xoá hết listing + subjects + availability)
 - `tutoring_booking` của user khác: anonymize student_id → 'deleted-user', giữ booking để tutor báo cáo tax
 
 ### 7.8. AI matching (V2)
+
 - Embedding tutor.bio + tutor_subject (concat) → tutor.bioEmbedding
 - Embedding tutor_request.description → request.embedding
 - Match score = cosine(request, tutor.bioEmbedding) × subject filter score
@@ -376,40 +451,45 @@ Events push:
 ## 8. Risks
 
 ### 8.1. Functional
-| Risk | Mitigation |
-|---|---|
-| Gia sư fake / không thật | KYC bắt buộc trước khi publish (V3); V1 chỉ verified email |
-| Student book rồi no-show | Cancellation policy 24h, V2 charge deposit 10% non-refundable |
+
+| Risk                                | Mitigation                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------ |
+| Gia sư fake / không thật            | KYC bắt buộc trước khi publish (V3); V1 chỉ verified email                           |
+| Student book rồi no-show            | Cancellation policy 24h, V2 charge deposit 10% non-refundable                        |
 | Double-booking 1 tutor 2 slot trùng | DB unique constraint (tutorId, startAt, endAt) + transaction lock khi create booking |
-| Rate manipulation (fake review) | V3: chỉ student có booking COMPLETED mới review được; rate limit 1/booking |
+| Rate manipulation (fake review)     | V3: chỉ student có booking COMPLETED mới review được; rate limit 1/booking           |
 
 ### 8.2. Abuse
-| Risk | Mitigation |
-|---|---|
-| Spam request (1 student post 100 cái) | Rate limit 5/ngày/user |
-| Tutor harass student qua DM | Block + report flow (reuse Phase 20 V2 group ban patterns) |
-| Off-platform payment để né phí | Term of service ban; AI flag DM có số tài khoản (V3) |
+
+| Risk                                  | Mitigation                                                 |
+| ------------------------------------- | ---------------------------------------------------------- |
+| Spam request (1 student post 100 cái) | Rate limit 5/ngày/user                                     |
+| Tutor harass student qua DM           | Block + report flow (reuse Phase 20 V2 group ban patterns) |
+| Off-platform payment để né phí        | Term of service ban; AI flag DM có số tài khoản (V3)       |
 
 ### 8.3. Legal
-| Risk | Mitigation |
-|---|---|
-| Vietnam tax / hoá đơn cho tutor | V3: tutor tự kê khai, Cogniva chỉ cấp invoice tổng cho rút tiền |
-| Underage student (<18) | Có sẵn `parental_consent_status` flow (Phase 1); cần parent approve trước booking |
-| Tutor không có chứng chỉ giảng dạy | V1 chỉ display "self-claimed", V3 verify bằng cấp upload |
-| GDPR/personal data student-tutor share | Mã hoá DM at-rest, audit access |
+
+| Risk                                   | Mitigation                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------------- |
+| Vietnam tax / hoá đơn cho tutor        | V3: tutor tự kê khai, Cogniva chỉ cấp invoice tổng cho rút tiền                   |
+| Underage student (<18)                 | Có sẵn `parental_consent_status` flow (Phase 1); cần parent approve trước booking |
+| Tutor không có chứng chỉ giảng dạy     | V1 chỉ display "self-claimed", V3 verify bằng cấp upload                          |
+| GDPR/personal data student-tutor share | Mã hoá DM at-rest, audit access                                                   |
 
 ### 8.4. Scale
-| Risk | Trigger | Mitigation |
-|---|---|---|
-| `tutor_request` table > 1M rows | T2 growth | Partition by `created_at` month |
-| AI matching latency > 2s | > 10K tutor | Pre-compute matches mỗi 6h qua BullMQ cron |
-| KYC review backlog | > 100 tutor/ngày | Hire ops, hoặc fully automated với Cognivision (V4) |
+
+| Risk                            | Trigger          | Mitigation                                          |
+| ------------------------------- | ---------------- | --------------------------------------------------- |
+| `tutor_request` table > 1M rows | T2 growth        | Partition by `created_at` month                     |
+| AI matching latency > 2s        | > 10K tutor      | Pre-compute matches mỗi 6h qua BullMQ cron          |
+| KYC review backlog              | > 100 tutor/ngày | Hire ops, hoặc fully automated với Cognivision (V4) |
 
 ---
 
 ## 9. Out of scope
 
 ### V1+ skip
+
 - **Group classes** (1 tutor → N student cùng lúc) — V4
 - **Recurring booking** (mỗi tuần thứ 3 lúc 7pm) — V2 chỉ single slot
 - **Marketplace fee/commission** — V3 setup, V1-V2 free
@@ -419,6 +499,7 @@ Events push:
 - **Tutor có thể tạo course** (Udemy-style pre-recorded) — out of scope, dùng product khác
 
 ### Hoàn toàn out of scope
+
 - LMS course delivery — đã có Phase 20 V3 (LTI hoãn)
 - Live streaming 1-N — không, focus 1-1
 - Online exam proctoring qua AI — đã có Phase 16, reuse cho booking trial test

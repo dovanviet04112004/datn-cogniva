@@ -1,12 +1,3 @@
-/**
- * Seed flashcards demo cho 1 user — DEV ONLY.
- *
- * Usage:
- *   cd apps/web
- *   pnpm exec tsx --env-file=.env.local scripts/seed-flashcards.ts <email>
- *
- * Tạo 8 thẻ math/CS basic với state NEW + due NOW → xuất hiện ngay trong queue.
- */
 import { eq } from 'drizzle-orm';
 import { db, flashcard, user } from '@cogniva/db';
 
@@ -23,9 +14,18 @@ const CARDS = [
   { front: 'Đạo hàm của cos(x)?', back: '−sin(x)' },
   { front: 'Định lý Pythagoras', back: 'Trong tam giác vuông: a² + b² = c²' },
   { front: 'Big O của binary search?', back: 'O(log n)' },
-  { front: 'Stack vs Queue?', back: 'Stack: LIFO (last in first out). Queue: FIFO (first in first out).' },
-  { front: 'HTTP status 401 vs 403?', back: '401 = chưa xác thực (unauthenticated). 403 = đã xác thực nhưng không có quyền (forbidden).' },
-  { front: 'CAP theorem 3 yếu tố?', back: 'Consistency, Availability, Partition tolerance — chỉ chọn 2/3.' },
+  {
+    front: 'Stack vs Queue?',
+    back: 'Stack: LIFO (last in first out). Queue: FIFO (first in first out).',
+  },
+  {
+    front: 'HTTP status 401 vs 403?',
+    back: '401 = chưa xác thực (unauthenticated). 403 = đã xác thực nhưng không có quyền (forbidden).',
+  },
+  {
+    front: 'CAP theorem 3 yếu tố?',
+    back: 'Consistency, Availability, Partition tolerance — chỉ chọn 2/3.',
+  },
 ];
 
 async function main() {
@@ -35,7 +35,6 @@ async function main() {
     process.exit(1);
   }
 
-  // FSRS initial values cho card NEW
   const now = new Date();
   const rows = CARDS.map((c) => ({
     userId: u.id,
@@ -43,9 +42,9 @@ async function main() {
     front: c.front,
     back: c.back,
     state: 'NEW' as const,
-    due: now,                    // tới hạn ngay
+    due: now,
     stability: 0,
-    difficulty: 5,                // mức trung bình
+    difficulty: 5,
     elapsedDays: 0,
     scheduledDays: 0,
     reps: 0,

@@ -1,4 +1,4 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 .pnp
 .pnp.*
@@ -75,7 +75,7 @@ playwright-report/
 .playwright-cache/
 
 # Claude Code — settings ca nhan, khong commit
-.claude/settings.local.json
+.claude/
 
 # Backup PATH local (machine-specific)
 .path-backup-*.txt

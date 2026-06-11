@@ -1,16 +1,3 @@
-/**
- * PaymentProviderService — abstraction STUB / VNPAY / MOMO, port nguyên văn từ
- * apps/web/src/lib/tutoring/payment-provider.ts.
- *
- * Chọn provider qua env PAYMENT_PROVIDER; env thiếu → fallback STUB + warn.
- * Thuật toán ký giữ CHÍNH XÁC từng byte:
- *  - VNPay pay-URL/verify: sort key asc, encodeURIComponent với %20→'+',
- *    HMAC-SHA512 hex (VNPAY_HASH_SECRET), compare case-insensitive.
- *  - VNPay refund: KHÔNG sort — join values theo thứ tự cố định bằng '|'.
- *  - MoMo: raw key=value (không encode) nối '&' theo thứ tự alphabet,
- *    HMAC-SHA256 hex (MOMO_SECRET_KEY).
- * Không chạm DB — caller tự update tutoring_payment.
- */
 import { createHmac } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 
@@ -20,9 +7,7 @@ export type CreateIntentArgs = {
   orderCode: string;
   amountVnd: number;
   description: string;
-  /** URL FE redirect về sau khi user paid (success hoặc fail). */
   returnUrl: string;
-  /** VNPay yêu cầu clientIp cho fraud check. */
   clientIp?: string;
 };
 
@@ -64,18 +49,16 @@ export class PaymentProviderService {
 
   private isVnpayConfigured(): boolean {
     return Boolean(
-      process.env.VNPAY_TMN_CODE
-        && process.env.VNPAY_HASH_SECRET
-        && process.env.VNPAY_RETURN_URL,
+      process.env.VNPAY_TMN_CODE && process.env.VNPAY_HASH_SECRET && process.env.VNPAY_RETURN_URL,
     );
   }
 
   private isMomoConfigured(): boolean {
     return Boolean(
-      process.env.MOMO_PARTNER_CODE
-        && process.env.MOMO_ACCESS_KEY
-        && process.env.MOMO_SECRET_KEY
-        && process.env.MOMO_RETURN_URL,
+      process.env.MOMO_PARTNER_CODE &&
+      process.env.MOMO_ACCESS_KEY &&
+      process.env.MOMO_SECRET_KEY &&
+      process.env.MOMO_RETURN_URL,
     );
   }
 
@@ -164,16 +147,16 @@ export class PaymentProviderService {
     const redirectUrl = process.env.MOMO_RETURN_URL ?? args.returnUrl;
 
     const rawSignature =
-      `accessKey=${accessKey}`
-      + `&amount=${args.amountVnd}`
-      + `&extraData=${extraData}`
-      + `&ipnUrl=${ipnUrl}`
-      + `&orderId=${orderId}`
-      + `&orderInfo=${args.description}`
-      + `&partnerCode=${partnerCode}`
-      + `&redirectUrl=${redirectUrl}`
-      + `&requestId=${requestId}`
-      + `&requestType=${requestType}`;
+      `accessKey=${accessKey}` +
+      `&amount=${args.amountVnd}` +
+      `&extraData=${extraData}` +
+      `&ipnUrl=${ipnUrl}` +
+      `&orderId=${orderId}` +
+      `&orderInfo=${args.description}` +
+      `&partnerCode=${partnerCode}` +
+      `&redirectUrl=${redirectUrl}` +
+      `&requestId=${requestId}` +
+      `&requestType=${requestType}`;
     const signature = createHmac('sha256', secretKey).update(rawSignature).digest('hex');
 
     const body = {
@@ -207,10 +190,6 @@ export class PaymentProviderService {
     return { url: data.payUrl, request: body };
   }
 
-  /**
-   * Refund 1 payment. STUB → ok=true để caller flag DB. Caller chịu trách
-   * nhiệm update DB sau khi RefundResult.ok = true.
-   */
   async refundPayment(args: RefundArgs): Promise<RefundResult> {
     if (args.provider === 'STUB') {
       return { ok: true, message: 'STUB refund — local flag', rawResponse: null };
@@ -232,7 +211,6 @@ export class PaymentProviderService {
       const requestId = `RF-${args.orderCode}-${Date.now()}`;
       const createDate = formatVnpayDate(now);
 
-      // Thứ tự field CỐ ĐỊNH theo spec refund VNPay — sign trên join('|')
       const fields = {
         vnp_RequestId: requestId,
         vnp_Version: '2.1.0',
@@ -297,13 +275,13 @@ export class PaymentProviderService {
       const orderId = `RF-${args.orderCode}`;
 
       const rawSignature =
-        `accessKey=${accessKey}`
-        + `&amount=${args.amountVnd}`
-        + `&description=${args.reason}`
-        + `&orderId=${orderId}`
-        + `&partnerCode=${partnerCode}`
-        + `&requestId=${requestId}`
-        + `&transId=${args.providerRef}`;
+        `accessKey=${accessKey}` +
+        `&amount=${args.amountVnd}` +
+        `&description=${args.reason}` +
+        `&orderId=${orderId}` +
+        `&partnerCode=${partnerCode}` +
+        `&requestId=${requestId}` +
+        `&transId=${args.providerRef}`;
       const signature = createHmac('sha256', secretKey).update(rawSignature).digest('hex');
 
       try {
@@ -347,10 +325,6 @@ export class PaymentProviderService {
     };
   }
 
-  /**
-   * Verify HMAC từ VNPay return/IPN: bỏ vnp_SecureHash[Type], sort asc, build
-   * query CÙNG encode rule với lúc ký, HMAC-SHA512, compare lowercase.
-   */
   verifyVnpaySignature(params: Record<string, string>): boolean {
     const secret = process.env.VNPAY_HASH_SECRET;
     if (!secret) return false;

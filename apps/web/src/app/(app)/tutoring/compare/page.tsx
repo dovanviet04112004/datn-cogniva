@@ -1,10 +1,3 @@
-/**
- * /tutoring/compare?ids=a,b,c — V4 T5 (2026-05-22).
- *
- * Side-by-side comparison 2-4 tutor.
- *
- * Spec: docs/plans/tutoring-v4.md §7.6.
- */
 import { redirect } from 'next/navigation';
 
 import { getServerSession } from '@/lib/auth-server';
@@ -16,11 +9,7 @@ export const dynamic = 'force-dynamic';
 
 type SearchParams = Promise<{ ids?: string }>;
 
-export default async function ComparePage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default async function ComparePage({ searchParams }: { searchParams: SearchParams }) {
   const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutoring/compare');
 
@@ -30,7 +19,7 @@ export default async function ComparePage({
   if (ids.length < 2) {
     return (
       <PageShell size="default" padded>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Cần chọn ≥ 2 gia sư để so sánh.{' '}
           <a href="/tutoring" className="text-primary underline">
             Quay lại
@@ -44,7 +33,7 @@ export default async function ComparePage({
     <PageShell size="wide" padded className="space-y-4">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">So sánh gia sư</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           So sánh {ids.length} gia sư side-by-side. Giá trị tốt nhất được tô màu xanh.
         </p>
       </header>

@@ -1,8 +1,3 @@
-/**
- * Zod schemas cho /notifications + /reports — copy NGUYÊN VĂN từ route cũ
- * (apps/web/src/app/api/{notifications/read,reports}/route.ts) để 400 flatten
- * byte-identical.
- */
 import { z } from 'zod';
 
 export const markReadSchema = z

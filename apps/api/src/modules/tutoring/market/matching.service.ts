@@ -1,19 +1,10 @@
-/**
- * TutoringMatchingService — port từ apps/web/src/app/api/tutoring/
- * {matches,compare}/route.ts.
- *
- * Matches: lazy embedding (write-on-read — GET có side effect UPDATE
- * tutor_request.embedding + tutor_profile.bio_embedding, giữ y bản cũ) +
- * rank pgvector `<=>`. Cột vector là Unsupported trong Prisma → đọc/ghi
- * bắt buộc $queryRaw với literal `[..]::vector`.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { EmbeddingService } from '../../../infra/ai/embedding.service';
 import { PrismaService } from '../../../infra/database/prisma.service';
-import { SUBJECT_BY_SLUG } from '../../library/subject-taxonomy';
-import type { CompareInput } from './market.dto';
+import { SUBJECT_BY_SLUG } from '../../../common/subject-taxonomy';
+import type { CompareInput } from './dto/market.dto';
 
 const EMBED_DIM = 1024;
 
@@ -47,7 +38,6 @@ type RankedRow = {
   score: number;
 };
 
-/** pgvector text "[0.1,0.2,…]" → number[] (text là JSON array hợp lệ). */
 function parseVector(text: string | null): number[] | null {
   if (!text) return null;
   return JSON.parse(text) as number[];
@@ -60,7 +50,6 @@ export class TutoringMatchingService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /** GET /tutoring/matches?requestId= — AI match top 5 tutor cùng subject+level. */
   async matches(requestId: string) {
     const [req] = await this.prisma.$queryRaw<RequestRow[]>(Prisma.sql`
       SELECT id, title, description, subject_slug, level, embedding::text AS embedding
@@ -68,7 +57,6 @@ export class TutoringMatchingService {
     `);
     if (!req) throw new NotFoundException({ error: 'Request not found' });
 
-    // 1. Lazy compute request embedding nếu chưa có / sai chiều
     const existing = parseVector(req.embedding);
     let reqEmbedding: number[];
     if (existing && existing.length === EMBED_DIM) {
@@ -85,8 +73,6 @@ export class TutoringMatchingService {
       `);
     }
 
-    // 2. Candidates PUBLISHED cùng subject+level — lazy embed bio thiếu, TUẦN TỰ
-    //    (mỗi cái 1 Voyage call + UPDATE, ≤50 — giữ behavior route cũ)
     const candidates = await this.prisma.$queryRaw<CandidateRow[]>(Prisma.sql`
       SELECT tp.id, tp.bio, tp.headline, tp.bio_embedding::text AS bio_embedding
       FROM tutor_profile tp
@@ -113,7 +99,6 @@ export class TutoringMatchingService {
       return { matches: [] };
     }
 
-    // 3. Rank cosine sim — score = 1 - cosine_distance, chỉ candidate có embedding
     const embStr = `[${reqEmbedding.join(',')}]`;
     const ranked = await this.prisma.$queryRaw<RankedRow[]>(Prisma.sql`
       SELECT
@@ -132,7 +117,6 @@ export class TutoringMatchingService {
       LIMIT 5
     `);
 
-    // Score < 0.3 (yếu) loại — hết thì FE hiện CTA "browse"
     const matches = ranked.filter((m) => Number(m.score) > 0.3);
 
     return {
@@ -152,7 +136,6 @@ export class TutoringMatchingService {
     };
   }
 
-  /** POST /tutoring/compare — side-by-side 2-4 tutor (public, không auth như cũ). */
   async compare(body: CompareInput) {
     const ids = body.tutorIds;
 
@@ -210,8 +193,6 @@ export class TutoringMatchingService {
       )[0];
       const hasSlots = availability.some((a) => a.tutor_id === t.id);
 
-      // Heuristic nextSlot: loop 7 ngày, slot đầu không conflict & ≥ now+1h.
-      // Date.setHours theo TZ local của server — giữ y bản cũ.
       let nextSlot: Date | null = null;
       if (hasSlots) {
         const conflicts = upcomingBookings.filter((b) => b.tutor_id === t.id);
@@ -232,9 +213,7 @@ export class TutoringMatchingService {
             const slot = new Date(dayCheck);
             slot.setHours(h!, m!, 0, 0);
             if (slot.getTime() < now.getTime() + 60 * 60 * 1000) continue;
-            const inConflict = conflicts.some(
-              (b) => b.start_at <= slot && b.end_at > slot,
-            );
+            const inConflict = conflicts.some((b) => b.start_at <= slot && b.end_at > slot);
             if (!inConflict) {
               nextSlot = slot;
               break;

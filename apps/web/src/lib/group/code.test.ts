@@ -1,11 +1,3 @@
-/**
- * Unit test cho invite code generator.
- *
- * Cover:
- *   - generateInviteCode trả 8 ký tự Crockford alphabet
- *   - Không có I/L/O/U (tránh nhầm visual)
- *   - normalizeInviteCode strip space + dash + lowercase
- */
 import { describe, expect, it } from 'vitest';
 
 import { generateInviteCode, normalizeInviteCode } from './code';

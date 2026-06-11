@@ -1,9 +1,3 @@
-/**
- * UploadWizard — V1 Library upload form.
- *
- * Single-page form, không phải multi-step modal (đơn giản hơn cho MVP).
- * Validate client-side, presign URL → PUT R2 → finalize.
- */
 'use client';
 
 import * as React from 'react';
@@ -23,7 +17,6 @@ import { CoursePicker } from './course-picker';
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
-// Label dịch qua t() tại render (labelKey thay cho string cứng).
 const DOC_TYPES = [
   { value: 'lecture_notes', labelKey: 'library.upload.doctype.lecture_notes' },
   { value: 'summary', labelKey: 'library.upload.doctype.summary' },
@@ -58,17 +51,17 @@ export function UploadWizard({
   >('idle');
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Form fields
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
-  // University→Course model: courseId là phân loại chính (subject suy từ course server-side).
   const [courseId, setCourseId] = React.useState<string | null>(initialCourse?.id ?? null);
   const [level, setLevel] = React.useState('HIGH_SCHOOL');
   const [grade, setGrade] = React.useState<string>('');
   const [docType, setDocType] = React.useState('summary');
   const [schoolYear, setSchoolYear] = React.useState('');
   const [tags, setTags] = React.useState('');
-  const [license, setLicense] = React.useState<'CC-BY-4.0' | 'PUBLIC_DOMAIN' | 'MINE_ONLY'>('CC-BY-4.0');
+  const [license, setLicense] = React.useState<'CC-BY-4.0' | 'PUBLIC_DOMAIN' | 'MINE_ONLY'>(
+    'CC-BY-4.0',
+  );
   const [licenseConfirmed, setLicenseConfirmed] = React.useState(false);
 
   const fileFormat = React.useMemo<'pdf' | 'docx' | 'image' | null>(() => {
@@ -89,14 +82,11 @@ export function UploadWizard({
       return;
     }
     setFile(f);
-    // Auto-fill title từ filename nếu chưa có
     if (f && !title) {
       setTitle(f.name.replace(/\.[^.]+$/, ''));
     }
   };
 
-  // B3.18: drag-drop state — dragActive bật khi user kéo file vào drop-zone.
-  // Wire drop event để accept file mà không phải click input.
   const [dragActive, setDragActive] = React.useState(false);
   const onDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
@@ -106,7 +96,6 @@ export function UploadWizard({
   const onDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    // Chỉ reset khi user leave thật (relatedTarget ngoài drop-zone)
     if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setDragActive(false);
   };
@@ -135,7 +124,6 @@ export function UploadWizard({
 
     setSubmitting(true);
     try {
-      // 1. Compute SHA-256 hash client-side
       setProgress('hashing');
       const buf = await file.arrayBuffer();
       const hashBuf = await crypto.subtle.digest('SHA-256', buf);
@@ -143,7 +131,6 @@ export function UploadWizard({
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
 
-      // 2. Init upload — get presigned URL. 409 = trùng hash (đã upload) → báo riêng.
       setProgress('init');
       let init: { docId: string; storageKey: string; presignedUrl: string };
       try {
@@ -153,7 +140,8 @@ export function UploadWizard({
           presignedUrl: string;
         }>('/api/library/docs/upload-init', 'POST', {
           filename: file.name,
-          contentType: file.type || (fileFormat === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
+          contentType:
+            file.type || (fileFormat === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
           sizeBytes: file.size,
           hash,
           format: fileFormat,
@@ -165,10 +153,9 @@ export function UploadWizard({
           setSubmitting(false);
           return;
         }
-        throw err; // lỗi khác → outer catch
+        throw err;
       }
 
-      // 3. PUT file lên R2
       setProgress('uploading');
       const putRes = await fetch(init.presignedUrl, {
         method: 'PUT',
@@ -177,7 +164,6 @@ export function UploadWizard({
       });
       if (!putRes.ok) throw new Error(t('library.upload.err_r2'));
 
-      // 4. Finalize → trigger ingest
       setProgress('finalizing');
       await apiSend('/api/library/docs/finalize', 'POST', {
         docId: init.docId,
@@ -218,7 +204,6 @@ export function UploadWizard({
     done: t('library.upload.progress.done'),
   };
 
-  // B2.9: % progress cho mỗi stage để render bar trực quan.
   const progressPercent: Record<typeof progress, number> = {
     idle: 0,
     hashing: 10,
@@ -230,9 +215,8 @@ export function UploadWizard({
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      {/* File picker */}
       <section className="space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
           {t('library.upload.step1')}
         </p>
         <label
@@ -244,7 +228,7 @@ export function UploadWizard({
             file
               ? 'border-emerald-500/40 bg-emerald-500/5'
               : dragActive
-                ? 'scale-[1.01] border-discovery-500 bg-discovery-500/10 shadow-md'
+                ? 'border-discovery-500 bg-discovery-500/10 scale-[1.01] shadow-md'
                 : 'border-divider hover:border-discovery-500/40 hover:bg-discovery-500/5',
           )}
         >
@@ -258,7 +242,7 @@ export function UploadWizard({
             <>
               <CheckCircle2 className="h-10 w-10 text-emerald-500" />
               <p className="text-sm font-semibold">{file.name}</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-muted-foreground text-[11px]">
                 {fileFormat?.toUpperCase()} · {(file.size / 1024 / 1024).toFixed(2)}MB
               </p>
               <button
@@ -284,13 +268,13 @@ export function UploadWizard({
               <p className="text-sm font-semibold">
                 {dragActive ? t('library.upload.drop_here') : t('library.upload.drag_here')}
               </p>
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-muted-foreground text-[11.5px]">
                 {t('library.upload.or')}{' '}
-                <span className="font-semibold text-discovery-600 underline">
+                <span className="text-discovery-600 font-semibold underline">
                   {t('library.upload.click_to_choose')}
                 </span>
               </p>
-              <p className="mt-1 text-[10.5px] text-muted-foreground/70">
+              <p className="text-muted-foreground/70 mt-1 text-[10.5px]">
                 {t('library.upload.formats')}
               </p>
             </>
@@ -298,9 +282,8 @@ export function UploadWizard({
         </label>
       </section>
 
-      {/* Metadata */}
       <section className="space-y-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
           {t('library.upload.step2')}
         </p>
         <Input
@@ -317,15 +300,13 @@ export function UploadWizard({
           maxLength={2000}
         />
 
-        {/* University→Course picker — phân loại chính (thay subject taxonomy) */}
-        <div className="rounded-xl border border-divider bg-muted/20 p-3">
+        <div className="border-divider bg-muted/20 rounded-xl border p-3">
           <CoursePicker onChange={setCourseId} initialCourse={initialCourse} />
         </div>
 
-        {/* Lĩnh vực đã bỏ — server tự suy từ khoá học đã chọn ở trên (course.subjectArea). */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.level')}
             </label>
             <ComboSelect
@@ -336,7 +317,7 @@ export function UploadWizard({
             />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.doctype_label')}
             </label>
             <ComboSelect
@@ -350,7 +331,7 @@ export function UploadWizard({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.grade')}
             </label>
             <Input
@@ -363,7 +344,7 @@ export function UploadWizard({
             />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.school_year')}
             </label>
             <Input
@@ -376,7 +357,7 @@ export function UploadWizard({
         </div>
 
         <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">
+          <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
             {t('library.upload.tags')}
           </label>
           <Input
@@ -387,7 +368,6 @@ export function UploadWizard({
         </div>
       </section>
 
-      {/* License */}
       <section className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
           {t('library.upload.step3')}
@@ -395,11 +375,7 @@ export function UploadWizard({
         <div className="flex flex-col gap-1.5">
           {(['CC-BY-4.0', 'PUBLIC_DOMAIN', 'MINE_ONLY'] as const).map((l) => (
             <label key={l} className="flex cursor-pointer items-center gap-2 text-[12.5px]">
-              <input
-                type="radio"
-                checked={license === l}
-                onChange={() => setLicense(l)}
-              />
+              <input type="radio" checked={license === l} onChange={() => setLicense(l)} />
               <span>
                 {l === 'CC-BY-4.0' && t('library.upload.license.cc')}
                 {l === 'PUBLIC_DOMAIN' && t('library.upload.license.public')}
@@ -415,27 +391,24 @@ export function UploadWizard({
             onChange={(e) => setLicenseConfirmed(e.target.checked)}
             className="mt-0.5"
           />
-          <span>
-            {t('library.upload.license_confirm')}
-          </span>
+          <span>{t('library.upload.license_confirm')}</span>
         </label>
       </section>
 
-      {/* B2.9: Upload progress bar — visualize % thay cho text + spinner */}
       {progress !== 'idle' && (
         <section className="space-y-1.5">
           <div className="flex items-center justify-between text-[11.5px]">
-            <span className="inline-flex items-center gap-1.5 font-medium text-foreground/90">
-              <Loader2 className="h-3 w-3 animate-spin text-discovery-600" />
+            <span className="text-foreground/90 inline-flex items-center gap-1.5 font-medium">
+              <Loader2 className="text-discovery-600 h-3 w-3 animate-spin" />
               {progressLabel[progress]}
             </span>
-            <span className="font-mono font-semibold tabular-nums text-discovery-600">
+            <span className="text-discovery-600 font-mono font-semibold tabular-nums">
               {progressPercent[progress]}%
             </span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-discovery-500 to-fuchsia-500 transition-all duration-500 ease-out"
+              className="from-discovery-500 h-full rounded-full bg-gradient-to-r to-fuchsia-500 transition-all duration-500 ease-out"
               style={{ width: `${progressPercent[progress]}%` }}
               role="progressbar"
               aria-valuenow={progressPercent[progress]}
@@ -447,7 +420,6 @@ export function UploadWizard({
         </section>
       )}
 
-      {/* Submit */}
       <div className="flex items-center justify-end gap-3">
         <Button type="submit" disabled={!file || !licenseConfirmed || submitting}>
           {submitting ? (

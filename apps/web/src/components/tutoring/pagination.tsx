@@ -1,17 +1,3 @@
-/**
- * Pagination — V5 (2026-05-22).
- *
- * URL-driven pagination dùng searchParam ?page=N + ?per=N. Pattern industry
- * standard (Airbnb/Preply/Faire):
- *   - Page numbers smart ellipsis cho range lớn
- *   - Page size selector (12/24/48/96)
- *   - Jump-to-page input (deep pagination convenience)
- *   - Mobile responsive: hide numbers, show "X/Y" + prev/next
- *   - Prefetch adjacent pages cho instant navigation
- *
- * Client component vì có form (jump-to-page) + dropdown (page size).
- * Server parent pass searchParams + basePath làm plain object (serializable).
- */
 'use client';
 
 import * as React from 'react';
@@ -29,21 +15,13 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
 
 type Props = {
-  /** Tổng số trang. */
   totalPages: number;
-  /** Trang hiện tại (1-indexed). */
   currentPage: number;
-  /** Tổng item count. */
   totalItems: number;
-  /** Item per page hiện tại. */
   pageSize: number;
-  /** Default page size — không serialize vào URL nếu pageSize === default. */
   defaultPageSize: number;
-  /** Page size options. */
   availablePageSizes?: number[];
-  /** Base path để build URL, vd "/tutoring". */
   basePath: string;
-  /** Search params hiện tại (PHẢI loại bỏ `page` và `per` trước khi pass). */
   preservedParams: Record<string, string>;
 };
 
@@ -61,8 +39,6 @@ export function Pagination({
 }: Props) {
   const t = useT();
 
-  // QUAN TRỌNG: mọi hook phải gọi TRƯỚC bất kỳ return điều kiện nào
-  // (rules-of-hooks) → buildHref nằm trên early-return bên dưới.
   const buildHref = React.useCallback(
     (page: number, size?: number) => {
       const params = new URLSearchParams(preservedParams);
@@ -77,7 +53,6 @@ export function Pagination({
     [basePath, preservedParams, pageSize, defaultPageSize],
   );
 
-  // Không đủ dữ liệu để phân trang → ẩn hẳn component.
   if (totalPages <= 1 && totalItems <= defaultPageSize) return null;
 
   const pages = buildPageRange(currentPage, totalPages);
@@ -85,19 +60,15 @@ export function Pagination({
   const lastItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <nav
-      className="flex flex-col gap-3 border-t border-divider pt-4"
-      aria-label={t('common.next')}
-    >
-      {/* Top row: summary + page-size + jump */}
+    <nav className="border-divider flex flex-col gap-3 border-t pt-4" aria-label={t('common.next')}>
       <div className="flex flex-wrap items-center gap-3 text-[11.5px]">
         <p className="text-muted-foreground">
           {t('common.showing')}{' '}
-          <span className="font-mono font-semibold tabular-nums text-foreground/80">
+          <span className="text-foreground/80 font-mono font-semibold tabular-nums">
             {firstItem}–{lastItem}
           </span>{' '}
           {t('common.of')}{' '}
-          <span className="font-mono font-semibold tabular-nums text-foreground/80">
+          <span className="text-foreground/80 font-mono font-semibold tabular-nums">
             {totalItems}
           </span>
         </p>
@@ -106,7 +77,6 @@ export function Pagination({
           <PageSizePicker
             current={pageSize}
             options={availablePageSizes}
-            // Đổi size → reset về page 1 (item index shift)
             buildHref={(size) => buildHref(1, size)}
           />
           {totalPages > 5 && (
@@ -119,7 +89,6 @@ export function Pagination({
         </div>
       </div>
 
-      {/* Bottom row: page navigation */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-1 sm:justify-end">
           <PaginationLink
@@ -133,14 +102,10 @@ export function Pagination({
             </span>
           </PaginationLink>
 
-          {/* Desktop: page numbers */}
           <div className="hidden items-center gap-1 sm:flex">
             {pages.map((p, i) =>
               p === '...' ? (
-                <span
-                  key={`ellipsis-${i}`}
-                  className="px-1.5 text-xs text-muted-foreground/50"
-                >
+                <span key={`ellipsis-${i}`} className="text-muted-foreground/50 px-1.5 text-xs">
                   …
                 </span>
               ) : (
@@ -156,10 +121,9 @@ export function Pagination({
             )}
           </div>
 
-          {/* Mobile: "X / Y" indicator */}
           <span className="inline-flex items-center px-3 text-xs font-medium tabular-nums sm:hidden">
             <span className="text-foreground">{currentPage}</span>
-            <span className="mx-1 text-muted-foreground/50">/</span>
+            <span className="text-muted-foreground/50 mx-1">/</span>
             <span className="text-muted-foreground">{totalPages}</span>
           </span>
 
@@ -168,7 +132,9 @@ export function Pagination({
             prefetch={currentPage < totalPages}
             aria-label={t('common.next')}
           >
-            <span className="sr-only sm:not-sr-only sm:mr-1 sm:text-[11px]">{t('common.next')}</span>
+            <span className="sr-only sm:not-sr-only sm:mr-1 sm:text-[11px]">
+              {t('common.next')}
+            </span>
             <ChevronRight className="h-3.5 w-3.5" />
           </PaginationLink>
         </div>
@@ -177,7 +143,6 @@ export function Pagination({
   );
 }
 
-/* ─── PaginationLink ────────────────────────────────────────────── */
 function PaginationLink({
   href,
   active,
@@ -196,7 +161,7 @@ function PaginationLink({
     active
       ? 'border-primary bg-primary text-primary-foreground'
       : href === null
-        ? 'cursor-not-allowed border-divider bg-muted/30 text-muted-foreground/40'
+        ? 'border-divider bg-muted/30 text-muted-foreground/40 cursor-not-allowed'
         : 'border-divider bg-card text-foreground/80 hover:border-primary/40 hover:bg-primary/5 hover:text-primary',
   );
   if (href === null) {
@@ -213,7 +178,6 @@ function PaginationLink({
   );
 }
 
-/* ─── PageSizePicker (inline client) ────────────────────────────── */
 function PageSizePicker({
   current,
   options,
@@ -224,10 +188,6 @@ function PageSizePicker({
   buildHref: (size: number) => string;
 }) {
   const t = useT();
-  // Mount-gate: Radix DropdownMenu dùng useId → id lệch server/client gây
-  // hydration mismatch (React 19 + Radix). Render button tĩnh trước mount,
-  // chỉ mount Radix sau khi client hydrate xong (pattern dùng ở theme-toggle,
-  // notification-bell, user-menu, list-toolbar).
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
@@ -247,11 +207,7 @@ function PageSizePicker({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={triggerClass}
-          aria-label={t('common.per_page')}
-        >
+        <button type="button" className={triggerClass} aria-label={t('common.per_page')}>
           <span className="text-muted-foreground">{t('common.per_page')}:</span>
           <span className="font-mono tabular-nums">{current}</span>
           <ChevronDown className="h-3 w-3 opacity-50" />
@@ -268,7 +224,7 @@ function PageSizePicker({
               )}
             >
               <span className="font-mono tabular-nums">{size}</span>
-              <span className="ml-1 text-muted-foreground">{t('common.card_unit')}</span>
+              <span className="text-muted-foreground ml-1">{t('common.card_unit')}</span>
               {size === current && <span className="ml-auto">✓</span>}
             </Link>
           </DropdownMenuItem>
@@ -278,7 +234,6 @@ function PageSizePicker({
   );
 }
 
-/* ─── JumpToPage (inline client) ────────────────────────────────── */
 function JumpToPage({
   currentPage,
   totalPages,
@@ -320,13 +275,13 @@ function JumpToPage({
         max={totalPages}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="h-7 w-12 rounded-md border border-divider bg-card px-1.5 text-center font-mono text-xs tabular-nums tracking-tight outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+        className="border-divider bg-card focus:border-primary/50 focus:ring-primary/15 h-7 w-12 rounded-md border px-1.5 text-center font-mono text-xs tabular-nums tracking-tight outline-none transition-colors focus:ring-2"
         aria-label={`${t('common.go_to_page')} (max ${totalPages})`}
       />
       <span className="text-muted-foreground/60">/ {totalPages}</span>
       <button
         type="submit"
-        className="rounded-md border border-divider bg-card px-2 py-0.5 text-[11px] font-semibold tracking-wide transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+        className="border-divider bg-card hover:border-primary/40 hover:bg-primary/5 hover:text-primary rounded-md border px-2 py-0.5 text-[11px] font-semibold tracking-wide transition-colors"
       >
         {t('common.go')}
       </button>
@@ -334,7 +289,6 @@ function JumpToPage({
   );
 }
 
-/* ─── Page range util ───────────────────────────────────────────── */
 function buildPageRange(current: number, total: number): Array<number | '...'> {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);

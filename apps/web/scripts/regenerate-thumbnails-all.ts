@@ -1,11 +1,3 @@
-/**
- * Regenerate thumbnail TẤT CẢ doc từ trang NỘI DUNG (2026-05-27).
- *
- * Thumbnail cũ = trang bìa (nhiều khoảng trắng, nhìn trống). Script này tải PDF
- * từ R2, lấy trang 2 (nội dung dày chữ) làm thumbnail → trông như tài liệu thật.
- *
- * Usage: pnpm exec tsx --env-file=.env.local scripts/regenerate-thumbnails-all.ts
- */
 import { eq, and, like } from 'drizzle-orm';
 
 import { db, libraryDoc } from '@cogniva/db';
@@ -26,12 +18,12 @@ async function main() {
     .where(and(eq(libraryDoc.status, 'PUBLISHED'), eq(libraryDoc.fileFormat, 'pdf')));
 
   console.log(`🖼  Regenerate thumbnail (trang nội dung) cho ${docs.length} doc PDF...\n`);
-  let ok = 0, skip = 0;
+  let ok = 0,
+    skip = 0;
 
   for (let i = 0; i < docs.length; i++) {
     const doc = docs[i]!;
     const tag = `[${i + 1}/${docs.length}] ${doc.title.slice(0, 48)}`;
-    // Skip placeholder URLs
     if (doc.fileUrl.startsWith('seed-') || doc.fileUrl.startsWith('remix://')) {
       console.log(`${tag}\n       ⊘ placeholder url — skip`);
       skip++;
@@ -61,4 +53,7 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => { console.error(err); process.exit(1); });
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

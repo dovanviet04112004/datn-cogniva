@@ -1,11 +1,3 @@
-/**
- * TutoringBookingsModule — Wave 6 MODULE TIỀN: bookings lifecycle (create →
- * confirm → complete/cancel → review), payment intent/capture STUB, payouts,
- * calendar/me + iCal feed public.
- *
- * PaymentsModule: PaymentProviderService (refund/intent — KHÔNG tự viết lại
- * logic ký). NotificationsModule: notify student/tutor fail-open.
- */
 import { Module } from '@nestjs/common';
 
 import { NotificationsModule } from '../../notifications/notifications.module';

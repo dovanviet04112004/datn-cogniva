@@ -1,16 +1,3 @@
-/**
- * ChatView — default view ở main panel V5/V6 notebook.
- *
- * Spec: docs/plans/v5-notebooklm-layout.md §4.2 + V6 multi-conversation.
- *
- * V6 (2026-05-20): 1 workspace có thể có nhiều conversation (giống
- * NotebookLM). Top bar có dropdown switcher + button "Mới". Default: chọn
- * conv gần nhất; nếu chưa có thì ephemeral mới.
- *
- * Khác /chat full page:
- *   - Scope tự động: workspaceId + selectedDocs + selectedAtoms từ Sources
- *   - Không có file attach (V5.2+ thêm sau nếu cần)
- */
 'use client';
 
 import * as React from 'react';
@@ -39,10 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  CitationRenderer,
-  extractCitations,
-} from '@/components/chat/citation-renderer';
+import { CitationRenderer, extractCitations } from '@/components/chat/citation-renderer';
 import { cn } from '@/lib/utils';
 import { useNotebook } from '../notebook-context';
 
@@ -59,34 +43,17 @@ type Props = {
   workspaceName: string;
 };
 
-/**
- * V8.19 (2026-05-20): ChatGPT pattern — pure URL, không cookie/localStorage.
- *   - `?conv=<id>` = load conv cụ thể
- *   - không có  `?conv` = new chat mode (default)
- *
- * Behavior:
- *   - Reload: URL preserved → conv preserved ✓
- *   - Navigate away + back via bare URL → new chat (predictable, simple)
- *   - User pick conv từ switcher dropdown để mở conv cũ
- *   - Không auto-select "conv gần nhất" → tránh surprise jump
- *
- * Tránh client-side state (localStorage/sessionStorage/cookie restore) — URL
- * là source of truth tuyệt đối, giống ChatGPT/Claude.
- */
 export function ChatView({ workspaceId, workspaceName }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  /** Null = new chat mode. String = load conv đó. */
   const urlConvId = searchParams.get('conv');
 
   const qc = useQueryClient();
   const [initialMessages, setInitialMessages] = React.useState<AIMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = React.useState(false);
-  /** sessionKey để remount ChatBody khi switch conv (reset useChat state). */
   const [sessionKey, setSessionKey] = React.useState(0);
 
-  /** URL helper: replace với conv mới (hoặc null = xoá param = new chat). */
   const replaceConvUrl = React.useCallback(
     (convId: string | null) => {
       const next = new URLSearchParams(searchParams.toString());
@@ -98,8 +65,6 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
     [router, pathname, searchParams],
   );
 
-  // Conversation list qua React Query — cache theo workspace, refetch sau khi
-  // tạo conv mới (invalidate). Messages + streaming vẫn để AI SDK lo riêng.
   const { data: convData } = useQuery({
     queryKey: qk.workspaceConversations(workspaceId),
     queryFn: () =>
@@ -113,11 +78,6 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
     [qc, workspaceId],
   );
 
-  // V8.x FIX vòng lặp vô hạn: callback PHẢI stable (useCallback). Trước đây truyền
-  // arrow inline → mỗi render đổi reference → effect "conv created" trong ChatBody
-  // (deps có callback này) re-fire → replaceConvUrl đổi URL → re-render → lặp →
-  // spam /conversations + router.replace liên tục → sập. Stable ref + guard ở
-  // ChatBody chặn lặp.
   const handleConversationCreated = React.useCallback(
     (newId: string) => {
       replaceConvUrl(newId);
@@ -126,7 +86,6 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
     [replaceConvUrl, refreshConversations],
   );
 
-  // Fetch messages mỗi khi urlConvId đổi (user switch / URL change / load)
   React.useEffect(() => {
     if (!urlConvId) {
       setInitialMessages([]);
@@ -146,8 +105,7 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
         setSessionKey((k) => k + 1);
       })
       .catch((err) => {
-        if (!cancelled)
-          toast.error('Load conversation lỗi: ' + (err as Error).message);
+        if (!cancelled) toast.error('Load conversation lỗi: ' + (err as Error).message);
       })
       .finally(() => {
         if (!cancelled) setLoadingMessages(false);
@@ -157,24 +115,20 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
     };
   }, [urlConvId]);
 
-  /** Switch sang 1 conv = đổi URL. messages fetch tự chạy qua effect ở trên. */
   const selectConversation = React.useCallback(
     (convId: string | null) => {
       if (convId === urlConvId) return;
-      // V8.19: null → xoá param (new chat). String → set conv id.
       replaceConvUrl(convId);
     },
     [urlConvId, replaceConvUrl],
   );
 
-  /** activeConvId derived từ URL — không state riêng để không lệch nhau. */
   const activeConvId = urlConvId;
 
   const activeConv = conversations.find((c) => c.id === activeConvId) ?? null;
 
   return (
     <div className="flex h-full flex-col">
-      {/* Top strip: conversation switcher + scope */}
       <ConversationSwitcher
         conversations={conversations}
         activeConv={activeConv}
@@ -184,10 +138,9 @@ export function ChatView({ workspaceId, workspaceName }: Props) {
         onNew={() => selectConversation(null)}
       />
 
-      {/* ChatBody remount khi sessionKey đổi (switch conv) */}
       {loadingMessages ? (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
         </div>
       ) : (
         <ChatBody
@@ -224,22 +177,17 @@ function ConversationSwitcher({
       ? 'Toàn workspace'
       : `${selectedDocs.size} doc · ${selectedAtoms.size} atom`;
 
-  const currentTitle =
-    activeConv?.title ??
-    (activeConv ? 'Untitled' : 'Hội thoại mới');
+  const currentTitle = activeConv?.title ?? (activeConv ? 'Untitled' : 'Hội thoại mới');
 
   return (
-    <header className="shrink-0 border-b bg-muted/20 px-3 py-1.5">
+    <header className="bg-muted/20 shrink-0 border-b px-3 py-1.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="inline-flex h-7 max-w-[260px] items-center gap-1 rounded-md border bg-card px-2 text-xs font-medium hover:bg-muted"
+                className="bg-card hover:bg-muted inline-flex h-7 max-w-[260px] items-center gap-1 rounded-md border px-2 text-xs font-medium"
                 title="Chọn hội thoại"
-                // V8.16: Radix auto-id mismatch SSR↔CSR sau khi auto-select
-                // conv setState trong useEffect → tree shift → useId offset.
-                // Suppress để dev overlay không spam.
                 suppressHydrationWarning
               >
                 <span className="truncate">{currentTitle}</span>
@@ -262,20 +210,17 @@ function ConversationSwitcher({
                   onSelect={() => onSelect(c.id)}
                   className={cn(
                     'flex flex-col items-start gap-0.5 py-1.5',
-                    c.id === activeConv?.id && 'bg-primary/5 font-semibold text-primary',
+                    c.id === activeConv?.id && 'bg-primary/5 text-primary font-semibold',
                   )}
                 >
-                  <span className="line-clamp-1 w-full text-xs">
-                    {c.title ?? 'Untitled'}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {c.messageCount} message ·{' '}
-                    {formatRelative(c.lastMessageAt ?? c.createdAt)}
+                  <span className="line-clamp-1 w-full text-xs">{c.title ?? 'Untitled'}</span>
+                  <span className="text-muted-foreground text-[11px]">
+                    {c.messageCount} message · {formatRelative(c.lastMessageAt ?? c.createdAt)}
                   </span>
                 </DropdownMenuItem>
               ))}
               {conversations.length === 0 && (
-                <DropdownMenuItem disabled className="text-[11px] text-muted-foreground">
+                <DropdownMenuItem disabled className="text-muted-foreground text-[11px]">
                   Chưa có hội thoại
                 </DropdownMenuItem>
               )}
@@ -283,7 +228,7 @@ function ConversationSwitcher({
           </DropdownMenu>
           <button
             onClick={onNew}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md"
             aria-label="Hội thoại mới"
             title="Hội thoại mới"
           >
@@ -291,13 +236,13 @@ function ConversationSwitcher({
           </button>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden text-[11px] text-muted-foreground sm:inline">
+          <span className="text-muted-foreground hidden text-[11px] sm:inline">
             Scope: {scopeHint}
           </span>
           {activeConv && (
             <Link
               href={`/chat/${activeConv.id}`}
-              className="inline-flex items-center gap-1 rounded-md border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-primary/30 hover:text-primary"
+              className="bg-card text-muted-foreground hover:border-primary/30 hover:text-primary inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px]"
               title="Mở full chat page (separate route)"
             >
               <ExternalLink className="h-2.5 w-2.5" />
@@ -341,10 +286,6 @@ function ChatBody({
     onError: (err) => toast.error(err.message ?? 'Chat lỗi'),
   });
 
-  // Capture conversationId từ server data stream khi tạo conv mới.
-  // Guard `handledRef`: CHỈ xử lý 1 lần / lần mount (ChatBody remount theo
-  // sessionKey khi switch conv nên ref tự reset). Chặn re-fire khi effect chạy
-  // lại (vd callback đổi ref / data đổi) → không lặp vô hạn replaceConvUrl.
   const handledConvRef = React.useRef(false);
   React.useEffect(() => {
     if (conversationId || handledConvRef.current) return;
@@ -388,7 +329,7 @@ function ChatBody({
               />
             ))}
             {isLoading && messages[messages.length - 1]?.role === 'user' && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 AI đang suy nghĩ…
               </div>
@@ -398,7 +339,7 @@ function ChatBody({
         )}
       </div>
 
-      <div className="shrink-0 border-t bg-background px-4 py-3">
+      <div className="bg-background shrink-0 border-t px-4 py-3">
         <form
           onSubmit={(e) => {
             if (!input.trim() || isLoading) {
@@ -409,21 +350,21 @@ function ChatBody({
           }}
           className="mx-auto max-w-5xl"
         >
-          <div className="flex items-end gap-2 rounded-xl border bg-card p-2 shadow-sm focus-within:border-foreground/30">
+          <div className="bg-card focus-within:border-foreground/30 flex items-end gap-2 rounded-xl border p-2 shadow-sm">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder={`Hỏi gì về ${workspaceName}…  (⌘+Enter để gửi)`}
               rows={2}
-              className="block max-h-40 w-full resize-none border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="placeholder:text-muted-foreground block max-h-40 w-full resize-none border-0 bg-transparent text-sm outline-none"
             />
             {isLoading ? (
               <button
                 type="button"
                 onClick={() => stop()}
                 aria-label="Dừng"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                className="bg-foreground text-background hover:bg-foreground/80 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
               >
                 <Square className="h-3 w-3 fill-current" strokeWidth={0} />
               </button>
@@ -432,7 +373,7 @@ function ChatBody({
                 type="submit"
                 disabled={!input.trim()}
                 aria-label="Gửi"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
               </button>
@@ -460,19 +401,17 @@ function EmptyState({
 }) {
   return (
     <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 py-8 text-center">
-      <h2 className="text-2xl font-semibold tracking-tight">
-        Chat với {workspaceName}
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        Hỏi bất kỳ điều gì về docs / atoms đã chọn ở Sources. Hoặc bấm 1 recipe ở
-        Studio để bắt đầu phiên học.
+      <h2 className="text-2xl font-semibold tracking-tight">Chat với {workspaceName}</h2>
+      <p className="text-muted-foreground text-sm">
+        Hỏi bất kỳ điều gì về docs / atoms đã chọn ở Sources. Hoặc bấm 1 recipe ở Studio để bắt đầu
+        phiên học.
       </p>
       <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
         {SUGGESTED_PROMPTS.map((p) => (
           <button
             key={p}
             onClick={() => onPickPrompt(p)}
-            className="rounded-lg border bg-card p-3 text-left text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+            className="bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground rounded-lg border p-3 text-left text-xs transition-colors"
           >
             {p}
           </button>
@@ -498,9 +437,7 @@ function MessageItem({
       <div
         className={cn(
           'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm',
-          isUser
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-foreground',
+          isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
         )}
       >
         {isUser ? (

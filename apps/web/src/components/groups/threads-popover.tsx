@@ -1,25 +1,10 @@
-/**
- * ThreadsPopover — V2 G6.3 (2026-05-21).
- *
- * Popover trong channel header — render list active thread (root message có
- * thread_count > 0) sort theo thread_last_at DESC.
- *
- * Click thread → mở ThreadPanel slide-in (callback prop để parent xử lý —
- * lý tưởng nhất TextChannel pass setter `setThreadOpenId`).
- *
- * Spec: docs/plans/study-group-v2.md §G6.
- */
 'use client';
 
 import * as React from 'react';
 import { Archive, Hash, Loader2, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -75,11 +60,11 @@ export function ThreadsPopover({ channelId, onOpenThread }: Props) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="rounded p-1.5 hover:bg-accent"
+          className="hover:bg-accent rounded p-1.5"
           title="Threads (Discord-style)"
           aria-label="Threads"
         >
-          <Hash className="h-4 w-4 text-muted-foreground" />
+          <Hash className="text-muted-foreground h-4 w-4" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px] p-0">
@@ -98,7 +83,7 @@ export function ThreadsPopover({ channelId, onOpenThread }: Props) {
         </div>
         <ScrollArea className="max-h-[420px]">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 p-6 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 p-6 text-xs">
               <Loader2 className="h-3 w-3 animate-spin" />
               Đang tải…
             </div>
@@ -106,17 +91,17 @@ export function ThreadsPopover({ channelId, onOpenThread }: Props) {
             <div className="flex flex-col items-center justify-center gap-1.5 p-8 text-center">
               {tab === 'archived' ? (
                 <>
-                  <Archive className="h-7 w-7 text-muted-foreground/40" />
+                  <Archive className="text-muted-foreground/40 h-7 w-7" />
                   <p className="text-xs font-medium">Chưa có thread lưu trữ</p>
-                  <p className="text-[10.5px] text-muted-foreground">
+                  <p className="text-muted-foreground text-[10.5px]">
                     Thread idle &gt; 7 ngày sẽ tự lưu trữ. Reply sẽ kích hoạt lại.
                   </p>
                 </>
               ) : (
                 <>
-                  <MessageSquare className="h-7 w-7 text-muted-foreground/40" />
+                  <MessageSquare className="text-muted-foreground/40 h-7 w-7" />
                   <p className="text-xs font-medium">Chưa có thread nào</p>
-                  <p className="text-[10.5px] text-muted-foreground">
+                  <p className="text-muted-foreground text-[10.5px]">
                     Mở thread từ menu của 1 message trong channel.
                   </p>
                 </>
@@ -131,7 +116,7 @@ export function ThreadsPopover({ channelId, onOpenThread }: Props) {
                       setOpen(false);
                       onOpenThread(t.id);
                     }}
-                    className="block w-full px-3 py-2.5 text-left hover:bg-accent/50"
+                    className="hover:bg-accent/50 block w-full px-3 py-2.5 text-left"
                   >
                     <div className="flex items-start gap-2">
                       <Avatar className="h-6 w-6 shrink-0">
@@ -141,23 +126,17 @@ export function ThreadsPopover({ channelId, onOpenThread }: Props) {
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        {t.title && (
-                          <p className="truncate text-xs font-semibold">{t.title}</p>
-                        )}
-                        <p className="line-clamp-2 text-[11.5px] text-muted-foreground">
+                        {t.title && <p className="truncate text-xs font-semibold">{t.title}</p>}
+                        <p className="text-muted-foreground line-clamp-2 text-[11.5px]">
                           {t.content || '(không có nội dung)'}
                         </p>
-                        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-                          <span className="font-medium">
-                            {t.authorName ?? 'Anonymous'}
-                          </span>
+                        <div className="text-muted-foreground mt-1 flex items-center gap-2 text-[10px]">
+                          <span className="font-medium">{t.authorName ?? 'Anonymous'}</span>
                           <span className="flex items-center gap-0.5">
                             <MessageSquare className="h-2.5 w-2.5" />
                             {t.threadCount}
                           </span>
-                          {t.threadLastAt && (
-                            <span>{fmtRelative(t.threadLastAt)}</span>
-                          )}
+                          {t.threadLastAt && <span>{fmtRelative(t.threadLastAt)}</span>}
                         </div>
                       </div>
                     </div>
@@ -189,9 +168,7 @@ function TabBtn({
       onClick={onClick}
       className={cn(
         'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-medium transition-colors',
-        active
-          ? 'bg-primary/10 text-primary'
-          : 'text-muted-foreground hover:bg-accent',
+        active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent',
       )}
     >
       {Icon && <Icon className="h-3 w-3" />}

@@ -1,9 +1,3 @@
-/**
- * JobsClient — trạng thái background jobs (BullMQ): queue counts + cron schedules.
- *
- * Counts live từ /api/admin/system/jobs (queue.getJobCounts). Bull Board UI có thể
- * thêm sau như service riêng cho run-history chi tiết.
- */
 'use client';
 
 import { Calendar, CheckCircle2, ClipboardList, Layers, XCircle } from 'lucide-react';
@@ -37,7 +31,6 @@ export function JobsClient({ queues, crons, redisConfigured, redisOk }: Props) {
         </p>
       </header>
 
-      {/* Redis status */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
         <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Redis
@@ -59,7 +52,6 @@ export function JobsClient({ queues, crons, redisConfigured, redisOk }: Props) {
         </div>
       </section>
 
-      {/* Queue counts */}
       <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/30">
         <header className="border-b border-slate-800 px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
@@ -89,7 +81,6 @@ export function JobsClient({ queues, crons, redisConfigured, redisOk }: Props) {
         </ul>
       </section>
 
-      {/* Cron schedules */}
       <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/30">
         <header className="border-b border-slate-800 px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight">

@@ -1,9 +1,3 @@
-/**
- * ApplyForm — tutor submit apply vào student request.
- *
- * Inline form (không modal) ở trang request detail. Sau success refresh router
- * để re-render thành "Bạn đã apply" state.
- */
 'use client';
 
 import * as React from 'react';
@@ -54,12 +48,10 @@ export function ApplyForm({ requestId, suggestedRate }: Props) {
   };
 
   return (
-    <div className="rounded-2xl bg-card p-6 shadow-soft">
+    <div className="bg-card shadow-soft rounded-2xl p-6">
       <div className="mb-4">
-        <h2 className="text-base font-semibold tracking-tight">
-          Apply request này
-        </h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <h2 className="text-base font-semibold tracking-tight">Apply request này</h2>
+        <p className="text-muted-foreground mt-0.5 text-xs">
           Giới thiệu ngắn về bản thân + đề xuất giá. Học sinh sẽ thấy + chọn.
         </p>
       </div>
@@ -73,11 +65,9 @@ export function ApplyForm({ requestId, suggestedRate }: Props) {
             rows={4}
             maxLength={1000}
             placeholder="VD: Em là gia sư Toán 5 năm kinh nghiệm, đã ôn 50+ học sinh thi đại học. Em có thể dạy theo phương pháp..."
-            className="block w-full rounded-xl border border-input bg-surface px-4 py-2.5 text-sm shadow-soft transition-all duration-base focus-visible:border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:outline-none"
+            className="border-input bg-surface shadow-soft duration-base focus-visible:border-primary/40 focus-visible:ring-primary/15 block w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus-visible:outline-none focus-visible:ring-4"
           />
-          <p className="text-[11px] text-text-muted">
-            {message.length}/1000 (tối thiểu 20)
-          </p>
+          <p className="text-text-muted text-[11px]">{message.length}/1000 (tối thiểu 20)</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="apply-rate">Đề xuất giá / giờ (VND) *</Label>
@@ -89,7 +79,7 @@ export function ApplyForm({ requestId, suggestedRate }: Props) {
             min={10000}
             step={10000}
           />
-          <p className="text-[11px] text-text-muted">
+          <p className="text-text-muted text-[11px]">
             {parseInt(rate, 10).toLocaleString('vi-VN')} VND
           </p>
         </div>

@@ -1,20 +1,5 @@
 {
   "$schema": "https://turborepo.com/schema.json",
-  // ──────────────────────────────────────────────────────────────────────────
-  // turbo.json — task graph cho Turborepo.
-  //
-  // Mỗi entry trong "tasks" tương ứng với 1 script trong package.json của
-  // workspace. Turbo cache output dựa trên hash input (file source + env)
-  // để skip task đã chạy với input giống nhau → tăng tốc CI.
-  //
-  // - dependsOn: ["^build"] = phải chạy build của TẤT CẢ package phụ thuộc
-  //   trước (^ = upstream packages).
-  // - outputs: pattern các thư mục/đường dẫn được cache.
-  // - env: danh sách biến môi trường ảnh hưởng kết quả → đổi giá trị thì
-  //   cache invalidate.
-  // - cache: false = không cache (dev server, db migrate luôn cần fresh).
-  // - persistent: true = task chạy mãi (dev, drizzle studio…).
-  // ──────────────────────────────────────────────────────────────────────────
   "ui": "tui",
   "globalDependencies": ["**/.env.*local", ".env"],
   "globalEnv": ["NODE_ENV", "DATABASE_URL"],
@@ -24,8 +9,6 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
       "env": [
         "NEXT_PUBLIC_*",
-        "BETTER_AUTH_SECRET",
-        "BETTER_AUTH_URL",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
         "DATABASE_URL",

@@ -1,19 +1,3 @@
-/**
- * ExamAiService — mọi LLM call của exams module:
- *   1. generateQuestions — sinh câu hỏi từ chunk (port apps/web/src/lib/quiz/generate.ts,
- *      prompt nguyên văn, router path).
- *   2. aiGradeShortAnswer / aiGradeEssay — chấm SHORT semantic + ESSAY rubric
- *      (port apps/web/src/lib/ai/grade-essay.ts, prompt nguyên văn).
- *
- * Cost guardrail: route cũ đi qua routedGenerateText (check trước / record sau).
- * apps/api không có router — guardedComplete() tự check/record quanh LlmService.
- * Lệch chấp nhận so với router cũ (ghi chú để Wave sau nối):
- *   - Estimate/record giá theo model LlmService THẬT SỰ gọi (Groq free = $0;
- *     Anthropic = Sonnet) thay vì primary tĩnh của route (reasoning cũ = Opus).
- *   - LlmService không trả usage tokens → ước lượng 1 token ≈ 3 chars như
- *     estimateInputTokens cũ. Provider thực tế Groq free → cost 0, record tự skip.
- *   - Không có semantic cache + per-call timeout (router-only features).
- */
 import { Injectable } from '@nestjs/common';
 import type { exam_question as ExamQuestionRow } from '@prisma/client';
 import { z } from 'zod';
@@ -31,16 +15,11 @@ export interface AiGradeResult {
   score: number;
   isCorrect: boolean;
   feedback: string;
-  /** Map criterion → score (chỉ có với ESSAY rubric). */
   breakdown?: Record<string, number>;
-  /** Phase 18 — map criterion → confidence (0..1). Confidence < 0.6 auto flag review. */
   confidence?: Record<string, number>;
-  /** Phase 18 — actionable feedback: điểm mạnh + đề xuất cải thiện. */
   strengths?: string[];
   improvements?: string[];
-  /** Cờ báo grading nên review tay (vd answer rỗng, off-topic, …). */
   flaggedForReview?: boolean;
-  /** Error nếu AI call fail — fallback 0 điểm. */
   error?: string;
 }
 
@@ -55,10 +34,8 @@ const RESPONSE_SCHEMA = z.object({
   flaggedForReview: z.boolean().optional(),
 });
 
-/** Threshold confidence để auto-flag review. Phase 18 V1 dùng 0.6. */
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 
-/** Bộ loại quiz generator hỗ trợ (map sang exam type ở ExamsService). */
 export type QuestionType = 'MCQ' | 'TRUE_FALSE' | 'SHORT';
 
 export type GeneratedQuestion =
@@ -66,7 +43,7 @@ export type GeneratedQuestion =
       type: 'MCQ';
       prompt: string;
       options: string[];
-      correctAnswer: number; // index 0-based
+      correctAnswer: number;
       explanation: string;
       difficulty: number;
     }
@@ -80,14 +57,11 @@ export type GeneratedQuestion =
   | {
       type: 'SHORT';
       prompt: string;
-      /** Câu trả lời mẫu — đối chiếu khi grading. */
       correctAnswer: string;
       explanation: string;
       difficulty: number;
     };
 
-// ── System prompt quiz gen — copy NGUYÊN VĂN INSTRUCTION_SYSTEM (router path)
-//    từ apps/web/src/lib/quiz/generate.ts ────────────────────────────────────
 const INSTRUCTION_SYSTEM = `Bạn là chuyên gia ra đề ôn tập. Đọc đoạn văn và sinh số câu hỏi yêu cầu để học sinh kiểm tra hiểu biết.
 
 QUY TẮC:
@@ -118,14 +92,6 @@ export class ExamAiService {
     private readonly guardrails: CostGuardrailService,
   ) {}
 
-  // ──────────────────────────────────────────────────────────
-  // Quiz generator (cho POST /exams/:id/generate-questions)
-  // ──────────────────────────────────────────────────────────
-
-  /**
-   * Sinh câu hỏi từ 1 đoạn văn. Lỗi (kể cả guardrail chặn) → trả [] như
-   * generateQuestions cũ (caller gom đủ 0 câu sẽ trả 500 'AI không sinh được câu hỏi').
-   */
   async generateQuestions(
     content: string,
     types: QuestionType[],
@@ -155,7 +121,6 @@ export class ExamAiService {
     }
   }
 
-  /** Tách object JSON đầu tiên trong text (loại bỏ markdown fence). */
   private extractJson(text: string): unknown {
     const stripped = text
       .replace(/^```(?:json)?\s*/i, '')
@@ -166,7 +131,6 @@ export class ExamAiService {
     return JSON.parse(match[0]);
   }
 
-  /** Validate 1 question raw → object chuẩn hoá hoặc null nếu sai schema. */
   private validateQuestion(raw: unknown): GeneratedQuestion | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const q = raw as Record<string, unknown>;
@@ -197,7 +161,13 @@ export class ExamAiService {
 
     if (type === 'TRUE_FALSE') {
       if (typeof q.correctAnswer !== 'boolean') return null;
-      return { type: 'TRUE_FALSE', prompt, correctAnswer: q.correctAnswer, explanation, difficulty };
+      return {
+        type: 'TRUE_FALSE',
+        prompt,
+        correctAnswer: q.correctAnswer,
+        explanation,
+        difficulty,
+      };
     }
 
     if (type === 'SHORT') {
@@ -216,14 +186,6 @@ export class ExamAiService {
     return null;
   }
 
-  // ──────────────────────────────────────────────────────────
-  // AI grading (SHORT semantic + ESSAY rubric)
-  // ──────────────────────────────────────────────────────────
-
-  /**
-   * Grade SHORT question — semantic equivalence check. Khi user trả "Đạo hàm
-   * của sin x là cos x", correctAnswer = "cos(x)" → AI decide accept hay không.
-   */
   async aiGradeShortAnswer(
     question: ExamQuestionRow,
     answer: string,
@@ -287,10 +249,6 @@ Hãy chấm và trả JSON.`;
     }
   }
 
-  /**
-   * Grade ESSAY với rubric multi-criterion (jsonb [{criterion, weight, descriptors}]).
-   * Không có rubric → fallback aiGradeShortAnswer (generic judgement).
-   */
   async aiGradeEssay(
     question: ExamQuestionRow,
     answer: string,
@@ -300,9 +258,11 @@ Hãy chấm và trả JSON.`;
       return { score: 0, isCorrect: false, feedback: 'Không có câu trả lời.' };
     }
 
-    const rubric = question.rubric as
-      | Array<{ criterion: string; weight: number; descriptors: Record<string, string> }>
-      | null;
+    const rubric = question.rubric as Array<{
+      criterion: string;
+      weight: number;
+      descriptors: Record<string, string>;
+    }> | null;
 
     if (!rubric || !Array.isArray(rubric) || rubric.length === 0) {
       return this.aiGradeShortAnswer(question, answer, ctx);
@@ -372,10 +332,6 @@ Hãy chấm theo rubric và trả JSON.`;
     }
   }
 
-  /**
-   * Parse AI response JSON. Tolerant với markdown fence ```json...```.
-   * Clamp score trong [0, maxPoints] để tránh AI hallucinate điểm âm/lớn hơn.
-   */
   private parseGradingResponse(text: string, maxPoints: number): AiGradeResult {
     let json = text.trim();
     const fenceMatch = json.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -407,7 +363,6 @@ Hãy chấm theo rubric và trả JSON.`;
 
     const clamped = Math.max(0, Math.min(maxPoints, result.data.score));
 
-    // Auto-flag review nếu confidence thấp ở bất kỳ tiêu chí nào — owner phải xem lại
     let autoFlag = result.data.flaggedForReview ?? false;
     if (result.data.confidence) {
       const lowConfidence = Object.values(result.data.confidence).some(
@@ -428,11 +383,6 @@ Hãy chấm theo rubric và trả JSON.`;
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // Guarded LLM call — check guardrail trước / record sau
-  // ──────────────────────────────────────────────────────────
-
-  /** Throw Error(guard.message) khi bị chặn — caller catch như CostGuardrailError cũ. */
   private async guardedComplete(args: {
     userId: string;
     plan: Plan;
@@ -442,7 +392,6 @@ Hãy chấm theo rubric và trả JSON.`;
     feature: string;
   }): Promise<string> {
     const pm = this.pickModelForCost();
-    // Heuristic estimateInputTokens cũ: 1 token ≈ 3 chars (an toàn cho tiếng Việt).
     const inputTokens = Math.ceil((args.system.length + args.prompt.length) / 3);
     const estimatedCostUsd =
       (inputTokens * pm.inputPerM + args.maxTokens * pm.outputPerM) / 1_000_000;
@@ -460,7 +409,6 @@ Hãy chấm theo rubric và trả JSON.`;
       maxTokens: args.maxTokens,
     });
 
-    // LlmService không expose usage → xấp xỉ output bằng độ dài text.
     const outputTokens = Math.ceil(text.length / 3);
     await this.guardrails.record({
       userId: args.userId,
@@ -477,11 +425,6 @@ Hãy chấm theo rubric và trả JSON.`;
     return text;
   }
 
-  /**
-   * Model + giá ($/1M tokens) ứng với provider LlmService sẽ pick.
-   * NGUỒN CHUẨN pick order ở src/infra/ai/llm.service.ts — đổi thì sửa cả 2.
-   * Giá free-tier (groq/google/openrouter) = 0 như bảng PROVIDERS router cũ.
-   */
   private pickModelForCost(): {
     provider: string;
     model: string;
@@ -508,7 +451,12 @@ Hãy chấm theo rubric và trả JSON.`;
       case 'google':
         return { provider, model: 'gemini-2.5-flash', inputPerM: 0, outputPerM: 0 };
       default:
-        return { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', inputPerM: 0, outputPerM: 0 };
+        return {
+          provider: 'openrouter',
+          model: 'openai/gpt-oss-20b:free',
+          inputPerM: 0,
+          outputPerM: 0,
+        };
     }
   }
 }

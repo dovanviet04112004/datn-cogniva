@@ -1,18 +1,8 @@
-/**
- * Secure storage wrapper — Expo SecureStore (iOS Keychain / Android KeyStore).
- *
- * Lưu token bearer ở đây thay vì AsyncStorage vì SecureStore mã hoá ở mức HĐH:
- *   - iOS: Keychain (Secure Enclave nếu device support)
- *   - Android: KeyStore (TEE / StrongBox)
- *
- * Quota: ~2KB per key — vì vậy cặp token JWT lưu 2 KEY RIÊNG (access + refresh)
- * thay vì 1 blob JSON. KHÔNG dùng cho data lớn.
- */
 import * as SecureStore from 'expo-secure-store';
 
-const TOKEN_KEY = 'cogniva.auth_token'; // accessToken JWT ES256, sống 15'
-const REFRESH_KEY = 'cogniva.refresh_token'; // opaque 30d, rotation mỗi lần refresh
-const USER_KEY = 'cogniva.user_cache'; // JSON UserDTO
+const TOKEN_KEY = 'cogniva.auth_token';
+const REFRESH_KEY = 'cogniva.refresh_token';
+const USER_KEY = 'cogniva.user_cache';
 
 export const tokenStorage = {
   get: () => SecureStore.getItemAsync(TOKEN_KEY),
@@ -26,18 +16,8 @@ export const refreshStorage = {
   clear: () => SecureStore.deleteItemAsync(REFRESH_KEY),
 };
 
-/**
- * Lưu CẶP token sau sign-in/sign-up/refresh. Refresh token bị server ROTATE
- * mỗi lần dùng (token cũ revoke) → luôn ghi đè cả cặp cùng lúc, đừng lẻ tẻ.
- */
-export async function saveTokenPair(
-  accessToken: string,
-  refreshToken: string,
-): Promise<void> {
-  await Promise.all([
-    tokenStorage.set(accessToken),
-    refreshStorage.set(refreshToken),
-  ]);
+export async function saveTokenPair(accessToken: string, refreshToken: string): Promise<void> {
+  await Promise.all([tokenStorage.set(accessToken), refreshStorage.set(refreshToken)]);
 }
 
 export const userCache = {
@@ -50,16 +30,10 @@ export const userCache = {
       return null;
     }
   },
-  set: <T>(value: T) =>
-    SecureStore.setItemAsync(USER_KEY, JSON.stringify(value)),
+  set: <T>(value: T) => SecureStore.setItemAsync(USER_KEY, JSON.stringify(value)),
   clear: () => SecureStore.deleteItemAsync(USER_KEY),
 };
 
-/** Clear toàn bộ — gọi khi sign out hoặc account delete confirm. */
 export async function clearAllAuthStorage(): Promise<void> {
-  await Promise.allSettled([
-    tokenStorage.clear(),
-    refreshStorage.clear(),
-    userCache.clear(),
-  ]);
+  await Promise.allSettled([tokenStorage.clear(), refreshStorage.clear(), userCache.clear()]);
 }

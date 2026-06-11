@@ -1,12 +1,3 @@
-/**
- * PrereqWarning — Bonus #13 Phase 3 (2026-05-27).
- *
- * Fetch /api/library/docs/[id]/prereq-check → nếu user logged-in mà thiếu
- * prereq atoms thì cảnh báo "Nên đọc Doc X trước". Helper inline cho detail
- * page (KHÔNG block CTA — chỉ informational).
- *
- * Spec: docs/plans/library-share.md §Bonus 13.
- */
 'use client';
 
 import * as React from 'react';
@@ -47,8 +38,7 @@ export function PrereqWarning({ docId }: { docId: string }) {
   const t = useT();
   const { data } = useQuery({
     queryKey: qk.libraryDocPrereq(docId),
-    queryFn: () =>
-      apiGet<PrereqResponse>(`/api/library/docs/${docId}/prereq-check`),
+    queryFn: () => apiGet<PrereqResponse>(`/api/library/docs/${docId}/prereq-check`),
     enabled: !!docId,
   });
 
@@ -56,8 +46,7 @@ export function PrereqWarning({ docId }: { docId: string }) {
   if (data.prereqs.length === 0 && !data.difficulty) return null;
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-divider bg-card p-3">
-      {/* Difficulty + total prereq count summary line */}
+    <div className="border-divider bg-card flex flex-col gap-2 rounded-xl border p-3">
       {data.difficulty && (
         <div className="flex items-center gap-2">
           <span
@@ -66,21 +55,23 @@ export function PrereqWarning({ docId }: { docId: string }) {
               DIFFICULTY_META[data.difficulty]!.class,
             )}
           >
-            {DIFFICULTY_META[data.difficulty]!.emoji}{' '}
-            {t('library.prereq.difficulty_label')} {t(DIFFICULTY_META[data.difficulty]!.labelKey)}
+            {DIFFICULTY_META[data.difficulty]!.emoji} {t('library.prereq.difficulty_label')}{' '}
+            {t(DIFFICULTY_META[data.difficulty]!.labelKey)}
           </span>
           {data.prereqs.length > 0 && (
-            <span className="text-[10.5px] text-muted-foreground">
-              {t('library.prereq.need_before_count').replace('{count}', String(data.prereqs.length))}
+            <span className="text-muted-foreground text-[10.5px]">
+              {t('library.prereq.need_before_count').replace(
+                '{count}',
+                String(data.prereqs.length),
+              )}
             </span>
           )}
         </div>
       )}
 
-      {/* Prereq list */}
       {data.prereqs.length > 0 && (
         <div>
-          <p className="mb-1.5 flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-muted-foreground mb-1.5 flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wider">
             <Lightbulb className="h-3 w-3" />
             {t('library.prereq.need_before')}
           </p>
@@ -97,7 +88,9 @@ export function PrereqWarning({ docId }: { docId: string }) {
                       ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
                       : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300',
                   )}
-                  title={isMissing ? t('library.prereq.missing_atom') : t('library.prereq.have_atom')}
+                  title={
+                    isMissing ? t('library.prereq.missing_atom') : t('library.prereq.have_atom')
+                  }
                 >
                   {isMissing ? '○' : '✓'} {label}
                 </li>

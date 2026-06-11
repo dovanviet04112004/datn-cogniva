@@ -44,38 +44,38 @@ V2 fix toàn bộ + thêm full Discord parity features.
 
 ## 2. So sánh với Discord — gaps
 
-| # | Tính năng | Discord | Cogniva V1 | V2 plan |
-|---|---|---|---|---|
-| 1 | Server / channel tree | ✅ category + drag drop | ✅ schema có, UI partial | Polish drag-drop + collapse animation |
-| 2 | Text channel chat | ✅ | ✅ basic | Polish UI: density modes, jump-to-message |
-| 3 | Voice channel (audio) | ✅ | ✅ LiveKit | Thêm speaking indicator + push-to-talk |
-| 4 | Voice channel (video) | ✅ | ✅ partial | Grid layout polish + spotlight speaker |
-| 5 | Screen share | ✅ | ✅ data có | Stop share button + dedicated layout |
-| 6 | Threads | ✅ | ⚠️ schema có, UI chưa | Build full thread sidebar + thread list |
-| 7 | Forum channels | ✅ | ⚠️ schema có, UI chưa | Posts + tags + solution-mark |
-| 8 | Stage channels | ✅ | ⚠️ schema có, UI chưa | Hand-raise + speaker promotion |
-| 9 | Message reactions | ✅ emoji picker | ⚠️ data có | Build emoji picker + reaction bar |
-| 10 | Replies / quotes | ✅ | ⚠️ data có | Reply preview chip + jump-to-original |
-| 11 | @mentions | ⚠️ user/role/channel/everyone | ⚠️ data có | Autocomplete picker + notification fire |
-| 12 | Per-channel permissions | ✅ override matrix | ❌ chỉ role hierarchy | Permission matrix table (V2) |
-| 13 | Custom roles | ✅ unlimited custom | ❌ 4 fixed roles | Custom role với color + permissions |
-| 14 | Pin message | ✅ | ⚠️ pinned col có | Pin menu + pinned messages panel |
-| 15 | Edit / delete message | ⚠️ với history | ⚠️ API có | UI edit inline + "edited" badge + history |
-| 16 | Search | ✅ FTS | ⚠️ ILIKE | Postgres FTS + GIN index + filter chip |
-| 17 | Typing indicator | ✅ | ❌ | Socket.IO `typing` event với 5s timeout |
-| 18 | Presence (status) | ✅ online/idle/dnd/offline | ⚠️ polling | Socket.IO presence channel + status picker |
-| 19 | User status message | ✅ custom text + emoji | ❌ | Add user.statusText + user.statusEmoji |
-| 20 | User profile card | ✅ hover popup | ❌ | Hover card với nickname/role/since |
-| 21 | Notifications per channel | ✅ all/mentions/none | ⚠️ mute toggle | 3-state setting |
-| 22 | Push notifications | ✅ | ❌ schema có chưa fire | Wire Inngest job push qua Expo + Web Push |
-| 23 | Notification inbox | ✅ | ⚠️ API có UI chưa | NotificationBell + drawer panel |
-| 24 | Audit log | ✅ | ✅ | OK — polish UI filter |
-| 25 | Invite system | ✅ multi-use + expire | ✅ | OK |
-| 26 | File / image upload | ✅ inline preview | ✅ | Polish lightbox + image carousel |
-| 27 | Emoji picker | ✅ + custom server emoji | ❌ | Lib `emoji-mart` cho native; defer custom emoji |
-| 28 | Slash commands | ✅ | ❌ | Defer V3 |
-| 29 | Bots / webhooks | ✅ | ❌ | Defer V3 |
-| 30 | Voice channel waveform | ✅ talking ring | ❌ | LiveKit `isSpeaking` → glow ring avatar |
+| #   | Tính năng                 | Discord                       | Cogniva V1               | V2 plan                                         |
+| --- | ------------------------- | ----------------------------- | ------------------------ | ----------------------------------------------- |
+| 1   | Server / channel tree     | ✅ category + drag drop       | ✅ schema có, UI partial | Polish drag-drop + collapse animation           |
+| 2   | Text channel chat         | ✅                            | ✅ basic                 | Polish UI: density modes, jump-to-message       |
+| 3   | Voice channel (audio)     | ✅                            | ✅ LiveKit               | Thêm speaking indicator + push-to-talk          |
+| 4   | Voice channel (video)     | ✅                            | ✅ partial               | Grid layout polish + spotlight speaker          |
+| 5   | Screen share              | ✅                            | ✅ data có               | Stop share button + dedicated layout            |
+| 6   | Threads                   | ✅                            | ⚠️ schema có, UI chưa    | Build full thread sidebar + thread list         |
+| 7   | Forum channels            | ✅                            | ⚠️ schema có, UI chưa    | Posts + tags + solution-mark                    |
+| 8   | Stage channels            | ✅                            | ⚠️ schema có, UI chưa    | Hand-raise + speaker promotion                  |
+| 9   | Message reactions         | ✅ emoji picker               | ⚠️ data có               | Build emoji picker + reaction bar               |
+| 10  | Replies / quotes          | ✅                            | ⚠️ data có               | Reply preview chip + jump-to-original           |
+| 11  | @mentions                 | ⚠️ user/role/channel/everyone | ⚠️ data có               | Autocomplete picker + notification fire         |
+| 12  | Per-channel permissions   | ✅ override matrix            | ❌ chỉ role hierarchy    | Permission matrix table (V2)                    |
+| 13  | Custom roles              | ✅ unlimited custom           | ❌ 4 fixed roles         | Custom role với color + permissions             |
+| 14  | Pin message               | ✅                            | ⚠️ pinned col có         | Pin menu + pinned messages panel                |
+| 15  | Edit / delete message     | ⚠️ với history                | ⚠️ API có                | UI edit inline + "edited" badge + history       |
+| 16  | Search                    | ✅ FTS                        | ⚠️ ILIKE                 | Postgres FTS + GIN index + filter chip          |
+| 17  | Typing indicator          | ✅                            | ❌                       | Socket.IO `typing` event với 5s timeout         |
+| 18  | Presence (status)         | ✅ online/idle/dnd/offline    | ⚠️ polling               | Socket.IO presence channel + status picker      |
+| 19  | User status message       | ✅ custom text + emoji        | ❌                       | Add user.statusText + user.statusEmoji          |
+| 20  | User profile card         | ✅ hover popup                | ❌                       | Hover card với nickname/role/since              |
+| 21  | Notifications per channel | ✅ all/mentions/none          | ⚠️ mute toggle           | 3-state setting                                 |
+| 22  | Push notifications        | ✅                            | ❌ schema có chưa fire   | Wire Inngest job push qua Expo + Web Push       |
+| 23  | Notification inbox        | ✅                            | ⚠️ API có UI chưa        | NotificationBell + drawer panel                 |
+| 24  | Audit log                 | ✅                            | ✅                       | OK — polish UI filter                           |
+| 25  | Invite system             | ✅ multi-use + expire         | ✅                       | OK                                              |
+| 26  | File / image upload       | ✅ inline preview             | ✅                       | Polish lightbox + image carousel                |
+| 27  | Emoji picker              | ✅ + custom server emoji      | ❌                       | Lib `emoji-mart` cho native; defer custom emoji |
+| 28  | Slash commands            | ✅                            | ❌                       | Defer V3                                        |
+| 29  | Bots / webhooks           | ✅                            | ❌                       | Defer V3                                        |
+| 30  | Voice channel waveform    | ✅ talking ring               | ❌                       | LiveKit `isSpeaking` → glow ring avatar         |
 
 **V2 scope: hàng 1-23 (essential Discord parity). Hàng 24-30 defer V3.**
 
@@ -181,7 +181,9 @@ export const studyGroupRole = pgTable(
   'study_group_role',
   {
     id: text('id').primaryKey().$defaultFn(createId),
-    groupId: text('group_id').notNull().references(() => studyGroup.id, { onDelete: 'cascade' }),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => studyGroup.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** Hex color e.g. "#7289DA" — render avatar ring + name tint. */
     color: text('color').default('#9aa3af'),
@@ -203,8 +205,12 @@ export const studyGroupRole = pgTable(
 export const studyGroupMemberRole = pgTable(
   'study_group_member_role',
   {
-    memberId: text('member_id').notNull().references(() => studyGroupMember.id, { onDelete: 'cascade' }),
-    roleId: text('role_id').notNull().references(() => studyGroupRole.id, { onDelete: 'cascade' }),
+    memberId: text('member_id')
+      .notNull()
+      .references(() => studyGroupMember.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => studyGroupRole.id, { onDelete: 'cascade' }),
     assignedAt: timestamp('assigned_at').defaultNow().notNull(),
   },
   (t) => ({
@@ -216,7 +222,9 @@ export const studyGroupChannelPermission = pgTable(
   'study_group_channel_permission',
   {
     id: text('id').primaryKey().$defaultFn(createId),
-    channelId: text('channel_id').notNull().references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => studyGroupChannel.id, { onDelete: 'cascade' }),
     /** Target: role hoặc 1 user cụ thể. Exactly 1 phải set. */
     roleId: text('role_id').references(() => studyGroupRole.id, { onDelete: 'cascade' }),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
@@ -286,7 +294,9 @@ export const studyGroupMessageRevision = pgTable(
   'study_group_message_revision',
   {
     id: text('id').primaryKey().$defaultFn(createId),
-    messageId: text('message_id').notNull().references(() => studyGroupMessage.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => studyGroupMessage.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
     editedAt: timestamp('edited_at').defaultNow().notNull(),
   },
@@ -368,6 +378,7 @@ PUT    /api/groups/[id]/channels/[cid]/notifications   — per-channel setting (
 ### Presence + typing
 
 Socket.IO events (không hit API):
+
 - `presence-group-{id}` — member join/leave/update_status
 - `private-channel-{cid}` — typing event `{ userId, expiresAt }`
 
@@ -433,13 +444,16 @@ PUT /api/user/status   — { status, statusText?, statusEmoji?, expiresIn? }
 ### 7.2 Message item (compact + cozy variants)
 
 **Compact mode (Discord default):**
+
 ```
 [avatar]  Username   Role     12:34   Message content here....
                               [hover toolbar →] 🙂 ↩️ 🧵 ✏️ 🗑️ ⋯
 ```
+
 Consecutive messages cùng user trong 5 min → ẩn avatar + name, chỉ hiện indent + timestamp on hover.
 
 **Cozy mode (default):**
+
 ```
 [avatar]  Username   Role
           Message line 1
@@ -449,6 +463,7 @@ Consecutive messages cùng user trong 5 min → ẩn avatar + name, chỉ hiện
 ```
 
 **Element details:**
+
 - Reply chip: hiện ở trên message, click → jump-to-original
 - Reaction bar: chip stack dưới content, click toggle, hover hiện list users
 - Edit badge: "(đã sửa)" hiển thị inline timestamp; click → modal history
@@ -548,6 +563,7 @@ Consecutive messages cùng user trong 5 min → ẩn avatar + name, chỉ hiện
 ### 7.7 Settings page (group)
 
 Tab list:
+
 1. **Overview** — name, description, icon, banner, language, region
 2. **Roles** — list custom roles + create/edit/delete + drag-drop reorder + color picker + permission grid
 3. **Channels** — channel list drag-drop + create + edit topic/slow-mode + delete
@@ -560,6 +576,7 @@ Tab list:
 ### 7.8 Notification UI
 
 **NotificationBell topbar** (mọi route):
+
 - Bell icon + red dot khi unreadCount > 0
 - Click → Sheet (right drawer) hiện list:
   - Group by group → channel
@@ -570,6 +587,7 @@ Tab list:
 - Footer: "Mark all read" + "Settings"
 
 **Push notification mobile (Expo)**:
+
 - Title: `<sender> in #<channel>`
 - Body: message preview (truncate 100 chars)
 - Data: `{ groupId, channelId, messageId }` → deep link
@@ -579,6 +597,7 @@ Tab list:
 ### 7.9 Mobile
 
 3-tab pattern giống workspace V8.18:
+
 ```
 [Kênh] [Trò chuyện] [Thành viên]
 ─────────────────────────────────
@@ -610,20 +629,20 @@ Tab list:
 
 ### 8.1 Trigger sources
 
-| Event | Trigger | Audience |
-|---|---|---|
-| @mention user | POST message parse `@<userId>` | mentioned users only |
-| @role mention | POST message parse `@<roleId>` | all users in role |
-| @here | POST message parse `@here` | online users in channel |
-| @everyone | POST message parse `@everyone` | all members (cần permission) |
-| DM message | POST DM | recipient |
-| Reply to your message | POST message with replyToId | original author |
-| Reaction on your message | POST react | original author |
-| Group invite accepted | POST join | inviter (optional) |
-| Voice channel invite | future feature | invited user |
-| Stage hand-raise | POST raise | stage moderators |
-| Recording ready | LiveKit egress webhook | room owner |
-| Streak warning | cron daily | user |
+| Event                    | Trigger                        | Audience                     |
+| ------------------------ | ------------------------------ | ---------------------------- |
+| @mention user            | POST message parse `@<userId>` | mentioned users only         |
+| @role mention            | POST message parse `@<roleId>` | all users in role            |
+| @here                    | POST message parse `@here`     | online users in channel      |
+| @everyone                | POST message parse `@everyone` | all members (cần permission) |
+| DM message               | POST DM                        | recipient                    |
+| Reply to your message    | POST message with replyToId    | original author              |
+| Reaction on your message | POST react                     | original author              |
+| Group invite accepted    | POST join                      | inviter (optional)           |
+| Voice channel invite     | future feature                 | invited user                 |
+| Stage hand-raise         | POST raise                     | stage moderators             |
+| Recording ready          | LiveKit egress webhook         | room owner                   |
+| Streak warning           | cron daily                     | user                         |
 
 ### 8.2 Flow
 
@@ -687,25 +706,27 @@ Use `web-push` lib + VAPID keys. Service Worker `sw.js` listen `push` event → 
 
 ### 9.1 Socket.IO channels
 
-| Channel | Type | Subscribers | Events |
-|---|---|---|---|
-| `private-channel-{cid}` | private | members of channel | message:new, message:edit, message:delete, reaction:toggle, typing |
-| `presence-group-{gid}` | presence | members of group | (auto join/leave + custom status updates) |
-| `private-voice-{cid}` | private | participants of voice channel | speaking:start, speaking:end |
-| `private-user-{uid}` | private | self only | notification:new, dm:message |
-| `private-thread-{tid}` | private | thread participants | thread:message |
+| Channel                 | Type     | Subscribers                   | Events                                                             |
+| ----------------------- | -------- | ----------------------------- | ------------------------------------------------------------------ |
+| `private-channel-{cid}` | private  | members of channel            | message:new, message:edit, message:delete, reaction:toggle, typing |
+| `presence-group-{gid}`  | presence | members of group              | (auto join/leave + custom status updates)                          |
+| `private-voice-{cid}`   | private  | participants of voice channel | speaking:start, speaking:end                                       |
+| `private-user-{uid}`    | private  | self only                     | notification:new, dm:message                                       |
+| `private-thread-{tid}`  | private  | thread participants           | thread:message                                                     |
 
 ### 9.2 Socket.IO auth flow
 
 POST `/api/realtime/auth` (đã có) — verify session → authorize channel access (membership) → trả `{ user }` (cookie web / bearer mobile). Không còn ký token kiểu Pusher.
 
 V2 extends:
+
 - Presence channels: trả `user_info` JSON gồm `{ id, name, image, status }`
 - Private channels: check `studyGroupMember.role + permissions matrix` (V2 mới)
 
 ### 9.3 LiveKit integration
 
 V1 đã có. V2 polish:
+
 - Subscribe `participant.isSpeaking` → broadcast Socket.IO `speaking:start/end` cho avatar ring
 - Server-side mute (LiveKit Server SDK `updateParticipant`) → kick mic
 - Egress recording trigger từ MOD button
@@ -714,19 +735,20 @@ V1 đã có. V2 polish:
 
 ## 10. Effort estimate
 
-| Phase | Mô tả | Effort |
-|---|---|---|
-| G1 | Permission & roles | 3 ngày |
-| G2 | Message UX polish | 4 ngày |
-| G3 | Presence + typing | 2 ngày |
-| G4 | Notifications integration | 3 ngày |
-| G5 | Voice / Stage / Forum polish | 4 ngày |
-| G6 | Search + threads full + mobile | 3 ngày |
-| | **Tổng** | **~19 ngày** |
+| Phase | Mô tả                          | Effort       |
+| ----- | ------------------------------ | ------------ |
+| G1    | Permission & roles             | 3 ngày       |
+| G2    | Message UX polish              | 4 ngày       |
+| G3    | Presence + typing              | 2 ngày       |
+| G4    | Notifications integration      | 3 ngày       |
+| G5    | Voice / Stage / Forum polish   | 4 ngày       |
+| G6    | Search + threads full + mobile | 3 ngày       |
+|       | **Tổng**                       | **~19 ngày** |
 
 → 1 dev full-time ~4 tuần.
 
 **Quick wins (1 ngày each, có thể ship trước roadmap):**
+
 - NotificationBell topbar wire vào API hiện có
 - Mention parser server-side fire notification log
 - Typing indicator (Socket.IO event, không cần schema)
@@ -839,4 +861,4 @@ apps/web/src/lib/i18n/dict.ts — add ~80 strings cho groups v2
 
 ---
 
-*Plan v1.0 — viết 2026-05-21 sau khi survey hệ thống V1. Update khi build từng phase.*
+_Plan v1.0 — viết 2026-05-21 sau khi survey hệ thống V1. Update khi build từng phase._

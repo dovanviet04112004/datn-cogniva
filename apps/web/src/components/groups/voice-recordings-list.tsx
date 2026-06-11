@@ -1,16 +1,3 @@
-/**
- * VoiceRecordingsList — list recordings của voice channel hiển thị dưới
- * pre-join screen (chưa connect voice). Click 1 item → /groups/recordings/[id].
- *
- * Status icon:
- *   - RECORDING  : dot đỏ blink
- *   - PROCESSING : spinner
- *   - PROCESSED  : Play icon
- *   - FAILED     : XCircle đỏ
- *
- * Auto-refresh khi nhận event `recording:processed` qua realtime (mod xem
- * realtime list update mà không cần reload).
- */
 'use client';
 
 import * as React from 'react';
@@ -53,7 +40,6 @@ export function VoiceRecordingsList({
   canDelete = false,
 }: {
   channelId: string;
-  /** Mod+ mới được xoá — parent check role. */
   canDelete?: boolean;
 }) {
   const confirm = useConfirm();
@@ -73,7 +59,6 @@ export function VoiceRecordingsList({
     refetch();
   }, [refetch]);
 
-  // Refresh khi recording state đổi (mọi event recording trên presence-voice → refetch).
   const channel = `presence-voice-${channelId}`;
   useRealtimeEvent(channel, 'recording:started', refetch);
   useRealtimeEvent(channel, 'recording:stopped', refetch);
@@ -111,13 +96,13 @@ export function VoiceRecordingsList({
   if (items.length === 0) return null;
 
   return (
-    <div className="shrink-0 border-t bg-muted/30">
-      <div className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="bg-muted/30 shrink-0 border-t">
+      <div className="text-muted-foreground px-4 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider">
         Recordings ({items.length})
       </div>
       <ul className="max-h-48 overflow-auto p-2">
         {items.map((r) => (
-          <li key={r.id} className="group/item flex items-center gap-2 rounded-md hover:bg-accent">
+          <li key={r.id} className="group/item hover:bg-accent flex items-center gap-2 rounded-md">
             <Link
               href={`/groups/recordings/${r.id}`}
               className="flex flex-1 items-center gap-3 px-2 py-2 text-sm"
@@ -126,19 +111,21 @@ export function VoiceRecordingsList({
               <span className="flex-1 truncate">
                 <span className="font-medium">{fmtDate(r.startedAt)}</span>
                 {r.summary && (
-                  <span className="ml-2 text-xs text-muted-foreground">— {r.summary.slice(0, 60)}…</span>
+                  <span className="text-muted-foreground ml-2 text-xs">
+                    — {r.summary.slice(0, 60)}…
+                  </span>
                 )}
               </span>
-              <span className="shrink-0 text-xs text-muted-foreground">
+              <span className="text-muted-foreground shrink-0 text-xs">
                 {fmtDuration(r.duration)}
               </span>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             </Link>
             {canDelete && r.status !== 'RECORDING' && (
               <button
                 onClick={(e) => remove(r.id, e)}
                 disabled={deletingId === r.id}
-                className="mr-2 shrink-0 rounded p-1 text-muted-foreground opacity-0 hover:bg-destructive/10 hover:text-destructive group-hover/item:opacity-100 disabled:opacity-50"
+                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive mr-2 shrink-0 rounded p-1 opacity-0 disabled:opacity-50 group-hover/item:opacity-100"
                 title="Xoá recording"
                 aria-label="Xoá recording"
               >
@@ -166,10 +153,10 @@ function StatusIcon({ status }: { status: Recording['status'] }) {
         </span>
       );
     case 'PROCESSING':
-      return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />;
+      return <Loader2 className="text-muted-foreground h-3.5 w-3.5 shrink-0 animate-spin" />;
     case 'PROCESSED':
       return <Play className="h-3.5 w-3.5 shrink-0 text-green-600" />;
     case 'FAILED':
-      return <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />;
+      return <XCircle className="text-destructive h-3.5 w-3.5 shrink-0" />;
   }
 }

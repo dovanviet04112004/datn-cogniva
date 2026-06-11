@@ -1,13 +1,3 @@
-/**
- * BookingDetailModal — xem chi tiết 1 đơn học trong modal LỚN ở giữa màn hình.
- *
- * Mở overlay căn giữa (kiểu Atom Guide / recipe-overlay) thay vì nhảy trang.
- * Hiển thị: đối tác, môn·cấp, thời gian, giá, lời nhắn, phòng học, ghi chú buổi
- * + nút hành động (xác nhận / huỷ / hoàn thành — tái dùng BookingActions).
- * Phần nâng cao (thanh toán / đánh giá) có link "Mở trang đầy đủ".
- *
- * Fetch GET /api/tutoring/bookings/[id] khi mở; refetch sau mỗi action.
- */
 'use client';
 
 import * as React from 'react';
@@ -53,15 +43,30 @@ type Detail = {
     studyGroupName: string | null;
   };
   review: { rating: number; comment: string | null } | null;
-  payment: { id: string; orderCode: string; amountVnd: number; provider: string; status: string } | null;
+  payment: {
+    id: string;
+    orderCode: string;
+    amountVnd: number;
+    provider: string;
+    status: string;
+  } | null;
   role: 'student' | 'tutor';
 };
 
 const STATUS_META: Record<Detail['booking']['status'], { label: string; cls: string }> = {
-  PENDING_TUTOR: { label: 'Chờ xác nhận', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/20' },
+  PENDING_TUTOR: {
+    label: 'Chờ xác nhận',
+    cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/20',
+  },
   CONFIRMED: { label: 'Đã xác nhận', cls: 'bg-primary/10 text-primary ring-primary/20' },
-  IN_PROGRESS: { label: 'Đang học', cls: 'bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 ring-discovery-500/20' },
-  COMPLETED: { label: 'Đã hoàn thành', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20' },
+  IN_PROGRESS: {
+    label: 'Đang học',
+    cls: 'bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 ring-discovery-500/20',
+  },
+  COMPLETED: {
+    label: 'Đã hoàn thành',
+    cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20',
+  },
   CANCELLED: { label: 'Đã huỷ', cls: 'bg-muted/60 text-muted-foreground ring-border' },
 };
 
@@ -87,11 +92,8 @@ export function BookingDetailModal({
   bookingId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Báo list cha refetch sau khi đơn đổi trạng thái. */
   onChanged?: () => void;
 }) {
-  // GET chi tiết đơn qua React Query — chỉ fetch khi modal mở + có id.
-  // Mỗi đơn cache riêng theo key → mở lại không phải tải lại.
   const {
     data,
     isLoading: loading,
@@ -115,23 +117,20 @@ export function BookingDetailModal({
       <DialogContent className="flex h-auto max-h-[88vh] w-[94vw] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl p-0">
         <DialogTitle className="sr-only">Chi tiết đơn học</DialogTitle>
 
-        {/* Header bar */}
-        <div className="flex shrink-0 items-center border-b border-divider px-5 py-3.5 pr-14">
+        <div className="border-divider flex shrink-0 items-center border-b px-5 py-3.5 pr-14">
           <h2 className="text-sm font-semibold tracking-tight">Chi tiết đơn học</h2>
         </div>
 
-        {/* Body */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {loading && !b ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-20 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
               Đang tải…
             </div>
           ) : !b ? (
-            <p className="py-20 text-center text-sm text-muted-foreground">Không tải được đơn.</p>
+            <p className="text-muted-foreground py-20 text-center text-sm">Không tải được đơn.</p>
           ) : (
             <div className="mx-auto max-w-xl space-y-5">
-              {/* Đối tác + trạng thái */}
               <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={peerImg ?? undefined} />
@@ -141,7 +140,7 @@ export function BookingDetailModal({
                   <p className="truncate text-sm font-semibold tracking-tight">
                     {peerName ?? 'Ẩn danh'}
                   </p>
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-muted-foreground text-[11.5px]">
                     {role === 'student' ? 'Gia sư' : 'Học viên'}
                   </p>
                 </div>
@@ -155,8 +154,7 @@ export function BookingDetailModal({
                 </span>
               </div>
 
-              {/* Thông tin */}
-              <div className="space-y-2.5 rounded-xl bg-muted/30 p-3.5 text-[13px]">
+              <div className="bg-muted/30 space-y-2.5 rounded-xl p-3.5 text-[13px]">
                 <Row label="Môn">
                   {subj?.emoji ?? '📚'} {subj?.name ?? b.subjectSlug} ·{' '}
                   {LEVEL_NAMES[b.level as keyof typeof LEVEL_NAMES] ?? b.level}
@@ -165,7 +163,7 @@ export function BookingDetailModal({
                   {fmtRange(b.startAt, b.endAt)}
                 </Row>
                 <Row label="Học phí">
-                  <span className="font-mono tabular-nums font-semibold">
+                  <span className="font-mono font-semibold tabular-nums">
                     {b.rateVnd.toLocaleString('vi-VN')}đ
                   </span>
                 </Row>
@@ -190,7 +188,7 @@ export function BookingDetailModal({
               {b.studyGroupId && (
                 <Link
                   href={`/groups/${b.studyGroupId}`}
-                  className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+                  className="border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-sm font-medium transition-colors"
                 >
                   <Users className="h-4 w-4" />
                   Vào phòng học: {b.studyGroupName ?? 'Phòng riêng'}
@@ -198,7 +196,6 @@ export function BookingDetailModal({
                 </Link>
               )}
 
-              {/* Thanh toán — student, đã xác nhận/đang học, chưa capture */}
               {role === 'student' &&
                 (b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS') &&
                 payment &&
@@ -206,11 +203,12 @@ export function BookingDetailModal({
                   <BookingPaymentBox bookingId={b.id} payment={payment} />
                 )}
 
-              {/* Đánh giá — student sau khi hoàn thành */}
               {role === 'student' && b.status === 'COMPLETED' && (
                 <BookingReviewForm
                   bookingId={b.id}
-                  existing={review ? { rating: review.rating, comment: review.comment ?? '' } : null}
+                  existing={
+                    review ? { rating: review.rating, comment: review.comment ?? '' } : null
+                  }
                 />
               )}
 
@@ -244,7 +242,7 @@ function Row({
 }) {
   return (
     <div className="flex items-start gap-2">
-      <span className="inline-flex w-20 shrink-0 items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-muted-foreground inline-flex w-20 shrink-0 items-center gap-1 text-[11px] font-medium uppercase tracking-wide">
         {Icon && <Icon className="h-3 w-3" />}
         {label}
       </span>
@@ -264,11 +262,11 @@ function Block({
 }) {
   return (
     <div>
-      <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="text-muted-foreground mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
         {Icon && <Icon className="h-3 w-3" />}
         {title}
       </p>
-      <p className="whitespace-pre-wrap rounded-xl bg-muted/30 p-3 text-[13px] leading-relaxed text-foreground/85">
+      <p className="bg-muted/30 text-foreground/85 whitespace-pre-wrap rounded-xl p-3 text-[13px] leading-relaxed">
         {children}
       </p>
     </div>

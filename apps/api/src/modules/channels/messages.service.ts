@@ -1,10 +1,3 @@
-/**
- * MessagesService — message trong text/forum channel: list + post (mention
- * notify + push) + edit/revision + soft-delete + react + pin + solution +
- * history + thread. Port từ apps/web/src/app/api/channels/[id]/messages/**
- * — GIỮ NGUYÊN wire shape (camelCase, thứ tự field Drizzle), status code,
- * message lỗi tiếng Việt và từng realtime event (tên kênh + event + payload).
- */
 import { randomUUID } from 'node:crypto';
 import { HttpException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -30,7 +23,6 @@ import {
 
 const LIST_LIMIT_MAX = 100;
 
-/** Field select chung cho message + author — thứ tự map theo select route cũ. */
 const MESSAGE_WITH_AUTHOR_SELECT = {
   id: true,
   channel_id: true,
@@ -64,11 +56,6 @@ export class MessagesService {
     private readonly mentionNotify: MentionNotifyService,
   ) {}
 
-  // ──────────────────────────────────────────────────────────
-  // GET/POST /channels/:id/messages
-  // ──────────────────────────────────────────────────────────
-
-  /** Load channel + verify membership (+ group suspend state). null = fail → 403. */
   private async loadContext(channelId: string, userId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({ where: { id: channelId } });
     if (!ch) return null;
@@ -76,7 +63,6 @@ export class MessagesService {
       where: { group_id_user_id: { group_id: ch.group_id, user_id: userId } },
     });
     if (!member) return null;
-    // Member vẫn read được khi group suspend (xem notice + lịch sử), POST chặn.
     const grp = await this.prisma.study_group.findUnique({
       where: { id: ch.group_id },
       select: { id: true, suspended_at: true, suspend_reason: true },
@@ -84,14 +70,18 @@ export class MessagesService {
     return { channel: ch, member, group: grp ?? null };
   }
 
-  async listMessages(uid: string, channelId: string, beforeId: string | null, limitRaw: string | undefined) {
+  async listMessages(
+    uid: string,
+    channelId: string,
+    beforeId: string | null,
+    limitRaw: string | undefined,
+  ) {
     const ctx = await this.loadContext(channelId, uid);
     if (!ctx) throw new HttpException({ error: 'Forbidden' }, 403);
 
     const limitParam = Number(limitRaw ?? 50);
     const limit = Math.min(Math.max(limitParam, 1), LIST_LIMIT_MAX);
 
-    // Nếu có cursor `before`, lấy createdAt của message đó để filter
     let beforeDate: Date | null = null;
     if (beforeId) {
       const cursor = await this.prisma.study_group_message.findUnique({
@@ -104,7 +94,6 @@ export class MessagesService {
     const rows = await this.prisma.study_group_message.findMany({
       where: {
         channel_id: channelId,
-        // Exclude thread replies — chỉ trả root message
         thread_root_id: null,
         ...(beforeDate ? { created_at: { lt: beforeDate } } : {}),
       },
@@ -113,8 +102,6 @@ export class MessagesService {
       select: MESSAGE_WITH_AUTHOR_SELECT,
     });
 
-    // Reverse để client render từ cũ → mới. Field order = select route cũ
-    // (KHÔNG có threadRootId/isSolution ở list — khác thread GET).
     const messages = rows
       .map((r) => ({
         id: r.id,
@@ -146,7 +133,6 @@ export class MessagesService {
     if (!ctx) throw new HttpException({ error: 'Forbidden' }, 403);
     const { channel, member, group } = ctx;
 
-    // Group bị admin suspend → chặn gửi mới (GET vẫn cho đọc lịch sử).
     if (group?.suspended_at) {
       throw new HttpException(
         { error: 'Group đang bị suspend bởi admin', suspendReason: group.suspend_reason },
@@ -154,7 +140,6 @@ export class MessagesService {
       );
     }
 
-    // ANNOUNCEMENT: chỉ ADMIN+ post. VOICE/STAGE: cho phép (persistent chat).
     if (channel.type === 'ANNOUNCEMENT') {
       if (!this.perms.can(member.role as GroupRole, 'group.update-meta')) {
         throw new HttpException({ error: 'Channel ANNOUNCEMENT chỉ ADMIN+ post' }, 403);
@@ -170,7 +155,6 @@ export class MessagesService {
     const parsed = postMessageSchema.safeParse(raw);
     if (!parsed.success) throw new HttpException({ error: parsed.error.flatten() }, 400);
 
-    // Slow mode: check msg cuối cùng của user
     if (channel.slow_mode_seconds && channel.slow_mode_seconds > 0) {
       const lastMsg = await this.prisma.study_group_message.findFirst({
         where: { channel_id: channelId, author_id: user.id },
@@ -181,18 +165,13 @@ export class MessagesService {
         const elapsed = (Date.now() - lastMsg.created_at.getTime()) / 1000;
         if (elapsed < channel.slow_mode_seconds) {
           const wait = Math.ceil(channel.slow_mode_seconds - elapsed);
-          throw new HttpException(
-            { error: `Slow mode — chờ ${wait}s nữa`, retryAfter: wait },
-            429,
-          );
+          throw new HttpException({ error: `Slow mode — chờ ${wait}s nữa`, retryAfter: wait }, 429);
         }
       }
     }
 
-    // Parse mention từ content nếu client không gửi sẵn (@[name](id) syntax)
     const mentions = parsed.data.mentions ?? parseMentions(parsed.data.content);
 
-    // FORUM: root post (không replyToId) BẮT BUỘC có title; reply thì không.
     const isForumPost = channel.type === 'FORUM' && !parsed.data.replyToId;
     if (channel.type === 'FORUM' && isForumPost && !parsed.data.title?.trim()) {
       throw new HttpException({ error: 'Forum post cần tiêu đề' }, 400);
@@ -217,12 +196,10 @@ export class MessagesService {
             ? parsed.data.tags.map((t) => t.toLowerCase().trim()).filter(Boolean)
             : null,
         ),
-        // Forum post tự coi là root → threadLastAt = createdAt để sort đúng từ đầu
         thread_last_at: isForumPost ? new Date() : null,
       },
     });
 
-    // Broadcast — fire-and-forget. Outbox pattern T2+ (xem plan §8.7.3).
     const payload = {
       id: created.id,
       channelId: created.channel_id,
@@ -241,15 +218,12 @@ export class MessagesService {
       createdAt: created.created_at,
     };
     void triggerEvent(`private-channel-${channelId}`, 'message:new', payload);
-    // Event mỏng tới presence-group để sidebar update unread badge không cần
-    // subscribe từng channel.
     void triggerEvent(`presence-group-${channel.group_id}`, 'message:new-in-channel', {
       channelId,
       authorId: created.author_id,
       messageId: created.id,
     });
 
-    // Mention push: fire-and-forget (service tự nuốt lỗi).
     if (mentions.length > 0) {
       void this.mentionNotify.fireMentionEvents({
         groupId: channel.group_id,
@@ -263,13 +237,8 @@ export class MessagesService {
       });
     }
 
-    // AI Tutor mention: client tự fire POST /ai-reply sau response.
-    return { message: payload }; // 201
+    return { message: payload };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // PUT/DELETE /channels/:id/messages/:msgId
-  // ──────────────────────────────────────────────────────────
 
   private async loadMsgContext(
     channelId: string,
@@ -297,7 +266,6 @@ export class MessagesService {
     if (!ctx) throw new HttpException({ error: 'Forbidden' }, 403);
     const { msg } = ctx;
 
-    // Chỉ author mới edit (mod không edit hộ — như Discord)
     if (msg.author_id !== uid) {
       throw new HttpException({ error: 'Chỉ tác giả mới edit message' }, 403);
     }
@@ -308,20 +276,16 @@ export class MessagesService {
     const parsed = editMessageSchema.safeParse(raw);
     if (!parsed.success) throw new HttpException({ error: parsed.error.flatten() }, 400);
 
-    // V2 G2.7: skip update + revision nếu content không đổi (no-op edit)
     if (parsed.data.content === msg.content) {
       return { message: toMessageRowDto(msg) };
     }
 
-    // Snapshot content cũ vào revision TRƯỚC khi update — atomic transaction.
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.study_group_message_revision.create({
         data: {
           id: randomUUID(),
           message_id: msgId,
           content: msg.content,
-          // editedAt = thời điểm content NÀY thành "phiên bản cũ" = lần edit
-          // trước (hoặc createdAt nếu chưa từng edit).
           edited_at: msg.edited_at ?? msg.created_at,
         },
       });
@@ -363,7 +327,6 @@ export class MessagesService {
       deletedBy: uid,
     });
 
-    // Audit log — chỉ ghi khi mod xoá message của user khác (fail-open)
     if (!isOwn) {
       void this.writeAudit({
         action: 'study_group.message.deleted',
@@ -381,7 +344,6 @@ export class MessagesService {
     return { deleted: true };
   }
 
-  /** INSERT audit_log fail-open — y semantics writeAudit web (warn, không throw). */
   private async writeAudit(e: {
     action: string;
     actorId: string;
@@ -412,10 +374,6 @@ export class MessagesService {
     }
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /channels/:id/messages/:msgId/react — toggle reaction
-  // ──────────────────────────────────────────────────────────
-
   async react(uid: string, channelId: string, msgId: string, raw: unknown) {
     const ch = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -444,7 +402,6 @@ export class MessagesService {
     });
     if (!msg) throw new HttpException({ error: 'Message không tồn tại' }, 404);
 
-    // Reactions JSONB `{ '👍': [uid1, uid2] }` — toggle user trong array
     const current: Record<string, string[]> =
       (msg.reactions as Record<string, string[]> | null) ?? {};
     const list = current[emoji] ?? [];
@@ -473,10 +430,6 @@ export class MessagesService {
 
     return { reactions: current };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /channels/:id/messages/:msgId/pin — toggle pin (MODERATOR+)
-  // ──────────────────────────────────────────────────────────
 
   async togglePin(uid: string, channelId: string, msgId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({
@@ -514,21 +467,13 @@ export class MessagesService {
     return { pinned: newPinned };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /channels/:id/messages/:msgId/solution — V2 G5.4 forum solution
-  // ──────────────────────────────────────────────────────────
-
   async markSolution(uid: string, channelId: string, msgId: string, input: SolutionInput) {
-    // Body đã qua pipe (route cũ parse TRƯỚC các check 404) — giữ thứ tự status.
     const msg = await this.prisma.study_group_message.findFirst({
       where: { id: msgId, channel_id: channelId },
     });
     if (!msg) throw new HttpException({ error: 'Message not found' }, 404);
     if (!msg.thread_root_id) {
-      throw new HttpException(
-        { error: 'Chỉ reply trong thread mới đánh dấu solution được' },
-        400,
-      );
+      throw new HttpException({ error: 'Chỉ reply trong thread mới đánh dấu solution được' }, 400);
     }
 
     const ch = await this.prisma.study_group_channel.findUnique({
@@ -546,7 +491,6 @@ export class MessagesService {
     });
     if (!member) throw new HttpException({ error: 'Forbidden' }, 403);
 
-    // Load root post để check quyền author
     const rootPost = await this.prisma.study_group_message.findUnique({
       where: { id: msg.thread_root_id },
       select: { author_id: true },
@@ -560,8 +504,6 @@ export class MessagesService {
     }
 
     if (input.mark) {
-      // Atomic: clear flag mọi reply khác cùng thread + set flag reply này
-      // (chỉ 1 solution/thread, Discord pattern)
       await this.prisma.$transaction(async (tx) => {
         await tx.study_group_message.updateMany({
           where: { thread_root_id: msg.thread_root_id!, id: { not: msgId } },
@@ -579,7 +521,6 @@ export class MessagesService {
       });
     }
 
-    // Broadcast — listen ở ForumChannel list + ThreadPanel để refetch
     void triggerEvent(`private-channel-${channelId}`, 'forum:solution', {
       messageId: msgId,
       threadRootId: msg.thread_root_id,
@@ -589,10 +530,6 @@ export class MessagesService {
 
     return { ok: true, isSolution: input.mark };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /channels/:id/messages/:msgId/history — V2 G2.7 edit revisions
-  // ──────────────────────────────────────────────────────────
 
   async history(uid: string, channelId: string, msgId: string) {
     const msg = await this.prisma.study_group_message.findUnique({
@@ -622,7 +559,6 @@ export class MessagesService {
       select: { id: true, content: true, edited_at: true },
     });
 
-    // Compose timeline: current trên cùng, revisions sau
     return {
       current: {
         content: msg.content,
@@ -637,11 +573,6 @@ export class MessagesService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET/POST /channels/:id/messages/:msgId/thread
-  // ──────────────────────────────────────────────────────────
-
-  /** Verify quyền + load context thread. null → 403. */
   private async loadThreadCtx(channelId: string, msgId: string, uid: string) {
     const ch = await this.prisma.study_group_channel.findUnique({ where: { id: channelId } });
     if (!ch) return null;
@@ -656,7 +587,6 @@ export class MessagesService {
     return { channel: ch, member, root };
   }
 
-  /** Map row → shape thread GET (CÓ threadRootId + isSolution, khác list GET). */
   private toThreadMessageDto(r: MessageWithAuthor) {
     return {
       id: r.id,
@@ -685,7 +615,6 @@ export class MessagesService {
     const ctx = await this.loadThreadCtx(channelId, msgId, uid);
     if (!ctx) throw new HttpException({ error: 'Forbidden' }, 403);
 
-    // Replies: nơi thread_root_id = msgId
     const replies = await this.prisma.study_group_message.findMany({
       where: { thread_root_id: msgId },
       orderBy: { created_at: 'asc' },
@@ -708,7 +637,6 @@ export class MessagesService {
     if (!ctx) throw new HttpException({ error: 'Forbidden' }, 403);
     const { member, root } = ctx;
 
-    // Không reply vào thread của message đã xoá hoặc reply lồng trong thread
     if (root.deleted_at) {
       throw new HttpException({ error: 'Message gốc đã bị xoá' }, 400);
     }
@@ -725,7 +653,6 @@ export class MessagesService {
     const parsed = threadReplySchema.safeParse(raw);
     if (!parsed.success) throw new HttpException({ error: parsed.error.flatten() }, 400);
 
-    // Insert reply + update root.thread_count atomically
     const result = await this.prisma.$transaction(async (tx) => {
       const reply = await tx.study_group_message.create({
         data: {
@@ -747,7 +674,6 @@ export class MessagesService {
         data: {
           thread_count: { increment: 1 },
           thread_last_at: reply.created_at,
-          // V2 G6.3: reply mới vào archived thread → auto-unarchive
           archived_at: null,
         },
       });
@@ -766,9 +692,8 @@ export class MessagesService {
       attachments: result.attachments,
       createdAt: result.created_at,
     };
-    // Broadcast: channel để update thread count badge + render reply trong panel
     void triggerEvent(`private-channel-${channelId}`, 'thread:new-reply', payload);
 
-    return { reply: payload }; // 201
+    return { reply: payload };
   }
 }

@@ -1,9 +1,3 @@
-/**
- * GamificationService — leaderboard (ZSET precompute + fallback DB) và
- * analytics 30 ngày. Port từ lib/leaderboard/get-leaderboard.ts +
- * lib/analytics/get-user-analytics.ts — cùng ZSET `LB_XP`, cùng cache key,
- * cùng SQL aggregate nên kết quả y hệt đường cũ.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { cached } from '@cogniva/server-core/cache/cache-aside';
@@ -36,11 +30,9 @@ export type AnalyticsData = {
 export class GamificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Top N theo XP (chỉ user public). ZSET trước, cold/lỗi → DB + lazy backfill. */
   async getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
     const capped = Math.min(limit, 100);
 
-    // 1) ZSET — buffer ×3 bù lọc isPublic + user đã xoá.
     const top = await lbTop(capped * 3);
     if (top && top.length > 0) {
       const ids = top.map((t) => t.userId);
@@ -57,7 +49,7 @@ export class GamificationService {
       });
 
       return hydrated
-        .map((r) => ({ ...r, xp: xpMap.get(r.user_id) ?? 0 })) // XP "live" từ ZSET
+        .map((r) => ({ ...r, xp: xpMap.get(r.user_id) ?? 0 }))
         .sort((a, b) => b.xp - a.xp)
         .slice(0, capped)
         .map((r, idx) => ({
@@ -72,7 +64,6 @@ export class GamificationService {
         }));
     }
 
-    // 2) ZSET cold → DB gốc + lazy backfill (fire-and-forget).
     const rows = await this.prisma.user_stats.findMany({
       where: { user: { is_public: true } },
       orderBy: { xp: 'desc' },
@@ -104,13 +95,17 @@ export class GamificationService {
     await lbBackfill(all.map((r) => ({ userId: r.user_id, xp: r.xp })));
   }
 
-  /** Analytics usage+cost 30 ngày — TTL 300s, bust qua onAnalyticsChanged. */
   async getUserAnalytics(userId: string): Promise<AnalyticsData> {
     return cached(ck.analytics(userId), 300, () => this.fetchUserAnalytics(userId));
   }
 
   private async fetchUserAnalytics(userId: string): Promise<AnalyticsData> {
-    type AggRow = { total_messages: number; total_prompt: number; total_completion: number; total_cost: string };
+    type AggRow = {
+      total_messages: number;
+      total_prompt: number;
+      total_completion: number;
+      total_cost: string;
+    };
     type DayRow = { day: string; messages: number; cost: string };
     type ModelRow = { model: string; messages: number; cost: string };
 
@@ -152,14 +147,27 @@ export class GamificationService {
         ORDER BY cost DESC`),
     ]);
 
-    const agg = aggRows[0] ?? { total_messages: 0, total_prompt: 0, total_completion: 0, total_cost: '0' };
+    const agg = aggRows[0] ?? {
+      total_messages: 0,
+      total_prompt: 0,
+      total_completion: 0,
+      total_cost: '0',
+    };
     return {
       totalMessages: Number(agg.total_messages),
       totalPromptTokens: Number(agg.total_prompt),
       totalCompletionTokens: Number(agg.total_completion),
       totalCostUsd: Number(agg.total_cost),
-      last7Days: days.map((d) => ({ date: d.day, messages: Number(d.messages), costUsd: Number(d.cost) })),
-      byModel: byModel.map((m) => ({ model: m.model, messages: Number(m.messages), costUsd: Number(m.cost) })),
+      last7Days: days.map((d) => ({
+        date: d.day,
+        messages: Number(d.messages),
+        costUsd: Number(d.cost),
+      })),
+      byModel: byModel.map((m) => ({
+        model: m.model,
+        messages: Number(m.messages),
+        costUsd: Number(m.cost),
+      })),
     };
   }
 }

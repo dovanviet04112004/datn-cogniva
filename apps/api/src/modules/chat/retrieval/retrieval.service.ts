@@ -1,21 +1,3 @@
-/**
- * RetrievalService — full RAG pipeline cho chat, port từ apps/web/src/lib:
- *   retrieval/index.ts (vector pgvector) + retrieval/bm25.ts (Postgres FTS) +
- *   retrieval/advanced.ts (orchestrator) + chat/pipeline.ts (buildChatContext)
- *   + chat/system-prompt.ts (buildSystemPrompt).
- *
- * Pipeline advanced (default mọi chat, RETRIEVAL_MODE=basic để về vector thuần):
- *   1. HyDE        query → LLM sinh hypothetical answer (router ragChat)
- *   2. Embed       embed HYPOTHETICAL (không phải query gốc) — Voyage inputType 'query'
- *   3. Hybrid      vector top-30 ⊕ BM25 top-30 (song song)
- *   4. RRF merge   k=60
- *   5. Cohere      rerank cross-encoder → top-15 (REST, fail-open)
- *   6. MMR         λ=0.7 → top-5 đa dạng, strip embedding khỏi output
- *
- * Failure isolation giữ nguyên web: mỗi stage fallback graceful, pipeline
- * không crash giữa chừng. SQL qua Prisma $queryRaw — semantics + filter
- * (user_id + status READY + workspace + documentIds) copy nguyên Drizzle cũ.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -30,49 +12,33 @@ import { rerankChunks } from './rerank';
 import { reciprocalRankFusion } from './rrf';
 
 export type RetrievedChunk = {
-  /** ID chunk trong DB. */
   id: string;
-  /** Nội dung chunk. */
   content: string;
-  /** ID document gốc — dùng để load file/metadata khi UI cần. */
   documentId: string;
-  /** Tên file để hiển thị citation. */
   filename: string;
-  /** Trang trong PDF (1-indexed) nếu có. */
   page: number | null;
-  /** Cosine similarity score (0..1) — hoặc score từ stage hiện tại. */
   score: number;
-  /** Embedding 1024-dim — chỉ có khi includeEmbedding=true (cho MMR). */
   embedding?: number[];
 };
 
 export type RetrievalMode = 'basic' | 'advanced';
 
 export type ChatContext = {
-  /** Chunks đã retrieve top-K, sort theo similarity giảm dần. */
   chunks: RetrievedChunk[];
-  /** System prompt đã được augment với chunks. */
   systemPrompt: string;
-  /** Latency của retrieval (ms). */
   retrievalMs: number;
-  /** Mode đã dùng. */
   mode: RetrievalMode;
-  /** HyDE hypothetical answer (chỉ khi mode='advanced'). */
   hypothetical?: string;
-  /** Per-stage timings của advanced — chỉ khi mode='advanced'. */
   timings?: Record<string, number>;
 };
 
 export type BuildContextOptions = {
   query: string;
   userId: string;
-  /** Plan của user — HyDE đi qua router nên cần cho guardrail. */
   plan: Plan;
   workspaceId?: string;
-  /** Document-level pin: retrieval chỉ search trong các doc này. */
   documentIds?: string[];
   topK?: number;
-  /** Override mode (mặc định env RETRIEVAL_MODE, fallback 'advanced'). */
   mode?: RetrievalMode;
 };
 
@@ -104,28 +70,20 @@ const RRF_K = 60;
 const RERANK_TOP = 15;
 const MMR_LAMBDA = 0.7;
 
-/** Parse pgvector text format `'[1,2,3]'` → number[] (format JSON-like). */
 function parseVectorText(text: string): number[] {
   return JSON.parse(text) as number[];
 }
 
-/** Đọc retrieval mode từ env. Default 'advanced'. */
 export function pickRetrievalMode(): RetrievalMode {
   const env = process.env.RETRIEVAL_MODE;
   if (env === 'basic' || env === 'advanced') return env;
   return 'advanced';
 }
 
-/**
- * Build system prompt tutor — port nguyên văn chat/system-prompt.ts.
- * 0 chunks → general-knowledge mode; có chunks → context block + citation
- * rules BẮT BUỘC [N] ASCII brackets (UI parser chỉ nhận ASCII, cấm 【】).
- */
 export function buildSystemPrompt(chunks: RetrievedChunk[]): string {
   const today = new Date().toISOString().split('T')[0];
 
   if (chunks.length === 0) {
-    // Không có tài liệu nào match → tutor mode general
     return `You are Cogniva, an AI tutor specialized in clear, first-principles teaching.
 
 The user hasn't uploaded relevant documents for this question yet, so answer from your general knowledge — but be honest about that. Recommend they upload sources for grounded answers.
@@ -175,7 +133,6 @@ export class RetrievalService {
     private readonly router: RouterService,
   ) {}
 
-  /** Build chat context cho streamText — wrapper retrieve → system prompt. */
   async buildChatContext(opts: BuildContextOptions): Promise<ChatContext> {
     const mode = opts.mode ?? pickRetrievalMode();
     const topK = opts.topK ?? 5;
@@ -200,7 +157,6 @@ export class RetrievalService {
       };
     }
 
-    // Basic mode (Phase 2 fallback)
     const start = Date.now();
     const queryEmbedding = await this.embedding.embedQuery(opts.query);
     const chunks = await this.retrieveChunks({
@@ -218,10 +174,6 @@ export class RetrievalService {
     };
   }
 
-  /**
-   * Chạy full advanced pipeline. Chunks output không kèm embedding (strip
-   * để giảm payload). Per-stage timings giữ nguyên cho debug/dashboard.
-   */
   private async advancedRetrieve(opts: {
     query: string;
     userId: string;
@@ -234,17 +186,12 @@ export class RetrievalService {
 
     const t0 = Date.now();
 
-    // Stage 1: HyDE
     const hypothetical = await generateHypotheticalAnswer(this.router, query, { userId, plan });
     const t1 = Date.now();
 
-    // Stage 2: Embed (dùng hypothetical thay vì query gốc — khác biệt then
-    // chốt của HyDE so với baseline RAG)
     const queryEmbedding = await this.embedding.embedQuery(hypothetical);
     const t2 = Date.now();
 
-    // Stage 3: Hybrid — chạy song song để tiết kiệm latency.
-    // includeEmbedding=true để MMR có sẵn vector tính diversity cuối pipeline
     const [vectorHits, bm25Hits] = await Promise.all([
       this.retrieveChunks({
         queryEmbedding,
@@ -265,30 +212,25 @@ export class RetrievalService {
     ]);
     const t3 = Date.now();
 
-    // Stage 4: RRF merge (synchronous, micro)
     const merged = reciprocalRankFusion([vectorHits, bm25Hits], {
       k: RRF_K,
       topK: VECTOR_CANDIDATES + BM25_CANDIDATES,
     });
 
-    // Stage 5: Cohere rerank → keep top RERANK_TOP cho MMR có chỗ cắt
     const reranked = await rerankChunks({ query, documents: merged, topN: RERANK_TOP });
     const t4 = Date.now();
 
-    // Stage 6: MMR — cần embedding. Lọc chunks có embedding rồi feed.
     let final: RetrievedChunk[];
-    const withEmbedding: ChunkWithEmbedding[] = reranked.filter(
-      (c): c is ChunkWithEmbedding => Array.isArray(c.embedding),
+    const withEmbedding: ChunkWithEmbedding[] = reranked.filter((c): c is ChunkWithEmbedding =>
+      Array.isArray(c.embedding),
     );
     if (withEmbedding.length >= topK) {
       const diverse = mmrFilter(queryEmbedding, withEmbedding, {
         lambda: MMR_LAMBDA,
         topN: topK,
       });
-      // Strip embedding khỏi output — không expose ra client
       final = diverse.map(({ embedding: _e, ...rest }) => rest);
     } else {
-      // Fallback: rerank trả ít hơn topK chunks có embedding → dùng nguyên
       final = reranked.slice(0, topK).map(({ embedding: _e, ...rest }) => rest);
     }
     const t5 = Date.now();
@@ -307,10 +249,6 @@ export class RetrievalService {
     };
   }
 
-  /**
-   * Vector search pgvector: `embedding <=> $1::vector` cosine distance,
-   * score = 1 - distance/2 ∈ [0,1]. JOIN document check user_id + READY.
-   */
   private async retrieveChunks(opts: RetrieveOptions): Promise<RetrievedChunk[]> {
     const {
       queryEmbedding,
@@ -321,7 +259,6 @@ export class RetrievalService {
       includeEmbedding = false,
     } = opts;
 
-    // pgvector format: '[0.1,0.2,...]'
     const vectorLiteral = `[${queryEmbedding.join(',')}]`;
 
     const embeddingSelect = includeEmbedding
@@ -367,17 +304,11 @@ export class RetrievalService {
       documentId: r.document_id,
       filename: r.filename,
       page: r.page,
-      // Cosine distance ∈ [0, 2]; convert sang similarity score [0, 1]
       score: Math.max(0, 1 - Number(r.distance) / 2),
       ...(includeEmbedding && r.embedding ? { embedding: parseVectorText(r.embedding) } : {}),
     }));
   }
 
-  /**
-   * BM25-like full-text: to_tsvector('english') @@ websearch_to_tsquery +
-   * ts_rank_cd flag 32 (norm ∈ [0,1)) — hit GIN index sẵn trong schema.
-   * Score KHÔNG trộn trực tiếp với cosine — phải qua RRF.
-   */
   private async bm25Search(opts: {
     query: string;
     userId: string;
@@ -386,14 +317,7 @@ export class RetrievalService {
     documentIds?: string[];
     includeEmbedding?: boolean;
   }): Promise<RetrievedChunk[]> {
-    const {
-      query,
-      userId,
-      topK = 30,
-      workspaceId,
-      documentIds,
-      includeEmbedding = false,
-    } = opts;
+    const { query, userId, topK = 30, workspaceId, documentIds, includeEmbedding = false } = opts;
 
     const cleaned = query.trim();
     if (!cleaned) return [];
@@ -446,15 +370,11 @@ export class RetrievalService {
       documentId: r.document_id,
       filename: r.filename,
       page: r.page,
-      score: Number(r.rank), // ts_rank_cd với norm 32 ∈ [0, 1)
+      score: Number(r.rank),
       ...(includeEmbedding && r.embedding ? { embedding: parseVectorText(r.embedding) } : {}),
     }));
   }
 
-  /**
-   * Document-level filter khi user pin tài liệu — Postgres ARRAY literal
-   * '{...}'::text[], escape `"` trong UUID (safe-guard, copy nguyên web).
-   */
   private buildDocumentFilter(documentIds?: string[]): Prisma.Sql {
     if (!documentIds || documentIds.length === 0) return Prisma.empty;
     const literal = `{${documentIds.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')}}`;

@@ -1,12 +1,3 @@
-/**
- * PosthogProvider — wrap app để init posthog-js + capture pageview tự động.
- *
- * Mặc định posthog-js autoCapture click/input → đủ cho v1 analytics.
- * Track pageview thủ công qua Next.js navigation event (App Router không
- * có route-change event sẵn → dùng usePathname).
- *
- * No-op nếu thiếu NEXT_PUBLIC_POSTHOG_KEY (dev mode).
- */
 'use client';
 
 import * as React from 'react';
@@ -21,7 +12,7 @@ function initOnce() {
   if (inited || !KEY || typeof window === 'undefined') return;
   posthog.init(KEY, {
     api_host: HOST,
-    capture_pageview: false, // tự track qua usePathname để chính xác hơn
+    capture_pageview: false,
     persistence: 'localStorage',
     autocapture: true,
   });
@@ -36,7 +27,6 @@ export function PosthogProvider({ children }: { children: React.ReactNode }) {
     initOnce();
   }, []);
 
-  // Track pageview khi pathname đổi
   React.useEffect(() => {
     if (!KEY) return;
     const url = pathname + (search?.toString() ? `?${search.toString()}` : '');

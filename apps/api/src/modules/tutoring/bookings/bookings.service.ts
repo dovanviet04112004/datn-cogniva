@@ -1,26 +1,22 @@
-/**
- * TutoringBookingsService — MODULE TIỀN, port từng dòng từ
- * apps/web/src/app/api/tutoring/{bookings/**,payments/**,payouts,calendar/me,ical/[token]}.
- *
- * Semantics tiền giữ NGUYÊN bản cũ:
- *  - confirm: transaction (group + booking CONFIRMED + payment STUB auto-CAPTURED).
- *  - cancel: refundPayment gọi NGOÀI transaction (HTTP không giữ lock) — refund
- *    fail thì booking VẪN CANCELLED, payment giữ CAPTURED chờ admin manual.
- *  - complete: escrow_release_at = now + 7 ngày (mốc payout released).
- *  - payouts: released so sánh NOW() phía DB; check withdrawable rồi insert
- *    KHÔNG khoá (race y bản cũ — không tự sửa).
- */
 import { randomUUID } from 'node:crypto';
 import { HttpException, Injectable } from '@nestjs/common';
-import { Prisma, type tutor_payout, type tutor_review, type tutoring_booking } from '@prisma/client';
+import {
+  Prisma,
+  type tutor_payout,
+  type tutor_review,
+  type tutoring_booking,
+} from '@prisma/client';
 import { z } from 'zod';
 import { onTutoringMineChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../../infra/database/prisma.service';
 import type { AuthUser } from '../../../common/auth/session.types';
-import { PaymentProviderService, type PaymentProviderName } from '../../payments/payment-provider.service';
+import {
+  PaymentProviderService,
+  type PaymentProviderName,
+} from '../../payments/payment-provider.service';
 import { NotificationsService } from '../../notifications/notifications.service';
-import { SUBJECT_BY_SLUG } from '../../library/subject-taxonomy';
+import { SUBJECT_BY_SLUG } from '../../../common/subject-taxonomy';
 import { BookingHelpersService, evaluateCancelPolicy } from './booking-helpers.service';
 import { buildIcsFeed, type IcalEvent } from './ical';
 
@@ -31,10 +27,6 @@ const CREATE_SCHEMA = z.object({
   startAt: z.string().datetime(),
   endAt: z.string().datetime(),
   studentMessage: z.string().max(500).optional(),
-  /**
-   * V4 T2: trial booking — giảm 50% rate, 1 lần / pair (student, tutor).
-   * Server enforce qua DB partial unique index + app check.
-   */
   isTrial: z.boolean().optional(),
 });
 
@@ -52,7 +44,7 @@ export const INTENT_SCHEMA = z.object({
 });
 
 const PAYOUT_SCHEMA = z.object({
-  amountVnd: z.number().int().min(50000), // tối thiểu 50K
+  amountVnd: z.number().int().min(50000),
   method: z.enum(['BANK_TRANSFER', 'MOMO_WALLET']).default('BANK_TRANSFER'),
   accountDetails: z.object({
     bankName: z.string().optional(),
@@ -77,7 +69,6 @@ type CalendarItem = {
   subjectSlug: string | null;
 };
 
-/** Row tutoring_booking đầy đủ → shape camelCase y drizzle .returning() cũ. */
 function mapBookingRow(row: tutoring_booking) {
   return {
     id: row.id,
@@ -148,10 +139,6 @@ export class TutoringBookingsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  // ──────────────────────────────────────────────────────────
-  // GET /tutoring/bookings
-  // ──────────────────────────────────────────────────────────
-
   async listBookings(userId: string, role: string, upcoming: boolean) {
     const myProfile = await this.prisma.tutor_profile.findUnique({
       where: { user_id: userId },
@@ -165,7 +152,6 @@ export class TutoringBookingsService {
       if (!myProfile) return { bookings: [] };
       roleCond = { tutor_id: myProfile.id };
     } else {
-      // all — union student-side OR tutor-side
       roleCond = myProfile
         ? { OR: [{ student_id: userId }, { tutor_id: myProfile.id }] }
         : { student_id: userId };
@@ -230,11 +216,6 @@ export class TutoringBookingsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/bookings — rate-limit chạy ở controller TRƯỚC parse
-  // (429 ưu tiên 400 như route cũ) nên body parse tay ở đây.
-  // ──────────────────────────────────────────────────────────
-
   async createBooking(userId: string, raw: unknown) {
     const parsed = CREATE_SCHEMA.safeParse(raw);
     if (!parsed.success) {
@@ -254,7 +235,6 @@ export class TutoringBookingsService {
       throw new HttpException({ error: 'Phải book trước ít nhất 1 giờ' }, 400);
     }
 
-    // Tutor tồn tại + PUBLISHED + không phải mình
     const tutor = await this.prisma.tutor_profile.findUnique({
       where: { id: parsed.data.tutorId },
       select: {
@@ -273,14 +253,11 @@ export class TutoringBookingsService {
       throw new HttpException({ error: 'Không thể book chính mình' }, 400);
     }
 
-    // V4 T2: validate trial eligibility
     const isTrial = parsed.data.isTrial === true;
     if (isTrial) {
       if (!tutor.trial_session_enabled) {
         throw new HttpException({ error: 'Gia sư này không bật trial session' }, 400);
       }
-      // Check 1 trial / pair (student, tutor) — partial unique sẽ block insert,
-      // nhưng pre-check để trả error friendly
       const prior = await this.prisma.tutoring_booking.findFirst({
         where: { student_id: userId, tutor_id: tutor.id, is_trial: true },
         select: { id: true },
@@ -291,37 +268,24 @@ export class TutoringBookingsService {
           400,
         );
       }
-      // Trial bắt buộc 30 phút
       if (durationMin !== 30) {
         throw new HttpException({ error: 'Trial chỉ dài 30 phút' }, 400);
       }
     }
 
-    // Slot fit availability
     const fits = await this.helpers.isSlotInAvailability(tutor.id, startAt, endAt);
     if (!fits) {
-      throw new HttpException(
-        { error: 'Khung giờ không nằm trong lịch rảnh của gia sư' },
-        400,
-      );
+      throw new HttpException({ error: 'Khung giờ không nằm trong lịch rảnh của gia sư' }, 400);
     }
 
-    // No conflict
     const conflict = await this.helpers.hasConflictBooking(tutor.id, startAt, endAt);
     if (conflict) {
-      throw new HttpException(
-        { error: 'Khung giờ này đã có booking khác — chọn giờ khác' },
-        409,
-      );
+      throw new HttpException({ error: 'Khung giờ này đã có booking khác — chọn giờ khác' }, 409);
     }
 
-    // Tính rateVnd: per-hour rate × duration hours, trial giảm 50%
     const baseRate = Math.round(tutor.hourly_rate_vnd * (durationMin / 60));
     const rateVnd = isTrial ? Math.round(baseRate / 2) : baseRate;
 
-    // V4 T2: Instant Book — tutor opt-in cho phép student book ngay.
-    // NOTE giữ từ bản cũ: instant-book CONFIRMED nhưng KHÔNG auto-create study
-    // group ở đây — studyGroupId=null tới khi /confirm được gọi (gap V4.1).
     const status = tutor.instant_book_enabled ? 'CONFIRMED' : 'PENDING_TUTOR';
     const confirmedAt = tutor.instant_book_enabled ? new Date() : null;
 
@@ -342,16 +306,11 @@ export class TutoringBookingsService {
       },
     });
 
-    // Booking mới hiện ở "Đơn học sắp tới" của CẢ student + tutor → xoá cache mine cả hai.
     await onTutoringMineChanged(userId);
     await onTutoringMineChanged(tutor.user_id);
 
     return { booking: mapBookingRow(created), instantBooked: tutor.instant_book_enabled };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /tutoring/bookings/:id
-  // ──────────────────────────────────────────────────────────
 
   async getBooking(userId: string, id: string) {
     const row = await this.prisma.tutoring_booking.findUnique({
@@ -445,12 +404,7 @@ export class TutoringBookingsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/bookings/:id/confirm
-  // ──────────────────────────────────────────────────────────
-
   async confirmBooking(userId: string, id: string) {
-    // Booking + tutor + student user info — fetch sẵn ngoài transaction
     const row = await this.prisma.tutoring_booking.findUnique({
       where: { id },
       select: {
@@ -479,7 +433,6 @@ export class TutoringBookingsService {
     const subjectName = SUBJECT_BY_SLUG[row.subject_slug]?.name ?? row.subject_slug;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Create study group + channels
       const group = await this.helpers.autoCreateBookingGroup(tx, {
         bookingId: row.id,
         tutorUserId,
@@ -487,7 +440,6 @@ export class TutoringBookingsService {
         subjectName,
       });
 
-      // 2. Update booking
       const updated = await tx.tutoring_booking.update({
         where: { id: row.id },
         data: {
@@ -497,9 +449,7 @@ export class TutoringBookingsService {
         },
       });
 
-      // 3. Create payment STUB — V3 wire VNPay thật ở bước intent riêng.
-      // Stub auto-CAPTURED ngay để dev test full flow không cần payment gateway.
-      const fee = Math.round(row.rate_vnd * 0.1); // 10% Cogniva commission
+      const fee = Math.round(row.rate_vnd * 0.1);
       const orderCode = `BK-${row.id.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
       await tx.tutoring_payment.create({
         data: {
@@ -512,7 +462,6 @@ export class TutoringBookingsService {
           order_code: orderCode,
           status: 'CAPTURED',
           captured_at: new Date(),
-          // Escrow release 7 ngày sau completedAt — tính lúc complete
           escrow_release_at: null,
           raw_response: { mode: 'dev-stub', note: 'auto-captured on confirm' },
         },
@@ -521,11 +470,9 @@ export class TutoringBookingsService {
       return { booking: mapBookingRow(updated), group };
     });
 
-    // Status PENDING→CONFIRMED đổi "Đơn học sắp tới" của CẢ student + tutor → xoá cache mine cả hai.
     await onTutoringMineChanged(row.student_id);
     await onTutoringMineChanged(tutorUserId);
 
-    // Thông báo cho học viên: gia sư đã xác nhận (realtime, non-blocking).
     void this.notifications
       .createNotification({
         userId: row.student_id,
@@ -538,10 +485,6 @@ export class TutoringBookingsService {
 
     return result;
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/bookings/:id/cancel
-  // ──────────────────────────────────────────────────────────
 
   async cancelBooking(user: AuthUser, id: string, body: z.infer<typeof CANCEL_SCHEMA>) {
     const userId = user.id;
@@ -573,7 +516,6 @@ export class TutoringBookingsService {
       throw new HttpException({ error: 'Buổi đã bắt đầu — không huỷ được' }, 400);
     }
 
-    // Apply policy chỉ với CONFIRMED — PENDING_TUTOR luôn free.
     let policyNote: string | null = null;
     if (row.status === 'CONFIRMED') {
       const policy = evaluateCancelPolicy(row.start_at, row.rate_vnd);
@@ -583,7 +525,6 @@ export class TutoringBookingsService {
       policyNote = policy.reason;
     }
 
-    // Lookup payment để gọi refund nếu đã CAPTURED (chỉ provider thật cần)
     const pay = await this.prisma.tutoring_payment.findUnique({
       where: { booking_id: row.id },
       select: {
@@ -596,9 +537,6 @@ export class TutoringBookingsService {
       },
     });
 
-    // Gọi provider refund (ngoài transaction để fetch HTTP không block lock).
-    // STUB: ok ngay; VNPAY/MOMO: call API, nếu fail → trả về error nhưng vẫn
-    // cancel booking (admin sẽ refund manual + flag DB sau).
     let refundNote: string | null = null;
     let refundOk = true;
     if (pay && pay.status === 'CAPTURED') {
@@ -626,8 +564,6 @@ export class TutoringBookingsService {
       });
 
       if (pay && pay.status === 'CAPTURED' && refundOk) {
-        // Provider OK → flag DB REFUNDED. Nếu refund fail trên VNPay/MoMo →
-        // giữ status cũ, admin sẽ xử lý manual (refundNote trả về client).
         await tx.tutoring_payment.updateMany({
           where: { id: pay.id },
           data: { status: 'REFUNDED', refunded_at: new Date() },
@@ -635,11 +571,9 @@ export class TutoringBookingsService {
       }
     });
 
-    // Booking CANCELLED đổi "Đơn học sắp tới" của CẢ student + tutor → xoá cache mine cả hai.
     await onTutoringMineChanged(row.student_id);
     await onTutoringMineChanged(tutorUserId);
 
-    // Thông báo cho bên CÒN LẠI (người không bấm huỷ) — realtime.
     const recipientUserId = isStudent ? tutorUserId : row.student_id;
     void this.notifications
       .createNotification({
@@ -659,10 +593,6 @@ export class TutoringBookingsService {
       refund: pay ? { ok: refundOk, message: refundNote } : null,
     };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/bookings/:id/complete
-  // ──────────────────────────────────────────────────────────
 
   async completeBooking(userId: string, id: string) {
     const row = await this.prisma.tutoring_booking.findUnique({
@@ -697,8 +627,6 @@ export class TutoringBookingsService {
         where: { id: row.id },
         data: { status: 'COMPLETED', completed_at: now },
       });
-      // Bản cũ update theo bookingId không điều kiện tồn tại → updateMany no-op
-      // nếu booking chưa có payment (không throw P2025).
       await tx.tutoring_payment.updateMany({
         where: { booking_id: row.id },
         data: { escrow_release_at: escrowReleaseAt },
@@ -707,12 +635,9 @@ export class TutoringBookingsService {
 
     await this.helpers.refreshTutorStats(row.tutor_id);
 
-    // COMPLETED gỡ khỏi "Đơn học sắp tới" + tutor profile (sessionsCompleted++) đổi →
-    // xoá cache mine của CẢ student + tutor.
     await onTutoringMineChanged(row.student_id);
     await onTutoringMineChanged(tutorUserId);
 
-    // Thông báo cho học viên: buổi học xong → mời đánh giá (realtime).
     void this.notifications
       .createNotification({
         userId: row.student_id,
@@ -725,10 +650,6 @@ export class TutoringBookingsService {
 
     return { ok: true };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/bookings/:id/review
-  // ──────────────────────────────────────────────────────────
 
   async reviewBooking(userId: string, id: string, body: z.infer<typeof REVIEW_SCHEMA>) {
     const row = await this.prisma.tutoring_booking.findUnique({
@@ -744,7 +665,6 @@ export class TutoringBookingsService {
       throw new HttpException({ error: 'Chỉ review được buổi đã COMPLETED' }, 400);
     }
 
-    // Check trùng — unique(bookingId)
     const existing = await this.prisma.tutor_review.findUnique({
       where: { booking_id: id },
       select: { id: true },
@@ -766,7 +686,6 @@ export class TutoringBookingsService {
         },
       });
     } catch (err) {
-      // Race check-then-insert: unique(booking_id) backstop → 409 như pre-check.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new HttpException({ error: 'Bạn đã review buổi này' }, 409);
       }
@@ -778,17 +697,10 @@ export class TutoringBookingsService {
     return { review: mapReviewRow(created) };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /tutoring/calendar/me
-  // ──────────────────────────────────────────────────────────
-
   async calendarMe(userId: string, from?: string, to?: string) {
     const fromDate = from ? new Date(from) : new Date();
-    const toDate = to
-      ? new Date(to)
-      : new Date(fromDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const toDate = to ? new Date(to) : new Date(fromDate.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-    // 1. Get my tutor profile (if any) — quyết định query range
     const myProfile = await this.prisma.tutor_profile.findUnique({
       where: { user_id: userId },
       select: { id: true },
@@ -796,7 +708,6 @@ export class TutoringBookingsService {
 
     const items: CalendarItem[] = [];
 
-    // 2. Bookings — user là student hoặc tutor (fail-open per-source như bản cũ)
     try {
       const bookingWhere: Prisma.tutoring_bookingWhereInput = myProfile
         ? { OR: [{ student_id: userId }, { tutor_id: myProfile.id }] }
@@ -842,7 +753,6 @@ export class TutoringBookingsService {
       console.error('[calendar.bookings]', err);
     }
 
-    // 3. Class enrollments — user là student trong class
     try {
       const enrollments = await this.prisma.tutoring_class_enrollment.findMany({
         where: { student_id: userId, status: 'ENROLLED' },
@@ -866,8 +776,6 @@ export class TutoringBookingsService {
         });
 
         for (const c of classes) {
-          // Class start time = startDate + 08:00 default (V4.1: parse schedule_slots).
-          // Prisma @db.Date trả Date UTC-midnight — format lại YYYY-MM-DD như cột text Drizzle cũ.
           const dateStr = c.start_date.toISOString().slice(0, 10);
           const startAt = new Date(`${dateStr}T08:00:00.000Z`);
           if (Number.isNaN(startAt.getTime())) continue;
@@ -891,7 +799,6 @@ export class TutoringBookingsService {
       console.error('[calendar.classes]', err);
     }
 
-    // 4. Blocked time — chỉ tutor owner mới thấy
     if (myProfile) {
       try {
         const blocked = await this.prisma.tutor_blocked_time.findMany({
@@ -925,10 +832,6 @@ export class TutoringBookingsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /tutoring/ical/:token — public, trả text/calendar (không JSON)
-  // ──────────────────────────────────────────────────────────
-
   async buildIcalFeedForToken(
     token: string,
   ): Promise<{ error: string; status: number } | { ics: string }> {
@@ -936,7 +839,6 @@ export class TutoringBookingsService {
       return { error: 'Invalid token', status: 400 };
     }
 
-    // Tìm token thuộc tutor hay student
     const tutor = await this.prisma.tutor_profile.findFirst({
       where: { ical_token: token },
       select: { id: true, user_id: true },
@@ -967,7 +869,6 @@ export class TutoringBookingsService {
       },
     });
 
-    // Filter trong window + status CONFIRMED / IN_PROGRESS / PENDING_TUTOR (in-JS như bản cũ)
     const events: IcalEvent[] = bookings
       .filter(
         (b) =>
@@ -983,7 +884,6 @@ export class TutoringBookingsService {
         description: `Booking #${b.id} (${b.status})`,
         startAt: b.start_at,
         endAt: b.end_at,
-        // api .env không có NEXT_PUBLIC_* — APP_URL là origin web (setup-env ghi).
         url: `${process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? ''}/tutoring/bookings/${b.id}`,
       }));
 
@@ -993,10 +893,6 @@ export class TutoringBookingsService {
 
     return { ics: buildIcsFeed({ title, events }) };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/payments/intent
-  // ──────────────────────────────────────────────────────────
 
   async createIntent(userId: string, body: z.infer<typeof INTENT_SCHEMA>) {
     const booking = await this.prisma.tutoring_booking.findUnique({
@@ -1018,7 +914,6 @@ export class TutoringBookingsService {
       throw new HttpException({ error: `Booking ${booking.status} — không tạo intent` }, 400);
     }
 
-    // Idempotent — nếu payment CAPTURED rồi return URL stub luôn
     const existing = await this.prisma.tutoring_payment.findUnique({
       where: { booking_id: booking.id },
       select: { id: true, status: true, order_code: true, provider: true },
@@ -1035,11 +930,10 @@ export class TutoringBookingsService {
       };
     }
 
-    // Build orderCode unique
     const orderCode =
-      existing?.order_code ?? `BK-${booking.id.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
+      existing?.order_code ??
+      `BK-${booking.id.slice(0, 8)}-${Date.now().toString(36).toUpperCase()}`;
 
-    // Insert/upsert payment row
     let paymentId: string;
     if (existing) {
       paymentId = existing.id;
@@ -1062,9 +956,6 @@ export class TutoringBookingsService {
       });
     }
 
-    // Call provider — bản cũ lấy origin từ request.url (origin web cùng máy);
-    // sau proxy strangler Host header là API nội bộ nên dùng APP_URL (origin
-    // user-facing) thay vì reconstruct từ request.
     const origin = process.env.APP_URL ?? 'http://localhost:3000';
     const returnUrl = `${origin}/tutoring/bookings/${booking.id}`;
     const intent = await this.provider.createPaymentIntent({
@@ -1074,7 +965,6 @@ export class TutoringBookingsService {
       returnUrl,
     });
 
-    // Update payment row with resolved provider + raw request
     await this.prisma.tutoring_payment.update({
       where: { id: paymentId },
       data: {
@@ -1090,10 +980,6 @@ export class TutoringBookingsService {
       provider: intent.resolvedProvider,
     };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /tutoring/payments/:id/capture — CHỈ provider STUB
-  // ──────────────────────────────────────────────────────────
 
   async capturePayment(userId: string, id: string) {
     const pay = await this.prisma.tutoring_payment.findUnique({
@@ -1137,10 +1023,6 @@ export class TutoringBookingsService {
     return { ok: true, captured: true };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET + POST /tutoring/payouts
-  // ──────────────────────────────────────────────────────────
-
   private async getMyTutor(userId: string) {
     const row = await this.prisma.tutor_profile.findUnique({
       where: { user_id: userId },
@@ -1149,10 +1031,6 @@ export class TutoringBookingsService {
     return row ? { id: row.id, verificationStatus: row.verification_status } : null;
   }
 
-  /**
-   * Earnings summary — aggregate raw SQL như bản cũ: released so sánh
-   * escrow_release_at <= NOW() phía DB (DB time, không phải app time).
-   */
   private async computeEarnings(tutorId: string) {
     const earnedRow = await this.prisma.$queryRaw<Array<{ total: number; released: number }>>(
       Prisma.sql`
@@ -1212,7 +1090,6 @@ export class TutoringBookingsService {
     return { tutor: mine, payouts: payouts.map(mapPayoutRow), summary };
   }
 
-  /** POST payouts — 403 tutor/KYC check TRƯỚC body parse (giữ thứ tự bản cũ). */
   async requestPayout(userId: string, raw: unknown) {
     const mine = await this.getMyTutor(userId);
     if (!mine) {

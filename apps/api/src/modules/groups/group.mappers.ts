@@ -1,8 +1,3 @@
-/**
- * Mapper row Prisma (snake_case) → wire shape route cũ (camelCase, ĐÚNG thứ tự
- * cột khai báo trong Drizzle schema — packages/db/src/schema.ts) để JSON
- * byte-identical với `.returning()`/`db.select()` của route Next.
- */
 import type {
   study_group as StudyGroupRow,
   study_group_category as CategoryRow,

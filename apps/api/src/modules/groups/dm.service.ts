@@ -1,10 +1,3 @@
-/**
- * DmService — DM 1-1 thread + messages. Port từ apps/web/src/app/api/dm/**
- * (kèm helper apps/web/src/lib/group/dm.ts) — GIỮ NGUYÊN wire shape/status/
- * message; realtime `private-dm-{threadId}` message:new + badge
- * `presence-user-{peerId}` dm:new-message y cũ; chuông gộp 1 dòng/thread
- * (xoá unread cũ cùng thread trước khi insert).
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -25,14 +18,10 @@ import { dmMessageSchema, type CreateDmThreadInput } from './dto/dm.dto';
 
 const LIST_LIMIT_MAX = 100;
 
-/* ── DM helpers — port từ apps/web/src/lib/group/dm.ts ───────────────────── */
-
-/** Trả [smaller, larger] theo lexicographic — unique cặp không phụ thuộc thứ tự. */
 function orderUserIds(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
 }
 
-/** True nếu uid là 1 trong 2 thành viên của thread. */
 function isThreadMember(thread: DmThreadRow, uid: string): boolean {
   return thread.user1_id === uid || thread.user2_id === uid;
 }
@@ -44,17 +33,12 @@ export class DmService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  /** Thread tồn tại + uid là member — null nếu không (caller trả 403). */
   private async loadThread(threadId: string, uid: string) {
     const t = await this.prisma.dm_thread.findUnique({ where: { id: threadId } });
     if (!t) return null;
     if (!isThreadMember(t, uid)) return null;
     return t;
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /dm — list threads sorted lastMessageAt DESC, kèm peer info
-  // ──────────────────────────────────────────────────────────
 
   async listThreads(uid: string) {
     const rows = await this.prisma.dm_thread.findMany({
@@ -69,7 +53,6 @@ export class DmService {
       },
     });
 
-    // Resolve peer info — batch query
     const peerIds = rows.map((r) => (r.user1_id === uid ? r.user2_id : r.user1_id));
     const peers = peerIds.length
       ? await this.prisma.user.findMany({
@@ -93,18 +76,12 @@ export class DmService {
     return { threads };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /dm — upsert thread (idempotent). Route cũ bọc try/catch toàn handler
-  // → lỗi bất ngờ thành 500 "DM endpoint crash: ..." (giữ nguyên hành vi).
-  // ──────────────────────────────────────────────────────────
-
   async createThread(uid: string, input: CreateDmThreadInput) {
     try {
       if (input.peerUserId === uid) {
         throw new BadRequestException({ error: 'Không thể DM chính mình' });
       }
 
-      // Verify peer exists
       const peer = await this.prisma.user.findUnique({
         where: { id: input.peerUserId },
         select: { id: true, name: true, image: true },
@@ -113,7 +90,6 @@ export class DmService {
 
       const [user1Id, user2Id] = orderUserIds(uid, input.peerUserId);
 
-      // Upsert: nếu thread đã có → return 200; chưa → insert 201
       const existing = await this.prisma.dm_thread.findUnique({
         where: { user1_id_user2_id: { user1_id: user1Id, user2_id: user2Id } },
       });
@@ -130,17 +106,12 @@ export class DmService {
 
       return { httpStatus: 201, body: { thread: { id: created.id, peer } } };
     } catch (err) {
-      // Lỗi đã chủ đích (400/404/500 có body riêng) đi thẳng; còn lại bọc 500.
       if (err instanceof HttpException) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[api/dm POST] FAIL', err);
       throw new HttpException({ error: 'DM endpoint crash: ' + msg }, 500);
     }
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /dm/:threadId/messages — cursor pagination (before + limit)
-  // ──────────────────────────────────────────────────────────
 
   async listMessages(uid: string, threadId: string, beforeId: string | null, limitRaw?: string) {
     const t = await this.loadThread(threadId, uid);
@@ -196,10 +167,6 @@ export class DmService {
     return { messages: messages.reverse(), hasMore: rows.length === limit };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /dm/:threadId/messages — body parse SAU check thread (403 trước 400)
-  // ──────────────────────────────────────────────────────────
-
   async createMessage(user: AuthUser, threadId: string, raw: unknown) {
     const t = await this.loadThread(threadId, user.id);
     if (!t) throw new ForbiddenException({ error: 'Forbidden' });
@@ -224,7 +191,6 @@ export class DmService {
       throw new InternalServerErrorException({ error: 'Tạo message thất bại' });
     }
 
-    // Update lastMessageAt
     await this.prisma.dm_thread.update({
       where: { id: threadId },
       data: { last_message_at: created.created_at },
@@ -245,7 +211,6 @@ export class DmService {
       createdAt: created.created_at,
     };
     void triggerEvent(`private-dm-${threadId}`, 'message:new', payload);
-    // Notify peer (presence-user-{peerId}) để badge sidebar
     const peerId = t.user1_id === user.id ? t.user2_id : t.user1_id;
     void triggerEvent(`presence-user-${peerId}`, 'dm:new-message', {
       threadId,
@@ -254,12 +219,9 @@ export class DmService {
       preview: created.content.slice(0, 100),
     });
 
-    // Thông báo vào chuông cho peer — GỘP 1 dòng/thread (xoá unread cũ cùng
-    // thread rồi insert mới) để chuông không spam mỗi tin nhắn. Non-blocking.
     const preview = created.content.slice(0, 80) || '📎 Đã gửi tệp';
     void (async () => {
       try {
-        // data->>'threadId' qua raw SQL — copy nguyên semantics filter jsonb cũ
         await this.prisma.$executeRaw(Prisma.sql`
           DELETE FROM notification_log
           WHERE user_id = ${peerId}

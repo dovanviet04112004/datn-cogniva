@@ -1,15 +1,3 @@
-/**
- * ConceptsService — concept (atom) extraction + vector dedup + pivot link.
- * Port từ apps/web/src/lib/concepts/{index,extract,dedup}.ts — GIỮ NGUYÊN
- * prompt từng chữ, threshold dedup, advisory lock chống race tạo concept trùng.
- *
- * Khác bản web (ghi để golden-diff không bất ngờ):
- *   - LLM gọi qua LlmService (provider pick chung) thay vì routedGenerateText
- *     (semantic cache + cost guardrail của router web) — params temperature/
- *     maxTokens giữ y nguyên path không-ctx của lib cũ.
- *   - prerequisite.ts KHÔNG port lại ở đây: mining đã sống trong GraphModule
- *     (graph.service.ts) từ wave trước — tránh 2 bản copy.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -18,13 +6,8 @@ import { EmbeddingService } from '../../infra/ai/embedding.service';
 import { LlmService } from '../../infra/ai/llm.service';
 import { PrismaService } from '../../infra/database/prisma.service';
 
-/** Ngưỡng cosine similarity coi 2 concept là "trùng" (plan §6.1.9). */
 const DEDUP_THRESHOLD = 0.85;
 
-/**
- * Atom-centric prompt (Phase A6) — copy NGUYÊN VĂN từ
- * apps/web/src/lib/concepts/extract.ts. Đổi prompt thì sửa cả 2 chỗ.
- */
 const EXTRACT_INSTRUCTION = `Bạn là chuyên gia trích xuất ATOM kiến thức (đơn vị học tập tối thiểu) cho hệ thống học tập. Đọc đoạn văn dưới đây và liệt kê 1-5 ATOM CÓ TÊN mà đoạn này TRỰC TIẾP nói tới.
 
 QUY TẮC:
@@ -49,9 +32,7 @@ export type ExtractedConcept = {
   name: string;
   description: string;
   domain: string;
-  /** Phase A6: optional vì LLM có thể trả thiếu — forward-compat. */
   difficulty?: number;
-  /** Độ liên quan của chunk này tới atom (0..1) → lưu chunk_concept.strength. */
   strength?: number;
   examples?: string[];
   previewQuestion?: string;
@@ -59,26 +40,16 @@ export type ExtractedConcept = {
 };
 
 export type ExtractStats = {
-  /** Số chunks đã quét. */
   chunksProcessed: number;
-  /** Tổng concept extracted (kể cả trùng). */
   conceptsExtracted: number;
-  /** Số concept_id unique đã link vào chunk_concept. */
   linksCreated: number;
-  /** Số concept extract được nhưng dedup/insert lỗi (Voyage timeout, DB…). */
   failedConcepts: number;
 };
 
-/**
- * Parse pgvector text format `'[1,2,3]'` → number[]. Format JSON-like nên
- * JSON.parse work. NGUỒN CHUẨN ở apps/web/src/lib/retrieval/index.ts —
- * đổi thì sửa cả 2.
- */
 export function parseVectorText(text: string): number[] {
   return JSON.parse(text) as number[];
 }
 
-/** Strip code fence + extract object JSON đầu tiên (phòng LLM trả thêm prose). */
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```(?:json)?\s*/i, '')
@@ -97,12 +68,7 @@ export class ConceptsService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /**
-   * Trích concept từ 1 chunk content. Trả mảng rỗng khi LLM lỗi/empty —
-   * chunk đó skip silent thay vì crash batch (y lib cũ).
-   */
   async extractConceptsFromChunk(content: string): Promise<ExtractedConcept[]> {
-    // <30 ký tự thường là rác/số trang — skip (ngưỡng hạ 50→30 từ lib cũ).
     if (content.length < 30) return [];
 
     try {
@@ -120,7 +86,6 @@ export class ConceptsService {
             typeof (c as ExtractedConcept)?.domain === 'string',
         )
         .map((c) => {
-          // Sanitize optional fields — LLM có thể trả thiếu, sai type, hoặc null.
           const raw = c as Record<string, unknown>;
           const examples = Array.isArray(raw.examples)
             ? (raw.examples as unknown[])
@@ -155,19 +120,13 @@ export class ConceptsService {
             previewAnswer,
           };
         })
-        .filter((c) => c.name.length > 0 && c.name.length < 100); // sane limit
+        .filter((c) => c.name.length > 0 && c.name.length < 100);
     } catch (err) {
       console.warn('[extract-concepts] skip chunk:', (err as Error).message);
       return [];
     }
   }
 
-  /**
-   * Tìm concept có sẵn match name (similarity > threshold) hoặc tạo mới.
-   * Embed NGOÀI transaction (network call) để không giữ lock lâu; search +
-   * insert bọc advisory lock theo (name|domain) chống 2 job concurrency=2
-   * cùng INSERT 1 concept (race đã fix ở lib cũ — giữ nguyên).
-   */
   async findOrCreateConcept(c: ExtractedConcept): Promise<string> {
     const embedding = await this.embedding.embedQuery(c.name);
     const vectorLiteral = `[${embedding.join(',')}]`;
@@ -191,15 +150,12 @@ export class ConceptsService {
 
         const candidate = matches[0];
         if (candidate) {
-          // Cosine distance ∈ [0, 2]; similarity = 1 - distance/2
           const similarity = 1 - Number(candidate.distance) / 2;
           if (similarity >= DEDUP_THRESHOLD) {
             return candidate.id;
           }
         }
 
-        // Không match → INSERT new concept (embedding là Unsupported vector →
-        // bắt buộc raw SQL). id sinh app-side như Drizzle $defaultFn cũ.
         const id = randomUUID();
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO concept
@@ -211,17 +167,10 @@ export class ConceptsService {
         `);
         return id;
       },
-      // Default 5s của interactive transaction quá sát khi phải CHỜ advisory
-      // lock của job song song — nới 30s (lock giữ ngắn, chỉ search + insert).
       { timeout: 30_000 },
     );
   }
 
-  /**
-   * Trích concepts cho 1 list chunk_id và lưu pivot links. Tuần tự (không
-   * parallel) để giữ Voyage RPM dưới rate limit free tier — y lib cũ.
-   * Idempotent qua ON CONFLICT DO NOTHING — retry không tạo trùng.
-   */
   async extractConceptsForChunks(chunkIds: string[]): Promise<ExtractStats> {
     if (chunkIds.length === 0) {
       return { chunksProcessed: 0, conceptsExtracted: 0, linksCreated: 0, failedConcepts: 0 };
@@ -243,9 +192,6 @@ export class ConceptsService {
       for (const c of extracted) {
         try {
           const conceptId = await this.findOrCreateConcept(c);
-          // strength theo LLM (mức liên quan chunk↔atom), default 0.5 nếu
-          // LLM không trả. RETURNING để đếm linksCreated y semantics cũ
-          // (conflict bị skip → không đếm).
           const inserted = await this.prisma.$queryRaw<{ chunk_id: string }[]>(Prisma.sql`
             INSERT INTO chunk_concept (chunk_id, concept_id, strength)
             VALUES (${ch.id}, ${conceptId}, ${c.strength ?? 0.5})
@@ -254,7 +200,6 @@ export class ConceptsService {
           `);
           if (inserted.length > 0) linksCreated++;
         } catch (err) {
-          // Dedup/insert failure → skip concept, log nhưng không crash batch.
           failedConcepts++;
           console.warn(`[concepts] skip "${c.name}": ${(err as Error).message}`);
         }
@@ -269,7 +214,6 @@ export class ConceptsService {
     };
   }
 
-  /** Extract concepts cho toàn bộ chunks của 1 document. */
   async extractConceptsForDocument(documentId: string): Promise<ExtractStats> {
     const rows = await this.prisma.chunk.findMany({
       where: { document_id: documentId },

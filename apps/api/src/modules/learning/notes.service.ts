@@ -1,13 +1,3 @@
-/**
- * NotesService — CRUD note + AI inline completion. Port từ
- * apps/web/src/app/api/notes/** — GIỮ NGUYÊN wire shape (camelCase như
- * Drizzle alias cũ) + cùng invalidator (@cogniva/server-core) để Next/Nest
- * sống chung không lệch cache.
- *
- * XP/achievement → XpService (gamification); AI completion → LlmService
- * (infra/ai, @Global) — cùng provider pick / model default / params như
- * lib/notes/complete.ts cũ.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type note as NoteRow } from '@prisma/client';
@@ -18,7 +8,6 @@ import { PrismaService } from '../../infra/database/prisma.service';
 import { XP_AMOUNTS, XpService } from '../gamification/xp.service';
 import type { CreateNoteInput, UpdateNoteInput } from './dto/notes.dto';
 
-/** Shape note trả client — khớp row Drizzle cũ (camelCase, theo thứ tự cột schema). */
 interface NoteDto {
   id: string;
   userId: string;
@@ -30,8 +19,6 @@ interface NoteDto {
   createdAt: Date;
   updatedAt: Date;
 }
-
-// ── Prompt completion — copy NGUYÊN VĂN từ lib/notes/complete.ts ──────────
 
 const INSTRUCTION = `Bạn là trợ lý viết note. Đoạn dưới là text mà người dùng đã viết. Hãy tiếp tục mạch văn bằng 1-2 câu NGẮN GỌN, đúng phong cách họ đang dùng.
 
@@ -70,12 +57,6 @@ export class NotesService {
     };
   }
 
-  /**
-   * GET /notes — list theo workspace filter:
-   *   workspaceParam = 'null' → notes "Personal" (workspace_id IS NULL)
-   *   workspaceParam = 'X'    → notes thuộc workspace X
-   *   workspaceParam = null   → tất cả notes của user
-   */
   async listNotes(
     userId: string,
     opts: { limit: number; offset: number; workspaceParam: string | null },
@@ -101,7 +82,6 @@ export class NotesService {
       },
     });
 
-    // Route cũ select subset KHÔNG có userId — giữ nguyên shape.
     return {
       notes: rows.map((r) => ({
         id: r.id,
@@ -116,12 +96,9 @@ export class NotesService {
     };
   }
 
-  /** POST /notes — tạo note + thưởng XP + bust workspace stats nếu thuộc workspace. */
   async createNote(userId: string, input: CreateNoteInput) {
     const inserted = await this.prisma.note.create({
       data: {
-        // Route cũ để Drizzle $defaultFn sinh cuid2; api dùng randomUUID
-        // (convention sẵn của module auth) — đều là text id opaque.
         id: randomUUID(),
         user_id: userId,
         workspace_id: input.workspaceId ?? null,
@@ -132,10 +109,8 @@ export class NotesService {
       },
     });
 
-    // Gamification: +3 XP mỗi note mới + check achievement first_note.
     await this.xp.awardXp(userId, XP_AMOUNTS.NOTE_CREATE, { source: 'note', totalCount: 1 });
 
-    // Note mới đổi badge stats workspace (count notes) — note "Personal" thì không.
     if (inserted.workspace_id) {
       await onWorkspaceContentChanged(userId, inserted.workspace_id);
     }
@@ -143,14 +118,12 @@ export class NotesService {
     return { note: this.toNoteDto(inserted) };
   }
 
-  /** GET /notes/:id — chỉ owner đọc được. */
   async getNote(userId: string, id: string) {
     const row = await this.prisma.note.findFirst({ where: { id, user_id: userId } });
     if (!row) throw new NotFoundException({ error: 'Not found' });
     return { note: this.toNoteDto(row) };
   }
 
-  /** PATCH /notes/:id — partial update title/content, auto-bump updated_at. */
   async updateNote(userId: string, id: string, input: UpdateNoteInput) {
     const existing = await this.prisma.note.findFirst({ where: { id, user_id: userId } });
     if (!existing) throw new NotFoundException({ error: 'Not found' });
@@ -166,7 +139,6 @@ export class NotesService {
     return { note: this.toNoteDto(updated) };
   }
 
-  /** DELETE /notes/:id — DELETE..RETURNING như route cũ (atomic, lấy workspaceId để bust). */
   async deleteNote(userId: string, id: string) {
     const rows = await this.prisma.$queryRaw<Array<{ id: string; workspace_id: string | null }>>(
       Prisma.sql`DELETE FROM note WHERE id = ${id} AND user_id = ${userId} RETURNING id, workspace_id`,
@@ -180,25 +152,17 @@ export class NotesService {
     return { deleted: true };
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // POST /notes/complete — AI inline completion (logic completeNote cũ)
-  // ────────────────────────────────────────────────────────────────────────
-
-  /** Sinh completion ngắn cho 1 prefix. Trả '' nếu fail (cùng fail-soft như cũ). */
   async completeNote(prefix: string): Promise<string> {
     const trimmed = prefix.trim();
-    if (trimmed.length < 20) return ''; // ít context → bỏ qua
+    if (trimmed.length < 20) return '';
 
-    // Cắt prefix về 500 ký tự cuối để tiết kiệm token + tăng relevance
     const cap = trimmed.length > 500 ? trimmed.slice(-500) : trimmed;
 
     try {
-      // temperature 0.6 / max 120 token — như generateText của complete.ts cũ.
       const text = await this.llm.complete(INSTRUCTION.replace('{{PREFIX}}', cap), {
         temperature: 0.6,
         maxTokens: 120,
       });
-      // Loại bỏ leading whitespace/newline + trailing markdown noise
       return text.trim().replace(/^["']|["']$/g, '');
     } catch (err) {
       console.warn('[note-complete] fail:', (err as Error).message);

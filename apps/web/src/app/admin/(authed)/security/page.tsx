@@ -1,9 +1,3 @@
-/**
- * /admin/security — security settings cho admin account: 2FA TOTP.
- *
- * `twoFactorEnabled` KHÔNG nằm trong claims JWT (cg_at) — đọc thẳng DB,
- * nhất quán với pattern guard admin re-check DB mỗi request.
- */
 import { eq } from 'drizzle-orm';
 
 import { db, user } from '@cogniva/db';

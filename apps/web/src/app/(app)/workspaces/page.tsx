@@ -1,19 +1,3 @@
-/**
- * /workspaces — Dashboard hub cho workspace list.
- *
- * Pattern Notion / Quizlet:
- *   - Header stats: tổng workspaces / docs / streak / XP
- *   - Workspace grid 2-3 cols (responsive), mỗi card có:
- *     · Icon + tên + mô tả
- *     · Doc count + lastActivity ("2h ago", "hôm qua")
- *     · Quick actions: Chat / Quiz / Mở chi tiết
- *     · Edit / delete trong dropdown menu (ẩn để giảm nhiễu)
- *   - Recent documents section: 5 doc gần nhất across all workspaces
- *
- * Server component (SSR) để fetch parallel 1 RTT — tránh loading flash của
- * client fetch cũ. CRUD interactions extract sang client component
- * `WorkspacesDashboardClient` qua callback router.refresh().
- */
 import { redirect } from 'next/navigation';
 import { asc, count, desc, eq, sql } from 'drizzle-orm';
 
@@ -30,7 +14,6 @@ export default async function WorkspacesPage() {
   if (!session) redirect('/sign-in?redirect=/workspaces');
   const userId = session.user.id;
 
-  // ── Parallel fetch: workspaces + stats + recent docs ─────────
   const docCountByWs = db
     .select({
       workspaceId: document.workspaceId,
@@ -72,11 +55,8 @@ export default async function WorkspacesPage() {
       .limit(5),
   ]);
 
-  // Tổng số document — sum documentCount, tránh round-trip riêng
   const totalDocs = workspaceRows.reduce((sum, w) => sum + w.documentCount, 0);
 
-  // Normalize timestamp: sql<Date|null> template trả về string thô từ
-  // postgres driver, không tự convert sang Date. Wrap new Date() cho an toàn.
   const toIso = (v: Date | string | null | undefined): string | null =>
     v ? new Date(v).toISOString() : null;
 

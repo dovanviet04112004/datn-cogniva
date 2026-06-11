@@ -5,6 +5,7 @@
 ## Audit findings (2026-05-13)
 
 **14 page chính** trong `(app)/` với **4 container pattern khác nhau**:
+
 - `/dashboard`: `max-w-6xl` (outlier)
 - `/documents, /rooms`: `max-w-5xl space-y-8 py-8`
 - `/chat, /flashcards, /notes, /quiz, /exams, /analytics`: `max-w-5xl space-y-6 p-6` (standard)
@@ -13,6 +14,7 @@
 **5 empty/loading pattern** song song chưa unify. **Error boundary** đã có (`AppErrorBoundary`).
 
 **Accent color conflict:**
+
 - `emerald` dùng cho **VOICE mic on** + **success state** + **public profile** → 3 ngữ cảnh khác nhau
 - Mic on nên đổi sang `indigo` (đã dùng cho voice control)
 - Success state giữ `emerald`
@@ -28,19 +30,23 @@ Mục tiêu: mọi page dùng chung 1 layout primitive, dễ thêm page mới kh
 **Deliverables:**
 
 1. `components/layout/page-shell.tsx` — `<PageShell>` wrapper:
+
    ```tsx
    <PageShell title="Documents" description="..." action={<Button>...</Button>}>
      {children}
    </PageShell>
    ```
+
    - Container: `mx-auto max-w-5xl space-y-6 p-6`
    - Header: title + description + optional action button bên phải
    - Replace usage trong 10+ page
 
 2. `components/layout/empty-state.tsx` — `<EmptyState>`:
+
    ```tsx
    <EmptyState icon={FileText} title="Chưa có document" description="..." action={...} />
    ```
+
    - Variant: `dashed` (default) | `card`
    - Replace 5 empty patterns
 
@@ -113,6 +119,7 @@ Mục tiêu: mọi page dùng chung 1 layout primitive, dễ thêm page mới kh
 Tôi sẽ làm tuần tự A → B → C. Mỗi batch xong sẽ báo bạn review trước khi qua batch tiếp.
 
 ### Tiến độ
+
 - ✅ Batch A — page shell + empty/loading primitives + semantic color tokens (2026-05-14)
 - ✅ Batch B — sidebar reorganize + collapsible + breadcrumb + form-to-dialog 4 page (2026-05-14)
 - ✅ Batch C — cross-feature shortcuts + badge tokens + breadcrumb wire (2026-05-14)
@@ -129,12 +136,14 @@ Tôi sẽ làm tuần tự A → B → C. Mỗi batch xong sẽ báo bạn revie
 bên trong. Workspace detail page có tabs cho mọi loại content.
 
 **Schema migration 0022_workspace_centric.sql**:
+
 - Add `workspace_id` (nullable, FK ON DELETE SET NULL) vào: `note`, `flashcard`,
   `quiz`, `exam` (`document` + `conversation` đã có sẵn)
 - Composite indexes `(user_id, workspace_id)` cho query workspace-scoped nhanh
 - Backfill: row hiện có → workspace đầu tiên của user (27 FC, 2 quiz, 6 exam)
 
 **API endpoints scope theo workspace**:
+
 - `/api/notes`, `/api/flashcards`, `/api/quiz`, `/api/exams`:
   - GET: `?workspaceId=X|null` filter
   - POST: nhận `workspaceId` từ body
@@ -143,6 +152,7 @@ bên trong. Workspace detail page có tabs cho mọi loại content.
 - `/api/workspaces/[id]/stats`: trả counts cho tab badges (mới)
 
 **Workspace detail = tabbed hub** (`/workspaces/[id]`):
+
 - 6 tabs: Overview | Documents | Notes | Flashcards | Quizzes | Exams
 - URL state: `?tab=docs|notes|flashcards|quizzes|exams`
 - Stats badges trên mỗi tab (số content)
@@ -152,16 +162,19 @@ bên trong. Workspace detail page có tabs cho mọi loại content.
 - FC/Quiz generate trong tab inherit workspace từ doc nguồn
 
 **Sidebar simplify**:
+
 - LEARN: Workspaces, AI Tutor (2 mục) — bỏ Library hub
 - PRACTICE: Practice (1 mục, hub: FC|Quiz|Exam|Plan cross-workspace, Anki pattern)
 - Tổng: 11 → 9 mục sidebar
 
 **Decisions từ user (3 questions)**:
+
 - Flashcards review: global cross-workspace (Anki pattern)
 - Notes scope workspace (nullable cho Personal), Study Plan stays global
 - Migration backfill default = first workspace của user
 
 **Cross-workspace views giữ lại** (top-level routes):
+
 - `/documents`, `/notes` còn URL nhưng KHÔNG hiện trong sidebar
 - Library tabs (Workspaces|Documents|Notes) ở top-level vẫn hoạt động — power
   user vào qua URL/bookmark; pattern chính qua workspace detail
@@ -174,6 +187,7 @@ Typecheck pass clean.
 **Vấn đề**: Sidebar 8 mục riêng cho Learn (4) + Practice (4) → rời rạc, "amateur".
 
 **Pattern áp dụng**: Linear/Vercel/Notion-style — route groups + shared layout với tabs nav.
+
 - URL giữ nguyên `/workspaces`, `/documents`, `/flashcards`... (không phá deep link nào)
 - Folder gom vào `(library)/` và `(practice)/` route groups (parentheses → không xuất hiện trong URL)
 - Layout `(library)/layout.tsx` + `(practice)/layout.tsx` render tabs nav phía trên content
@@ -181,14 +195,16 @@ Typecheck pass clean.
   (`/workspaces/[id]`) — detail page dùng Breadcrumb thay thế
 
 **Sidebar mới**:
-- LEARN: Library (→ /workspaces) + AI Tutor    (4 → 2 mục)
-- PRACTICE: Practice (→ /flashcards)            (4 → 1 mục)
+
+- LEARN: Library (→ /workspaces) + AI Tutor (4 → 2 mục)
+- PRACTICE: Practice (→ /flashcards) (4 → 1 mục)
 - Tổng: 14 → 11 mục sidebar
 
 **Active state mở rộng**: nav item hỗ trợ `match: string[]` để highlight đúng
 khi user ở tab khác của cùng hub (vd ở /documents thì Library item vẫn active).
 
 File structure:
+
 ```
 app/(app)/
   (library)/
@@ -209,10 +225,12 @@ Typecheck pass clean.
 ### Batch C — kết quả
 
 **Badge primitive** (`components/ui/badge.tsx`):
+
 - Migrate hardcoded `emerald-500/15` `amber-500/15` → semantic tokens `success/15` `warning/15`
 - Thêm variant `info` (blue) cho status không phải success/warning/destructive
 
 **Cross-feature shortcuts**:
+
 - **Document detail** (`documents/[id]`) → `DocumentDetailActions`:
   - "Hỏi AI Tutor" → `/chat/new`
   - "Flashcard" → mở `GenerateDialog` pre-select doc
@@ -224,14 +242,17 @@ Typecheck pass clean.
 - **Note detail** (`notes/[id]`) → wire PageShell + Breadcrumb (back-link cũ remove)
 
 **Component extensions**:
+
 - `GenerateDialog` (flashcard): `initialDocId` + custom `trigger` prop
 - `QuizGenerateDialog`: `initialDocId` + custom `trigger` prop
 - Cả 2 dùng được standalone (như cũ) hoặc embedded từ document detail
 
 **Color fixes**:
+
 - `member-sidebar.tsx`: OWNER role `text-amber-500` → `text-warning`
 
 **Out of scope (push qua phase sau)**:
+
 - Note → Generate quiz (cần API mới `/api/quiz/from-note` — Notes chưa chunked/embedded)
 - Mobile drawer unified Sheet pattern (sidebar đã có drawer; các page nested không bắt buộc)
 
@@ -240,6 +261,7 @@ Typecheck pass clean (6 packages turbo).
 ### Batch B — kết quả
 
 **Sidebar** (`apps/web/src/components/app/sidebar.tsx`):
+
 - Merge 5 group → 4: `SPACES` (1 mục) → gộp vào `SOCIAL`
 - Collapsible sections: click section header → fold; state persist localStorage
   (`cogniva.sidebar.collapsed`). Auto-bung section chứa active item kể cả khi user
@@ -247,10 +269,12 @@ Typecheck pass clean (6 packages turbo).
 - "Tin nhắn" → "Messages" cho consistent VN/EN
 
 **Breadcrumbs** (`components/layout/breadcrumbs.tsx`):
+
 - Component reusable với 2 mode: auto (segments array) hoặc children custom.
 - Wire vào `workspaces/[id]` thay back-link cũ.
 
 **Form-to-Dialog (4 page)** — thay pattern `showForm` inline toggle/dropzone to:
+
 - `/workspaces` → `CreateWorkspaceDialog`
 - `/groups` → `CreateGroupDialog` + `JoinGroupDialog` (gộp 2 card inline thành 2 button trigger)
 - `/study-plan` → `CreateStudyItemDialog`
@@ -265,11 +289,13 @@ Typecheck pass clean (6 packages turbo).
 ### Batch A — kết quả
 
 **Primitives mới** (`apps/web/src/components/layout/`):
+
 - `PageShell` — wrapper layout chuẩn (title/description/action header + size 'narrow'|'default'|'wide'|'full')
 - `EmptyState` — placeholder rỗng (variant 'dashed'|'card'|'inline')
 - `PageLoading` — loading state (variant 'spinner'|'skeleton'|'card')
 
 **Semantic color tokens** (`tailwind.config.ts`):
+
 - `voice-active` (indigo), `voice-mute` (red), `stage-host` (rose), `forum` (emerald),
   `recording-live` (red), `success` (emerald), `warning` (amber)
 
@@ -282,6 +308,7 @@ quiz, exams, exams/new, analytics, study-plan, leaderboard, groups, rooms/[id]/r
 `<PageLoading variant="skeleton">`.
 
 **Color fixes** (Batch C scope sớm):
+
 - `voice-stage.tsx`, `stage-channel.tsx`: mic on `bg-emerald-500` → `bg-voice-active`
 - `profile.tsx`: public badge `emerald` → `success` token
 - `groups/page.tsx`: OWNER role `amber-500` → `warning` token

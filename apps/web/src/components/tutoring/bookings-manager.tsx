@@ -1,14 +1,3 @@
-/**
- * BookingsManager — danh sách ĐƠN học theo trạng thái, cho cả 2 phía.
- *
- * - role 'student' = đơn mình đặt (đối tác hiển thị = gia sư).
- * - role 'tutor'   = đơn mình dạy (đối tác hiển thị = học viên).
- * - showRoleToggle: user vừa là học viên vừa là gia sư → cho chuyển "Tôi học /
- *   Tôi dạy".
- *
- * Tab lọc theo nhóm trạng thái: Chờ xác nhận · Sắp/đang học · Đã xong · Đã huỷ.
- * Fetch /api/tutoring/bookings?role=… (client) rồi group tại chỗ.
- */
 'use client';
 
 import * as React from 'react';
@@ -90,8 +79,7 @@ function fmtWhen(startAt: string, endAt: string): string {
     day: '2-digit',
     month: '2-digit',
   });
-  const hm = (d: Date) =>
-    d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const hm = (d: Date) => d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   return `${date} · ${hm(s)}–${hm(e)}`;
 }
 
@@ -104,7 +92,6 @@ export function BookingsManager({
 }) {
   const [role, setRole] = React.useState<'student' | 'tutor'>(defaultRole);
   const [bucket, setBucket] = React.useState<Bucket>('all');
-  // Đơn đang mở trong drawer (null = đóng).
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   const qc = useQueryClient();
@@ -115,10 +102,8 @@ export function BookingsManager({
         .then((d) => d.bookings)
         .catch(() => [] as Booking[]),
   });
-  // invalidate để refetch (drawer onChanged / sau hành động).
   const load = () => qc.invalidateQueries({ queryKey: qk.tutoringBookings(role) });
 
-  // Deep-link: /tutoring?tab=orders&booking=<id> → auto mở modal 1 lần.
   const sp = useSearchParams();
   const autoOpened = React.useRef(false);
   React.useEffect(() => {
@@ -151,9 +136,8 @@ export function BookingsManager({
 
   return (
     <div className="space-y-4">
-      {/* Toggle vai trò */}
       {showRoleToggle && (
-        <div className="inline-flex rounded-xl bg-muted/40 p-1 text-[12.5px] font-medium">
+        <div className="bg-muted/40 inline-flex rounded-xl p-1 text-[12.5px] font-medium">
           {(['student', 'tutor'] as const).map((r) => (
             <button
               key={r}
@@ -172,7 +156,6 @@ export function BookingsManager({
         </div>
       )}
 
-      {/* Tab trạng thái */}
       <div className="flex flex-wrap gap-1.5">
         {TABS.map((t) => (
           <button
@@ -182,7 +165,7 @@ export function BookingsManager({
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition-colors',
               bucket === t.key
-                ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                 : 'bg-muted/40 text-muted-foreground hover:bg-muted',
             )}
           >
@@ -192,19 +175,16 @@ export function BookingsManager({
         ))}
       </div>
 
-      {/* List */}
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center justify-center gap-2 py-12 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Đang tải đơn…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-divider bg-surface-secondary/40 py-12 text-center">
-          <Inbox className="h-7 w-7 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">
-            {role === 'tutor'
-              ? 'Chưa có đơn nào ở mục này.'
-              : 'Bạn chưa có đơn nào ở mục này.'}
+        <div className="border-divider bg-surface-secondary/40 flex flex-col items-center gap-2 rounded-2xl border border-dashed py-12 text-center">
+          <Inbox className="text-muted-foreground/50 h-7 w-7" />
+          <p className="text-muted-foreground text-sm">
+            {role === 'tutor' ? 'Chưa có đơn nào ở mục này.' : 'Bạn chưa có đơn nào ở mục này.'}
           </p>
         </div>
       ) : (
@@ -212,24 +192,19 @@ export function BookingsManager({
           {filtered.map((b) => {
             const meta = STATUS_META[b.status];
             const subj = SUBJECT_BY_SLUG[b.subjectSlug];
-            // Đối tác hiển thị tuỳ vai trò đang xem.
-            const peerName =
-              role === 'student' ? b.tutorName : b.studentName;
-            const peerImg =
-              role === 'student' ? b.tutorAvatarUrl : b.studentImage;
+            const peerName = role === 'student' ? b.tutorName : b.studentName;
+            const peerImg = role === 'student' ? b.tutorAvatarUrl : b.studentImage;
             const priceK = Math.round(b.rateVnd / 1000);
             return (
               <li key={b.id}>
                 <button
                   type="button"
                   onClick={() => setOpenId(b.id)}
-                  className="group flex w-full items-center gap-3 rounded-2xl bg-card p-4 text-left shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+                  className="bg-card shadow-soft hover:shadow-elevated group flex w-full items-center gap-3 rounded-2xl p-4 text-left transition-all hover:-translate-y-0.5"
                 >
                   <Avatar className="h-11 w-11 shrink-0">
                     <AvatarImage src={peerImg ?? undefined} />
-                    <AvatarFallback>
-                      {(peerName ?? '?')[0]?.toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback>{(peerName ?? '?')[0]?.toUpperCase()}</AvatarFallback>
                   </Avatar>
 
                   <div className="min-w-0 flex-1">
@@ -243,7 +218,7 @@ export function BookingsManager({
                         </span>
                       )}
                     </div>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-muted-foreground">
+                    <p className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px]">
                       <span>
                         {subj?.emoji ?? '📚'} {subj?.name ?? b.subjectSlug} ·{' '}
                         {LEVEL_NAMES[b.level as keyof typeof LEVEL_NAMES] ?? b.level}
@@ -264,11 +239,11 @@ export function BookingsManager({
                     >
                       {meta.label}
                     </span>
-                    <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
                       {priceK}K
                     </span>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="text-muted-foreground/40 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </button>
               </li>
             );
@@ -276,7 +251,6 @@ export function BookingsManager({
         </ul>
       )}
 
-      {/* Modal chi tiết đơn — mở giữa màn hình thay vì nhảy trang */}
       <BookingDetailModal
         bookingId={openId}
         open={openId !== null}

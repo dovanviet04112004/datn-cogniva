@@ -1,15 +1,3 @@
-/**
- * /exams/[id]/results/[attemptId] — kết quả sau khi nộp bài.
- *
- * Hiển thị:
- *   - Điểm tổng (X/maxScore) + % + pass/fail
- *   - Thời gian làm bài
- *   - Breakdown từng câu: đúng/sai + điểm + (đáp án đúng + giải thích nếu reveal)
- *
- * Reveal logic (từ API):
- *   - exam.showResults = IMMEDIATE/AFTER_SUBMIT → reveal correctAnswer + explanation
- *   - exam.showResults = AFTER_ALL_DONE → KHÔNG reveal cho student (chỉ owner)
- */
 'use client';
 
 import * as React from 'react';
@@ -87,8 +75,9 @@ export default function ResultsPage() {
       .finally(() => setLoading(false));
   }, [attemptId]);
 
-  if (loading) return <div className="p-6 text-sm text-muted-foreground">Đang tải...</div>;
-  if (!data) return <div className="p-6 text-sm text-muted-foreground">Không tìm thấy kết quả.</div>;
+  if (loading) return <div className="text-muted-foreground p-6 text-sm">Đang tải...</div>;
+  if (!data)
+    return <div className="text-muted-foreground p-6 text-sm">Không tìm thấy kết quả.</div>;
 
   const { exam, attempt, questions, responses, reveal } = data;
   const respMap = new Map(responses.map((r) => [r.questionId, r]));
@@ -99,34 +88,33 @@ export default function ResultsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      {/* V8.24: link `/exams/[id]` giờ smart-redirect về workspace nếu exam
-          có workspaceId, else `/workspaces`. Một entry → đúng nơi. */}
       <Link
         href={`/exams/${examId}`}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
       >
         <ArrowLeft className="h-3.5 w-3.5" /> Về workspace
       </Link>
 
-      {/* Summary */}
       <Card className="space-y-3 p-6">
         <h1 className="text-2xl font-semibold">{exam.title}</h1>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-md bg-muted/50 p-4">
-            <div className="text-xs uppercase text-muted-foreground">Điểm</div>
+          <div className="bg-muted/50 rounded-md p-4">
+            <div className="text-muted-foreground text-xs uppercase">Điểm</div>
             <div className="mt-1 text-2xl font-semibold">
-              {totalPoints.toFixed(1)}<span className="text-base text-muted-foreground">/{maxPoints}</span>
+              {totalPoints.toFixed(1)}
+              <span className="text-muted-foreground text-base">/{maxPoints}</span>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">{pct}%</div>
+            <div className="text-muted-foreground mt-1 text-xs">{pct}%</div>
           </div>
-          <div className="rounded-md bg-muted/50 p-4">
-            <div className="text-xs uppercase text-muted-foreground">Đúng/Tổng</div>
+          <div className="bg-muted/50 rounded-md p-4">
+            <div className="text-muted-foreground text-xs uppercase">Đúng/Tổng</div>
             <div className="mt-1 text-2xl font-semibold">
-              {correctCount}<span className="text-base text-muted-foreground">/{questions.length}</span>
+              {correctCount}
+              <span className="text-muted-foreground text-base">/{questions.length}</span>
             </div>
           </div>
-          <div className="rounded-md bg-muted/50 p-4">
-            <div className="text-xs uppercase text-muted-foreground">Thời gian</div>
+          <div className="bg-muted/50 rounded-md p-4">
+            <div className="text-muted-foreground text-xs uppercase">Thời gian</div>
             <div className="mt-1 text-2xl font-semibold">
               {attempt.timeSpentSeconds
                 ? `${Math.floor(attempt.timeSpentSeconds / 60)}p ${attempt.timeSpentSeconds % 60}s`
@@ -138,26 +126,24 @@ export default function ResultsPage() {
         {attempt.passed != null && (
           <div
             className={`flex items-center gap-2 rounded-md p-3 text-sm font-medium ${
-              // Đạt → success; chưa đạt → destructive (token semantic)
-              attempt.passed
-                ? 'bg-success/10 text-success'
-                : 'bg-destructive/10 text-destructive'
+              attempt.passed ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
             }`}
           >
             {attempt.passed ? (
               <>
-                <Trophy className="h-4 w-4" /> Bạn đã đạt yêu cầu (≥{Math.round((exam.passingScore ?? 0) * 100)}%)
+                <Trophy className="h-4 w-4" /> Bạn đã đạt yêu cầu (≥
+                {Math.round((exam.passingScore ?? 0) * 100)}%)
               </>
             ) : (
               <>
-                <AlertTriangle className="h-4 w-4" /> Chưa đạt yêu cầu (cần ≥{Math.round((exam.passingScore ?? 0) * 100)}%)
+                <AlertTriangle className="h-4 w-4" /> Chưa đạt yêu cầu (cần ≥
+                {Math.round((exam.passingScore ?? 0) * 100)}%)
               </>
             )}
           </div>
         )}
       </Card>
 
-      {/* Per-question breakdown */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Chi tiết từng câu</h2>
         {!reveal && (
@@ -171,20 +157,20 @@ export default function ResultsPage() {
           return (
             <Card key={q.id} className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="rounded bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+                <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                  <span className="bg-primary/10 text-primary rounded px-2 py-0.5 font-semibold">
                     Câu {idx + 1}
                   </span>
                   <span>{q.points} điểm</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {r?.isCorrect === true && (
-                    <span className="flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">
+                    <span className="bg-success/10 text-success flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold">
                       <CheckCircle className="h-3 w-3" /> Đúng
                     </span>
                   )}
                   {r?.isCorrect === false && (
-                    <span className="flex items-center gap-1 rounded bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
+                    <span className="bg-destructive/10 text-destructive flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold">
                       <XCircle className="h-3 w-3" /> Sai
                     </span>
                   )}
@@ -201,28 +187,25 @@ export default function ResultsPage() {
 
               <p className="whitespace-pre-wrap text-sm">{q.prompt}</p>
 
-              {/* User answer + correct answer */}
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="text-xs font-semibold text-muted-foreground">Bạn trả lời: </span>
+                  <span className="text-muted-foreground text-xs font-semibold">Bạn trả lời: </span>
                   <span>{formatAnswer(q, r?.answer)}</span>
                 </div>
                 {reveal && q.correctAnswer !== null && q.correctAnswer !== undefined && (
                   <div>
-                    <span className="text-xs font-semibold text-success">Đáp án đúng: </span>
+                    <span className="text-success text-xs font-semibold">Đáp án đúng: </span>
                     <span>{formatAnswer(q, q.correctAnswer, true)}</span>
                   </div>
                 )}
               </div>
 
-              {/* Explanation */}
               {reveal && q.explanation && (
-                <div className="rounded bg-muted/50 p-3 text-xs">
+                <div className="bg-muted/50 rounded p-3 text-xs">
                   <strong>Giải thích:</strong> {q.explanation}
                 </div>
               )}
 
-              {/* AI feedback */}
               {r?.aiGrading?.feedback && (
                 <div className="rounded bg-blue-50 p-3 text-xs text-blue-900">
                   <strong>AI feedback:</strong> {r.aiGrading.feedback}

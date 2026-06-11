@@ -1,12 +1,3 @@
-/**
- * MaintenanceClient — toggle maintenance mode + edit banner.
- *
- * UX:
- *   - Tile lớn hiển thị state hiện tại (enabled = đỏ, disabled = xanh)
- *   - Toggle switch + textarea banner + checkbox dismissible
- *   - Submit yêu cầu reason ≥ 10 chars (audit log)
- *   - Preview banner ngay khi nhập (giả lập app shell)
- */
 'use client';
 
 import * as React from 'react';
@@ -64,13 +55,11 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
           Maintenance mode
         </h1>
         <p className="text-sm text-slate-400">
-          Bật/tắt maintenance + edit banner hiển thị cho toàn app. Cache 5s nên
-          banner mới sẽ propagate sau ~5s khi enable. Chỉ <strong>SUPER_ADMIN</strong>{' '}
-          dùng được.
+          Bật/tắt maintenance + edit banner hiển thị cho toàn app. Cache 5s nên banner mới sẽ
+          propagate sau ~5s khi enable. Chỉ <strong>SUPER_ADMIN</strong> dùng được.
         </p>
       </header>
 
-      {/* Current state */}
       <section
         className={cn(
           'rounded-xl border p-4',
@@ -101,7 +90,6 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
         )}
       </section>
 
-      {/* Editor */}
       <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/30 p-5">
         <div className="flex items-center justify-between">
           <div>
@@ -140,8 +128,8 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
           <div>
             <p className="text-[13px] font-medium text-slate-100">Cho phép dismiss</p>
             <p className="text-[11px] text-slate-500">
-              User có thể đóng banner trong session. Tắt → banner cố định cho đến
-              khi admin tắt maintenance.
+              User có thể đóng banner trong session. Tắt → banner cố định cho đến khi admin tắt
+              maintenance.
             </p>
           </div>
           <Toggle
@@ -151,7 +139,6 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
         </div>
       </section>
 
-      {/* Preview */}
       {draft.enabled && draft.banner && (
         <section className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -166,7 +153,6 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
         </section>
       )}
 
-      {/* Submit */}
       <div className="flex items-center justify-end gap-2">
         {dirty && (
           <button
@@ -210,13 +196,7 @@ export function MaintenanceClient({ initial }: { initial: Config }) {
   );
 }
 
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
@@ -225,9 +205,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-5 w-9 shrink-0 rounded-full border transition-colors',
-        checked
-          ? 'border-amber-500/50 bg-amber-500/30'
-          : 'border-slate-700 bg-slate-800',
+        checked ? 'border-amber-500/50 bg-amber-500/30' : 'border-slate-700 bg-slate-800',
       )}
     >
       <span

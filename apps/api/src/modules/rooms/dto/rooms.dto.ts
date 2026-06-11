@@ -1,13 +1,3 @@
-/**
- * Zod schemas cho rooms — copy NGUYÊN VĂN từ route cũ:
- *   createRoomSchema   ← apps/web/src/app/api/rooms/route.ts (CREATE_SCHEMA)
- *   joinRoomSchema     ← .../rooms/join/route.ts (BODY_SCHEMA)
- *   roomTokenSchema    ← .../rooms/[id]/token/route.ts (BODY_SCHEMA)
- *   collabTokenSchema  ← .../rooms/[id]/collab-token/route.ts (BODY_SCHEMA)
- *   chatMessageSchema  ← .../rooms/[id]/chat/route.ts (POST_SCHEMA)
- *   aiMessageSchema    ← .../rooms/[id]/ai-message/route.ts (POST_SCHEMA)
- *   moderateSchema     ← .../rooms/[id]/moderate/route.ts (ACTION_SCHEMA)
- */
 import { z } from 'zod';
 
 export const createRoomSchema = z.object({
@@ -39,7 +29,6 @@ export const chatMessageSchema = z.object({
 });
 
 export const aiMessageSchema = z.object({
-  /** Câu hỏi của user (đã strip `@AI` prefix ở client). */
   message: z.string().min(1).max(2000),
 });
 

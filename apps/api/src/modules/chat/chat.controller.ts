@@ -1,24 +1,3 @@
-/**
- * POST /api/chat — endpoint streaming chat chính, port TRUNG THỰC từ
- * apps/web/src/app/api/chat/route.ts.
- *
- * Flow: auth (guard global) → rate-limit 'chat' 30/min → parse body →
- * conversation auto-create/verify → INSERT user message TRƯỚC stream →
- * buildChatContext (RAG advanced) → atom pin context → routedStreamText
- * (ragChat: guardrail + circuit breaker + fallback chain + cost record) →
- * AI SDK v4 Data Stream Protocol qua Express res.
- *
- * Wire format (client useChat parse, KHÔNG đổi được):
- *   Headers: Content-Type text/plain; charset=utf-8 + X-Vercel-AI-Data-Stream: v1
- *   Frame đầu 8:[{type:'citations',...}] (writeMessageAnnotation) → client
- *   render khung citations sớm; rồi 2:[{type:'meta',conversationId}]
- *   (writeData) → chat-view bắt conversationId mới tạo; rồi f:/0:/e:/d: từ
- *   mergeIntoDataStream. pipeDataStreamToResponse tự set headers + format.
- *
- * Lỗi TRƯỚC stream trả PLAIN TEXT (useChat surface qua onError):
- *   rate-limit → 429 + Retry-After; guardrail → 429 + X-Cost-Reason;
- *   AllProvidersFailed → 503.
- */
 import { Controller, Post, Body, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -39,16 +18,11 @@ import type { Plan } from '../../infra/ai/cost-guardrail.service';
 import { ChatService } from './chat.service';
 import { RetrievalService } from './retrieval/retrieval.service';
 
-/** Body từ useChat: messages + các field merge qua option `body`. */
 type ChatRequestBody = {
   messages?: Array<{ role?: string; content?: unknown }>;
-  /** Nếu null/undefined → tạo conversation mới. */
   conversationId?: string | null;
-  /** Optional scope retrieval theo workspace. */
   workspaceId?: string;
-  /** Optional pin tài liệu cụ thể — AI chỉ search trong subset này. */
   documentIds?: string[];
-  /** Phase D (atom-centric): pin atom đang focus (cap 5). */
   atomIds?: string[];
 };
 
@@ -70,7 +44,6 @@ export class ChatController {
     const userId = user.id;
     const plan = (user.plan ?? 'FREE') as Plan;
 
-    // ── 2. Rate limit (30 req/phút/user cho chat) ────
     const rl = await checkLimit(`chat:${userId}`, 'chat');
     if (!rl.allowed) {
       res
@@ -80,9 +53,7 @@ export class ChatController {
       return;
     }
 
-    // ── 3. Parse body (manual check như route cũ — lỗi trả plain text) ─
     const { messages, conversationId: rawConvId, workspaceId, documentIds, atomIds } = body;
-    // Safety: chỉ nhận array of string, đề phòng client truyền type sai
     const safeDocIds =
       Array.isArray(documentIds) && documentIds.every((id) => typeof id === 'string')
         ? documentIds
@@ -96,13 +67,11 @@ export class ChatController {
       return;
     }
 
-    // ── 4. Lấy query ──────────────────────────────────
     const lastUser = [...messages].reverse().find((m) => m.role === 'user');
     if (!lastUser?.content) {
       res.status(400).send('No user message found');
       return;
     }
-    // Message có attachment (image) → content là array part; lấy text part đầu.
     let query: string;
     if (typeof lastUser.content === 'string') {
       query = lastUser.content;
@@ -114,10 +83,8 @@ export class ChatController {
     } else {
       query = '';
     }
-    // User chỉ gửi ảnh → placeholder để retrieval không crash (RAG trả 0 chunks).
     const queryForRetrieval = query.trim() || '[image-only message]';
 
-    // ── 5. Tạo / load conversation ────────────────────
     let convId = rawConvId ?? undefined;
     if (!convId) {
       convId = await this.chat.createConversation(userId, workspaceId, query.slice(0, 60));
@@ -129,10 +96,8 @@ export class ChatController {
       }
     }
 
-    // ── 6. Lưu user message TRƯỚC stream (orphan risk giữ nguyên) ─────
     await this.chat.insertUserMessage(convId, query);
 
-    // ── 7. Retrieve + build context (Langfuse trace bỏ — không có ở api) ─
     const context = await this.retrieval.buildChatContext({
       query: queryForRetrieval,
       userId,
@@ -141,14 +106,12 @@ export class ChatController {
       documentIds: safeDocIds,
     });
 
-    // ── 7.5. Atom pin context (fail-safe trong service) ───────────────
     const atomSystemAddition = safeAtomIds?.length
       ? await this.chat.buildAtomContext(userId, safeAtomIds)
       : '';
 
     const finalSystemPrompt = context.systemPrompt + atomSystemAddition;
 
-    // ── 8. Stream qua router (guardrail + circuit breaker tự động) ────
     let routed: RoutedStreamResult;
     try {
       routed = await this.router.routedStreamText({
@@ -160,7 +123,6 @@ export class ChatController {
           role: m.role as 'user' | 'assistant' | 'system',
           content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
         })),
-        // Estimate input từ system prompt + 10 message gần
         estimatedInputTokens: Math.ceil(
           (finalSystemPrompt.length +
             messages
@@ -188,12 +150,9 @@ export class ChatController {
       throw err;
     }
 
-    // ── 9. Stream response với dataStream (citations + meta) ──────────
     const chunks = context.chunks;
     pipeDataStreamToResponse(res, {
       execute: (dataStream) => {
-        // Gửi citations + conversationId NGAY ĐẦU stream để client render
-        // khung citations và navigate URL trước khi LLM trả full text.
         dataStream.writeMessageAnnotation({
           type: 'citations',
           citations: chunks.map((c, i) => ({
@@ -208,23 +167,31 @@ export class ChatController {
         });
         dataStream.writeData({ type: 'meta', conversationId: convId! });
 
-        // Wire onFinish qua router.finishPromise — persist assistant message.
-        // Cost đã được router record trong onFinish của streamText.
         routed.finishPromise
-          .then(async ({ text, promptTokens, completionTokens, modelId, providerId, costUsd, cacheHit }) => {
-            await this.chat.persistAssistantMessage({
-              userId,
-              convId: convId!,
+          .then(
+            async ({
               text,
-              chunks,
-              modelId,
-              providerId,
               promptTokens,
               completionTokens,
+              modelId,
+              providerId,
               costUsd,
               cacheHit,
-            });
-          })
+            }) => {
+              await this.chat.persistAssistantMessage({
+                userId,
+                convId: convId!,
+                text,
+                chunks,
+                modelId,
+                providerId,
+                promptTokens,
+                completionTokens,
+                costUsd,
+                cacheHit,
+              });
+            },
+          )
           .catch((err: unknown) => {
             logger.error('chat.finish_promise_error', {
               user_id: userId,
@@ -233,7 +200,6 @@ export class ChatController {
             });
           });
 
-        // Merge stream từ router vào dataStream (raw streamText result)
         routed.result.mergeIntoDataStream(dataStream);
       },
       onError: (err) => {

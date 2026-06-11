@@ -1,10 +1,3 @@
-/**
- * JoinForm — client form nhập code thủ công (fallback khi không có code URL
- * hoặc code URL không hợp lệ).
- *
- * Server component cha đã verify auth nên ở đây fetch /api/exams/join chắc
- * chắn có session. Vẫn handle 401 phòng session expire giữa render và submit.
- */
 'use client';
 
 import * as React from 'react';
@@ -16,13 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-export function JoinForm({
-  initialCode = '',
-  error,
-}: {
-  initialCode?: string;
-  error?: string;
-}) {
+export function JoinForm({ initialCode = '', error }: { initialCode?: string; error?: string }) {
   const router = useRouter();
   const [code, setCode] = React.useState(initialCode);
   const [submitting, setSubmitting] = React.useState(false);
@@ -63,11 +50,11 @@ export function JoinForm({
     <div className="mx-auto max-w-md p-6">
       <Card className="p-6">
         <h1 className="text-2xl font-semibold">Tham gia bài thi</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-2 text-sm">
           Nhập 6 ký tự code do giáo viên cung cấp.
         </p>
         {error && (
-          <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <div className="border-destructive/30 bg-destructive/5 text-destructive mt-4 rounded-md border p-3 text-sm">
             {error}
           </div>
         )}

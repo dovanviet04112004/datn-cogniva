@@ -1,22 +1,8 @@
-/**
- * /admin/tutoring/kyc — admin queue review KYC documents.
- *
- * Migrate từ /admin/kyc cũ (route group cũ trong (app)/admin/). Layout
- * cha (authed) đã `requireAdmin()` → page không cần check session nữa.
- *
- * List tutor có doc PENDING → click vào để approve/reject từng doc tại
- * /admin/tutoring/kyc/[tutorId].
- */
 import Link from 'next/link';
 import { desc, eq, sql } from 'drizzle-orm';
 import { CheckCircle2, ChevronRight, Clock } from 'lucide-react';
 
-import {
-  db,
-  tutorKycDocument,
-  tutorProfile,
-  user as userTable,
-} from '@cogniva/db';
+import { db, tutorKycDocument, tutorProfile, user as userTable } from '@cogniva/db';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 

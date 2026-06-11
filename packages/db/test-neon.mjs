@@ -1,22 +1,6 @@
-/**
- * test-neon.mjs — Kiểm tra 1 connection string Postgres (Neon) có hoạt động với
- * ĐÚNG config prod của app (postgres-js + prepare:false + ssl) hay không.
- *
- * KHÔNG cần dán URL vào chat. Cách chạy (chọn 1):
- *   1. Bỏ URL vào file:  packages/db/.neon-url.txt  (1 dòng duy nhất là URL) → chạy:
- *        node test-neon.mjs        (từ thư mục packages/db)
- *   2. Hoặc qua env:     NEON_TEST_URL="postgresql://..." node test-neon.mjs
- *   3. Hoặc qua arg:     node test-neon.mjs "postgresql://..."
- *
- * Test thêm replica (tuỳ chọn): .neon-replica-url.txt hoặc NEON_TEST_REPLICA_URL.
- *
- * Sau khi test xong NÊN XOÁ file .neon-url.txt (chứa password). File này đã được
- * ignore bởi .gitignore pattern *.txt nếu có — kiểm tra trước khi commit.
- */
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 
-/** Lấy URL theo thứ tự: env → arg → file. */
 function resolveUrl(envName, fileName, argIdx) {
   if (process.env[envName]) return process.env[envName];
   if (process.argv[argIdx]) return process.argv[argIdx];
@@ -27,23 +11,19 @@ function resolveUrl(envName, fileName, argIdx) {
   }
 }
 
-/** Ẩn password khi in ra log. */
 function mask(url) {
   return url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@');
 }
 
-/** Chạy 1 loạt query kiểm tra trên 1 URL, trả pass/fail. */
 async function probe(label, url) {
   console.log(`\n──────── ${label} ────────`);
   console.log('🔗', mask(url));
 
-  // Soi nhanh các đặc điểm khuyến nghị cho serverless prod
   const isPooler = /-pooler\./.test(url);
   const hasSsl = /sslmode=require/.test(url) || /\.neon\.tech/.test(url);
   console.log(`   pooler endpoint : ${isPooler ? '✓ (-pooler)' : '⚠ KHÔNG — serverless nên dùng pooler'}`);
   console.log(`   ssl            : ${hasSsl ? '✓' : '⚠ Neon cần SSL (sslmode=require)'}`);
 
-  // Config GIỐNG prod: packages/db/src/index.ts (prepare:false cho pgbouncer txn mode)
   const sql = postgres(url, {
     prepare: false,
     max: 1,

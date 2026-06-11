@@ -1,16 +1,3 @@
-/**
- * Smoke test cho IoRedisAdapter — exercise full API mà code Cogniva dùng.
- *
- * Run:
- *   cd apps/web && pnpm exec tsx --env-file=.env.local scripts/smoke-redis.ts
- *
- * Verify:
- *   - get / set với { ex, nx, px }
- *   - incr / incrby / expire / del / ttl
- *   - pipeline với incr + expire (rate-limit pattern)
- *   - eval Lua simple (circuit-breaker pattern)
- *   - checkRedisHealth trả mode đúng
- */
 import { getRedis, checkRedisHealth, IoRedisAdapter, InMemoryRedis } from '../src/lib/redis';
 
 async function main() {
@@ -18,23 +5,25 @@ async function main() {
   console.log('UPSTASH:', process.env.UPSTASH_REDIS_REST_URL ? 'set' : 'NOT set');
 
   const r = getRedis();
-  const mode = r instanceof InMemoryRedis ? 'inmemory' : r instanceof IoRedisAdapter ? 'redis-tcp' : 'redis-rest';
+  const mode =
+    r instanceof InMemoryRedis
+      ? 'inmemory'
+      : r instanceof IoRedisAdapter
+        ? 'redis-tcp'
+        : 'redis-rest';
   console.log('Mode picked:', mode);
 
   const k = 'smoke:cogniva:' + Date.now();
 
-  // 1. set + get basic
   await r.set(k, 'hello', { ex: 60 });
   console.log('1. set+get:', await r.get(k));
 
-  // 2. incr / incrby / ttl
   const incrKey = k + ':counter';
   await r.set(incrKey, '0', { ex: 60 });
   console.log('2a. incr →', await r.incr(incrKey));
   console.log('2b. incrby 5 →', await r.incrby(incrKey, 5));
   console.log('2c. ttl →', await r.ttl(incrKey), '(should ~60)');
 
-  // 3. set NX (only if not exist)
   const nxKey = k + ':nx';
   const nx1 = await r.set(nxKey, 'first', { ex: 30, nx: true });
   const nx2 = await r.set(nxKey, 'second', { ex: 30, nx: true });
@@ -42,15 +31,12 @@ async function main() {
   console.log('   set NX second:', nx2, '(should null)');
   console.log('   value:', await r.get(nxKey), '(should "first")');
 
-  // 4. expire override
   await r.expire(nxKey, 5);
   console.log('4. expire override → ttl:', await r.ttl(nxKey), '(should ~5)');
 
-  // 5. del
   const delCount = await r.del(k, incrKey, nxKey);
   console.log('5. del 3 keys → deleted:', delCount, '(should 3)');
 
-  // 6. pipeline — incr + expire pattern (rate-limit hot path)
   const plKey = k + ':pl';
   const pipeline = r.pipeline();
   pipeline.incr(plKey);
@@ -59,21 +45,15 @@ async function main() {
   console.log('6. pipeline incr+expire results:', results, '(should [1, 1])');
   await r.del(plKey);
 
-  // 7. eval Lua — simple PING-like script
   if (r instanceof IoRedisAdapter || ('eval' in r && !(r instanceof InMemoryRedis))) {
     try {
-      const result = await (r as IoRedisAdapter).eval(
-        "return ARGV[1]",
-        [],
-        ['hello-lua'],
-      );
+      const result = await (r as IoRedisAdapter).eval('return ARGV[1]', [], ['hello-lua']);
       console.log('7. eval Lua →', result, '(should "hello-lua")');
     } catch (err) {
       console.log('7. eval Lua FAIL:', err instanceof Error ? err.message : err);
     }
   }
 
-  // 8. health check
   const health = await checkRedisHealth();
   console.log('8. checkRedisHealth:', health);
 

@@ -1,9 +1,3 @@
-/**
- * NewRequestForm — form student đăng yêu cầu tìm gia sư.
- *
- * Validate client-side trước khi POST /api/tutoring/requests.
- * Sau success → redirect /tutoring/requests/[id].
- */
 'use client';
 
 import * as React from 'react';
@@ -11,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, Loader2, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Client-safe taxonomy subpath
 import {
   LEVEL_NAMES,
   MODALITY_NAMES,
@@ -49,10 +42,7 @@ export function NewRequestForm() {
   const levelOptions = activeSubject?.levels ?? [];
 
   const canSubmit =
-    title.trim().length >= 10 &&
-    description.trim().length >= 50 &&
-    !!subjectSlug &&
-    !!level;
+    title.trim().length >= 10 && description.trim().length >= 50 && !!subjectSlug && !!level;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -73,9 +63,7 @@ export function NewRequestForm() {
       });
       if (!res.ok) {
         const e = (await res.json().catch(() => null)) as { error?: unknown } | null;
-        throw new Error(
-          typeof e?.error === 'string' ? e.error : 'Tạo yêu cầu thất bại',
-        );
+        throw new Error(typeof e?.error === 'string' ? e.error : 'Tạo yêu cầu thất bại');
       }
       const data = (await res.json()) as { request: { id: string } };
       toast.success('Đã đăng yêu cầu — gia sư sẽ apply sớm');
@@ -88,17 +76,15 @@ export function NewRequestForm() {
 
   return (
     <PageShell size="default" padded className="space-y-8">
-      {/* Back link */}
       <Link
         href="/tutoring?tab=requests"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         Quay lại
       </Link>
 
-      {/* Hero */}
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-card via-card to-surface-secondary px-8 py-7 shadow-soft">
+      <header className="from-card via-card to-surface-secondary shadow-soft relative overflow-hidden rounded-2xl bg-gradient-to-br px-8 py-7">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:radial-gradient(ellipse_at_right,_black_25%,_transparent_75%)]"
@@ -107,22 +93,21 @@ export function NewRequestForm() {
         </div>
         <div className="relative space-y-2">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+            <Sparkles className="text-primary h-3.5 w-3.5" />
+            <span className="text-primary text-[11px] font-semibold uppercase tracking-[0.18em]">
               Tutoring Marketplace
             </span>
           </div>
           <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
             Đăng yêu cầu tìm gia sư
           </h1>
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+          <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
             Mô tả rõ nhu cầu — gia sư apply ngược cho bạn, không cần search thủ công.
           </p>
         </div>
       </header>
 
-      {/* Form */}
-      <div className="space-y-5 rounded-2xl bg-card p-6 shadow-soft">
+      <div className="bg-card shadow-soft space-y-5 rounded-2xl p-6">
         <div className="space-y-1.5">
           <Label htmlFor="title">Tiêu đề *</Label>
           <Input
@@ -132,9 +117,7 @@ export function NewRequestForm() {
             placeholder="VD: Cần gia sư Toán 12 luyện thi đại học"
             maxLength={160}
           />
-          <p className="text-[11px] text-text-muted">
-            10-160 ký tự · {title.length}/160
-          </p>
+          <p className="text-text-muted text-[11px]">10-160 ký tự · {title.length}/160</p>
         </div>
 
         <div className="space-y-1.5">
@@ -146,21 +129,17 @@ export function NewRequestForm() {
             rows={5}
             maxLength={2000}
             placeholder="Học lực hiện tại, mục tiêu, thời gian rảnh, yêu cầu cụ thể về gia sư..."
-            className="block w-full rounded-xl border border-input bg-surface px-4 py-2.5 text-sm shadow-soft transition-all duration-base focus-visible:border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:outline-none"
+            className="border-input bg-surface shadow-soft duration-base focus-visible:border-primary/40 focus-visible:ring-primary/15 block w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus-visible:outline-none focus-visible:ring-4"
           />
-          <p className="text-[11px] text-text-muted">
-            {description.length}/2000 (tối thiểu 50)
-          </p>
+          <p className="text-text-muted text-[11px]">{description.length}/2000 (tối thiểu 50)</p>
         </div>
 
-        {/* Subject picker — combobox gõ-để-lọc (thay lưới chip dài) */}
         <div className="space-y-1.5">
           <Label>Môn học *</Label>
           <ComboSelect
             value={subjectSlug}
             onChange={(v) => {
               setSubjectSlug(v);
-              // Reset cấp nếu môn mới không hỗ trợ cấp đang chọn
               const sub = SUBJECT_BY_SLUG[v];
               if (level && sub && !sub.levels.includes(level)) setLevel('');
             }}
@@ -175,7 +154,6 @@ export function NewRequestForm() {
           />
         </div>
 
-        {/* Level (chỉ enable khi có subject) */}
         {activeSubject && (
           <div className="space-y-1.5">
             <Label>Cấp học *</Label>
@@ -188,7 +166,7 @@ export function NewRequestForm() {
                   className={cn(
                     'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-all',
                     level === l
-                      ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                      ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                       : 'bg-muted/40 text-muted-foreground hover:bg-muted',
                   )}
                 >
@@ -223,7 +201,7 @@ export function NewRequestForm() {
                   className={cn(
                     'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-all',
                     modality === m
-                      ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                      ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                       : 'bg-muted/40 text-muted-foreground hover:bg-muted',
                   )}
                 >
@@ -245,7 +223,7 @@ export function NewRequestForm() {
                 className={cn(
                   'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-all',
                   urgency === u
-                    ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                    ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                     : 'bg-muted/40 text-muted-foreground hover:bg-muted',
                 )}
               >

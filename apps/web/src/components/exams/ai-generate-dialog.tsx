@@ -1,9 +1,3 @@
-/**
- * AiGenerateDialog — AI sinh examQuestion từ document.
- *
- * User chọn document → API call generate-questions endpoint → questions thêm
- * vào exam. Tái dùng pattern từ /quiz AI gen, chỉ khác URL endpoint.
- */
 'use client';
 
 import * as React from 'react';
@@ -48,12 +42,9 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
   );
   const [busy, setBusy] = React.useState(false);
 
-  // Documents list — key dùng chung qk.documents() (ai-gen / quiz-gen / fc-gen).
-  // Chỉ fetch khi mở dialog; lọc READY client-side.
   const { data: docsData } = useQuery({
     queryKey: qk.documents(),
-    queryFn: () =>
-      apiGet<{ documents: DocRow[] }>('/api/documents').then((d) => d.documents),
+    queryFn: () => apiGet<{ documents: DocRow[] }>('/api/documents').then((d) => d.documents),
     enabled: open,
   });
   const docs = React.useMemo(
@@ -118,11 +109,10 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
           <div className="space-y-2">
             <Label htmlFor="doc">Tài liệu nguồn</Label>
             {docs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Chưa có document READY. Upload + chờ xử lý trước.
               </p>
             ) : (
-              // Thay <select> native bằng ComboSelect (gõ-để-lọc tài liệu).
               <ComboSelect
                 id="doc"
                 value={docId}
@@ -163,7 +153,7 @@ export function AiGenerateDialog({ examId, onDone }: Props) {
               value={count}
               onChange={(e) => setCount(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               AI sinh tuần tự nên ~3-5s/câu. 10 câu mất ~30s.
             </p>
           </div>

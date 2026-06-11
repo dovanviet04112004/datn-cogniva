@@ -1,16 +1,3 @@
-/**
- * UnifiedSearch — Library V1 multi-mode hub (2026-05-22).
- *
- * **Đảo bỏ navigation pattern cũ** (Studocu-style /library/goal /library/reverse).
- *
- * Industry 2026 pattern (Perplexity / Linear / NotebookLM): 1 hero search bar
- * + mode chips trên cùng → state local, result render inline trên cùng page.
- *
- * 3 modes:
- *   - 'free'    — full-text + cross-doc semantic search
- *   - 'goal'    — Pillar #1: AI build study plan
- *   - 'reverse' — Pillar #4: upload đề tìm doc giải
- */
 'use client';
 
 import * as React from 'react';
@@ -52,7 +39,6 @@ const FREE_SUGGESTIONS = [
   'phản ứng oxi hoá khử',
 ];
 
-/** Doc card mini cho weekly plan + cross-doc result. */
 type DocMini = {
   id: string;
   title: string;
@@ -100,10 +86,6 @@ type ReverseResult = {
   exam: CrossDocHit[];
 };
 
-/**
- * Mỗi mode có class string đầy đủ thay vì interpolation `border-${color}-500/40`
- * (Tailwind JIT scan static string, dynamic interpolation không build ra CSS).
- */
 const MODE_DEFS: Array<{
   value: Mode;
   icon: typeof Sparkles;
@@ -124,16 +106,14 @@ const MODE_DEFS: Array<{
     icon: Target,
     labelKey: 'library.search.mode.goal',
     descriptionKey: 'library.search.mode.goal_desc',
-    activeClass:
-      'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold',
+    activeClass: 'border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-semibold',
   },
   {
     value: 'reverse',
     icon: Camera,
     labelKey: 'library.search.mode.reverse',
     descriptionKey: 'library.search.mode.reverse_desc',
-    activeClass:
-      'border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-300 font-semibold',
+    activeClass: 'border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-300 font-semibold',
   },
 ];
 
@@ -147,7 +127,6 @@ export function UnifiedSearch() {
   const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
 
-  // Result state per mode
   const [studyPlan, setStudyPlan] = React.useState<StudyPlan | null>(null);
   const [reverseResult, setReverseResult] = React.useState<ReverseResult | null>(null);
   const [creating, setCreating] = React.useState(false);
@@ -160,7 +139,6 @@ export function UnifiedSearch() {
   const switchMode = (m: Mode) => {
     setMode(m);
     clearResults();
-    // KHÔNG xoá text — user có thể switch mode giữ nội dung
   };
 
   const handleImage = (f: File | null) => {
@@ -183,7 +161,6 @@ export function UnifiedSearch() {
 
   const submit = async () => {
     if (mode === 'free') {
-      // Free mode → redirect /library?q=... để dùng server grid filter
       const q = text.trim();
       if (!q) {
         toast.error(t('library.search.type_keyword'));
@@ -237,11 +214,7 @@ export function UnifiedSearch() {
         } else {
           body = { problemText: text.trim() };
         }
-        const data = await apiSend<ReverseResult>(
-          '/api/library/search/reverse',
-          'POST',
-          body,
-        );
+        const data = await apiSend<ReverseResult>('/api/library/search/reverse', 'POST', body);
         setReverseResult(data);
       } catch (err) {
         toast.error((err as Error).message);
@@ -255,16 +228,14 @@ export function UnifiedSearch() {
     if (!studyPlan) return;
     setCreating(true);
     try {
-      const ws = await apiSend<{ workspace: { id: string } }>(
-        '/api/workspaces',
-        'POST',
-        {
-          name: studyPlan.summary.slice(0, 80),
-          description: t('library.search.ws_auto_desc').replace('{count}', String(studyPlan.weeks.length)),
-        },
-      );
+      const ws = await apiSend<{ workspace: { id: string } }>('/api/workspaces', 'POST', {
+        name: studyPlan.summary.slice(0, 80),
+        description: t('library.search.ws_auto_desc').replace(
+          '{count}',
+          String(studyPlan.weeks.length),
+        ),
+      });
       const workspaceId = ws.workspace.id;
-      // Workspace list cache (qk.workspaces()) cũ → invalidate để fresh.
       void qc.invalidateQueries({ queryKey: qk.workspaces() });
 
       const allIds = new Set<string>();
@@ -275,9 +246,7 @@ export function UnifiedSearch() {
       }
       await Promise.all(
         Array.from(allIds).map((id) =>
-          apiSend(`/api/library/docs/${id}/import`, 'POST', { workspaceId }).catch(
-            () => null,
-          ),
+          apiSend(`/api/library/docs/${id}/import`, 'POST', { workspaceId }).catch(() => null),
         ),
       );
       toast.success(t('library.search.ws_created').replace('{count}', String(allIds.size)));
@@ -289,13 +258,11 @@ export function UnifiedSearch() {
     }
   };
 
-  // Active mode def
   const modeDef = MODE_DEFS.find((m) => m.value === mode)!;
   const ModeIcon = modeDef.icon;
 
   return (
     <div className="space-y-4">
-      {/* Mode tabs */}
       <div className="flex flex-wrap gap-2">
         {MODE_DEFS.map((m) => {
           const Icon = m.icon;
@@ -324,13 +291,15 @@ export function UnifiedSearch() {
         })}
       </div>
 
-      {/* Input area — adapts theo mode */}
       <div
         className={cn(
-          'rounded-2xl border-2 bg-card p-4 transition-colors focus-within:ring-4',
-          mode === 'free' && 'border-discovery-500/30 focus-within:border-discovery-500/50 focus-within:ring-discovery-500/10',
-          mode === 'goal' && 'border-sky-500/30 focus-within:border-sky-500/50 focus-within:ring-sky-500/10',
-          mode === 'reverse' && 'border-rose-500/30 focus-within:border-rose-500/50 focus-within:ring-rose-500/10',
+          'bg-card rounded-2xl border-2 p-4 transition-colors focus-within:ring-4',
+          mode === 'free' &&
+            'border-discovery-500/30 focus-within:border-discovery-500/50 focus-within:ring-discovery-500/10',
+          mode === 'goal' &&
+            'border-sky-500/30 focus-within:border-sky-500/50 focus-within:ring-sky-500/10',
+          mode === 'reverse' &&
+            'border-rose-500/30 focus-within:border-rose-500/50 focus-within:ring-rose-500/10',
         )}
       >
         <div className="mb-2 flex items-center gap-2">
@@ -345,7 +314,6 @@ export function UnifiedSearch() {
           <p className="text-[12px] font-semibold">{t(modeDef.descriptionKey)}</p>
         </div>
 
-        {/* Mode-specific input */}
         {mode === 'free' && (
           <input
             type="text"
@@ -355,7 +323,7 @@ export function UnifiedSearch() {
               if (e.key === 'Enter') submit();
             }}
             placeholder={t('library.search.free_placeholder')}
-            className="w-full border-0 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
+            className="placeholder:text-muted-foreground w-full border-0 bg-transparent text-[14px] outline-none"
           />
         )}
 
@@ -375,7 +343,11 @@ export function UnifiedSearch() {
             {imagePreviewUrl ? (
               <div className="relative inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreviewUrl} alt={t('library.search.img_alt')} className="max-h-48 rounded-lg" />
+                <img
+                  src={imagePreviewUrl}
+                  alt={t('library.search.img_alt')}
+                  className="max-h-48 rounded-lg"
+                />
                 <button
                   type="button"
                   onClick={() => handleImage(null)}
@@ -386,17 +358,15 @@ export function UnifiedSearch() {
                 </button>
               </div>
             ) : (
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-divider bg-muted/30 px-3 py-2 text-[12px] transition-colors hover:border-rose-500/30 hover:bg-rose-500/5">
+              <label className="border-divider bg-muted/30 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[12px] transition-colors hover:border-rose-500/30 hover:bg-rose-500/5">
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
                   onChange={(e) => handleImage(e.target.files?.[0] ?? null)}
                 />
-                <UploadIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-muted-foreground">
-                  {t('library.search.upload_problem')}
-                </span>
+                <UploadIcon className="text-muted-foreground h-3.5 w-3.5" />
+                <span className="text-muted-foreground">{t('library.search.upload_problem')}</span>
               </label>
             )}
             <Textarea
@@ -421,7 +391,7 @@ export function UnifiedSearch() {
                     setText(s);
                     router.push(`/library?q=${encodeURIComponent(s)}`);
                   }}
-                  className="rounded-full border border-divider px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-discovery-500/40 hover:text-discovery-600"
+                  className="border-divider text-muted-foreground hover:border-discovery-500/40 hover:text-discovery-600 rounded-full border px-2 py-0.5 text-[11px] transition-colors"
                 >
                   {s}
                 </button>
@@ -432,7 +402,7 @@ export function UnifiedSearch() {
                   key={g}
                   type="button"
                   onClick={() => setText(g)}
-                  className="rounded-full border border-divider px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-sky-500/40 hover:text-sky-600"
+                  className="border-divider text-muted-foreground rounded-full border px-2 py-0.5 text-[11px] transition-colors hover:border-sky-500/40 hover:text-sky-600"
                 >
                   {g}
                 </button>
@@ -459,7 +429,6 @@ export function UnifiedSearch() {
         </div>
       </div>
 
-      {/* Inline result (only Goal + Reverse — Free redirects) */}
       {studyPlan && (
         <section className="space-y-4">
           <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
@@ -467,7 +436,7 @@ export function UnifiedSearch() {
               {t('library.search.your_plan')}
             </p>
             <h2 className="text-lg font-bold tracking-tight">{studyPlan.summary}</h2>
-            <p className="mt-1 text-[12px] text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-[12px]">
               {t('library.search.weeks_avg')
                 .replace('{weeks}', String(studyPlan.weeks.length))
                 .replace('{hours}', String(studyPlan.weeks[0]?.estimatedHours ?? 10))}
@@ -504,9 +473,10 @@ export function UnifiedSearch() {
                 {reverseResult.analysis.topic}
               </span>
             </p>
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              {t('library.search.subject')} {reverseResult.analysis.subjectSlug} · {t('library.search.level')}{' '}
-              {reverseResult.analysis.level} · {t('library.search.difficulty')}{' '}
+            <p className="text-muted-foreground mt-1 text-[12px]">
+              {t('library.search.subject')} {reverseResult.analysis.subjectSlug} ·{' '}
+              {t('library.search.level')} {reverseResult.analysis.level} ·{' '}
+              {t('library.search.difficulty')}{' '}
               <span
                 className={cn(
                   'font-semibold',
@@ -537,17 +507,24 @@ export function UnifiedSearch() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <ReverseCluster title={t('library.search.cluster.theory')} hits={reverseResult.theory} />
-            <ReverseCluster title={t('library.search.cluster.exercise_similar')} hits={reverseResult.exercise} />
-            <ReverseCluster title={t('library.search.cluster.exam_similar')} hits={reverseResult.exam} />
+            <ReverseCluster
+              title={t('library.search.cluster.theory')}
+              hits={reverseResult.theory}
+            />
+            <ReverseCluster
+              title={t('library.search.cluster.exercise_similar')}
+              hits={reverseResult.exercise}
+            />
+            <ReverseCluster
+              title={t('library.search.cluster.exam_similar')}
+              hits={reverseResult.exam}
+            />
           </div>
         </section>
       )}
     </div>
   );
 }
-
-/* ─── Subcomponents ──────────────────────────────────────────── */
 
 function WeekCard({ week }: { week: WeeklyPlan }) {
   const t = useT();
@@ -557,7 +534,7 @@ function WeekCard({ week }: { week: WeeklyPlan }) {
     week.recommendedDocs.exam.length;
 
   return (
-    <article className="rounded-2xl border border-divider bg-card p-4">
+    <article className="border-divider bg-card rounded-2xl border p-4">
       <header className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/15 font-mono text-[12px] font-bold text-sky-700 dark:text-sky-300">
@@ -569,7 +546,7 @@ function WeekCard({ week }: { week: WeeklyPlan }) {
                 .replace('{num}', String(week.weekNum))
                 .replace('{title}', week.title)}
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-muted-foreground text-[11px]">
               {t('library.search.week_meta')
                 .replace('{hours}', String(week.estimatedHours))
                 .replace('{docs}', String(totalDocs))}
@@ -583,7 +560,7 @@ function WeekCard({ week }: { week: WeeklyPlan }) {
           {week.topics.map((t) => (
             <span
               key={t}
-              className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+              className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]"
             >
               {t}
             </span>
@@ -598,24 +575,26 @@ function WeekCard({ week }: { week: WeeklyPlan }) {
           { label: t('library.search.cluster.exam'), docs: week.recommendedDocs.exam },
         ].map((cluster) => (
           <div key={cluster.label} className="space-y-1.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               {cluster.label}
             </p>
             {cluster.docs.length === 0 ? (
-              <p className="text-[11px] italic text-muted-foreground/60">{t('library.search.cluster_empty')}</p>
+              <p className="text-muted-foreground/60 text-[11px] italic">
+                {t('library.search.cluster_empty')}
+              </p>
             ) : (
               <ul className="space-y-1">
                 {cluster.docs.slice(0, 3).map((d) => (
                   <li key={d.id}>
                     <Link
                       href={`/library/${d.id}`}
-                      className="group flex items-start gap-1.5 rounded-lg border border-divider bg-muted/30 px-2 py-1.5 text-[11.5px] transition-colors hover:border-primary/30 hover:bg-primary/5"
+                      className="border-divider bg-muted/30 hover:border-primary/30 hover:bg-primary/5 group flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[11.5px] transition-colors"
                     >
-                      <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+                      <ChevronRight className="text-muted-foreground/60 mt-0.5 h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 font-medium leading-tight">{d.title}</p>
                         {(d.pageCount || d.ratingAvg) && (
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          <p className="text-muted-foreground mt-0.5 text-[10px]">
                             {d.pageCount ? `${d.pageCount}p` : ''}
                             {d.ratingAvg ? ` · ★ ${d.ratingAvg.toFixed(1)}` : ''}
                           </p>
@@ -637,12 +616,12 @@ function ReverseCluster({ title, hits }: { title: string; hits: CrossDocHit[] })
   const t = useT();
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
         {title}{' '}
-        <span className="font-mono text-[10px] text-muted-foreground/60">({hits.length})</span>
+        <span className="text-muted-foreground/60 font-mono text-[10px]">({hits.length})</span>
       </p>
       {hits.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-divider px-3 py-4 text-center text-[11px] italic text-muted-foreground/60">
+        <p className="border-divider text-muted-foreground/60 rounded-lg border border-dashed px-3 py-4 text-center text-[11px] italic">
           {t('library.search.cluster_empty')}
         </p>
       ) : (
@@ -651,21 +630,21 @@ function ReverseCluster({ title, hits }: { title: string; hits: CrossDocHit[] })
             <li key={d.chunkId}>
               <Link
                 href={`/library/${d.docId}`}
-                className="group block rounded-lg border border-divider bg-card p-2.5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+                className="border-divider bg-card hover:border-primary/30 hover:bg-primary/5 group block rounded-lg border p-2.5 transition-colors"
               >
                 <div className="flex items-start gap-1.5">
-                  <ChevronRight className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+                  <ChevronRight className="text-muted-foreground/60 mt-0.5 h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-[12px] font-semibold leading-tight">
                       {d.docTitle}
                     </p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    <p className="text-muted-foreground mt-0.5 text-[10px]">
                       {t('library.search.page')} {d.pageNum}
                     </p>
                   </div>
                 </div>
                 <p
-                  className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-muted-foreground [&_mark]:rounded [&_mark]:bg-amber-500/30 [&_mark]:px-0.5 [&_mark]:text-foreground"
+                  className="text-muted-foreground [&_mark]:text-foreground mt-1.5 line-clamp-3 text-[11px] leading-snug [&_mark]:rounded [&_mark]:bg-amber-500/30 [&_mark]:px-0.5"
                   dangerouslySetInnerHTML={{ __html: d.excerptHtml }}
                 />
               </Link>

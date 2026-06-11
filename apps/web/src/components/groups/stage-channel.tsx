@@ -1,17 +1,3 @@
-/**
- * StageChannel — Discord Stage-style channel render cho study group.
- *
- * Khác VoiceChannel:
- *   - Audience không thấy mic/cam toggle (canPublish=false LiveKit grant).
- *   - Stage area trên: chỉ render Speaker (role=SPEAKER hoặc mod) — tile lớn.
- *   - Audience area dưới: avatar nhỏ grid + nút raise hand.
- *   - Mod thấy raised-hands queue + nút Promote/Demote.
- *
- * Realtime sync qua Socket.IO `presence-voice-{channelId}`:
- *   - stage:hand     → audience raise/lower hand
- *   - stage:promoted → audience → speaker (refetch state)
- *   - stage:demoted  → speaker → audience
- */
 'use client';
 
 import * as React from 'react';
@@ -52,17 +38,22 @@ type TokenResponse = {
 
 type StageState = {
   mySelf: { role: 'AUDIENCE' | 'SPEAKER' | 'MOD'; raised: boolean };
-  speakers: Array<{ userId: string; name: string | null; image: string | null; promotedAt: string | null }>;
-  raisedHands: Array<{ userId: string; name: string | null; image: string | null; raisedAt: string }>;
+  speakers: Array<{
+    userId: string;
+    name: string | null;
+    image: string | null;
+    promotedAt: string | null;
+  }>;
+  raisedHands: Array<{
+    userId: string;
+    name: string | null;
+    image: string | null;
+    raisedAt: string;
+  }>;
   isMod: boolean;
 };
 
-export function StageChannel({
-  channel,
-  myRole,
-  currentUserId,
-  currentUserImage,
-}: Props) {
+export function StageChannel({ channel, myRole, currentUserId, currentUserImage }: Props) {
   const [auth, setAuth] = React.useState<TokenResponse | null>(null);
   const [connecting, setConnecting] = React.useState(false);
 
@@ -96,8 +87,8 @@ export function StageChannel({
           <span className="truncate font-semibold">{channel.name}</span>
           {channel.topic && (
             <>
-              <span className="hidden h-4 w-px bg-border sm:block" />
-              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+              <span className="bg-border hidden h-4 w-px sm:block" />
+              <span className="text-muted-foreground hidden truncate text-xs sm:inline">
                 {channel.topic}
               </span>
             </>
@@ -112,17 +103,16 @@ export function StageChannel({
             </div>
             <div className="text-center">
               <h2 className="text-xl font-bold">#{channel.name}</h2>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                Stage channel — audience nghe, speaker nói. Mod promote audience lên speaker khi raise hand.
+              <p className="text-muted-foreground mt-1.5 text-sm">
+                Stage channel — audience nghe, speaker nói. Mod promote audience lên speaker khi
+                raise hand.
               </p>
             </div>
-            {/* "Vào stage" — GIỮ accent stage (có chủ đích, phân biệt với voice/primary),
-                đổi gradient amber/rose → token bg-stage-host cho nhất quán design system. */}
             <Button
               onClick={join}
               disabled={connecting}
               size="lg"
-              className="w-full bg-stage-host text-white shadow-md hover:bg-stage-host/90"
+              className="bg-stage-host hover:bg-stage-host/90 w-full text-white shadow-md"
             >
               {connecting ? (
                 <>
@@ -188,7 +178,14 @@ type StageInnerProps = {
   onLeave: () => void;
 };
 
-function StageInner({ channelId, isMod, stageRole, currentUserId, participantMeta, onLeave }: StageInnerProps) {
+function StageInner({
+  channelId,
+  isMod,
+  stageRole,
+  currentUserId,
+  participantMeta,
+  onLeave,
+}: StageInnerProps) {
   const [state, setState] = React.useState<StageState | null>(null);
   const participants = useParticipants();
 
@@ -203,23 +200,18 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
     refresh();
   }, [refresh]);
 
-  // Realtime sync — stage:hand/promoted/demoted → refresh state.
   const stageChannel = `presence-voice-${channelId}`;
   useRealtimeEvent(stageChannel, 'stage:hand', refresh);
   useRealtimeEvent(stageChannel, 'stage:promoted', refresh);
   useRealtimeEvent(stageChannel, 'stage:demoted', refresh);
 
-  // Safety net polling 30s — realtime event đảm nhiệm realtime, polling chỉ
-  // phòng trường hợp event miss (network blip, realtime outage tạm).
   React.useEffect(() => {
     const id = setInterval(refresh, 30_000);
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Map identity → metadata để render speaker tile
   const speakerIds = new Set([
     ...(state?.speakers.map((s) => s.userId) ?? []),
-    // Mod participants luôn ở stage (canPublish=true)
     ...participants
       .filter((p) => {
         try {
@@ -236,7 +228,6 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
 
   return (
     <div className="flex h-full flex-col bg-gradient-to-br from-slate-950 via-amber-950/30 to-slate-950">
-      {/* Stage area — speakers */}
       <section className="border-b border-white/10 px-4 py-4 sm:px-6">
         <div className="mb-3 flex items-center gap-2">
           <Radio className="h-3.5 w-3.5 text-amber-500" />
@@ -245,7 +236,7 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
           </h3>
         </div>
         {speakerParticipants.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground py-6 text-center text-sm">
             Chưa có speaker. Mod cần lên hoặc promote audience.
           </p>
         ) : (
@@ -269,7 +260,6 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
         )}
       </section>
 
-      {/* Mod: raised hands queue */}
       {isMod && state && state.raisedHands.length > 0 && (
         <section className="border-b border-amber-500/30 bg-amber-500/5 px-4 py-3 sm:px-6">
           <div className="mb-2 flex items-center gap-2">
@@ -293,7 +283,11 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
               >
                 {r.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.image} alt={r.name ?? ''} className="h-5 w-5 rounded-full object-cover" />
+                  <img
+                    src={r.image}
+                    alt={r.name ?? ''}
+                    className="h-5 w-5 rounded-full object-cover"
+                  />
                 ) : (
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/30 text-[10px] font-bold">
                     {(r.name ?? '?')[0]?.toUpperCase()}
@@ -307,15 +301,14 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
         </section>
       )}
 
-      {/* Audience area */}
       <section className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
         <div className="mb-3 flex items-center gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
             Khán giả ({audienceParticipants.length})
           </h3>
         </div>
         {audienceParticipants.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">Chưa có khán giả.</p>
+          <p className="text-muted-foreground py-4 text-center text-xs">Chưa có khán giả.</p>
         ) : (
           <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
             {audienceParticipants.map((p) => (
@@ -323,9 +316,7 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
                 key={p.identity}
                 participant={p}
                 meta={participantMeta[p.identity]}
-                isHandRaised={
-                  state?.raisedHands.some((r) => r.userId === p.identity) ?? false
-                }
+                isHandRaised={state?.raisedHands.some((r) => r.userId === p.identity) ?? false}
                 isMod={isMod}
                 onPromote={async () => {
                   await fetch(`/api/channels/${channelId}/stage/promote/${p.identity}`, {
@@ -339,7 +330,6 @@ function StageInner({ channelId, isMod, stageRole, currentUserId, participantMet
         )}
       </section>
 
-      {/* Bottom bar — audience raise hand / speaker mic toggle / demote self / leave */}
       <StageControlBar
         channelId={channelId}
         currentUserId={currentUserId}
@@ -388,10 +378,7 @@ function SpeakerTile({
     >
       {camTrack && !camTrack.publication?.isMuted ? (
         <TrackRefContext.Provider value={camTrack}>
-          <VideoTrack
-            trackRef={camTrack}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
+          <VideoTrack trackRef={camTrack} className="absolute inset-0 h-full w-full object-cover" />
         </TrackRefContext.Provider>
       ) : (
         <div className="flex h-full items-center justify-center">
@@ -417,7 +404,11 @@ function SpeakerTile({
             micOn ? 'bg-voice-active/80' : 'bg-voice-mute/80',
           )}
         >
-          {micOn ? <Mic className="h-2.5 w-2.5 text-white" /> : <MicOff className="h-2.5 w-2.5 text-white" />}
+          {micOn ? (
+            <Mic className="h-2.5 w-2.5 text-white" />
+          ) : (
+            <MicOff className="h-2.5 w-2.5 text-white" />
+          )}
         </span>
         <span className="truncate text-xs font-medium text-white">{name}</span>
         {(isMod || isSelf) && (
@@ -480,7 +471,7 @@ function AudienceTile({
           </button>
         )}
       </div>
-      <span className="max-w-[60px] truncate text-[10px] text-muted-foreground sm:max-w-[80px]">
+      <span className="text-muted-foreground max-w-[60px] truncate text-[10px] sm:max-w-[80px]">
         {name}
       </span>
     </div>
@@ -506,7 +497,6 @@ function StageControlBar({
   onAction: () => void;
   onLeave: () => void;
 }) {
-  // Speaker/Mod có quyền publish → render mic toggle
   const canPublish = isMod || currentRole === 'SPEAKER' || stageRole === 'SPEAKER';
 
   const { toggle: toggleMic, enabled: micOn } = useTrackToggle({

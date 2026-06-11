@@ -1,17 +1,3 @@
-/**
- * migrate-local-uploads-to-r2 — đẩy mọi file trong uploads/ (local) lên R2.
- *
- * Vì sao: trước đây getStorage() ghi xuống `<cwd>/uploads/<key>` (workspace docs,
- * group attachments...). Khi bật STORAGE_DRIVER=r2, app sẽ đọc từ R2 → file cũ
- * trên đĩa sẽ 404. Script copy nguyên key (relative path) lên R2 để không mất.
- *
- * An toàn: idempotent — bỏ qua key đã tồn tại trên R2 (trừ khi --force). KHÔNG
- * xoá file local (giữ làm backup; xoá tay sau khi xác nhận).
- *
- * Chạy: cd apps/web && pnpm exec tsx --env-file=.env.local scripts/migrate-local-uploads-to-r2.ts
- *   --force   ghi đè cả key đã có trên R2
- *   --delete  xoá file local sau khi upload thành công
- */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -21,7 +7,6 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR ?? path.join(process.cwd(), 'uploads
 const FORCE = process.argv.includes('--force');
 const DELETE = process.argv.includes('--delete');
 
-// MIME theo đuôi file — đủ cho các loại đang lưu (pdf/ảnh/audio/video/doc).
 const MIME: Record<string, string> = {
   '.pdf': 'application/pdf',
   '.png': 'image/png',
@@ -46,7 +31,7 @@ async function walk(dir: string): Promise<string[]> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch {
-    return out; // dir không tồn tại → không có gì để migrate
+    return out;
   }
   for (const e of entries) {
     const full = path.join(dir, e.name);
@@ -70,7 +55,6 @@ async function main() {
   let failed = 0;
 
   for (const full of files) {
-    // Key = đường dẫn tương đối so với UPLOADS_DIR, dùng '/' (S3 style).
     const key = path.relative(UPLOADS_DIR, full).split(path.sep).join('/');
     const ext = path.extname(full).toLowerCase();
     const contentType = MIME[ext] ?? 'application/octet-stream';

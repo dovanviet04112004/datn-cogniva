@@ -1,17 +1,3 @@
-/**
- * VideoGrid — render lưới video tự co dãn theo số participant.
- *
- * Layout adaptive:
- *   1 người      → 1 cột full
- *   2-4 người    → 2 cột
- *   5-9 người    → 3 cột
- *   10-16 người  → 4 cột
- *   17+ người    → 5 cột
- *
- * Track sources: camera (mặc định) + screenshare (nếu có) — render trộn
- * cùng grid. `withPlaceholder: true` cho camera để khi tắt cam vẫn thấy
- * avatar/name (UX tốt hơn ô đen trơn).
- */
 'use client';
 
 import { ParticipantTile, useTracks } from '@livekit/components-react';
@@ -27,11 +13,7 @@ export function VideoGrid() {
   );
 
   const count = tracks.length;
-  const cols = count <= 1 ? 1
-             : count <= 4 ? 2
-             : count <= 9 ? 3
-             : count <= 16 ? 4
-             : 5;
+  const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : count <= 16 ? 4 : 5;
 
   if (count === 0) {
     return (
@@ -43,14 +25,14 @@ export function VideoGrid() {
 
   return (
     <div
-      className="flex-1 grid gap-2 p-4 bg-slate-900"
+      className="grid flex-1 gap-2 bg-slate-900 p-4"
       style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
     >
       {tracks.map((t) => (
         <ParticipantTile
           key={t.publication?.trackSid ?? t.participant.identity}
           trackRef={t}
-          className="rounded-lg overflow-hidden bg-black"
+          className="overflow-hidden rounded-lg bg-black"
         />
       ))}
     </div>

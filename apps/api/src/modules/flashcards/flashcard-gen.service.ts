@@ -1,21 +1,8 @@
-/**
- * FlashcardGenService — LLM scan chunk → sinh cặp Q-A / câu cloze cho ôn thi.
- * Port từ apps/web/src/lib/flashcards/generate.ts, prompt giữ NGUYÊN VĂN.
- *
- * Khác bản web (routedGenerateText):
- *   - Không có fallback-chain/circuit-breaker/semantic-cache — mỗi call đi
- *     thẳng LlmService (Wave 7 nối lại router DI đầy đủ); output shape không đổi.
- *   - Cost guardrail vẫn check trước / record sau mỗi call như router cũ.
- *
- * IMAGE_OCCLUSION không có generator AI (cần ảnh + user vẽ mask thủ công).
- * Failure: LLM trả invalid JSON / empty / guardrail deny → [] (skip chunk).
- */
 import { Injectable } from '@nestjs/common';
 
 import { CostGuardrailService, type Plan } from '../../infra/ai/cost-guardrail.service';
 import { LlmService } from '../../infra/ai/llm.service';
 
-/** Context bắt buộc — route cũ luôn truyền để đi router (guardrail). */
 export interface GenerateContext {
   userId: string;
   plan: Plan;
@@ -53,8 +40,6 @@ QUY TẮC:
 {{CONTENT}}
 """`;
 
-// System = phần trước {{CONTENT}} (derive y hệt route cũ split + trim);
-// content đẩy xuống user message — giữ cấu trúc router cũ cho Wave 7 nối cache.
 const BASIC_SYSTEM = BASIC_INSTRUCTION.split('{{CONTENT}}')[0]!.trim();
 const CLOZE_SYSTEM = CLOZE_INSTRUCTION.split('{{CONTENT}}')[0]!.trim();
 
@@ -62,7 +47,6 @@ export type GeneratedCard =
   | { type: 'BASIC'; front: string; back: string }
   | { type: 'CLOZE'; text: string };
 
-/** Strip code fence + extract object JSON đầu tiên. */
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```(?:json)?\s*/i, '')
@@ -80,7 +64,6 @@ export class FlashcardGenService {
     private readonly guardrail: CostGuardrailService,
   ) {}
 
-  /** Generate cards BASIC từ 1 chunk content. Lỗi bất kỳ → [] (skip chunk). */
   async generateBasicCards(content: string, ctx: GenerateContext): Promise<GeneratedCard[]> {
     if (content.length < 50) return [];
     try {
@@ -104,7 +87,6 @@ export class FlashcardGenService {
     }
   }
 
-  /** Generate cards CLOZE từ 1 chunk content. Lỗi bất kỳ → [] (skip chunk). */
   async generateClozeCards(content: string, ctx: GenerateContext): Promise<GeneratedCard[]> {
     if (content.length < 50) return [];
     try {
@@ -114,23 +96,19 @@ export class FlashcardGenService {
       return obj.cards
         .filter((c): c is { text: string } => typeof (c as { text?: unknown }).text === 'string')
         .map((c) => ({ type: 'CLOZE' as const, text: c.text.trim() }))
-        .filter((c) => /\{\{c\d+::/.test(c.text)); // chỉ giữ nếu có cloze marker
+        .filter((c) => /\{\{c\d+::/.test(c.text));
     } catch (err) {
       console.warn('[generate-cloze] skip:', (err as Error).message);
       return [];
     }
   }
 
-  /** Guardrail check → LLM → record, như routedGenerateText cũ. Throw khi deny/fail. */
   private async completeGuarded(
     content: string,
     ctx: GenerateContext,
     system: string,
     feature: string,
   ): Promise<string> {
-    // Estimate 0 vì provider khả dụng thực tế là free tier (Groq/Gemini —
-    // pricing 0 như chain free của router cũ) — vẫn chặn được DAILY_QUOTA
-    // đã cạn + GLOBAL_CIRCUIT.
     const guard = await this.guardrail.check({
       userId: ctx.userId,
       plan: ctx.plan,
@@ -140,10 +118,9 @@ export class FlashcardGenService {
 
     const text = await this.llm.complete(`ĐOẠN VĂN:\n"""\n${content}\n"""`, {
       system,
-      maxTokens: 600, // khớp maxOutputTokens router cũ (1-3 thẻ/chunk)
+      maxTokens: 600,
     });
 
-    // Seam cho Wave 7: free tier → cost 0, record() tự no-op như recordCost web.
     await this.guardrail.record({
       userId: ctx.userId,
       plan: ctx.plan,

@@ -1,19 +1,3 @@
-/**
- * RecordingPipelineService — download MP4 → Whisper transcribe → summarize →
- * chapter detect → persist → post log message + broadcast.
- *
- * Port từ apps/web/src/lib/recording/inline-pipeline.ts (+ lib/media/whisper.ts,
- * lib/ai/summarize.ts, lib/media/chapters.ts). Khác bản web:
- *   - Whisper gọi REST multipart trực tiếp (api không cài SDK openai) — cùng
- *     endpoint OpenAI-compatible, Groq free ưu tiên trước OpenAI paid.
- *   - Không ghi tmp file: bản cũ buffer toàn bộ MP4 rồi mới ghi disk cho
- *     createReadStream; ở đây gửi thẳng buffer qua FormData (memory như cũ).
- *   - summarize qua LlmService (provider pick order y models.ts cũ), chapter
- *     embedding qua EmbeddingService.embedQuery (= embed-query.ts cũ).
- *
- * Chạy sync trong request /record/:id/sync — 1-3 phút, api không có giới hạn
- * maxDuration kiểu serverless nên không cần config thêm.
- */
 import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
@@ -29,7 +13,6 @@ export type InlinePipelineOpts = {
   recordingId: string;
   fileUrl: string;
   channelId: string;
-  /** Duration từ LiveKit egress info — fallback nếu Whisper không trả. */
   durationHint?: number;
 };
 
@@ -55,8 +38,6 @@ type Chapter = {
   title: string;
   preview: string;
 };
-
-/* ── Summarize (NGUỒN CHUẨN prompt ở apps/web/src/lib/ai/summarize.ts) ──── */
 
 const CHUNK_WORD_LIMIT = 5_000;
 const SINGLE_SHOT_THRESHOLD = 8_000;
@@ -92,9 +73,6 @@ function chunkByWords(text: string, maxWords: number): string[] {
   return chunks;
 }
 
-/* ── Chapter detection (NGUỒN CHUẨN ở apps/web/src/lib/media/chapters.ts) ─ */
-
-/** Cosine similarity — trả -1 nếu zero vector (tránh chia 0). */
 function cosine(a: number[], b: number[]): number {
   if (a.length !== b.length) return -1;
   let dot = 0;
@@ -111,7 +89,6 @@ function cosine(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-/** Group segments thành blocks ~blockSec giây (≈ 1 đoạn nói tự nhiên). */
 function buildBlocks(
   segments: TranscribeSegment[],
   blockSec: number,
@@ -139,15 +116,13 @@ function buildBlocks(
 function makeTitle(text: string): string {
   const words = text.trim().split(/\s+/).slice(0, 10);
   if (words.length === 0) return 'Chương';
-  const raw = words.join(' ').replace(/[.,;!?]+$/, '').trim();
+  const raw = words
+    .join(' ')
+    .replace(/[.,;!?]+$/, '')
+    .trim();
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-/**
- * Chia transcript thành chapter theo topic shift: embed blocks 75s, cosine
- * giữa block kề nhau < 0.65 = boundary; merge chapter < 120s với chapter trước.
- * Embedding-based thay vì LLM end-to-end vì rẻ + deterministic.
- */
 async function detectChapters(
   segments: TranscribeSegment[],
   embedFn: (text: string) => Promise<number[]>,
@@ -199,7 +174,6 @@ async function detectChapters(
 
     const last = chapters[chapters.length - 1];
     if (last && candidate.endSec - last.startSec < minChapterSec) {
-      // Merge với previous (giữ title prev — coi như chương cũ kéo dài)
       last.endSec = candidate.endSec;
       last.preview = (last.preview + ' ' + candidate.preview).slice(0, 200);
     } else {
@@ -218,11 +192,6 @@ export class RecordingPipelineService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /**
-   * Full pipeline: download → transcribe → summarize → chapters → persist →
-   * post log message → broadcast. KHÔNG throw — fail set DB FAILED + trả
-   * error trong result (caller đưa vào field pipelineError).
-   */
   async run(opts: InlinePipelineOpts): Promise<InlinePipelineResult> {
     const { recordingId, fileUrl, channelId, durationHint } = opts;
 
@@ -234,7 +203,6 @@ export class RecordingPipelineService {
         data: { status: 'PROCESSING' },
       });
 
-      // ── Download MP4 ──
       const res = await fetch(fileUrl);
       if (!res.ok) {
         throw new Error(`Download MP4 thất bại — status ${res.status} từ ${fileUrl}`);
@@ -242,7 +210,6 @@ export class RecordingPipelineService {
       const buf = Buffer.from(await res.arrayBuffer());
       logger.info('recording.pipeline.downloaded', { size_bytes: buf.byteLength });
 
-      // ── Transcribe (Whisper nhận MP4 native — không cần ffmpeg) ──
       let transcriptText = '';
       let segments: TranscribeSegment[] = [];
       let durationSec = durationHint ?? 0;
@@ -260,7 +227,6 @@ export class RecordingPipelineService {
         logger.warn('recording.pipeline.whisper-not-configured', { recording_id: recordingId });
       }
 
-      // ── Summarize (fail riêng không chặn pipeline) ──
       let summary: string | null = null;
       if (transcriptText.trim()) {
         try {
@@ -272,7 +238,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── Chapters (chỉ khi có segments) ──
       let chapters: Chapter[] = [];
       if (segments.length > 0) {
         try {
@@ -284,7 +249,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── Persist ──
       await this.prisma.recording.update({
         where: { id: recordingId },
         data: {
@@ -298,8 +262,6 @@ export class RecordingPipelineService {
         },
       });
 
-      // ── Resolve log channel: group.recording_log_channel_id (verify cùng
-      // group) → fallback TEXT channel đầu tiên ──
       const voiceCh = await this.prisma.study_group_channel.findUnique({
         where: { id: channelId },
         select: { group_id: true, name: true },
@@ -350,7 +312,6 @@ export class RecordingPipelineService {
 
         const msg = await this.prisma.study_group_message.create({
           data: {
-            // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default)
             id: randomUUID(),
             channel_id: logChannelId,
             author_id: 'system-ai-tutor',
@@ -381,7 +342,6 @@ export class RecordingPipelineService {
         logger.warn('recording.pipeline.no-log-channel', { recording_id: recordingId });
       }
 
-      // ── Notify replay UI ──
       await triggerEvent(`presence-voice-${channelId}`, 'recording:processed', {
         recordingId,
         summary,
@@ -413,16 +373,10 @@ export class RecordingPipelineService {
     }
   }
 
-  /** Pipeline có thể skip transcribe thay vì throw (replay vẫn xem được video). */
   private isWhisperConfigured(): boolean {
     return !!process.env.GROQ_API_KEY || !!process.env.OPENAI_API_KEY;
   }
 
-  /**
-   * Whisper qua REST multipart (OpenAI-compatible). Priority y lib cũ:
-   * Groq free (whisper-large-v3-turbo) → OpenAI paid (whisper-1).
-   * verbose_json để có segment timestamps cho chapter detection.
-   */
   private async whisperTranscribe(buf: Buffer): Promise<TranscribeResult> {
     const groqKey = process.env.GROQ_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
@@ -478,10 +432,6 @@ export class RecordingPipelineService {
     };
   }
 
-  /**
-   * Tóm tắt transcript: < 8K từ → 1 shot; dài hơn → map-reduce chunk 5K từ.
-   * maxTokens 1024 đủ cho output ≤ 300 từ.
-   */
   private async summarizeTranscript(transcript: string): Promise<string> {
     const wordCount = approxWordCount(transcript);
 

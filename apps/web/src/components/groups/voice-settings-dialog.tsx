@@ -1,17 +1,3 @@
-/**
- * VoiceSettingsDialog — V2 G5.2 (2026-05-21).
- *
- * Modal cài đặt voice từ control bar (gear icon).
- *
- * Sections:
- *   1. Chế độ mic:
- *      - Voice Activity (VAD) — LiveKit auto detect speech (default)
- *      - Push-to-Talk (PTT) — chỉ unmute khi giữ phím
- *      - Always Open — mic luôn bật, không VAD
- *   2. PTT shortcut — bấm vào input rồi bấm phím muốn dùng (capture event.code)
- *
- * Spec: docs/plans/study-group-v2.md §G5.
- */
 'use client';
 
 import * as React from 'react';
@@ -29,21 +15,14 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
-import {
-  formatPttKey,
-  useVoicePrefs,
-  type VoiceMode,
-} from '@/lib/group/voice-prefs';
+import { formatPttKey, useVoicePrefs, type VoiceMode } from '@/lib/group/voice-prefs';
 
 type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 };
 
-const MODE_META: Record<
-  VoiceMode,
-  { label: string; desc: string; icon: typeof Mic }
-> = {
+const MODE_META: Record<VoiceMode, { label: string; desc: string; icon: typeof Mic }> = {
   voice: {
     label: 'Voice Activity (mặc định)',
     desc: 'Tự động phát hiện khi bạn nói',
@@ -65,13 +44,11 @@ export function VoiceSettingsDialog({ open, onOpenChange }: Props) {
   const { prefs, setMode, setPttKey } = useVoicePrefs();
   const [capturing, setCapturing] = React.useState(false);
 
-  // Capture phím khi user bấm vào input PTT
   React.useEffect(() => {
     if (!capturing) return;
     const onKey = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      // Code = ổn định hơn key (independent layout). Vd: 'Space', 'KeyV'.
       if (e.code) {
         setPttKey(e.code);
       }
@@ -92,9 +69,8 @@ export function VoiceSettingsDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Mode picker */}
           <div className="space-y-2">
-            <Label className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider">
               Chế độ mic
             </Label>
             <div className="space-y-1.5">
@@ -108,7 +84,7 @@ export function VoiceSettingsDialog({ open, onOpenChange }: Props) {
                     type="button"
                     onClick={() => setMode(m)}
                     className={cn(
-                      'flex w-full items-start gap-3 rounded-md border bg-card p-3 text-left transition',
+                      'bg-card flex w-full items-start gap-3 rounded-md border p-3 text-left transition',
                       active
                         ? 'border-primary bg-primary/5'
                         : 'hover:border-foreground/20 hover:bg-muted/40',
@@ -121,44 +97,37 @@ export function VoiceSettingsDialog({ open, onOpenChange }: Props) {
                       )}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[12.5px] font-medium leading-tight">
-                        {meta.label}
-                      </p>
-                      <p className="mt-0.5 text-[10.5px] text-muted-foreground">
-                        {meta.desc}
-                      </p>
+                      <p className="text-[12.5px] font-medium leading-tight">{meta.label}</p>
+                      <p className="text-muted-foreground mt-0.5 text-[10.5px]">{meta.desc}</p>
                     </div>
-                    {active && (
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                    )}
+                    {active && <Check className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* PTT key — chỉ hiện khi mode='ptt' */}
           {prefs.mode === 'ptt' && (
             <div className="space-y-2">
-              <Label className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <Label className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider">
                 Phím Push-to-Talk
               </Label>
               <button
                 type="button"
                 onClick={() => setCapturing(true)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-md border bg-card p-3 text-left transition',
+                  'bg-card flex w-full items-center gap-3 rounded-md border p-3 text-left transition',
                   capturing
                     ? 'border-primary bg-primary/5 animate-pulse'
                     : 'hover:border-foreground/20 hover:bg-muted/40',
                 )}
               >
-                <Keyboard className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Keyboard className="text-muted-foreground h-4 w-4 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[12.5px] font-medium leading-tight">
                     {capturing ? 'Bấm phím muốn dùng…' : formatPttKey(prefs.pttKey)}
                   </p>
-                  <p className="mt-0.5 text-[10.5px] text-muted-foreground">
+                  <p className="text-muted-foreground mt-0.5 text-[10.5px]">
                     Phím sẽ unmute mic khi giữ. Default: Space.
                   </p>
                 </div>

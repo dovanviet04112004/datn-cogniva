@@ -1,14 +1,3 @@
-/**
- * get-catalog-detail — chi tiết trường/môn library theo id (server-only).
- *
- * Tách query inline khỏi 2 trang chi tiết (`university/[id]`, `course/[id]`) để
- * cache được. Đây là dữ liệu CÔNG KHAI NHIỀU-KEY (mỗi id 1 key) → dùng VERSION-FOLD:
- * key gắn `ver` lấy từ `cacheVersion(TAG_LIBRARY)`. Khi catalog đổi (doc finalize)
- * `onLibraryCatalogChanged` gọi `bumpCacheVersion(TAG_LIBRARY)` → mọi key chi tiết
- * cũ thành mồ côi (không cần enumerate id để xoá). Không field Date → serialize an toàn.
- *
- * dbReplica: read công khai thuần → route replica (fallback primary).
- */
 import { and, count, desc, eq, sql } from 'drizzle-orm';
 
 import { dbReplica, libraryCourse, libraryDoc, libraryUniversity } from '@cogniva/db';
@@ -16,7 +5,6 @@ import { dbReplica, libraryCourse, libraryDoc, libraryUniversity } from '@cogniv
 import { cached, cacheVersion } from '@/lib/cache/cache-aside';
 import { ck, TAG_LIBRARY } from '@/lib/cache/keys';
 
-/** Chi tiết 1 trường + danh sách môn (có doc) + breakdown loại tài liệu. */
 export async function getUniversityDetail(id: string) {
   const ver = await cacheVersion(TAG_LIBRARY);
   return cached(ck.universityDetail(id, ver), 3600, async () => {
@@ -57,7 +45,6 @@ export async function getUniversityDetail(id: string) {
   });
 }
 
-/** Chi tiết 1 môn (kèm tên trường qua leftJoin). */
 export async function getCourseDetail(id: string) {
   const ver = await cacheVersion(TAG_LIBRARY);
   return cached(ck.courseDetail(id, ver), 3600, async () => {

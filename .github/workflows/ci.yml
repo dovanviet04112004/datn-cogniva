@@ -14,8 +14,7 @@
 #   3. typecheck     — tsc --noEmit cho mọi package
 #   4. build         — next build (cần env vars dummy ở dưới)
 #
-# Build cần DATABASE_URL/BETTER_AUTH_SECRET có giá trị để qua check shape —
-# KHÔNG phải secret thật. Production secret được set ở Vercel project.
+# Build cần DATABASE_URL có giá trị đúng shape — KHÔNG phải secret thật.
 # ─────────────────────────────────────────────────────────────────────────────
 name: CI
 
@@ -72,6 +71,4 @@ jobs:
         env:
           # Build needs valid-shaped values, not real secrets
           DATABASE_URL: postgresql://cogniva:cogniva@localhost:5432/cogniva
-          BETTER_AUTH_SECRET: ci-build-only-not-a-real-secret-please-rotate
-          BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_APP_URL: http://localhost:3000

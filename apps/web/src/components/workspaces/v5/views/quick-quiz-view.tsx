@@ -1,27 +1,7 @@
-/**
- * QuickQuizView — V5 recipe "Quiz check" 5 câu random.
- *
- * Phase V5.2 (atom-centric). Spec: docs/plans/v5-notebooklm-layout.md §5.
- *
- * Flow:
- *   1. Fetch /api/workspaces/[id]/quick-quiz → 5 question (no answer)
- *   2. Show 1 câu/lần, user chọn option
- *   3. POST /api/questions/[id]/grade với answer → server check + applyAttempt
- *   4. Reveal correct + explanation + nút "Next"
- *   5. Hết 5 câu → summary (correct count + atoms touched)
- *
- * Ephemeral: KHÔNG persist attempt row. Mỗi câu standalone grade.
- */
 'use client';
 
 import * as React from 'react';
-import {
-  CheckCircle2,
-  ListChecks,
-  Loader2,
-  Sparkles,
-  X,
-} from 'lucide-react';
+import { CheckCircle2, ListChecks, Loader2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useQueryClient } from '@tanstack/react-query';
@@ -53,13 +33,10 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
   const [loading, setLoading] = React.useState(true);
   const [hint, setHint] = React.useState<string | null>(null);
   const [idx, setIdx] = React.useState(0);
-  const [selectedAnswer, setSelectedAnswer] = React.useState<number | string | null>(
-    null,
-  );
+  const [selectedAnswer, setSelectedAnswer] = React.useState<number | string | null>(null);
   const [result, setResult] = React.useState<GradeResult | null>(null);
   const [stats, setStats] = React.useState({ correct: 0, total: 0 });
   const [submitting, setSubmitting] = React.useState(false);
-  /** V8.20: state khi đang gen quiz từ empty state CTA. */
   const [generating, setGenerating] = React.useState(false);
 
   const loadQuestions = React.useCallback(() => {
@@ -83,12 +60,6 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     loadQuestions();
   }, [loadQuestions]);
 
-  /**
-   * V8.20: gen quiz từ Sources docs đã check → seed `question` table với
-   * conceptId của workspace, sau đó quick-quiz endpoint pick được 5 câu.
-   * Strategy: gen từ doc đầu tiên đã check (5 câu). User có thể click lại
-   * để gen thêm từ doc khác.
-   */
   const generateQuiz = React.useCallback(async () => {
     if (generating) return;
     const docIds = Array.from(selectedDocs);
@@ -121,15 +92,11 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     if (!current || selectedAnswer === null || submitting) return;
     setSubmitting(true);
     try {
-      const data = await apiSend<GradeResult>(
-        `/api/questions/${current.id}/grade`,
-        'POST',
-        { answer: selectedAnswer },
-      );
+      const data = await apiSend<GradeResult>(`/api/questions/${current.id}/grade`, 'POST', {
+        answer: selectedAnswer,
+      });
       setResult(data);
-      // Mastery vừa đổi (applyAttempt) → bust list atom để status refetch.
       queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId, 'sources'] });
-      // Câu vừa làm → "đã làm" ở trang quản trị cập nhật.
       queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId, 'manage'] });
       setStats((s) => ({
         correct: s.correct + (data.correct ? 1 : 0),
@@ -143,7 +110,7 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
   };
 
   const next = () => {
-    if (isLast) return; // stays on last, finished view handles
+    if (isLast) return;
     setIdx(idx + 1);
     setSelectedAnswer(null);
     setResult(null);
@@ -153,7 +120,7 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     return (
       <Wrapper>
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
         </div>
       </Wrapper>
     );
@@ -164,16 +131,15 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     return (
       <Wrapper>
         <div className="mx-auto max-w-md py-12 text-center">
-          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <div className="bg-primary/10 text-primary mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl">
             <ListChecks className="h-6 w-6" />
           </div>
           <h2 className="text-lg font-semibold">Chưa có quiz</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="text-muted-foreground mt-2 text-sm">
             {isNoAtoms
               ? 'Workspace chưa có atom — upload PDF + đợi AI extract (~30-60s).'
               : 'Sẵn sàng tạo 5 câu quiz từ doc đã check trong Sources.'}
           </p>
-          {/* V8.20: CTA trực tiếp gen — không còn dead-end "Vào Practice tab". */}
           {!isNoAtoms && (
             <Button
               type="button"
@@ -200,18 +166,15 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     return (
       <Wrapper onBack={() => setMainView('chat')}>
         <div className="mx-auto max-w-md space-y-4 py-8 text-center">
-          <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <div className="bg-primary/10 text-primary mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl">
             <CheckCircle2 className="h-6 w-6" />
           </div>
           <h2 className="text-xl font-semibold tracking-tight">Hết quiz!</h2>
-          {/* Điểm tổng kết: số to dùng sans Geist (bỏ font-mono), giữ tabular-nums. */}
           <p className="text-3xl font-bold tabular-nums">
             {stats.correct} / {stats.total}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              ({pct}%)
-            </span>
+            <span className="text-muted-foreground ml-2 text-sm font-normal">({pct}%)</span>
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Mastery của các atom đã update. Quay lại chat hỏi tiếp hoặc làm round mới.
           </p>
           <div className="flex justify-center gap-2 pt-2">
@@ -227,16 +190,14 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
     );
   }
 
-  // MCQ với options array
   const isMcq =
     current!.type === 'MCQ' && Array.isArray(current!.options) && current!.options.length > 0;
 
   return (
     <Wrapper onBack={() => setMainView('chat')}>
       <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 px-4 py-6">
-        {/* Progress */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-between text-xs">
             <span className="font-mono tabular-nums">
               Câu {idx + 1} / {questions.length}
             </span>
@@ -244,20 +205,18 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
               ✓ <span className="font-mono">{stats.correct}</span> đúng
             </span>
           </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div className="bg-muted h-1 w-full overflow-hidden rounded-full">
             <div
-              className="h-full bg-primary transition-all"
+              className="bg-primary h-full transition-all"
               style={{ width: `${(idx / questions.length) * 100}%` }}
             />
           </div>
         </div>
 
-        {/* Question prompt */}
-        <div className="rounded-xl border bg-card p-4">
+        <div className="bg-card rounded-xl border p-4">
           <p className="text-sm font-medium leading-relaxed">{current!.prompt}</p>
         </div>
 
-        {/* Options */}
         {isMcq && (
           <div className="space-y-2">
             {(current!.options as string[]).map((opt, i) => {
@@ -275,9 +234,7 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
                     !result &&
                       !isSelected &&
                       'border-divider hover:border-primary/30 hover:bg-muted',
-                    result &&
-                      isCorrect &&
-                      'border-success/40 bg-success/10 text-success',
+                    result && isCorrect && 'border-success/40 bg-success/10 text-success',
                     result && isWrong && 'border-destructive/40 bg-destructive/10 text-destructive',
                     result && !isSelected && !isCorrect && 'opacity-60',
                   )}
@@ -294,25 +251,22 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
           </div>
         )}
 
-        {/* Non-MCQ fallback */}
         {!isMcq && (
-          <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
-            Loại câu hỏi {current!.type} chưa support trong Quick Quiz V5.2. Vào
-            quiz fullscreen để làm.
+          <div className="border-warning/30 bg-warning/5 text-warning rounded-lg border p-3 text-xs">
+            Loại câu hỏi {current!.type} chưa support trong Quick Quiz V5.2. Vào quiz fullscreen để
+            làm.
           </div>
         )}
 
-        {/* Explanation */}
         {result && (
-          <div className="rounded-lg border border-divider bg-muted/30 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="border-divider bg-muted/30 rounded-lg border p-3">
+            <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               {result.correct ? 'Đúng ✓' : 'Sai ✗'}
             </p>
             <p className="mt-1 text-sm leading-relaxed">{result.explanation}</p>
           </div>
         )}
 
-        {/* Action button */}
         <div className="mt-auto flex justify-end gap-2">
           {!result ? (
             <Button
@@ -323,11 +277,7 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Kiểm tra'}
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={next}
-              disabled={isLast && stats.total < questions.length}
-            >
+            <Button size="sm" onClick={next} disabled={isLast && stats.total < questions.length}>
               {isLast ? 'Xem kết quả' : 'Câu tiếp'}
             </Button>
           )}
@@ -337,19 +287,13 @@ export function QuickQuizView({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-function Wrapper({
-  children,
-}: {
-  children: React.ReactNode;
-  /** V8.25: prop giữ lại signature backward-compat — modal có X riêng. */
-  onBack?: () => void;
-}) {
+function Wrapper({ children }: { children: React.ReactNode; onBack?: () => void }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b bg-muted/20 px-4 py-2 pr-14">
+      <header className="bg-muted/20 shrink-0 border-b px-4 py-2 pr-14">
         <div className="flex items-center justify-end">
-          <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ListChecks className="h-3 w-3 text-primary" />
+          <div className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+            <ListChecks className="text-primary h-3 w-3" />
             Quick Quiz · 5 câu
           </div>
         </div>

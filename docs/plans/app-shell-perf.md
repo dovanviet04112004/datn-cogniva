@@ -8,6 +8,7 @@
 ---
 
 ## 0. Ràng buộc bất biến (áp xuyên suốt)
+
 1. **Không phá cấu trúc** — không refactor 100+ page, không "rip session ra client".
 2. **Không phá mobile** — Expo dùng Bearer JWT + SecureStore, ĐỘC LẬP với cookie web;
    chỉ share `packages/shared` (RN-safe). Mọi thay đổi web KHÔNG được đổi API signature
@@ -23,6 +24,7 @@
 ## 1. Chẩn đoán (đã verify bằng code, không đoán)
 
 **Gốc:** `apps/web/src/app/(app)/layout.tsx:33` gọi `auth.api.getSession({ headers })`:
+
 - `headers()` ở layout → **ÉP mọi route con `(app)` sang dynamic** (PPR off → `revalidate`/ISR vô tác dụng).
 - Mỗi request → **query session vào Neon** (Singapore: ~50-100ms warm, **+1-2s cold-start**).
 
@@ -46,11 +48,13 @@
 ## 2. Chiến lược — 4 TẦNG (ROI giảm, rủi ro tăng)
 
 ### ✅ Tầng 1 — Session vào Redis qua Better Auth `secondaryStorage` ⭐ (rủi ro THẤP, đòn bẩy LỚN nhất)
+
 **Đây là cách CHUẨN Better Auth để scale session** (1.6.10 hỗ trợ; dùng nội bộ ở
 `internal-adapter` + `create-context` + rate-limiter). Cấu hình 1 adapter Redis →
 Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
 
 **Làm gì:**
+
 1. Tạo `apps/web/src/lib/auth-secondary-storage.ts`:
    ```ts
    import { getRedis } from '@/lib/redis';
@@ -59,16 +63,26 @@ Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
     *  → Better Auth tự fallback DB (storeSessionInDatabase=true). Server-only. */
    export const redisSecondaryStorage = {
      async get(key: string): Promise<string | null> {
-       try { return (await getRedis().get(`ba:${key}`)) as string | null; }
-       catch (e) { logger.warn('auth.ss.get_error', { key, e: String(e) }); return null; }
+       try {
+         return (await getRedis().get(`ba:${key}`)) as string | null;
+       } catch (e) {
+         logger.warn('auth.ss.get_error', { key, e: String(e) });
+         return null;
+       }
      },
      async set(key: string, value: string, ttl?: number): Promise<void> {
-       try { await getRedis().set(`ba:${key}`, value, ttl ? { ex: ttl } : undefined); }
-       catch (e) { logger.warn('auth.ss.set_error', { key, e: String(e) }); }
+       try {
+         await getRedis().set(`ba:${key}`, value, ttl ? { ex: ttl } : undefined);
+       } catch (e) {
+         logger.warn('auth.ss.set_error', { key, e: String(e) });
+       }
      },
      async delete(key: string): Promise<void> {
-       try { await getRedis().del(`ba:${key}`); }
-       catch (e) { logger.warn('auth.ss.del_error', { key, e: String(e) }); }
+       try {
+         await getRedis().del(`ba:${key}`);
+       } catch (e) {
+         logger.warn('auth.ss.del_error', { key, e: String(e) });
+       }
      },
    };
    ```
@@ -83,6 +97,7 @@ Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
    ```
 
 **Vì sao ăn:**
+
 - Phủ **TẤT CẢ 42 getSession site** tự động (layout/page/API) — không đụng từng chỗ.
 - **Mobile hưởng luôn** (mobile getSession qua API route cũng đọc Redis). Bearer JWT flow không đổi.
 - **Invalidation TỰ ĐỘNG**: Better Auth tự ghi/xoá session ở secondaryStorage khi
@@ -97,10 +112,12 @@ Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
 ---
 
 ### ✅ Tầng 2 — Dedup getSession trong 1 request + gỡ getSession thừa ở layout (rủi ro THẤP)
+
 **Vấn đề:** 1 lần tải trang = layout + AppTopbar + page + nested layout = **3-5 lần** resolve session
 (dù Tầng 1 đã rẻ, vẫn thừa N round-trip Redis).
 
 **Làm gì:**
+
 1. Tạo `apps/web/src/lib/auth-server.ts`:
    ```ts
    import { cache } from 'react';
@@ -108,7 +125,8 @@ Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
    import { auth } from '@/lib/auth';
    /** Request-scoped memo: trong CÙNG 1 request, layout+topbar+page share 1 lần resolve. */
    export const getServerSession = cache(async () =>
-     auth.api.getSession({ headers: await headers() }));
+     auth.api.getSession({ headers: await headers() }),
+   );
    ```
    `react.cache()` dedup theo request (chuẩn Next App Router). Tầng 1 lo phần "rẻ", Tầng 2 lo "ít lần".
 2. Đổi call site (layout + AppTopbar + nested layout + hot pages) sang `getServerSession()`.
@@ -122,10 +140,12 @@ Better Auth **lưu + đọc session ở Redis (1-5ms)** thay Neon.
 ---
 
 ### ✅ Tầng 3 — React Query: `useMe` hook + post-mutation sync (rủi ro THẤP, UX nhất quán)
+
 Dữ liệu user phía CLIENT (avatar, plan, streak) đang fetch rời rạc (StreakBadge/UserMenu/ChatDock
 mỗi cái 1 useQuery `qk.profileMe`). Hợp nhất + cập nhật tươi sau mutation.
 
 **Làm gì:**
+
 1. `packages/shared/src/query/use-me.ts` → `useMe()` (gọi `apiGet('/api/profile/me')`, key
    `qk.profileMe()`). **RN-safe** (chỉ apiGet + qk) → web + mobile dùng chung. Gom StreakBadge/UserMenu/ChatDock.
 2. Post-mutation `qc.setQueryData(qk.profileMe(), updated)` sau khi XP/profile đổi → tươi ngay,
@@ -137,10 +157,12 @@ mỗi cái 1 useQuery `qk.profileMe`). Hợp nhất + cập nhật tươi sau mu
 ---
 
 ### ⚠️ Tầng 4 — PPR / vỏ tĩnh (rủi ro CAO HƠN, cho first-load prod) — **DUYỆT RIÊNG**
+
 Sau Tầng 1-3, session lookup đã rẻ (~5ms) nên dynamic render đã nhẹ. Tầng 4 là bước "vỏ tĩnh
 từ CDN" — first-load prod nhanh thật sự. Đây là phần **đụng cấu trúc**, làm sau + duyệt riêng.
 
 **Cách an toàn nhất (route segmentation):**
+
 - Tạo nested `apps/web/src/app/(app)/(authenticated)/layout.tsx` chứa phần phụ thuộc session
   (sidebar cá nhân hoá, banner). Outer `(app)/layout.tsx` giữ **nông** (KHÔNG getSession/headers).
 - Page gần-công-khai (library, leaderboard) ra ngoài `(authenticated)` → **static/ISR-eligible**.
@@ -154,6 +176,7 @@ trong `<Suspense fallback={skeleton}>` → vỏ tĩnh prerender + stream phần 
 ---
 
 ## 3. KHÔNG làm (đã loại — có lý do, nhiều agent cảnh báo)
+
 - ❌ **Rip session ra client** (ChatDock `useEffect` + `useSession`): hydration mismatch (radix IDs
   lệch SSR vs client), flicker user-menu, mất personalization server-side. (Option A/C — high risk.)
 - ❌ **Refactor 100+ page** bỏ getSession: surface khổng lồ, rủi ro vỡ feature.
@@ -165,6 +188,7 @@ trong `<Suspense fallback={skeleton}>` → vỏ tĩnh prerender + stream phần 
 ---
 
 ## 4. Mobile-safety (xuyên suốt — đã verify)
+
 - Mobile: Bearer JWT + SecureStore, `credentials:'omit'`, share `packages/shared` RN-safe.
 - Tầng 1 (`secondaryStorage`) = server-side → mobile getSession qua API cũng hưởng Redis, **không
   đổi Bearer flow** (`auth.ts` bearer plugin `requireSignature:true` giữ nguyên).
@@ -175,12 +199,13 @@ trong `<Suspense fallback={skeleton}>` → vỏ tĩnh prerender + stream phần 
 ---
 
 ## 5. Lộ trình + Verify
-| Phase | Nội dung | Rủi ro | Đo |
-|---|---|---|---|
-| **P1** | Tầng 1 — `secondaryStorage` Redis | thấp | session đọc Redis/cookie >90%; TTFB `(app)` giảm |
-| **P2** | Tầng 2 — `getServerSession` dedup + gỡ getSession layout | thấp | số session-resolve/1 request: 3-5 → 1 |
-| **P3** | Tầng 3 — `useMe` + RQ setQueryData | thấp | bỏ fetch trùng client; XP tươi sau mutation |
-| **P4** | Tầng 4 — PPR/segmentation | **cao — duyệt riêng** | first-load prod (LCP) trang gần-công-khai |
+
+| Phase  | Nội dung                                                 | Rủi ro                | Đo                                               |
+| ------ | -------------------------------------------------------- | --------------------- | ------------------------------------------------ |
+| **P1** | Tầng 1 — `secondaryStorage` Redis                        | thấp                  | session đọc Redis/cookie >90%; TTFB `(app)` giảm |
+| **P2** | Tầng 2 — `getServerSession` dedup + gỡ getSession layout | thấp                  | số session-resolve/1 request: 3-5 → 1            |
+| **P3** | Tầng 3 — `useMe` + RQ setQueryData                       | thấp                  | bỏ fetch trùng client; XP tươi sau mutation      |
+| **P4** | Tầng 4 — PPR/segmentation                                | **cao — duyệt riêng** | first-load prod (LCP) trang gần-công-khai        |
 
 **Metrics chốt:** (1) session→Redis hit-rate >90%; (2) DB session query −80%; (3) TTFB `(app)`
 warm −50…−200ms; (4) cold-start: vẫn còn nhưng hiếm (chỉ khi cả cookie+Redis miss).
@@ -192,5 +217,6 @@ dùng Docker local; Neon cho prod. Tầng 4 (vỏ tĩnh CDN) mới cắt đượ
 ---
 
 ## 6. Thứ tự đề xuất
+
 **P1 → P2 → P3 (gói "session rẻ + dedup + RQ", rủi ro thấp, làm liền được)**, đo kết quả,
 rồi quyết **P4 (PPR)** riêng. P1 một mình đã giải ~80% cảm giác chậm (session-per-request → Redis).

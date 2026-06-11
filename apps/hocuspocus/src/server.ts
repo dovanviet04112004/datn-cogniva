@@ -1,31 +1,8 @@
-/**
- * Hocuspocus server — Yjs WebSocket gateway.
- *
- * Trách nhiệm:
- *   1. Authenticate connection qua JWT (sign bởi Next.js với JWT_SECRET).
- *   2. Persist Yjs binary state vào bảng `collab_doc` (Postgres).
- *   3. Multi-client sync: client A change → server merge CRDT → broadcast tới B.
- *
- * Doc name convention:
- *   - `room:{roomId}:whiteboard`  — Excalidraw shared canvas
- *   - `room:{roomId}:notes`       — TipTap collaborative document
- *   - `room:{roomId}:code`        — Monaco code editor (defer)
- *
- * JWT payload format (Next.js issue):
- *   { userId: string, roomId: string, kind: 'whiteboard'|'notes'|'code', exp: number }
- *
- * Server check: token.roomId + token.kind PHẢI match document name → tránh
- * user dùng token whiteboard để vào notes hoặc cross-room access.
- *
- * Phase 14 v1: single-instance. Multi-instance (Phase 15+) cần thêm
- * @hocuspocus/extension-redis cho pub/sub fan-out giữa các Hocuspocus container.
- */
 import { Server } from '@hocuspocus/server';
 import { Database } from '@hocuspocus/extension-database';
 import jwt from 'jsonwebtoken';
 import postgres from 'postgres';
 
-// ── Config ───────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? '1234', 10);
 const JWT_SECRET = process.env.JWT_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -39,7 +16,6 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// ── DB client ────────────────────────────────────────────────
 const sql = postgres(DATABASE_URL, { max: 5, prepare: false });
 
 type DocKind = 'whiteboard' | 'notes' | 'code';
@@ -51,22 +27,16 @@ interface JwtPayload {
   exp: number;
 }
 
-/** Parse doc name `room:{roomId}:{kind}` → {roomId, kind}. */
 function parseDocName(name: string): { roomId: string; kind: DocKind } | null {
   const match = name.match(/^room:([^:]+):(whiteboard|notes|code)$/);
   if (!match) return null;
   return { roomId: match[1]!, kind: match[2] as DocKind };
 }
 
-// ── Server config ────────────────────────────────────────────
 const server = Server.configure({
   port: PORT,
   timeout: 30000,
 
-  /**
-   * Authenticate: verify JWT + check roomId/kind match.
-   * Throw → Hocuspocus reject connection với CloseEvent 1008 (policy violation).
-   */
   async onAuthenticate({ token, documentName }: { token: string; documentName: string }) {
     if (!token) throw new Error('Missing token');
 
@@ -90,18 +60,12 @@ const server = Server.configure({
   },
 
   extensions: [
-    /**
-     * Persist binary Yjs state vào bảng collab_doc.
-     * fetch: load khi doc lần đầu được mở.
-     * store: save mỗi khi có change (Hocuspocus debounce nội bộ ~2s).
-     */
     new Database({
       fetch: async ({ documentName }) => {
         const rows = await sql<{ state: string }[]>`
           SELECT state FROM collab_doc WHERE id = ${documentName} LIMIT 1
         `;
         if (rows.length === 0) return null;
-        // State lưu dạng base64 → convert thành Uint8Array
         return Buffer.from(rows[0]!.state, 'base64');
       },
       store: async ({ documentName, state }) => {
@@ -117,7 +81,6 @@ const server = Server.configure({
     }),
   ],
 
-  /** Log connect/disconnect cho debug. */
   async onConnect({ documentName, context }: { documentName: string; context: unknown }) {
     const ctx = context as { user?: { id: string } };
     console.log(`[hocuspocus] connect doc=${documentName} user=${ctx.user?.id ?? '?'}`);
@@ -129,7 +92,6 @@ const server = Server.configure({
   },
 });
 
-// Graceful shutdown
 async function shutdown(signal: string) {
   console.log(`[hocuspocus] received ${signal}, shutting down...`);
   await server.destroy();

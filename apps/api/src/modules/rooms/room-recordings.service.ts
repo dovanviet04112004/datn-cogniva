@@ -1,11 +1,3 @@
-/**
- * RoomRecordingsService — port từ apps/web/src/app/api/rooms/[id]/record/
- * {route.ts, [recordingId]/stop/route.ts}. Start/stop LiveKit composite egress
- * + list recordings của room.
- *
- * Egress flow: start → LiveKit render MP4 → upload R2 → webhook `egress_ended`
- * (CÒN Ở WEB tới W6) enqueue BullMQ `recording` → RecordingProcessor (api).
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -15,12 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  EgressClient,
-  EncodedFileType,
-  EncodedFileOutput,
-  S3Upload,
-} from 'livekit-server-sdk';
+import { EgressClient, EncodedFileType, EncodedFileOutput, S3Upload } from 'livekit-server-sdk';
 import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
 
 import { PrismaService } from '../../infra/database/prisma.service';
@@ -30,7 +17,6 @@ import type { AuthUser } from '../../common/auth/session.types';
 export class RoomRecordingsService {
   private readonly logger = new Logger(RoomRecordingsService.name);
 
-  /** Lazy init EgressClient — tránh throw lúc boot nếu env thiếu (y route cũ). */
   private egressClient: EgressClient | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
@@ -43,12 +29,10 @@ export class RoomRecordingsService {
     if (!url || !apiKey || !apiSecret) {
       throw new Error('LiveKit env chưa cấu hình');
     }
-    // SDK chấp nhận ws:// và convert sang HTTPS cho REST API
     this.egressClient = new EgressClient(url, apiKey, apiSecret);
     return this.egressClient;
   }
 
-  /** Build S3Upload cho R2 — throw nếu thiếu env để mod biết phải set. */
   private buildR2Upload(): S3Upload {
     const accessKey = process.env.R2_ACCESS_KEY_ID;
     const secret = process.env.R2_SECRET_ACCESS_KEY;
@@ -69,7 +53,6 @@ export class RoomRecordingsService {
     });
   }
 
-  /** Check user là mod/owner ACTIVE của room. */
   private async assertMod(roomId: string, userId: string): Promise<boolean> {
     const m = await this.prisma.room_member.findUnique({
       where: { room_id_user_id: { room_id: roomId, user_id: userId } },
@@ -78,7 +61,6 @@ export class RoomRecordingsService {
     return m?.status === 'ACTIVE' && (m.role === 'OWNER' || m.role === 'MODERATOR');
   }
 
-  /** POST /rooms/:id/record — start composite recording (mod only). */
   async startRecording(user: AuthUser, roomId: string) {
     if (!(await this.assertMod(roomId, user.id))) {
       throw new ForbiddenException({ error: 'Chỉ mod/owner mới được record buổi học' });
@@ -101,16 +83,17 @@ export class RoomRecordingsService {
       });
     }
 
-    // Check chưa có recording nào đang RECORDING — tránh nhân đôi
     const existing = await this.prisma.recording.findFirst({
       where: { room_id: roomId, status: 'RECORDING' },
       select: { id: true },
     });
     if (existing) {
-      throw new HttpException({ error: 'Đã có recording đang chạy', recordingId: existing.id }, 409);
+      throw new HttpException(
+        { error: 'Đã có recording đang chạy', recordingId: existing.id },
+        409,
+      );
     }
 
-    // S3 filepath — ts để dễ sort + tránh collision khi mod restart record
     const filepath = `recordings/${roomId}/${Date.now()}.mp4`;
     const output = new EncodedFileOutput({
       fileType: EncodedFileType.MP4,
@@ -120,7 +103,6 @@ export class RoomRecordingsService {
 
     let info;
     try {
-      // SDK 2.x signature: startRoomCompositeEgress(roomName, output, layout?)
       info = await this.getEgressClient().startRoomCompositeEgress(roomId, output, 'speaker');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -128,7 +110,6 @@ export class RoomRecordingsService {
       throw new HttpException({ error: `Egress start fail: ${msg}` }, 500);
     }
 
-    // Insert recording row — egressId là khoá để webhook update sau
     const rec = await this.prisma.recording.create({
       data: {
         id: randomUUID(),
@@ -152,7 +133,6 @@ export class RoomRecordingsService {
     };
   }
 
-  /** GET /rooms/:id/record — list recordings (member ACTIVE), mới nhất trước. */
   async listRecordings(uid: string, roomId: string) {
     const m = await this.prisma.room_member.findUnique({
       where: { room_id_user_id: { room_id: roomId, user_id: uid } },
@@ -189,10 +169,6 @@ export class RoomRecordingsService {
     };
   }
 
-  /**
-   * POST /rooms/:id/record/:recordingId/stop — stop egress, idempotent
-   * (đã stop → {ok, alreadyStopped}; LiveKit 404 → swallow).
-   */
   async stopRecording(user: AuthUser, roomId: string, recordingId: string) {
     const m = await this.prisma.room_member.findUnique({
       where: { room_id_user_id: { room_id: roomId, user_id: user.id } },
@@ -213,7 +189,6 @@ export class RoomRecordingsService {
       });
     }
     if (rec.status !== 'RECORDING') {
-      // Idempotent: đã stop rồi → trả ok
       return { ok: true, alreadyStopped: true };
     }
 
@@ -221,15 +196,12 @@ export class RoomRecordingsService {
       await this.getEgressClient().stopEgress(rec.egress_id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // 404 từ LiveKit = egress đã kết thúc rồi → swallow
       if (!/not.found|404/i.test(msg)) {
         this.logger.error(`[record/stop] egressId=${rec.egress_id}: ${msg}`);
         throw new HttpException({ error: `Egress stop fail: ${msg}` }, 500);
       }
     }
 
-    // Update intermediate state — webhook sẽ chuyển sang PROCESSING/PROCESSED.
-    // updateMany: y Drizzle update (no-op nếu row biến mất, không throw P2025).
     await this.prisma.recording.updateMany({
       where: { id: recordingId },
       data: { status: 'PROCESSING', ended_at: new Date() },

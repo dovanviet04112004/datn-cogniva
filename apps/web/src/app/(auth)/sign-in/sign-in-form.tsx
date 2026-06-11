@@ -1,20 +1,3 @@
-/**
- * Form sign-in — gọi API auth V2 (NestJS JWT).
- *
- * Luồng:
- *  1. email + password → POST /api/auth/sign-in (lib/auth-api).
- *  2. User bật 2FA → server trả challengeToken → form chuyển bước nhập mã
- *     TOTP 6 số → POST /api/auth/sign-in/2fa.
- *  3. Thành công: server đã set cookie cg_at/cg_rt → full reload về
- *     redirectTo để SSR nhận session.
- *
- * Silent refresh: cg_at chỉ sống 15' (cg_rt scope /api/auth nên SSR không
- * thấy) — user idle quay lại bị middleware đá về đây dù còn refresh token.
- * Khi mount thử POST /api/auth/refresh đúng 1 LẦN (sessionStorage chống
- * loop; KHÔNG auto-refresh ở middleware vì rotation + reuse-detection sẽ
- * revoke family khi nhiều request đua nhau) — thành công thì quay lại luôn,
- * user không phải gõ mật khẩu.
- */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -43,12 +26,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-/** Điều hướng sau đăng nhập — đọc redirect fresh từ URL, chặn open-redirect. */
 function redirectAfterSignIn(fallback: string) {
   const url = new URL(window.location.href);
   const fresh = url.searchParams.get('redirect') ?? fallback;
   const safe = fresh.startsWith('/') && !fresh.startsWith('//') ? fresh : '/dashboard';
-  // Full reload + không thêm /sign-in vào history (back không quay lại form).
   window.location.replace(safe);
 }
 
@@ -56,7 +37,6 @@ const SILENT_REFRESH_KEY = 'cogniva.signin.silent-refresh-tried';
 
 export function SignInForm({ redirectTo }: { redirectTo: string }) {
   const [isPending, setIsPending] = useState(false);
-  // Khác null = đang ở bước 2 (nhập mã TOTP).
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
 
@@ -66,16 +46,12 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
     void (async () => {
       try {
         const res = await fetch('/api/auth/refresh', { method: 'POST' });
-        // Chỉ tin khi body thật sự có user — status lẫn shape đều phải đúng,
-        // tránh lặp redirect nếu server trả 200 nhưng không phát phiên mới.
         const data = res.ok ? await res.json().catch(() => null) : null;
         if (data?.user && data?.accessToken) {
           sessionStorage.removeItem(SILENT_REFRESH_KEY);
           redirectAfterSignIn(redirectTo);
         }
-      } catch {
-        /* offline/refresh hỏng → hiện form đăng nhập bình thường */
-      }
+      } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -116,8 +92,8 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
   if (challengeToken) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ShieldCheck className="h-4 w-4 text-primary" />
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <ShieldCheck className="text-primary h-4 w-4" />
           Nhập mã 6 số từ ứng dụng xác thực của bạn.
         </div>
         <Input
@@ -159,12 +135,7 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  {...field}
-                />
+                <Input type="email" autoComplete="email" placeholder="you@example.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

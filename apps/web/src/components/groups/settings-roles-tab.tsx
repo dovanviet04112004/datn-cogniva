@@ -1,16 +1,3 @@
-/**
- * SettingsRolesTab — V2 G1 (2026-05-21).
- *
- * Tab "Roles" trong group-settings. Discord-style:
- *   - List roles sort position DESC, mỗi row: color dot, name, member count,
- *     "Managed" badge nếu legacy, click → mở RoleEditor inline (sheet pattern)
- *   - Button "+ Tạo role mới" → mở dialog name + color
- *   - RoleEditor: name (disable cho managed), color picker, permissions grid
- *     5 group (General, Membership, Text, Voice, Stage), hoisted/mentionable
- *     toggle, Lưu / Xoá (managed disabled)
- *
- * Spec: docs/plans/study-group-v2.md §G1 + UI §7.7.
- */
 'use client';
 
 import * as React from 'react';
@@ -64,7 +51,6 @@ type Role = {
   memberCount: number;
 };
 
-/** Grouping cho UI permission grid + label tiếng Việt. */
 type PermissionGroup = {
   title: string;
   icon: typeof Shield;
@@ -131,18 +117,17 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ];
 
-/** Default color palette — chọn nhanh khi tạo role mới. */
 const COLOR_PRESETS = [
-  '#9aa3af', // slate (default)
-  '#ef4444', // red
-  '#f59e0b', // amber
-  '#10b981', // emerald
-  '#3b82f6', // blue
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#14b8a6', // teal
-  '#f97316', // orange
+  '#9aa3af',
+  '#ef4444',
+  '#f59e0b',
+  '#10b981',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#14b8a6',
+  '#f97316',
 ];
 
 export function SettingsRolesTab({ groupId }: { groupId: string }) {
@@ -150,13 +135,14 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
   const [editing, setEditing] = React.useState<Role | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
 
-  // Roles qua React Query.
-  const { data, isLoading: loading, error } = useQuery({
+  const {
+    data,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: qk.groupRoles(groupId),
     queryFn: () =>
-      apiGet<{ roles: Role[] }>(`/api/groups/${groupId}/roles`).then(
-        (d) => d.roles ?? [],
-      ),
+      apiGet<{ roles: Role[] }>(`/api/groups/${groupId}/roles`).then((d) => d.roles ?? []),
   });
   const roles = data ?? [];
 
@@ -173,9 +159,9 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
       <Card className="flex items-center justify-between p-3">
         <div>
           <h3 className="text-sm font-semibold">Roles</h3>
-          <p className="text-xs text-muted-foreground">
-            Tạo role tuỳ chỉnh với màu + quyền hạn riêng. Role mặc định
-            (Chủ nhóm / Quản trị / Điều hành / Thành viên) không xoá được.
+          <p className="text-muted-foreground text-xs">
+            Tạo role tuỳ chỉnh với màu + quyền hạn riêng. Role mặc định (Chủ nhóm / Quản trị / Điều
+            hành / Thành viên) không xoá được.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)} size="sm">
@@ -185,7 +171,7 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
       </Card>
 
       {loading ? (
-        <Card className="flex items-center justify-center gap-2 p-8 text-sm text-muted-foreground">
+        <Card className="text-muted-foreground flex items-center justify-center gap-2 p-8 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Đang tải...
         </Card>
@@ -196,17 +182,17 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
               key={r.id}
               type="button"
               onClick={() => setEditing(r)}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
+              className="hover:bg-muted/40 flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
             >
               <span
-                className="h-3 w-3 shrink-0 rounded-full ring-2 ring-background"
+                className="ring-background h-3 w-3 shrink-0 rounded-full ring-2"
                 style={{ backgroundColor: r.color }}
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" style={{ color: r.color }}>
                   {r.name}
                 </p>
-                <p className="text-[10.5px] text-muted-foreground">
+                <p className="text-muted-foreground text-[10.5px]">
                   {r.memberCount} member · position {r.position}
                   {r.hoisted && ' · hoisted'}
                   {r.mentionable && ' · mentionable'}
@@ -217,7 +203,7 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
                   Mặc định
                 </span>
               )}
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0" />
             </button>
           ))}
         </Card>
@@ -247,8 +233,6 @@ export function SettingsRolesTab({ groupId }: { groupId: string }) {
     </div>
   );
 }
-
-/** ─── Create dialog ───────────────────────────────────────────── */
 
 function CreateRoleDialog({
   open,
@@ -287,7 +271,6 @@ function CreateRoleDialog({
       }
       const { role } = (await res.json()) as { role: Role };
       toast.success('Đã tạo role');
-      // memberCount = 0 cho role mới
       onCreated({ ...role, memberCount: 0 });
     } catch (err) {
       toast.error('Tạo lỗi: ' + (err as Error).message);
@@ -323,10 +306,8 @@ function CreateRoleDialog({
                   type="button"
                   onClick={() => setColor(c)}
                   className={cn(
-                    'h-7 w-7 rounded-full ring-2 ring-background transition-all',
-                    color === c
-                      ? 'scale-110 ring-foreground/40'
-                      : 'opacity-80 hover:opacity-100',
+                    'ring-background h-7 w-7 rounded-full ring-2 transition-all',
+                    color === c ? 'ring-foreground/40 scale-110' : 'opacity-80 hover:opacity-100',
                   )}
                   style={{ backgroundColor: c }}
                   aria-label={`Màu ${c}`}
@@ -360,8 +341,6 @@ function CreateRoleDialog({
   );
 }
 
-/** ─── Role editor — full permissions grid ─────────────────────── */
-
 function RoleEditor({
   groupId,
   role,
@@ -389,7 +368,6 @@ function RoleEditor({
   const save = async () => {
     setSaving(true);
     try {
-      // Strip permissions có value=false (giảm payload + match server validation)
       const cleanPerms: PermissionMap = {};
       for (const k of ALL_PERMISSION_KEYS) {
         if (perms[k]) cleanPerms[k] = true;
@@ -454,7 +432,7 @@ function RoleEditor({
         <DialogHeader className="shrink-0 border-b px-5 py-3 pr-12">
           <DialogTitle className="flex items-center gap-2 text-base">
             <span
-              className="h-3 w-3 rounded-full ring-2 ring-background"
+              className="ring-background h-3 w-3 rounded-full ring-2"
               style={{ backgroundColor: color }}
             />
             Sửa role: <span style={{ color }}>{role.name}</span>
@@ -467,7 +445,6 @@ function RoleEditor({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* Name + color row */}
           <div className="mb-5 grid gap-4 sm:grid-cols-[2fr_1fr]">
             <div className="space-y-1.5">
               <Label htmlFor="r-name">Tên</Label>
@@ -479,7 +456,7 @@ function RoleEditor({
                 maxLength={50}
               />
               {role.isManaged && (
-                <p className="text-[10.5px] text-muted-foreground">
+                <p className="text-muted-foreground text-[10.5px]">
                   Role mặc định không đổi tên được.
                 </p>
               )}
@@ -493,10 +470,8 @@ function RoleEditor({
                     type="button"
                     onClick={() => setColor(c)}
                     className={cn(
-                      'h-6 w-6 rounded-full ring-2 ring-background transition-all',
-                      color === c
-                        ? 'scale-110 ring-foreground/40'
-                        : 'opacity-80 hover:opacity-100',
+                      'ring-background h-6 w-6 rounded-full ring-2 transition-all',
+                      color === c ? 'ring-foreground/40 scale-110' : 'opacity-80 hover:opacity-100',
                     )}
                     style={{ backgroundColor: c }}
                   />
@@ -511,9 +486,8 @@ function RoleEditor({
             </div>
           </div>
 
-          {/* Toggles hoisted + mentionable */}
           <div className="mb-5 grid gap-2 sm:grid-cols-2">
-            <label className="flex cursor-pointer items-start gap-2 rounded-md border p-3 hover:bg-muted/30">
+            <label className="hover:bg-muted/30 flex cursor-pointer items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox"
                 checked={hoisted}
@@ -522,12 +496,12 @@ function RoleEditor({
               />
               <div className="text-xs">
                 <div className="font-medium">Hoisted</div>
-                <div className="text-[10.5px] text-muted-foreground">
+                <div className="text-muted-foreground text-[10.5px]">
                   Member group này hiện tách riêng trong member list
                 </div>
               </div>
             </label>
-            <label className="flex cursor-pointer items-start gap-2 rounded-md border p-3 hover:bg-muted/30">
+            <label className="hover:bg-muted/30 flex cursor-pointer items-start gap-2 rounded-md border p-3">
               <input
                 type="checkbox"
                 checked={mentionable}
@@ -536,20 +510,19 @@ function RoleEditor({
               />
               <div className="text-xs">
                 <div className="font-medium">Mentionable</div>
-                <div className="text-[10.5px] text-muted-foreground">
+                <div className="text-muted-foreground text-[10.5px]">
                   Member khác có thể @role này
                 </div>
               </div>
             </label>
           </div>
 
-          {/* Permission groups */}
           <div className="space-y-4">
             {PERMISSION_GROUPS.map((g) => {
               const Icon = g.icon;
               return (
                 <div key={g.title}>
-                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="text-muted-foreground mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
                     <Icon className="h-3 w-3" />
                     {g.title}
                   </div>
@@ -570,8 +543,7 @@ function RoleEditor({
           </div>
         </div>
 
-        {/* Footer */}
-        <footer className="flex shrink-0 items-center justify-between gap-2 border-t bg-muted/20 px-5 py-3">
+        <footer className="bg-muted/20 flex shrink-0 items-center justify-between gap-2 border-t px-5 py-3">
           {!role.isManaged && (
             <Button
               variant="outline"
@@ -607,7 +579,6 @@ function RoleEditor({
   );
 }
 
-/** 1 permission toggle row — checkbox + label + 1-line desc. */
 function PermissionToggle({
   label,
   desc,
@@ -626,17 +597,10 @@ function PermissionToggle({
         checked ? 'border-primary/30 bg-primary/5' : 'border-divider hover:bg-muted/30',
       )}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="mt-0.5 shrink-0"
-      />
+      <input type="checkbox" checked={checked} onChange={onChange} className="mt-0.5 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-[12px] font-medium leading-tight">{label}</p>
-        <p className="mt-0.5 line-clamp-1 text-[10.5px] text-muted-foreground">
-          {desc}
-        </p>
+        <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[10.5px]">{desc}</p>
       </div>
     </label>
   );

@@ -1,10 +1,3 @@
-/**
- * Trang sign-in — Server Component bọc form client để có thể đọc
- * searchParams (`redirect`) ở phía server.
- *
- * Cách dùng: middleware redirect tới đây với query `?redirect=/dashboard/...`
- * để sau khi đăng nhập user quay lại đúng trang đã muốn vào.
- */
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
@@ -17,7 +10,6 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  // Next.js 15: searchParams trả về Promise — phải await để đọc giá trị
   searchParams: Promise<{ redirect?: string }>;
 };
 
@@ -30,11 +22,13 @@ export default async function SignInPage({ searchParams }: Props) {
         <CardDescription>Sign in with your email and password.</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Truyền redirect xuống form — nếu null fallback về /dashboard */}
         <SignInForm redirectTo={redirect ?? '/dashboard'} />
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-6 text-center text-sm">
           Don&apos;t have an account?{' '}
-          <Link href="/sign-up" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link
+            href="/sign-up"
+            className="text-foreground font-medium underline-offset-4 hover:underline"
+          >
             Sign up
           </Link>
         </p>

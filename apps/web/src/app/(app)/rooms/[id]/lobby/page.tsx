@@ -1,11 +1,3 @@
-/**
- * /rooms/[id]/lobby — pre-join screen.
- *
- * Server component: fetch room info (verify exists + user có thể access).
- * Render LobbyForm client component cho cam preview + form.
- *
- * Share section: hiển thị joinCode 6 ký tự + nút copy link để mời người khác.
- */
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
@@ -35,7 +27,9 @@ export default async function LobbyPage({ params }: Props) {
     <div className="container max-w-5xl space-y-6 py-8">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" asChild aria-label="Quay lại">
-          <Link href="/rooms"><ArrowLeft className="h-4 w-4" /></Link>
+          <Link href="/rooms">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
         </Button>
         <h1 className="text-lg font-semibold">Sảnh chờ</h1>
       </div>
@@ -46,9 +40,7 @@ export default async function LobbyPage({ params }: Props) {
         defaultDisplayName={session.user.name ?? session.user.email}
       />
 
-      {target.joinCode && (
-        <RoomShareCode roomId={target.id} joinCode={target.joinCode} />
-      )}
+      {target.joinCode && <RoomShareCode roomId={target.id} joinCode={target.joinCode} />}
     </div>
   );
 }

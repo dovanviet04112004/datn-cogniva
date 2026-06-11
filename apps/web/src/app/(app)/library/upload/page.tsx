@@ -1,9 +1,3 @@
-/**
- * /library/upload — Upload wizard V1.
- *
- * Server component shell + client wizard form. Hỗ trợ prefill course qua
- * `?course=<id>` (từ CTA "Đóng góp tài liệu" trên course landing page).
- */
 import { eq } from 'drizzle-orm';
 
 import { db, libraryCourse } from '@cogniva/db';
@@ -20,7 +14,6 @@ export default async function LibraryUploadPage({
 }) {
   const sp = await searchParams;
 
-  // Prefill course nếu đến từ course landing page
   let initialCourse: { id: string; label: string } | null = null;
   if (sp.course) {
     const [c] = await db

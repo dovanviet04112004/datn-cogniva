@@ -1,18 +1,3 @@
-/**
- * EmojiPicker — V2 G2 (2026-05-21).
- *
- * Picker emoji categorized không phụ thuộc thư viện ngoài (tránh kéo 250KB
- * emoji-mart). ~270 emoji phân thành 9 category, search lowercase + native
- * tab nav dưới đáy.
- *
- * Usage:
- *   <EmojiPicker onSelect={(e) => insert(e)} onClose={() => setOpen(false)} />
- *
- * Render trong Popover hoặc absolute floating div của caller. Component
- * tự handle keyboard navigation + search filter.
- *
- * Spec: docs/plans/study-group-v2.md §G2 + §7.3.
- */
 'use client';
 
 import * as React from 'react';
@@ -22,10 +7,8 @@ import { cn } from '@/lib/utils';
 
 type Category = {
   id: string;
-  /** Tab icon emoji */
   icon: string;
   label: string;
-  /** Search keyword (lowercase, có thể nhiều keyword join space) cho emoji. */
   emojis: { e: string; k: string }[];
 };
 
@@ -585,15 +568,11 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-/** Quick row trên cùng — emoji dùng nhiều nhất, người dùng có thể skip search. */
 const QUICK = ['👍', '❤️', '😂', '🎉', '🤔', '😢', '🔥', '👏'];
 
 type Props = {
-  /** Callback khi user chọn 1 emoji. */
   onSelect: (emoji: string) => void;
-  /** Callback khi user bấm X hoặc Esc. Optional — caller có thể dùng outside-click. */
   onClose?: () => void;
-  /** Auto-focus search input. Default true cho desktop, false cho touch (mobile keyboard). */
   autoFocus?: boolean;
 };
 
@@ -601,7 +580,6 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
   const [query, setQuery] = React.useState('');
   const [activeId, setActiveId] = React.useState<string>(CATEGORIES[0]!.id);
 
-  // Filter mode: nếu query có text → flatten cross-category, ẩn tab nav.
   const filtered = React.useMemo(() => {
     if (!query.trim()) return null;
     const q = query.toLowerCase().trim();
@@ -626,21 +604,20 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
 
   return (
     <div
-      className="flex h-[360px] w-[340px] flex-col overflow-hidden rounded-xl border border-divider bg-popover shadow-elevated"
+      className="border-divider bg-popover shadow-elevated flex h-[360px] w-[340px] flex-col overflow-hidden rounded-xl border"
       role="dialog"
       aria-label="Chọn emoji"
     >
-      {/* Header — search + close */}
       <header className="flex shrink-0 items-center gap-1 border-b px-2 py-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="text-muted-foreground absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tìm emoji…"
             autoFocus={autoFocus}
-            className="w-full rounded-md border border-input bg-background py-1.5 pl-7 pr-2 text-[12.5px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="border-input bg-background focus-visible:ring-ring w-full rounded-md border py-1.5 pl-7 pr-2 text-[12.5px] focus-visible:outline-none focus-visible:ring-1"
           />
         </div>
         {onClose && (
@@ -648,17 +625,16 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
       </header>
 
-      {/* Quick row — chỉ hiện khi không search */}
       {!filtered && (
         <div className="shrink-0 border-b px-2 py-1.5">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="text-muted-foreground mb-1 text-[11px] font-semibold uppercase tracking-wider">
             Hay dùng
           </div>
           <div className="flex flex-wrap gap-0.5">
@@ -669,11 +645,10 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
         </div>
       )}
 
-      {/* Body — grid emoji */}
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {filtered ? (
           filtered.length === 0 ? (
-            <p className="py-8 text-center text-[11px] text-muted-foreground">
+            <p className="text-muted-foreground py-8 text-center text-[11px]">
               Không có emoji khớp &quot;{query}&quot;
             </p>
           ) : (
@@ -685,7 +660,7 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
           )
         ) : (
           <>
-            <div className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-muted-foreground mb-1 px-1 text-[11px] font-semibold uppercase tracking-wider">
               {activeCategory.label}
             </div>
             <div className="flex flex-wrap gap-0.5">
@@ -697,7 +672,6 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
         )}
       </div>
 
-      {/* Footer — tab nav (ẩn khi search) */}
       {!filtered && (
         <nav
           className="flex shrink-0 items-center justify-between border-t px-1 py-1"
@@ -713,8 +687,8 @@ export function EmojiPicker({ onSelect, onClose, autoFocus = true }: Props) {
               className={cn(
                 'inline-flex h-7 w-7 items-center justify-center rounded-md text-base transition-all',
                 activeId === c.id
-                  ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
-                  : 'opacity-60 hover:bg-muted hover:opacity-100',
+                  ? 'bg-primary/10 ring-primary/30 ring-1 ring-inset'
+                  : 'hover:bg-muted opacity-60 hover:opacity-100',
               )}
             >
               <span>{c.icon}</span>
@@ -731,7 +705,7 @@ function EmojiButton({ emoji, onClick }: { emoji: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[18px] transition-transform hover:scale-110 hover:bg-muted"
+      className="hover:bg-muted inline-flex h-8 w-8 items-center justify-center rounded-md text-[18px] transition-transform hover:scale-110"
     >
       <span>{emoji}</span>
     </button>

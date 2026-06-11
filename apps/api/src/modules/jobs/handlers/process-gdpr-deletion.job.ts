@@ -1,15 +1,3 @@
-/**
- * Job `process-gdpr-deletion` ('0 3 * * *' UTC daily, off-peak) — Plan v2 §5.9.
- * Port NGUYÊN semantics từ apps/web/src/jobs/process-gdpr-deletion.ts:
- * deletion_request PENDING đã hết grace (scheduled_for <= NOW) batch 50 →
- * claim CAS PENDING→PROCESSING (0 row = đã CANCELLED/xử lý → skip) → audit
- * processing → R2 cleanup STUB (Stage 2 mới implement) → DELETE user (cascade
- * FK wipe toàn bộ data) → COMPLETED + audit completed. Lỗi → FAILED +
- * error_message + audit error; manual retry qua admin.
- *
- * Idempotent nhờ CAS claim: whole-job chạy lại không DELETE lại request đã
- * xử lý (status đã rời PENDING).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -31,7 +19,6 @@ type AuditEvent = {
 export class ProcessGdprDeletionJob {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Fail-open audit insert — port writeAudit web (lib/observability/audit.ts). */
   private async writeAudit(event: AuditEvent): Promise<void> {
     try {
       await this.prisma.audit_log.create({
@@ -74,8 +61,6 @@ export class ProcessGdprDeletionJob {
 
     for (const req of pendingDue) {
       try {
-        // CAS claim — chỉ update nếu vẫn PENDING; 0 row → request đã được
-        // CANCELLED/xử lý nơi khác. Bản web skip path vẫn tính succeeded.
         const updated = await this.prisma.deletion_request.updateMany({
           where: { id: req.id, status: 'PENDING' },
           data: { status: 'PROCESSING' },
@@ -96,12 +81,8 @@ export class ProcessGdprDeletionJob {
           metadata: { requestId: req.id },
         });
 
-        // R2 cleanup prefix {userId}/ — Stage 1 stub như web, Stage 2 mới
-        // implement listObjects + deleteObjects.
         logger.warn('gdpr.delete.r2_cleanup_stub', { userId: req.user_id });
 
-        // DELETE user → cascade FK xoá toàn bộ data. deleteMany = no-throw
-        // khi user đã biến mất (khớp Drizzle delete cũ).
         await this.prisma.user.deleteMany({ where: { id: req.user_id } });
 
         await this.prisma.deletion_request.updateMany({
@@ -115,7 +96,7 @@ export class ProcessGdprDeletionJob {
           actorType: 'system',
           action: 'gdpr.delete.completed',
           result: 'success',
-          actorId: null, // user đã không tồn tại
+          actorId: null,
           resourceType: 'user',
           resourceId: req.user_id,
           metadata: {
@@ -130,7 +111,6 @@ export class ProcessGdprDeletionJob {
         const message = err instanceof Error ? err.message : String(err);
         logger.error('gdpr.delete.failed', { requestId: req.id, error: message });
 
-        // Mark FAILED — manual retry qua admin
         await this.prisma.deletion_request.updateMany({
           where: { id: req.id },
           data: { status: 'FAILED', error_message: message.slice(0, 500) },

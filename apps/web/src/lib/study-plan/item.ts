@@ -1,12 +1,3 @@
-/**
- * Study-plan item — type + normalize THUẦN, dùng chung server page (SSR prefetch)
- * và client island (useQuery). Tách ra để initialItems (server) khớp tuyệt đối
- * shape data của useQuery (client) → không lệch khi hydrate.
- *
- * Lưu ý: server prefetch phải JSON.parse(JSON.stringify(rows)) TRƯỚC khi gọi
- * normalizeItem để Date → ISO string giống hệt khi đi qua network (mobile cũng
- * nhận ISO string từ route), rồi normalize cho ra cùng một Item.
- */
 export type ItemStatus = 'PENDING' | 'DONE' | 'SKIPPED';
 export type ItemKind = 'manual' | 'review' | 'new' | 'practice';
 
@@ -35,7 +26,6 @@ export type Item = {
   completedAt: string | null;
 };
 
-/** Coerce 1 row thô (từ API JSON hoặc server đã JSON-serialize) → Item. */
 export function normalizeItem(raw: unknown): Item {
   const r = raw as Record<string, unknown>;
   return {

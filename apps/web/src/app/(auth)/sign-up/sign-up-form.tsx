@@ -1,10 +1,3 @@
-/**
- * Form sign-up — gọi API auth V2 (NestJS). COPPA đã CẮT khỏi scope 2026-06-10
- * (không còn DOB/parent email — xem docs/plans/nestjs-migration.md §3.2).
- *
- * Sau khi tạo tài khoản, server tự đăng nhập (set cookie JWT + dual-issue
- * session) → full reload về redirectTo.
- */
 'use client';
 
 import * as React from 'react';
@@ -68,11 +61,9 @@ export function SignUpForm({ redirectTo = '/dashboard' }: { redirectTo?: string 
 
     toast.success('Account created. Welcome to Cogniva!');
 
-    // Đọc redirect fresh từ URL (phòng prop stale) + chặn open-redirect.
     const url = new URL(window.location.href);
     const fresh = url.searchParams.get('redirect') ?? redirectTo;
     const safe = fresh.startsWith('/') && !fresh.startsWith('//') ? fresh : '/dashboard';
-    // Full reload để SSR nhận cookie session vừa set.
     window.location.replace(safe);
   };
 
@@ -99,12 +90,7 @@ export function SignUpForm({ redirectTo = '/dashboard' }: { redirectTo?: string 
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  {...field}
-                />
+                <Input type="email" autoComplete="email" placeholder="you@example.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

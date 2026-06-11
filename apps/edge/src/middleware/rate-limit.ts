@@ -1,21 +1,3 @@
-/**
- * Rate limit middleware — gọi RateLimitDO theo key (userId OR IP).
- *
- * Policy default:
- *   - Authenticated:  120 req/min (capacity 60, refill 2/sec)
- *   - Anonymous:      30 req/min  (capacity 15, refill 0.5/sec)
- *
- * Override per route bằng wrapper khác (chưa cần ở Stage 2 W1-W2).
- *
- * Header trả về:
- *   X-RateLimit-Limit          capacity
- *   X-RateLimit-Remaining      tokens còn
- *   X-RateLimit-Reset          unix ms khi bucket full
- *   Retry-After                seconds khi 429
- *
- * Fail-open: nếu DO call throw → log warn + cho request qua. KHÔNG block flow
- * khi rate-limit subsystem fail (degraded mode).
- */
 import type { MiddlewareHandler } from 'hono';
 
 import type { HonoEnv } from '../env';
@@ -28,14 +10,10 @@ interface Options {
 }
 
 const DEFAULTS: Options = {
-  authenticated: { capacity: 60, refillPerSec: 2 },     // ~120/min
-  anonymous: { capacity: 15, refillPerSec: 0.5 },       // ~30/min
+  authenticated: { capacity: 60, refillPerSec: 2 },
+  anonymous: { capacity: 15, refillPerSec: 0.5 },
 };
 
-/**
- * Get DO ID name từ context. User-id ưu tiên (cross-IP consistency).
- * Anonymous fallback IP (cf-connecting-ip = real client IP).
- */
 function getRateLimitKey(c: Parameters<MiddlewareHandler<HonoEnv>>[0]): {
   key: string;
   isAuth: boolean;
@@ -60,7 +38,6 @@ export function rateLimit(opts: Partial<Options> = {}): MiddlewareHandler<HonoEn
     try {
       const doId = c.env.RATE_LIMIT_DO.idFromName(key);
       const stub = c.env.RATE_LIMIT_DO.get(doId);
-      // DO fetch URL chỉ cần valid format — DO không route theo path.
       const res = await stub.fetch('https://rate-limit-do/consume', {
         method: 'POST',
         body: JSON.stringify(limitCfg),
@@ -73,7 +50,6 @@ export function rateLimit(opts: Partial<Options> = {}): MiddlewareHandler<HonoEn
         key,
         error: err instanceof Error ? err.message : String(err),
       });
-      // Fail-open
       return next();
     }
 

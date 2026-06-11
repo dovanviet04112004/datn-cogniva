@@ -1,12 +1,3 @@
-/**
- * /admin — Dashboard tổng quan.
- *
- * Phase 0 skeleton: 4 metric tile + placeholder cho charts. Phase tới wire:
- *   - DAU/MAU từ PostHog event count
- *   - AI cost hôm nay từ ai_usage_log (cần seed sau)
- *   - Sentry error rate từ webhook hourly digest
- *   - Recent audit log 5 dòng
- */
 import { count, desc, eq } from 'drizzle-orm';
 
 import { db, adminAuditLog, document, user } from '@cogniva/db';
@@ -93,21 +84,12 @@ export default async function AdminDashboardPage() {
   );
 }
 
-function MetricTile({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string | null;
-}) {
+function MetricTile({ label, value, hint }: { label: string; value: string; hint: string | null }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
         {label}
       </p>
-      {/* Số metric to: dùng sans Geist (bỏ font-mono cho bớt khô/cũ), giữ tabular-nums để canh cột thẳng. */}
       <p className="mt-1.5 text-2xl font-semibold tabular-nums tracking-tight text-slate-100">
         {value}
       </p>

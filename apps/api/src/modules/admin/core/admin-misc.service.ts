@@ -1,12 +1,3 @@
-/**
- * AdminMiscService — audit log list, global ⌘K search, impersonation.
- *
- * Impersonation port từ apps/web/src/lib/admin/impersonation.ts (V1 marker):
- * cookie 'cogniva-imp' = base64url(JSON payload) + '.' + HMAC-SHA256 base64url,
- * KHÔNG swap session — chỉ banner + middleware web chặn mutation. Secret chain
- * IMPERSONATION_SECRET ?? BETTER_AUTH_SECRET ?? 'dev-only' giữ y cũ để cookie
- * web đã phát vẫn verify được trong cửa sổ strangler.
- */
 import { createHmac, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -28,13 +19,11 @@ const MAX_DURATION_MIN = 60;
 const PER_TYPE_LIMIT = 5;
 
 export type ImpersonationPayload = {
-  /** Random ID cho audit log correlate start↔stop. */
   sessionId: string;
   adminId: string;
   adminEmail: string;
   targetUserId: string;
   targetEmail: string;
-  /** Unix millis — cookie hết hạn khi quá. */
   expiresAt: number;
   mode: 'readonly' | 'full';
 };
@@ -83,7 +72,6 @@ export class AdminMiscService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  // ── GET /admin/audit ─────────────────────────────────────────────
   async listAudit(query: {
     adminEmail?: string;
     action?: string;
@@ -136,11 +124,8 @@ export class AdminMiscService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
-    // Distinct values cho filter dropdown — y route cũ (2 query mỗi request).
     const [actionsRaw, targetTypesRaw] = await Promise.all([
       this.prisma.$queryRaw<Array<{ action: string }>>`
         SELECT DISTINCT action FROM "admin_audit_log" ORDER BY action LIMIT 50`,
@@ -170,7 +155,6 @@ export class AdminMiscService {
     };
   }
 
-  // ── GET /admin/search ────────────────────────────────────────────
   async search(qRaw: string | undefined) {
     const q = qRaw?.trim() ?? '';
     if (q.length < 2) return { hits: [] as AdminSearchHit[] };
@@ -209,8 +193,6 @@ export class AdminMiscService {
         },
         take: PER_TYPE_LIMIT,
       }),
-      // Booking: search email tutor/student qua 2 join user — raw SQL vì
-      // Prisma không alias 1 bảng 2 lần trong findMany.
       this.prisma.$queryRaw<
         Array<{
           id: string;
@@ -275,7 +257,6 @@ export class AdminMiscService {
     return { hits };
   }
 
-  // ── POST /admin/impersonate ──────────────────────────────────────
   async startImpersonation(ctx: AdminContext, dto: ImpersonateInput, res: Response) {
     const { userId, reason, durationMin } = dto;
 
@@ -294,7 +275,6 @@ export class AdminMiscService {
       throw new ForbiddenException({ error: 'Không thể impersonate SUPER_ADMIN' });
     }
 
-    // Audit trước, set cookie sau — nếu audit fail không impersonate (y cũ).
     await this.audit.withAudit(
       ctx,
       'impersonation.start',
@@ -325,7 +305,6 @@ export class AdminMiscService {
     return { ok: true };
   }
 
-  // ── DELETE /admin/impersonate ────────────────────────────────────
   async stopImpersonation(ctx: AdminContext, rawCookie: string | undefined, res: Response) {
     const current = rawCookie ? decodeCookie(rawCookie) : null;
     if (!current) {
@@ -370,7 +349,6 @@ export class AdminMiscService {
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/',
-      // Express maxAge tính bằng MILLISECONDS (Next cookies() là seconds).
       maxAge: durationMin * 60_000,
     });
   }

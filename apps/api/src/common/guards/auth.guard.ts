@@ -1,14 +1,4 @@
-/**
- * AuthGuard toàn cục — JWT thuần (plan §3, dual-accept Better Auth đã gỡ
- * cuối GĐ1): access token ES256 qua Bearer hoặc cookie `cg_at`, verify cục
- * bộ không chạm Redis/DB. Route public đánh dấu @Public().
- */
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 

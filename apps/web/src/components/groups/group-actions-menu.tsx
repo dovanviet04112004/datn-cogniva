@@ -1,14 +1,3 @@
-/**
- * GroupActionsMenu — nút ⚙ ở header channel-list, MỞ cho MỌI thành viên (không
- * chỉ admin như nút Settings cũ). Gồm:
- *   - Mời bạn bè  → dialog hiện invite CODE + LINK (copy được). Member cũng tạo
- *     được invite (API cho phép).
- *   - Cài đặt nhóm → chỉ OWNER/ADMIN (vào trang settings).
- *   - Rời nhóm    → mọi role TRỪ OWNER (owner phải transfer/xoá group trước).
- *
- * Host kick member: đã có sẵn ở menu từng member (MemberSidebar) + tab Thành viên
- * trong Cài đặt — không lặp ở đây.
- */
 'use client';
 
 import * as React from 'react';
@@ -44,10 +33,6 @@ type Props = {
   groupName: string;
   myRole: 'OWNER' | 'ADMIN' | 'MODERATOR' | 'MEMBER';
   currentUserId: string;
-  /**
-   * Mở Cài đặt dạng MODAL overlay (GroupShell sở hữu state) thay vì điều hướng
-   * sang route /settings — tránh unmount channel + reload tin nhắn khi đóng.
-   */
   onOpenSettings?: () => void;
 };
 
@@ -67,7 +52,8 @@ export function GroupActionsMenu({
   const leave = async () => {
     const ok = await confirm({
       title: `Rời nhóm ${groupName}?`,
-      description: 'Bạn sẽ không còn truy cập channel của nhóm. Có thể vào lại nếu có invite hợp lệ.',
+      description:
+        'Bạn sẽ không còn truy cập channel của nhóm. Có thể vào lại nếu có invite hợp lệ.',
       confirmLabel: 'Rời nhóm',
       variant: 'destructive',
     });
@@ -95,7 +81,7 @@ export function GroupActionsMenu({
             type="button"
             aria-label="Tuỳ chọn nhóm"
             title="Tuỳ chọn nhóm"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-muted hover:text-foreground"
+            className="text-text-muted hover:bg-muted hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -116,7 +102,7 @@ export function GroupActionsMenu({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={leave}
-                className="gap-2 text-destructive focus:text-destructive"
+                className="text-destructive focus:text-destructive gap-2"
               >
                 <LogOut className="h-4 w-4" />
                 Rời nhóm
@@ -131,10 +117,6 @@ export function GroupActionsMenu({
   );
 }
 
-/**
- * InviteDialog — mở ra LẤY invite hiện có (GET), chưa có thì tạo mới (POST), hiện
- * CODE + LINK `/groups?invite=CODE` để copy. Link mở ra tự điền code ở /groups.
- */
 function InviteDialog({
   groupId,
   open,
@@ -147,13 +129,9 @@ function InviteDialog({
   const [code, setCode] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState<'code' | 'link' | null>(null);
 
-  // Đọc invite còn hiệu lực gần nhất qua React Query (chỉ fetch khi mở & chưa có code).
   const { data: inviteList, error } = useQuery({
     queryKey: qk.groupInvites(groupId),
-    queryFn: () =>
-      apiGet<{ invites?: Array<{ code: string }> }>(
-        `/api/groups/${groupId}/invites`,
-      ),
+    queryFn: () => apiGet<{ invites?: Array<{ code: string }> }>(`/api/groups/${groupId}/invites`),
     enabled: open && !code,
   });
 
@@ -161,7 +139,6 @@ function InviteDialog({
     if (error) toast.error((error as Error).message);
   }, [error]);
 
-  // Tách nhánh GHI: không có invite sẵn → tạo mới (POST). Chạy sau khi đọc xong.
   React.useEffect(() => {
     if (!open || code || !inviteList) return;
     const existing = inviteList.invites?.[0]?.code;
@@ -170,11 +147,7 @@ function InviteDialog({
       return;
     }
     let aborted = false;
-    apiSend<{ invite?: { code: string } }>(
-      `/api/groups/${groupId}/invites`,
-      'POST',
-      {},
-    )
+    apiSend<{ invite?: { code: string } }>(`/api/groups/${groupId}/invites`, 'POST', {})
       .then((d) => {
         if (!aborted) setCode(d.invite?.code ?? null);
       })
@@ -187,9 +160,7 @@ function InviteDialog({
   }, [open, code, inviteList, groupId]);
 
   const link =
-    code && typeof window !== 'undefined'
-      ? `${window.location.origin}/groups?invite=${code}`
-      : '';
+    code && typeof window !== 'undefined' ? `${window.location.origin}/groups?invite=${code}` : '';
 
   const copyValue = (value: string, which: 'code' | 'link') => {
     navigator.clipboard.writeText(value);
@@ -204,13 +175,13 @@ function InviteDialog({
         <DialogHeader>
           <DialogTitle>Mời bạn vào nhóm</DialogTitle>
           <DialogDescription>
-            Chia sẻ code hoặc link. Người nhận mở link sẽ được điền sẵn code, hoặc tự
-            nhập code ở trang Nhóm → &quot;Vào bằng code&quot;.
+            Chia sẻ code hoặc link. Người nhận mở link sẽ được điền sẵn code, hoặc tự nhập code ở
+            trang Nhóm → &quot;Vào bằng code&quot;.
           </DialogDescription>
         </DialogHeader>
 
         {!code ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-sm">
             <Loader2 className="h-4 w-4 animate-spin" />
             Đang tạo lời mời...
           </div>

@@ -1,15 +1,3 @@
-/**
- * Generate rich thumbnails cho library docs (Phase 4 polish, 2026-05-27).
- *
- * Tạo SVG preview với subject-themed gradient + title + emoji + doc type,
- * convert qua sharp → JPEG, upload R2, UPDATE library_doc.previewThumbUrl.
- *
- * Visual cards giống Studocu/VnDoc thay vì FileText placeholder.
- *
- * Usage:
- *   pnpm exec tsx --env-file=.env.local scripts/generate-thumbnails.ts
- *   pnpm exec tsx --env-file=.env.local scripts/generate-thumbnails.ts --regenerate
- */
 import { and, eq, isNull, or } from 'drizzle-orm';
 import sharp from 'sharp';
 
@@ -62,7 +50,6 @@ const DOC_TYPE_ICON: Record<string, string> = {
   other: '📄',
 };
 
-/** Escape XML special chars. */
 function escapeXml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -72,7 +59,6 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
-/** Wrap text vào multiple lines theo char width. */
 function wrapTextSvg(text: string, maxChars = 22): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -86,7 +72,7 @@ function wrapTextSvg(text: string, maxChars = 22): string[] {
     }
   }
   if (current) lines.push(current);
-  return lines.slice(0, 5); // max 5 lines
+  return lines.slice(0, 5);
 }
 
 function buildSvg({
@@ -193,13 +179,7 @@ function buildSvg({
 async function main() {
   const filter = REGENERATE
     ? eq(libraryDoc.status, 'PUBLISHED')
-    : and(
-        eq(libraryDoc.status, 'PUBLISHED'),
-        or(
-          isNull(libraryDoc.previewThumbUrl),
-          // Re-render docs đang dùng DiceBear (legacy) hoặc null
-        ),
-      );
+    : and(eq(libraryDoc.status, 'PUBLISHED'), or(isNull(libraryDoc.previewThumbUrl)));
 
   const docs = await db
     .select({
@@ -233,9 +213,13 @@ async function main() {
       const subj = SUBJECT_BY_SLUG[doc.subjectSlug];
       const color = SUBJECT_COLORS[doc.subjectSlug] ?? SUBJECT_COLORS.default!;
       const level =
-        { PRIMARY: 'Tiểu học', SECONDARY: 'THCS', HIGH_SCHOOL: 'THPT', UNIVERSITY: 'ĐH', ADULT: 'Người lớn' }[
-          doc.level as string
-        ] ?? doc.level;
+        {
+          PRIMARY: 'Tiểu học',
+          SECONDARY: 'THCS',
+          HIGH_SCHOOL: 'THPT',
+          UNIVERSITY: 'ĐH',
+          ADULT: 'Người lớn',
+        }[doc.level as string] ?? doc.level;
 
       const svg = buildSvg({
         title: doc.title,
@@ -250,7 +234,6 @@ async function main() {
 
       const jpegBuffer = await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toBuffer();
 
-      // Upload R2
       const storageKey = `lib/${doc.uploaderId}/${doc.id}-thumb.jpg`;
       await putR2Object(storageKey, jpegBuffer, 'image/jpeg');
       const publicUrl = getPublicUrl(storageKey);
@@ -260,7 +243,9 @@ async function main() {
         .set({ previewThumbUrl: publicUrl, updatedAt: new Date() })
         .where(eq(libraryDoc.id, doc.id));
 
-      console.log(`       ✓ ${(jpegBuffer.length / 1024).toFixed(1)} KB → ${publicUrl.slice(0, 60)}...`);
+      console.log(
+        `       ✓ ${(jpegBuffer.length / 1024).toFixed(1)} KB → ${publicUrl.slice(0, 60)}...`,
+      );
       success++;
     } catch (err) {
       console.log(`       ✗ ${(err as Error).message}`);

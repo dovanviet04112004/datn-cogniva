@@ -1,22 +1,3 @@
-/**
- * GraphView — client component render React Flow knowledge graph.
- *
- * Luồng:
- *   1. Fetch /api/graph khi mount
- *   2. Auto-layout bằng Dagre (left-right hierarchy) vì server không tính
- *      position
- *   3. Render React Flow với:
- *      - ConceptNode tùy chỉnh (theo domain + mastery)
- *      - Edge default + label relationType
- *      - Controls (zoom/fit), MiniMap, Background dotted
- *   4. onNodeClick → set selectedConceptId → ConceptPanel mở
- *
- * Vì sao Dagre (không Cytoscape, không ELK)?
- *   - Dagre nhỏ gọn (15kb), API đơn giản, đủ cho directed acyclic graph.
- *   - ELK tốt hơn cho graph cực lớn nhưng setup phức tạp + WASM.
- *
- * Phase 5: cache layout vào session storage để không re-layout mỗi lần mount.
- */
 'use client';
 
 import * as React from 'react';
@@ -52,12 +33,9 @@ const NODE_WIDTH = 200;
 const NODE_HEIGHT = 70;
 const GRID_GAP_X = 220;
 const GRID_GAP_Y = 96;
-/** Khoảng cách phía trên header label tới hàng node đầu tiên trong domain. */
 const DOMAIN_HEADER_HEIGHT = 32;
-/** Khoảng cách giữa 2 domain group liên tiếp. */
 const DOMAIN_BLOCK_GAP = 64;
 
-/** Friendly label cho domain. */
 const DOMAIN_LABELS: Record<string, string> = {
   math: 'Toán',
   cs: 'Khoa học máy tính',
@@ -71,42 +49,21 @@ const DOMAIN_LABELS: Record<string, string> = {
   unknown: 'Chưa phân loại',
 };
 
-/**
- * Header label nhỏ phía trên 1 domain group orphan — không có handle, không
- * clickable, chỉ là text annotation trong React Flow canvas.
- */
 function DomainLabelNode({ data }: { data: { label: string; count: number } }) {
   return (
     <div className="pointer-events-none select-none">
-      <div className="flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <div className="text-muted-foreground flex items-baseline gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
         <span>{data.label}</span>
-        {/* Count phụ — sàn 10px (chuẩn DS: không nhỏ hơn 10px) để không lệch tông eyebrow. */}
-        <span className="text-[10px] font-normal text-muted-foreground/60">
-          · {data.count}
-        </span>
+        <span className="text-muted-foreground/60 text-[10px] font-normal">· {data.count}</span>
       </div>
     </div>
   );
 }
 
-/**
- * Layout hybrid:
- *   1. BFS tìm connected components qua edges.
- *   2. Component nào có ≥ 2 node + ≥ 1 edge → Dagre TB hierarchy.
- *   3. Component đơn lẻ (orphan node) → gom theo domain, xếp grid bên dưới
- *      + thêm 1 label node phía trên mỗi domain group.
- *
- * Center ngang theo x=0 — connected row và orphan grid đều cân đối qua trục
- * gốc → khi `fitView` chạy, bounding box symmetric → không lệch trái/phải.
- *
- * Vì sao không thuần Dagre? Dagre đặt mọi orphan node cùng rank 0 → tất
- * cả thành 1 hàng ngang dài 5000px khó nhìn.
- */
 function layoutGraph(
   nodes: Node<ConceptNodeData>[],
   edges: Edge[],
 ): { nodes: Node[]; labels: Node[] } {
-  // ── 1. Build adjacency cho BFS ─────────────────────
   const adj = new Map<string, Set<string>>();
   for (const n of nodes) adj.set(n.id, new Set());
   for (const e of edges) {
@@ -114,7 +71,6 @@ function layoutGraph(
     adj.get(e.target)?.add(e.source);
   }
 
-  // ── 2. BFS tìm components ──────────────────────────
   const visited = new Set<string>();
   const components: string[][] = [];
   for (const n of nodes) {
@@ -133,7 +89,6 @@ function layoutGraph(
     components.push(comp);
   }
 
-  // ── 3. Tách connected (≥ 2 node) vs orphan ─────────
   const connected = components.filter((c) => c.length >= 2);
   const orphans = components.filter((c) => c.length === 1).flat();
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
@@ -141,10 +96,12 @@ function layoutGraph(
   const positions = new Map<string, { x: number; y: number }>();
   const labelNodes: Node[] = [];
 
-  // ── 4. Layout connected components qua Dagre TB ───
-  // Mỗi component layout riêng → đặt thành hàng ngang centered ở x=0.
-  // Đầu tiên tính chiều rộng từng comp + tổng để center.
-  type LaidComp = { ids: string[]; width: number; height: number; xs: Map<string, { x: number; y: number }> };
+  type LaidComp = {
+    ids: string[];
+    width: number;
+    height: number;
+    xs: Map<string, { x: number; y: number }>;
+  };
   const laid: LaidComp[] = [];
   for (const comp of connected) {
     const g = new dagre.graphlib.Graph();
@@ -170,7 +127,6 @@ function layoutGraph(
       minY = Math.min(minY, p.y);
       maxY = Math.max(maxY, p.y);
     }
-    // Normalize tọa độ về (0, 0) origin
     const normalized = new Map<string, { x: number; y: number }>();
     for (const [id, p] of xs) normalized.set(id, { x: p.x - minX, y: p.y - minY });
     laid.push({
@@ -181,7 +137,6 @@ function layoutGraph(
     });
   }
 
-  // Tính tổng width connected để center hàng quanh x=0
   const totalConnectedWidth =
     laid.reduce((s, c) => s + c.width, 0) + Math.max(0, laid.length - 1) * GRID_GAP_X;
   let cx = -totalConnectedWidth / 2;
@@ -194,7 +149,6 @@ function layoutGraph(
     cx += c.width + GRID_GAP_X;
   }
 
-  // ── 5. Layout orphan nodes — group theo domain, mỗi group grid centered ──
   const byDomain = new Map<string, string[]>();
   for (const id of orphans) {
     const node = nodeById.get(id);
@@ -204,23 +158,17 @@ function layoutGraph(
     byDomain.set(domain, list);
   }
 
-  // Sort domain để layout ổn định + domain nhiều node lên trước (visual nặng).
   const domainEntries = Array.from(byDomain.entries()).sort((a, b) => b[1].length - a[1].length);
 
-  // Y bắt đầu của orphan section — dưới connected (nếu có) một khoảng.
-  const orphanStartY =
-    laid.length > 0 ? maxConnectedY + DOMAIN_BLOCK_GAP * 2 : 0;
+  const orphanStartY = laid.length > 0 ? maxConnectedY + DOMAIN_BLOCK_GAP * 2 : 0;
 
   let yCursor = orphanStartY;
   for (const [domainKey, ids] of domainEntries) {
-    // Cột: sqrt-based, tối thiểu 4, tối đa 8 — cân đối visual cho mọi cỡ.
     const cols = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(ids.length * 1.5))));
     const rows = Math.ceil(ids.length / cols);
-    // Width thực tế = (cols-1) * gap (vì node anchored center) → center quanh 0
     const rowWidth = (cols - 1) * GRID_GAP_X;
     const startX = -rowWidth / 2;
 
-    // Label node phía trên hàng đầu — anchor top-left, đặt ở minX của hàng đầu
     labelNodes.push({
       id: `label-${domainKey}`,
       type: 'domainLabel',
@@ -231,14 +179,12 @@ function layoutGraph(
       data: { label: DOMAIN_LABELS[domainKey] ?? domainKey, count: ids.length },
       draggable: false,
       selectable: false,
-      // Không có handle nên zIndex thấp + không phá layout
       zIndex: 0,
     });
 
     ids.forEach((id, i) => {
       const row = Math.floor(i / cols);
       const col = i % cols;
-      // Hàng cuối có thể thiếu node → center hàng cuối riêng
       const isLastRow = row === rows - 1;
       const itemsInRow = isLastRow ? ids.length - row * cols : cols;
       const lastRowWidth = (itemsInRow - 1) * GRID_GAP_X;
@@ -251,7 +197,6 @@ function layoutGraph(
     yCursor += rows * GRID_GAP_Y + DOMAIN_BLOCK_GAP;
   }
 
-  // ── 6. Apply positions vào nodes ──────────────────
   const laidNodes = nodes.map((n) => {
     const pos = positions.get(n.id) ?? { x: 0, y: 0 };
     return {
@@ -268,11 +213,6 @@ type GraphResponse = {
   edges: Edge[];
 };
 
-/**
- * Hash đơn giản (djb2 xor) trên sorted node + edge signatures. Stable
- * deterministic key cho sessionStorage cache — nếu user thêm/xóa concept
- * hoặc mine thêm edges, hash đổi → cache invalidate tự động.
- */
 function hashGraph(nodes: Node<ConceptNodeData>[], edges: Edge[]): string {
   const sig = [
     ...nodes.map((n) => n.id).sort(),
@@ -307,12 +247,9 @@ function writeLayoutCache(payload: CachedLayout): void {
   if (typeof window === 'undefined') return;
   try {
     sessionStorage.setItem(LAYOUT_CACHE_KEY, JSON.stringify(payload));
-  } catch {
-    /* quota / disabled — silent skip */
-  }
+  } catch {}
 }
 
-/** Áp dụng cached positions vào nodes (nếu cache hit). */
 function applyCachedPositions(
   nodes: Node<ConceptNodeData>[],
   positions: Record<string, { x: number; y: number }>,
@@ -324,19 +261,16 @@ function applyCachedPositions(
 }
 
 function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
-  // Raw data (positions đã layout xong, KHÔNG bao gồm dim/neighbor decoration)
   const [rawConceptNodes, setRawConceptNodes] = React.useState<Node[]>([]);
   const [labelNodes, setLabelNodes] = React.useState<Node[]>([]);
   const [edges, setEdges] = React.useState<Edge[]>([]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
-  // Toolbar state
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeDomain, setActiveDomain] = React.useState<string | null>(null);
 
   const { fitView } = useReactFlow();
 
-  // React Query: fetch + cache + revalidate dữ liệu graph thô (chưa layout).
   const {
     data: graphData,
     isLoading: loading,
@@ -349,9 +283,6 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
   });
   const error = queryError ? (queryError as Error).message : null;
 
-  // Layout (Dagre) chạy khi data đổi — cache positions vào sessionStorage theo hash
-  // để KHÔNG re-layout mỗi lần (cache hit = bỏ qua dagre). Layout là cache tính
-  // toán, tách khỏi React Query (chỉ cache dữ liệu thô).
   React.useEffect(() => {
     if (!graphData) return;
     const hash = hashGraph(graphData.nodes, graphData.edges);
@@ -370,14 +301,12 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
     setEdges(graphData.edges);
   }, [graphData]);
 
-  // Refit camera sau khi loadGraph xong (cache hit không trigger fitView prop)
   React.useEffect(() => {
     if (rawConceptNodes.length === 0) return;
     const t = setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
     return () => clearTimeout(t);
   }, [rawConceptNodes, fitView]);
 
-  // ── Domain counts cho toolbar ────────────────────────────
   const domainCounts = React.useMemo(() => {
     const m = new Map<string, number>();
     for (const n of rawConceptNodes) {
@@ -389,7 +318,6 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
       .sort((a, b) => b.count - a.count);
   }, [rawConceptNodes]);
 
-  // ── Neighbor map: id → Set<neighborId> ──────────────────
   const neighborMap = React.useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const e of edges) {
@@ -401,16 +329,10 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
     return m;
   }, [edges]);
 
-  // ── Derived: nodes có decoration dim/neighbor + filter ──
   const displayedNodes = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const decorated: Node[] = rawConceptNodes.map((n) => {
       const data = n.data as ConceptNodeData;
-      // Match logic:
-      //   - Có select → match nếu là selected hoặc neighbor
-      //   - Có search → match nếu name chứa query
-      //   - Có domain filter → match nếu cùng domain
-      //   - Không filter → match tất cả
       let matches = true;
       if (selectedId) {
         matches = n.id === selectedId || (neighborMap.get(selectedId)?.has(n.id) ?? false);
@@ -425,7 +347,6 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         data: { ...data, dim: !matches, neighbor: isNeighbor || undefined },
       };
     });
-    // Labels: dim nếu domain không phải activeDomain (khi filter active)
     const decoratedLabels: Node[] = labelNodes.map((l) => {
       const key = l.id.replace(/^label-/, '');
       const dim = activeDomain !== null && key !== activeDomain;
@@ -434,15 +355,13 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
     return [...decoratedLabels, ...decorated];
   }, [rawConceptNodes, labelNodes, searchQuery, activeDomain, selectedId, neighborMap]);
 
-  // ── Derived: edges với opacity giảm khi 2 endpoint không cùng match ──
   const displayedEdges = React.useMemo(() => {
     const dimSet = new Set(
       (displayedNodes.filter((n) => (n.data as ConceptNodeData)?.dim) ?? []).map((n) => n.id),
     );
     return edges.map((e) => {
       const dim = dimSet.has(e.source) || dimSet.has(e.target);
-      const isSelectedEdge =
-        selectedId && (e.source === selectedId || e.target === selectedId);
+      const isSelectedEdge = selectedId && (e.source === selectedId || e.target === selectedId);
       return {
         ...e,
         style: {
@@ -463,10 +382,9 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
 
   const onPaneClick = () => setSelectedId(null);
 
-  // ── Render states ───────────────────────────────
   if (loading) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-6 w-6 animate-spin" />
         <p className="text-sm">Đang dựng bản đồ kiến thức...</p>
       </div>
@@ -476,7 +394,7 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-sm font-medium text-destructive">Lỗi tải graph: {error}</p>
+        <p className="text-destructive text-sm font-medium">Lỗi tải graph: {error}</p>
         <Button onClick={() => void refetch()} size="sm" variant="outline">
           Thử lại
         </Button>
@@ -493,10 +411,10 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         </div>
         <div className="relative z-10 max-w-md space-y-2">
           <h2 className="text-xl font-semibold tracking-tight">Bản đồ kiến thức còn trống</h2>
-          <p className="text-sm text-muted-foreground">
-            Upload tài liệu PDF/text để AI tự động trích xuất khái niệm và dựng bản đồ
-            quan hệ giữa chúng. Sau khi extract xong, bấm{' '}
-            <span className="font-medium text-foreground">Tìm liên kết</span> để AI mine
+          <p className="text-muted-foreground text-sm">
+            Upload tài liệu PDF/text để AI tự động trích xuất khái niệm và dựng bản đồ quan hệ giữa
+            chúng. Sau khi extract xong, bấm{' '}
+            <span className="text-foreground font-medium">Tìm liên kết</span> để AI mine
             prerequisite edges.
           </p>
         </div>
@@ -521,13 +439,9 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         totalConcepts={rawConceptNodes.length}
         totalEdges={edges.length}
         onMined={() => {
-          // Sau khi mine xong, invalidate cache (positions cũ vẫn dùng được
-          // nhưng hash sẽ đổi vì có edges mới) rồi refetch.
           try {
             sessionStorage.removeItem(LAYOUT_CACHE_KEY);
-          } catch {
-            /* ignore */
-          }
+          } catch {}
           void refetch();
         }}
       />
@@ -577,7 +491,6 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
   );
 }
 
-/** Wrapper cần cho React Flow Provider (phục vụ hooks ngoài Canvas). */
 export function GraphView({ workspaceId }: { workspaceId?: string } = {}) {
   return (
     <ReactFlowProvider>

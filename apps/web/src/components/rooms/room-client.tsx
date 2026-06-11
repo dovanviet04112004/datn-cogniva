@@ -1,17 +1,3 @@
-/**
- * RoomClient — wrapper LiveKitRoom phía client, quản lý token fetch + connect.
- *
- * Flow:
- *   1. Mount → fetch /api/rooms/{id}/token với displayName từ localStorage.
- *   2. Nhận token → render LiveKitRoom với auto connect.
- *   3. onConnected → publish mic/cam theo preference đã lưu ở lobby.
- *   4. onDisconnected → toast + router.back().
- *
- * Layout:
- *   - Main: VideoGrid (flex-1) + Pomodoro bar (top) + ControlBar (bottom).
- *   - Sidebar: Tabs (Chat | Participants | Notes | Whiteboard).
- *   - ReactionsLayer absolute overlay trên main area.
- */
 'use client';
 
 import * as React from 'react';
@@ -31,15 +17,12 @@ import { ReactionsLayer } from './reactions-layer';
 import { PomodoroTimer } from './pomodoro-timer';
 import { RecordingBanner } from './recording-banner';
 
-// Lazy load Notes + Whiteboard — ssr:false để tránh Next.js render initial
-// HTML cho TipTap/Yjs (gây "Cannot read properties of undefined (reading 'doc')"
-// vì Yjs internals chưa khởi tạo đúng khi hydration).
 import dynamic from 'next/dynamic';
 
-const NotesPanel = dynamic(
-  () => import('./notes-panel').then((m) => ({ default: m.NotesPanel })),
-  { ssr: false, loading: () => <PanelLoading label="Đang tải Notes..." /> },
-);
+const NotesPanel = dynamic(() => import('./notes-panel').then((m) => ({ default: m.NotesPanel })), {
+  ssr: false,
+  loading: () => <PanelLoading label="Đang tải Notes..." />,
+});
 const WhiteboardPanel = dynamic(
   () => import('./whiteboard-panel').then((m) => ({ default: m.WhiteboardPanel })),
   { ssr: false, loading: () => <PanelLoading label="Đang tải Whiteboard..." /> },
@@ -47,7 +30,7 @@ const WhiteboardPanel = dynamic(
 
 function PanelLoading({ label }: { label: string }) {
   return (
-    <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
+    <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
       <Loader2 className="h-4 w-4 animate-spin" />
       <span>{label}</span>
     </div>
@@ -112,8 +95,6 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
     router.push('/rooms');
   }, [router]);
 
-  // ── Realtime moderation — sự kiện 1-1 tới chính user (presence-user) + lock phòng ──
-  // (Phase Socket.IO: lấp các handler trước đây server bắn nhưng client chưa nghe.)
   const [locked, setLocked] = React.useState(false);
   const meChannel = `presence-user-${currentUserId}`;
   const roomChannel = `presence-room-${roomId}`;
@@ -144,11 +125,11 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-lg font-semibold text-destructive">Không thể vào phòng</p>
-        <p className="text-sm text-muted-foreground">{error}</p>
+        <p className="text-destructive text-lg font-semibold">Không thể vào phòng</p>
+        <p className="text-muted-foreground text-sm">{error}</p>
         <button
           onClick={() => router.push('/rooms')}
-          className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+          className="hover:bg-muted rounded-md border px-3 py-1.5 text-sm"
         >
           Quay lại danh sách
         </button>
@@ -158,7 +139,7 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
 
   if (!auth) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
         <Loader2 className="h-6 w-6 animate-spin" />
         <p className="text-sm">Đang kết nối tới phòng {roomName}...</p>
       </div>
@@ -188,13 +169,10 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
       }}
       className="grid h-full grid-cols-1 lg:grid-cols-[1fr_360px]"
     >
-      {/* ── Main column ──────────────────────── */}
       <main className="relative flex min-h-0 flex-col">
-        {/* Recording banner — privacy notice khi REC active (Phase 15) */}
         <RecordingBanner roomId={roomId} />
 
-        {/* Top bar: room name + pomodoro */}
-        <div className="flex items-center justify-between border-b bg-background/80 px-4 py-2 backdrop-blur">
+        <div className="bg-background/80 flex items-center justify-between border-b px-4 py-2 backdrop-blur">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold">{roomName}</h2>
             {locked && (
@@ -212,12 +190,10 @@ export function RoomClient({ roomId, roomName, currentUserId, currentUserName }:
         <VideoGrid />
         <ControlBar onLeave={handleLeave} roomId={roomId} isMod={isMod} />
 
-        {/* Floating emoji overlay */}
         <ReactionsLayer />
       </main>
 
-      {/* ── Sidebar ─────────────────────────── */}
-      <aside className="hidden min-h-0 border-l bg-background lg:flex lg:flex-col">
+      <aside className="bg-background hidden min-h-0 border-l lg:flex lg:flex-col">
         <Tabs defaultValue="chat" className="flex h-full flex-col">
           <TabsList className="m-2 grid grid-cols-4">
             <TabsTrigger value="chat" aria-label="Chat" title="Chat">

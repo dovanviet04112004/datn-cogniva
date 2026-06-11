@@ -1,13 +1,3 @@
-/**
- * UserDetailClient — render header + stats + action menu cho 1 user.
- *
- * Action set (chỉ enable cho role được phép, không phải target chính mình):
- *   - Suspend / Unsuspend (SUPER_ADMIN, ADMIN)
- *   - Change plan FREE/PRO/TEAM (SUPER_ADMIN, ADMIN)
- *   - Force sign-out (mọi role admin)
- *
- * Mỗi destructive action → ConfirmDialog với reason text-area bắt buộc.
- */
 'use client';
 
 import * as React from 'react';
@@ -92,8 +82,7 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
   const router = useRouter();
   const u = data.user;
   const isSelf = u.id === currentAdminId;
-  const canMutate =
-    !isSelf && (adminRole === 'SUPER_ADMIN' || adminRole === 'ADMIN');
+  const canMutate = !isSelf && (adminRole === 'SUPER_ADMIN' || adminRole === 'ADMIN');
 
   const [action, setAction] = React.useState<Action>(null);
   const [pendingPlan, setPendingPlan] = React.useState<Plan>('FREE');
@@ -167,9 +156,10 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       });
-      const d = (await res.json().catch(() => null)) as
-        | { deletedSessions?: number; error?: string }
-        | null;
+      const d = (await res.json().catch(() => null)) as {
+        deletedSessions?: number;
+        error?: string;
+      } | null;
       if (!res.ok) throw new Error(d?.error ?? `Status ${res.status}`);
       toast.success(`Đã xoá ${d?.deletedSessions ?? 0} session.`);
       setAction(null);
@@ -205,7 +195,6 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
 
   return (
     <>
-      {/* Header card */}
       <header className="rounded-lg border border-slate-800 bg-slate-900/50 p-5">
         <div className="flex items-start gap-4">
           <Avatar className="h-16 w-16">
@@ -216,9 +205,7 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
           </Avatar>
           <div className="flex-1 space-y-1">
             <div className="flex items-baseline gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">
-                {u.name ?? 'Người dùng'}
-              </h1>
+              <h1 className="text-xl font-semibold tracking-tight">{u.name ?? 'Người dùng'}</h1>
               {isSelf && (
                 <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400">
                   Chính bạn
@@ -226,9 +213,7 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
               )}
             </div>
             <p className="font-mono text-xs text-slate-400">{u.email}</p>
-            <p className="font-mono text-[10.5px] text-slate-500">
-              ID: {u.id}
-            </p>
+            <p className="font-mono text-[10.5px] text-slate-500">ID: {u.id}</p>
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <Pill kind={u.plan === 'TEAM' ? 'purple' : u.plan === 'PRO' ? 'blue' : 'slate'}>
                 <Crown className="h-3 w-3" />
@@ -260,7 +245,6 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
             </div>
           </div>
 
-          {/* Action menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -292,9 +276,7 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
                       <Crown className="mr-2 h-3.5 w-3.5" />
                       Đổi plan → {p}
                       {p === u.plan && (
-                        <span className="ml-auto text-[10px] text-slate-500">
-                          hiện tại
-                        </span>
+                        <span className="ml-auto text-[10px] text-slate-500">hiện tại</span>
                       )}
                     </DropdownMenuItem>
                   ))}
@@ -353,7 +335,6 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         )}
       </header>
 
-      {/* Stats tiles */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatTile icon={FileText} label="Documents" value={data.stats.docs} />
         <StatTile icon={MessageSquare} label="Conversations" value={data.stats.conversations} />
@@ -386,7 +367,6 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         />
       </section>
 
-      {/* Recent audit log */}
       <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-5">
         <h2 className="mb-3 text-sm font-semibold tracking-tight">
           Audit log tác động lên user này (10 mới nhất)
@@ -405,12 +385,10 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
                     {row.action}
                   </span>
                   <div className="min-w-0 flex-1">
-                    {reason && (
-                      <p className="truncate text-xs text-slate-300">{reason}</p>
-                    )}
+                    {reason && <p className="truncate text-xs text-slate-300">{reason}</p>}
                     <p className="font-mono text-[10.5px] text-slate-500">
-                      bởi <span className="text-slate-400">{row.adminId.slice(0, 8)}…</span>{' '}
-                      · {new Date(row.createdAt).toLocaleString('vi-VN')}
+                      bởi <span className="text-slate-400">{row.adminId.slice(0, 8)}…</span> ·{' '}
+                      {new Date(row.createdAt).toLocaleString('vi-VN')}
                     </p>
                   </div>
                 </li>
@@ -420,15 +398,14 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         )}
       </section>
 
-      {/* Dialogs */}
       <ConfirmDialog
         open={action === 'suspend'}
         onOpenChange={(o) => !o && setAction(null)}
         title={`Suspend ${u.name ?? u.email}?`}
         description={
           <>
-            User sẽ KHÔNG đăng nhập được. Toàn bộ session hiện tại bị xoá ngay.
-            Data giữ nguyên — có thể restore bất kỳ lúc nào qua nút Unsuspend.
+            User sẽ KHÔNG đăng nhập được. Toàn bộ session hiện tại bị xoá ngay. Data giữ nguyên — có
+            thể restore bất kỳ lúc nào qua nút Unsuspend.
           </>
         }
         confirmLabel="Suspend"
@@ -452,9 +429,9 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         title={`Đổi plan sang ${pendingPlan}?`}
         description={
           <>
-            Plan hiện tại: <span className="font-mono font-semibold">{u.plan}</span>{' '}
-            → <span className="font-mono font-semibold">{pendingPlan}</span>. Ảnh hưởng
-            tới rate limit + feature gate.
+            Plan hiện tại: <span className="font-mono font-semibold">{u.plan}</span> →{' '}
+            <span className="font-mono font-semibold">{pendingPlan}</span>. Ảnh hưởng tới rate limit
+            + feature gate.
           </>
         }
         confirmLabel={`Đổi sang ${pendingPlan}`}
@@ -468,8 +445,8 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         title={`Force sign-out ${u.name ?? u.email}?`}
         description={
           <>
-            Xoá TOÀN BỘ session active của user. User vẫn đăng nhập lại được.
-            Dùng khi nghi credential leak hoặc user báo cáo có người khác truy cập.
+            Xoá TOÀN BỘ session active của user. User vẫn đăng nhập lại được. Dùng khi nghi
+            credential leak hoặc user báo cáo có người khác truy cập.
           </>
         }
         confirmLabel="Force sign-out"
@@ -484,10 +461,9 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
         title={`Impersonate ${u.name ?? u.email}?`}
         description={
           <>
-            Bật chế độ <strong>read-only impersonate</strong> trong 30 phút. Banner
-            đỏ sẽ hiện ở mọi page; mọi mutation bị middleware chặn 403. Audit log
-            ghi lại start + stop. Phase 6 V1 KHÔNG swap session — admin vẫn login
-            tài khoản admin, đây chỉ là forensic primitive.
+            Bật chế độ <strong>read-only impersonate</strong> trong 30 phút. Banner đỏ sẽ hiện ở mọi
+            page; mọi mutation bị middleware chặn 403. Audit log ghi lại start + stop. Phase 6 V1
+            KHÔNG swap session — admin vẫn login tài khoản admin, đây chỉ là forensic primitive.
           </>
         }
         confirmLabel="Bật impersonate"
@@ -544,7 +520,6 @@ function StatTile({
         {label}
       </div>
       <div className="mt-1 flex items-baseline gap-1.5">
-        {/* Số metric to: dùng sans Geist (bỏ font-mono cho bớt khô/cũ), giữ tabular-nums để canh cột thẳng. */}
         <span className="text-xl font-semibold tabular-nums text-slate-100">
           {typeof value === 'number' ? value.toLocaleString('vi-VN') : value}
         </span>

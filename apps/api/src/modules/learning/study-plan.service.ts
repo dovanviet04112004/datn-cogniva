@@ -1,14 +1,3 @@
-/**
- * StudyPlanService — CRUD study-plan item + materialize proposal hôm nay.
- * Port từ apps/web/src/app/api/study-plan/** + lib/study-plan/{query,
- * materialize,propose}.ts — GIỮ NGUYÊN wire shape (camelCase như Drizzle),
- * CÙNG cache key ck.studyPlan(user, day) TTL 60s + invalidator
- * onStudyPlanChanged để Next/Nest sống chung không lệch cache.
- *
- * Phần propose/materialize (Phase B atom-centric) copy nguyên semantics:
- * 3 nhóm proposal (review = flashcard due, new = atom chưa mastery trong doc
- * của user, practice = mastery < 0.5 có question) — LLM-free, chỉ DB query.
- */
 import { randomUUID } from 'node:crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type study_plan_item as StudyPlanItemRow } from '@prisma/client';
@@ -19,7 +8,6 @@ import { onStudyPlanChanged } from '@cogniva/server-core/cache/invalidate';
 import { PrismaService } from '../../infra/database/prisma.service';
 import type { CreateStudyPlanInput, PatchStudyPlanInput } from './dto/study-plan.dto';
 
-/** Shape item trả client — khớp row Drizzle cũ (camelCase, thứ tự cột schema). */
 interface StudyPlanItemDto {
   id: string;
   userId: string;
@@ -34,17 +22,11 @@ interface StudyPlanItemDto {
   completedAt: Date | null;
 }
 
-/**
- * Khoá ngày LOCAL server (YYYY-MM-DD) — copy từ lib/study-plan/materialize.ts
- * studyPlanDayKey(): PHẢI khớp todayRange() để cache key = đúng "ngày mà
- * materialize coi là hôm nay".
- */
 function studyPlanDayKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** [startOfDay, startOfNextDay) theo timezone server — copy todayRange() cũ. */
 function todayRange(): { start: Date; end: Date } {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -53,9 +35,6 @@ function todayRange(): { start: Date; end: Date } {
   return { start, end };
 }
 
-// ── Proposal types/limits — copy từ lib/study-plan/propose.ts ──────────────
-
-/** Tóm tắt 1 atom đủ để hiển thị card preview trong UI. */
 type AtomBrief = {
   id: string;
   name: string;
@@ -80,7 +59,6 @@ const REVIEW_LIMIT = 5;
 const NEW_LIMIT = 2;
 const PRACTICE_LIMIT = 3;
 
-/** Build title hiển thị + metadata từ AtomBrief + kind — copy buildRow() cũ. */
 function buildRow(
   atom: AtomBrief,
   kind: 'review' | 'new' | 'practice',
@@ -98,7 +76,6 @@ function buildRow(
       previewQuestion: atom.previewQuestion,
       previewAnswer: atom.previewAnswer,
       earliestDue: atom.earliestDue?.toISOString() ?? null,
-      // Số phút ước lượng cho UI hiển thị "~5 phút"
       estimatedMinutes: kind === 'review' ? 2 : kind === 'new' ? 5 : 3,
     },
   };
@@ -124,11 +101,6 @@ export class StudyPlanService {
     };
   }
 
-  /**
-   * GET /study-plan — port getStudyPlanItems (lib/study-plan/query.ts):
-   * filter status/kind chỉ nhận giá trị hợp lệ, ORDER BY due_date ASC NULLS
-   * LAST rồi created_at ASC.
-   */
   async listItems(
     userId: string,
     filters: { status: string | null; kind: string | null },
@@ -150,7 +122,6 @@ export class StudyPlanService {
     return rows.map((r) => this.toItemDto(r));
   }
 
-  /** POST /study-plan — tạo item manual (status/kind/metadata theo default DB). */
   async createItem(userId: string, input: CreateStudyPlanInput) {
     const inserted = await this.prisma.study_plan_item.create({
       data: {
@@ -167,7 +138,6 @@ export class StudyPlanService {
     return { item: this.toItemDto(inserted) };
   }
 
-  /** PATCH /study-plan/:id — partial update; DONE set completed_at, PENDING clear. */
   async updateItem(userId: string, id: string, input: PatchStudyPlanInput) {
     const existing = await this.prisma.study_plan_item.findFirst({
       where: { id, user_id: userId },
@@ -189,7 +159,6 @@ export class StudyPlanService {
     return { item: this.toItemDto(updated) };
   }
 
-  /** DELETE /study-plan/:id — scope owner qua deleteMany (count 0 → 404). */
   async deleteItem(userId: string, id: string) {
     const result = await this.prisma.study_plan_item.deleteMany({
       where: { id, user_id: userId },
@@ -200,10 +169,6 @@ export class StudyPlanService {
     return { deleted: true };
   }
 
-  /**
-   * POST /study-plan/:id/skip — chỉ AI proposal (kind != manual) + đang PENDING
-   * mới skip được; mark SKIPPED + completed_at (Phase B MVP: không gen thay thế).
-   */
   async skipItem(userId: string, id: string) {
     const item = await this.prisma.study_plan_item.findFirst({
       where: { id, user_id: userId, kind: { not: 'manual' } },
@@ -222,14 +187,6 @@ export class StudyPlanService {
     return { item: this.toItemDto(updated) };
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // GET /study-plan/today — materialize proposal (idempotent, LLM-free)
-  // ────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Cache-aside TTL 60s theo (user, ngày) — CÙNG key route cũ. materialize
-   * idempotent → cache MISS re-run chỉ SELECT existing (không insert lại).
-   */
   async materializeProposalForToday(userId: string): Promise<StudyPlanItemDto[]> {
     return cached(ck.studyPlan(userId, studyPlanDayKey()), 60, () => this.doMaterialize(userId));
   }
@@ -237,7 +194,6 @@ export class StudyPlanService {
   private async doMaterialize(userId: string): Promise<StudyPlanItemDto[]> {
     const { start, end } = todayRange();
 
-    // Check existing proposal rows hôm nay (kind != manual, created_at trong ngày)
     const existing = await this.prisma.study_plan_item.findMany({
       where: {
         user_id: userId,
@@ -247,7 +203,6 @@ export class StudyPlanService {
     });
     if (existing.length > 0) return existing.map((r) => this.toItemDto(r));
 
-    // Chưa có → propose + insert
     const proposal = await this.proposeForToday(userId);
 
     const toInsert: Prisma.study_plan_itemCreateManyInput[] = [];
@@ -276,17 +231,12 @@ export class StudyPlanService {
     return inserted.map((r) => this.toItemDto(r));
   }
 
-  /**
-   * Port proposeForToday (lib/study-plan/propose.ts) — cross-workspace.
-   * 3 query + hydrate batch, SQL giữ nguyên semantics câu Drizzle cũ.
-   * (Biến thể scope-workspace của lib cũ KHÔNG port: route duy nhất dùng nó
-   * — GET /workspaces/:id/today — đã chết, 0 caller.)
-   */
   private async proposeForToday(userId: string): Promise<StudyPlanProposal> {
     const now = new Date();
 
-    // 1. REVIEW — concept có flashcard due, order earliest_due ASC (overdue lâu nhất trước)
-    const reviewRows = await this.prisma.$queryRaw<Array<{ concept_id: string; earliest_due: Date }>>(
+    const reviewRows = await this.prisma.$queryRaw<
+      Array<{ concept_id: string; earliest_due: Date }>
+    >(
       Prisma.sql`
         SELECT concept_id, MIN(due) AS earliest_due
         FROM flashcard
@@ -299,7 +249,6 @@ export class StudyPlanService {
     );
     const reviewConceptIds = reviewRows.map((r) => r.concept_id);
 
-    // 2. NEW — concept link với chunk trong doc của user, CHƯA có mastery row
     const newAtomRows = await this.prisma.$queryRaw<
       Array<{ id: string; name: string; difficulty: number | null }>
     >(
@@ -322,7 +271,6 @@ export class StudyPlanService {
         LIMIT ${NEW_LIMIT}`,
     );
 
-    // 3. PRACTICE — atom yếu (mastery.score < 0.5) có ≥ 1 question để render quiz
     const practiceRows = await this.prisma.$queryRaw<Array<{ concept_id: string; score: number }>>(
       Prisma.sql`
         SELECT concept_id, score
@@ -337,7 +285,6 @@ export class StudyPlanService {
     );
     const practiceConceptIds = practiceRows.map((r) => r.concept_id);
 
-    // Hydrate AtomBrief — batch theo allConceptIds (concept + mastery + 2 count)
     const allConceptIds = Array.from(
       new Set([...reviewConceptIds, ...newAtomRows.map((c) => c.id), ...practiceConceptIds]),
     );
@@ -381,8 +328,6 @@ export class StudyPlanService {
       const masteryMap = new Map(masteryRows.map((m) => [m.concept_id, m.score]));
       const fcMap = new Map(fcCounts.map((c) => [c.concept_id, c.n]));
       const qMap = new Map(qCounts.map((c) => [c.concept_id, c.n]));
-      // MIN(due) qua raw SQL → driver có thể trả string → ép Date thật để
-      // buildRow gọi .toISOString() không vỡ (như comment lib cũ).
       const dueMap = new Map(reviewRows.map((r) => [r.concept_id, new Date(r.earliest_due)]));
 
       for (const c of conceptRows) {

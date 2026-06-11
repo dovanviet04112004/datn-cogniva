@@ -1,28 +1,10 @@
-/**
- * TutorFilters — filter bar cho /tutors browse.
- *
- * State stored ở URL searchParams (server SSR drives results). Client sync
- * filter UI → router.push(?subject=...).
- *
- * Filter:
- *   - subjectSlug (select)
- *   - level (chỉ enable khi subject chọn, lọc theo subject.levels)
- *   - modality (chip toggle)
- */
 'use client';
 
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Check, ChevronDown, Filter, Search, X } from 'lucide-react';
 
-// Import từ subpath taxonomy — file thuần data, không pull postgres driver.
-// Tránh "Module not found: 'fs'" khi client bundle bundle cả @cogniva/db.
-import {
-  ALL_SUBJECTS,
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-} from '@cogniva/db/taxonomy';
+import { ALL_SUBJECTS, LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 import type { SubjectLevel } from '@cogniva/db/taxonomy';
 
 import { cn } from '@/lib/utils';
@@ -45,7 +27,6 @@ export function TutorFilters({ initial }: Props) {
 
   const updateFilter = (key: string, value: string | null) => {
     const params = new URLSearchParams();
-    // Preserve other filters
     for (const [k, v] of Object.entries(initial)) {
       if (k !== key && v) params.set(k, v);
     }
@@ -58,9 +39,7 @@ export function TutorFilters({ initial }: Props) {
     router.push(pathname);
   };
 
-  const activeSubject = initial.subject
-    ? SUBJECT_BY_SLUG[initial.subject]
-    : undefined;
+  const activeSubject = initial.subject ? SUBJECT_BY_SLUG[initial.subject] : undefined;
   const levelOptions = activeSubject?.levels ?? [];
   const hasFilters = !!(
     initial.subject ||
@@ -73,12 +52,11 @@ export function TutorFilters({ initial }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-1.5 pr-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
           <Filter className="h-3 w-3" />
           Lọc
         </div>
 
-        {/* Subject select */}
         <SelectChip
           label="Môn"
           value={initial.subject}
@@ -92,14 +70,16 @@ export function TutorFilters({ initial }: Props) {
           ]}
           onChange={(v) => {
             updateFilter('subject', v || null);
-            // Reset level khi đổi môn
-            if (initial.level && v && !SUBJECT_BY_SLUG[v]?.levels.includes(initial.level as SubjectLevel)) {
+            if (
+              initial.level &&
+              v &&
+              !SUBJECT_BY_SLUG[v]?.levels.includes(initial.level as SubjectLevel)
+            ) {
               updateFilter('level', null);
             }
           }}
         />
 
-        {/* Level select — chỉ enable khi có subject */}
         {activeSubject && (
           <SelectChip
             label="Cấp"
@@ -116,7 +96,6 @@ export function TutorFilters({ initial }: Props) {
           />
         )}
 
-        {/* Modality chips */}
         <div className="flex items-center gap-1.5">
           {MODALITIES.map((m) => {
             const active = initial.modality === m;
@@ -128,7 +107,7 @@ export function TutorFilters({ initial }: Props) {
                 className={cn(
                   'inline-flex items-center rounded-full px-2.5 py-1 text-[11.5px] font-medium transition-all',
                   active
-                    ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                    ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                     : 'bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
@@ -142,7 +121,7 @@ export function TutorFilters({ initial }: Props) {
           <button
             type="button"
             onClick={clearAll}
-            className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] transition-colors"
           >
             <X className="h-3 w-3" />
             Xoá lọc
@@ -153,7 +132,6 @@ export function TutorFilters({ initial }: Props) {
   );
 }
 
-/** Bỏ dấu + thường hoá để lọc "giai tich" khớp "Giải tích". */
 function norm(s: string): string {
   return s
     .normalize('NFD')
@@ -162,11 +140,6 @@ function norm(s: string): string {
     .trim();
 }
 
-/**
- * SelectChip — chip lọc dạng combobox gõ-để-lọc (thay <select> cứng).
- * Trigger giữ look chip; mở ra panel có ô search (chỉ hiện khi list dài) +
- * danh sách lọc bỏ dấu. Giữ nguyên signature props nên call-site không đổi.
- */
 function SelectChip({
   label,
   value,
@@ -185,7 +158,6 @@ function SelectChip({
   const [q, setQ] = React.useState('');
   const rootRef = React.useRef<HTMLDivElement>(null);
 
-  // Ô search chỉ cần khi list dài (môn ~20+); list ngắn (cấp) thì khỏi.
   const searchable = options.length > 8;
 
   const filtered = React.useMemo(() => {
@@ -214,7 +186,7 @@ function SelectChip({
         className={cn(
           'inline-flex items-center gap-1 rounded-full py-1 pl-3 pr-2 text-[11.5px] font-medium transition-colors',
           hasValue
-            ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+            ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
             : 'bg-muted/40 text-muted-foreground hover:bg-muted',
         )}
       >
@@ -223,22 +195,22 @@ function SelectChip({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-hidden rounded-xl border border-divider bg-card shadow-elevated">
+        <div className="border-divider bg-card shadow-elevated absolute left-0 top-full z-30 mt-1 max-h-72 w-52 overflow-hidden rounded-xl border">
           {searchable && (
-            <div className="relative border-b border-divider p-1.5">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="border-divider relative border-b p-1.5">
+              <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
               <input
                 autoFocus
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder={`Tìm ${label.toLowerCase()}…`}
-                className="w-full rounded-lg bg-background py-1.5 pl-8 pr-2 text-[12px] outline-none"
+                className="bg-background w-full rounded-lg py-1.5 pl-8 pr-2 text-[12px] outline-none"
               />
             </div>
           )}
           <div className="max-h-56 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-3 text-center text-[11.5px] text-muted-foreground">
+              <p className="text-muted-foreground px-3 py-3 text-center text-[11.5px]">
                 Không có kết quả
               </p>
             ) : (
@@ -251,13 +223,11 @@ function SelectChip({
                     setOpen(false);
                     setQ('');
                   }}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-muted"
+                  className="hover:bg-muted flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] transition-colors"
                 >
-                  <span className="truncate">
-                    {o.value ? o.label : `${label}: tất cả`}
-                  </span>
+                  <span className="truncate">{o.value ? o.label : `${label}: tất cả`}</span>
                   {o.value === (value ?? '') && (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <Check className="text-primary h-3.5 w-3.5 shrink-0" />
                   )}
                 </button>
               ))

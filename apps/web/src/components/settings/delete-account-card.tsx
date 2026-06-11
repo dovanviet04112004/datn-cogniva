@@ -1,29 +1,3 @@
-/**
- * DeleteAccountCard — Danger Zone trong /settings.
- *
- * Plan v2 §10.4.3 + §15.1 W9-10 — GDPR Article 17 UI.
- *
- * 3 trạng thái:
- *   1. IDLE          — chưa request, hiện nút Delete
- *   2. PENDING       — đã request, hiện banner đỏ + nút Cancel + countdown
- *   3. CANCELLED     — vừa cancel, hiện toast confirmation (back to IDLE)
- *
- * Flow:
- *   IDLE → click "Delete account" → open confirm dialog
- *        → user gõ "DELETE MY ACCOUNT" + optional reason
- *        → POST /api/account/delete
- *        → state = PENDING với scheduledFor + countdown days
- *
- *   PENDING → click "Cancel deletion"
- *           → confirm dialog ngắn
- *           → DELETE /api/account/delete
- *           → state = IDLE
- *
- * Khi PENDING:
- *   - Banner đỏ TO ở top settings page (compliance — user phải thấy clearly)
- *   - Còn lại N days countdown
- *   - Button Cancel + thông tin "deletion permanent sau ngày X"
- */
 'use client';
 
 import * as React from 'react';
@@ -60,7 +34,6 @@ export function DeleteAccountCard() {
   const [reason, setReason] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
-  // Trạng thái xoá qua React Query — poll 60s (hiếm khi đổi).
   const { data: status } = useQuery({
     queryKey: qk.accountDeletion(),
     queryFn: () => apiGet<DeletionStatus>('/api/account/delete'),
@@ -74,7 +47,6 @@ export function DeleteAccountCard() {
     }
     setBusy(true);
     try {
-      // Giữ raw fetch — cần đọc nested error.fieldErrors.confirm từ body lỗi.
       const res = await fetch('/api/account/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,24 +89,24 @@ export function DeleteAccountCard() {
     }
   };
 
-  // PENDING state — render banner đỏ
   if (status?.pending) {
     return (
       <>
         <Card className="border-destructive bg-destructive/5 p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <AlertTriangle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
             <div className="flex-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-destructive">
+              <h2 className="text-destructive text-sm font-semibold uppercase tracking-wider">
                 Account scheduled for deletion
               </h2>
               <p className="mt-1 text-sm">
                 Account sẽ bị xoá VĨNH VIỄN vào{' '}
-                <strong>{new Date(status.scheduledFor!).toLocaleDateString('vi-VN')}</strong>{' '}
-                (còn <strong>{status.daysRemaining}</strong> ngày).
+                <strong>{new Date(status.scheduledFor!).toLocaleDateString('vi-VN')}</strong> (còn{' '}
+                <strong>{status.daysRemaining}</strong> ngày).
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Sau ngày này: documents, flashcards, mastery, chat history sẽ bị xoá. Audit log + billing record giữ theo luật.
+              <p className="text-muted-foreground mt-1 text-xs">
+                Sau ngày này: documents, flashcards, mastery, chat history sẽ bị xoá. Audit log +
+                billing record giữ theo luật.
               </p>
               <div className="mt-3 flex gap-2">
                 <Button
@@ -151,21 +123,17 @@ export function DeleteAccountCard() {
           </div>
         </Card>
 
-        {/* Cancel confirm dialog */}
         <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Hủy yêu cầu xoá account?</DialogTitle>
               <DialogDescription>
-                Account sẽ tiếp tục hoạt động bình thường. Bạn có thể yêu cầu xoá lại bất cứ lúc nào.
+                Account sẽ tiếp tục hoạt động bình thường. Bạn có thể yêu cầu xoá lại bất cứ lúc
+                nào.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowCancelDialog(false)}
-                disabled={busy}
-              >
+              <Button variant="outline" onClick={() => setShowCancelDialog(false)} disabled={busy}>
                 Không
               </Button>
               <Button onClick={cancelDelete} disabled={busy}>
@@ -179,18 +147,17 @@ export function DeleteAccountCard() {
     );
   }
 
-  // IDLE state
   return (
     <>
       <Card className="border-destructive/30 p-5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-destructive">
+        <h2 className="text-destructive flex items-center gap-2 text-sm font-semibold uppercase tracking-wider">
           <AlertTriangle className="h-4 w-4" />
           Danger Zone
         </h2>
         <div className="mt-3 space-y-3">
           <div>
             <p className="text-sm font-medium">Export data</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-0.5 text-xs">
               Tải xuống toàn bộ dữ liệu cá nhân theo GDPR Article 20 (JSON).
             </p>
             <Button
@@ -204,7 +171,6 @@ export function DeleteAccountCard() {
                     const err = await res.json();
                     throw new Error(err.error ?? 'Export failed');
                   }
-                  // Browser auto-download via Content-Disposition
                   const blob = await res.blob();
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
@@ -226,7 +192,7 @@ export function DeleteAccountCard() {
 
           <div>
             <p className="text-sm font-medium">Xoá account</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-0.5 text-xs">
               Xoá toàn bộ account + data sau 30 ngày grace period. Có thể hủy trong 30 ngày.
             </p>
             <Button
@@ -242,7 +208,6 @@ export function DeleteAccountCard() {
         </div>
       </Card>
 
-      {/* Request confirm dialog */}
       <Dialog open={showRequestDialog} onOpenChange={setShowRequestDialog}>
         <DialogContent>
           <DialogHeader>
@@ -273,19 +238,19 @@ export function DeleteAccountCard() {
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Phản hồi giúp Cogniva improve..."
                 maxLength={500}
-                className="mt-1 w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+                className="bg-background mt-1 w-full rounded-md border px-3 py-1.5 text-sm"
               />
             </div>
             <div>
               <label className="text-xs font-medium" htmlFor="confirm">
-                Gõ <code className="rounded bg-muted px-1">DELETE MY ACCOUNT</code> để confirm
+                Gõ <code className="bg-muted rounded px-1">DELETE MY ACCOUNT</code> để confirm
               </label>
               <input
                 id="confirm"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="DELETE MY ACCOUNT"
-                className="mt-1 w-full rounded-md border bg-background px-3 py-1.5 text-sm font-mono"
+                className="bg-background mt-1 w-full rounded-md border px-3 py-1.5 font-mono text-sm"
                 autoComplete="off"
               />
             </div>

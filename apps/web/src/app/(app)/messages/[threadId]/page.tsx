@@ -1,9 +1,3 @@
-/**
- * /messages/[threadId] — DM chat 1-1.
- *
- * Server-verify user là 1 trong 2 thành viên thread, load peer info, pass
- * xuống client component.
- */
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 

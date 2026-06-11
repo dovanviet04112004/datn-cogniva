@@ -1,18 +1,4 @@
-/**
- * /api/admin/moderation/** — reports list + context snippet + resolve + banned.
- * Resolve cần SUPER_ADMIN/ADMIN (side-effect destructive); còn lại read-only
- * mọi role.
- */
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import {
@@ -58,11 +44,7 @@ export class AdminModerationController {
   }
 
   @Get('banned')
-  banned(
-    @Query('type') type?: string,
-    @Query('q') q?: string,
-    @Query('limit') limit?: string,
-  ) {
+  banned(@Query('type') type?: string, @Query('q') q?: string, @Query('limit') limit?: string) {
     return this.moderation.listBanned({ type, q, limit });
   }
 }

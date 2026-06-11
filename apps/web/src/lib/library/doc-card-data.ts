@@ -1,14 +1,7 @@
-/**
- * doc-card-data — select + mapper dùng chung cho DocCard (2026-05-28).
- *
- * Mọi nơi render DocCard (grid, carousel "Đọc tiếp"/"Dành cho bạn") dùng chung
- * tập cột này → card hiển thị GIỐNG HỆT nhau, không lệch giao diện.
- */
 import { libraryDoc, user as userTable } from '@cogniva/db';
 
 import type { DocCardData } from '@/components/library/doc-card';
 
-/** Tập cột select cho DocCardData (kèm leftJoin user để có uploaderName). */
 export const docCardColumns = {
   id: libraryDoc.id,
   title: libraryDoc.title,
@@ -39,7 +32,6 @@ type DocCardRow = {
   [K in keyof typeof docCardColumns]: unknown;
 };
 
-/** Map row (select docCardColumns) → DocCardData serializable cho client. */
 export function toDocCardData(r: DocCardRow): DocCardData {
   return {
     id: r.id as string,

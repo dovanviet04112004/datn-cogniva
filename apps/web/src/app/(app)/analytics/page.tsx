@@ -1,20 +1,9 @@
-/**
- * /analytics — báo cáo cost LLM + usage 30 ngày của user.
- *
- * Lấy data từ `/api/analytics` (Phase 10). Hiển thị:
- *   1. 4 stat card: tổng messages / prompt tokens / completion tokens / cost USD
- *   2. Bar chart 7 ngày gần đây (cost USD/ngày) — SVG thuần, không thư viện
- *   3. Bảng cost theo từng model (Claude Sonnet/Haiku/Opus, Gemini, Voyage)
- *
- * Phase 10 API đã giới hạn 30 ngày; UI render rỗng nếu user chưa chat.
- */
 import { redirect } from 'next/navigation';
 import { TrendingUp } from 'lucide-react';
 
 import { getUserAnalytics } from '@/lib/analytics/get-user-analytics';
 import { getServerSession } from '@/lib/auth-server';
 import { Card } from '@/components/ui/card';
-// Tiêu đề mục dùng chung — thay khối eyebrow gạch + uppercase hardcode cũ.
 import { SectionHeading } from '@/components/ui/section-heading';
 import { PageShell } from '@/components/layout/page-shell';
 
@@ -22,8 +11,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
-  // Server Component: fetch aggregate thẳng DB qua lib dùng chung với route
-  // /api/analytics (mobile vẫn gọi route) → HTML có data ngay, không skeleton.
   const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/analytics');
   const data = await getUserAnalytics(session.user.id);
@@ -32,7 +19,6 @@ export default async function AnalyticsPage() {
 
   return (
     <PageShell
-      // Trang OVERVIEW báo cáo — bật hero banner aurora dùng chung.
       hero
       eyebrow="Phân tích"
       eyebrowIcon={TrendingUp}
@@ -45,17 +31,12 @@ export default async function AnalyticsPage() {
       description={
         <>
           Báo cáo sử dụng + chi phí LLM 30 ngày qua. Lưu vào{' '}
-          <code className="rounded bg-muted px-1 text-xs">message.metadata</code>{' '}
-          mỗi lần chat hoàn thành.
+          <code className="bg-muted rounded px-1 text-xs">message.metadata</code> mỗi lần chat hoàn
+          thành.
         </>
       }
     >
-
-      {/* ── Stat tiles ───────────────────────────────
-          Premium: 1 unified surface chia 4 cột với divider — pattern
-          Linear/Stripe. Mỗi tile có accent dot riêng + sparkline trend
-          nếu data có (last7Days). */}
-      <Card className="grid grid-cols-2 overflow-hidden rounded-xl border-divider shadow-soft sm:grid-cols-4 sm:divide-x sm:divide-divider">
+      <Card className="border-divider shadow-soft sm:divide-divider grid grid-cols-2 overflow-hidden rounded-xl sm:grid-cols-4 sm:divide-x">
         <StatTile
           accent="bg-blue-500"
           label="Messages"
@@ -82,14 +63,11 @@ export default async function AnalyticsPage() {
         />
       </Card>
 
-      {/* ── 7-day chart — soft tinted bars với gradient ───── */}
-      <Card className="rounded-xl border-divider p-5 shadow-soft">
-        {/* Tiêu đề mục dùng chung; count="7d" (cửa sổ 7 ngày), action = max cost.
-            max-cost giữ font-mono vì là giá trị kỹ thuật nhỏ (text-xs). */}
+      <Card className="border-divider shadow-soft rounded-xl p-5">
         <SectionHeading
           count="7d"
           action={
-            <span className="font-mono text-xs tabular-nums text-text-muted">
+            <span className="text-text-muted font-mono text-xs tabular-nums">
               max ${maxCost.toFixed(4)}
             </span>
           }
@@ -98,7 +76,7 @@ export default async function AnalyticsPage() {
         </SectionHeading>
 
         {data.last7Days.length === 0 ? (
-          <p className="rounded-lg border border-dashed bg-surface-secondary/40 py-8 text-center text-xs text-muted-foreground">
+          <p className="bg-surface-secondary/40 text-muted-foreground rounded-lg border border-dashed py-8 text-center text-xs">
             Chưa có data — chat thử để thấy biểu đồ.
           </p>
         ) : (
@@ -113,14 +91,13 @@ export default async function AnalyticsPage() {
                 >
                   <div className="flex w-full flex-1 items-end">
                     <div
-                      className="w-full rounded-md bg-gradient-to-t from-primary/40 to-primary/80 shadow-soft transition-all duration-base ease-expo-out group-hover/bar:from-primary/60 group-hover/bar:to-primary"
+                      className="from-primary/40 to-primary/80 shadow-soft duration-base ease-expo-out group-hover/bar:from-primary/60 group-hover/bar:to-primary w-full rounded-md bg-gradient-to-t transition-all"
                       style={{ height: `${Math.max(2, heightPct)}%` }}
                     />
                   </div>
-                  <span className="font-mono text-[10px] tabular-nums text-text-muted">
+                  <span className="text-text-muted font-mono text-[10px] tabular-nums">
                     {d.date.slice(5)}
                   </span>
-                  {/* Cỡ chữ sàn 10px (cột bar hẹp, 11px vỡ layout) — bỏ cỡ lẻ 10.5px */}
                   <span className="font-mono text-[10px] font-semibold tabular-nums">
                     ${d.costUsd.toFixed(4)}
                   </span>
@@ -131,19 +108,16 @@ export default async function AnalyticsPage() {
         )}
       </Card>
 
-      {/* ── byModel table — premium row design ─────────── */}
-      <Card className="rounded-xl border-divider p-5 shadow-soft">
-        {/* Tiêu đề mục dùng chung — count = số model. */}
+      <Card className="border-divider shadow-soft rounded-xl p-5">
         <SectionHeading count={data.byModel.length}>Theo model</SectionHeading>
         {data.byModel.length === 0 ? (
-          <p className="rounded-lg border border-dashed bg-surface-secondary/40 py-8 text-center text-xs text-muted-foreground">
+          <p className="bg-surface-secondary/40 text-muted-foreground rounded-lg border border-dashed py-8 text-center text-xs">
             Chưa có data.
           </p>
         ) : (
           <table className="w-full text-sm">
-            {/* Header bảng = eyebrow label → chuẩn hoá text-[11px] (bỏ cỡ lẻ 10.5px) */}
-            <thead className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-              <tr className="border-b border-divider">
+            <thead className="text-text-muted text-[11px] font-semibold uppercase tracking-[0.14em]">
+              <tr className="border-divider border-b">
                 <th className="py-2.5 text-left font-semibold">Model</th>
                 <th className="py-2.5 text-right font-semibold">Messages</th>
                 <th className="py-2.5 text-right font-semibold">Cost (USD)</th>
@@ -153,7 +127,7 @@ export default async function AnalyticsPage() {
               {data.byModel.map((m) => (
                 <tr
                   key={m.model}
-                  className="border-b border-divider last:border-0 transition-colors hover:bg-muted/40"
+                  className="border-divider hover:bg-muted/40 border-b transition-colors last:border-0"
                 >
                   <td className="py-3 font-mono text-xs">{m.model}</td>
                   <td className="py-3 text-right font-mono tabular-nums">
@@ -172,10 +146,6 @@ export default async function AnalyticsPage() {
   );
 }
 
-/**
- * StatTile — 1 cột trong unified stat card. Accent dot bên cạnh label +
- * value to (sans Geist, tabular-nums) + sparkline mini nếu có data.
- */
 function StatTile({
   accent,
   label,
@@ -192,16 +162,12 @@ function StatTile({
     <div className="flex flex-col justify-between gap-2 px-5 py-4">
       <div className="flex items-center gap-2">
         <span className={`h-1.5 w-1.5 rounded-full ${accent}`} />
-        {/* Eyebrow label của StatTile → chuẩn hoá text-[11px] (bỏ cỡ lẻ 10.5px) */}
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.14em]">
           {label}
         </p>
       </div>
       <div className="space-y-1.5">
-        {/* Số metric to: dùng sans Geist (bỏ font-mono), giữ tabular-nums canh cột. */}
-        <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight">
-          {value}
-        </p>
+        <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight">{value}</p>
         {sparkline && sparkline.length > 0 && (
           <div className="flex h-4 items-end gap-0.5">
             {sparkline.map((v, i) => (

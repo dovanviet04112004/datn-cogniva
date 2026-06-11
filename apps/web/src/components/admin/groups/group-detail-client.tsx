@@ -1,6 +1,3 @@
-/**
- * GroupDetailClient — chi tiết group + members table + suspend/unsuspend.
- */
 'use client';
 
 import * as React from 'react';
@@ -123,11 +120,7 @@ export function GroupDetailClient({
       <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
         {g.bannerUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={g.bannerUrl}
-            alt=""
-            className="h-32 w-full object-cover"
-          />
+          <img src={g.bannerUrl} alt="" className="h-32 w-full object-cover" />
         )}
         <div className="p-5">
           <div className="flex items-start justify-between gap-4">
@@ -141,9 +134,7 @@ export function GroupDetailClient({
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-semibold tracking-tight">{g.name}</h1>
                 {g.description && (
-                  <p className="mt-0.5 line-clamp-2 text-[12px] text-slate-400">
-                    {g.description}
-                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-[12px] text-slate-400">{g.description}</p>
                 )}
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
                   {g.suspendedAt ? (
@@ -217,14 +208,12 @@ export function GroupDetailClient({
             )}
           </div>
 
-          {/* Suspend reason banner */}
           {g.suspendedAt && g.suspendReason && (
             <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/5 p-2.5 text-[12px] text-red-200">
               <span className="font-semibold">Lý do suspend:</span> {g.suspendReason}
             </div>
           )}
 
-          {/* Stats grid */}
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <StatTile label="Members" value={`${stats.memberCount}/${g.maxMembers}`} />
             <StatTile label="Channels" value={stats.channelCount.toLocaleString('vi-VN')} />
@@ -245,23 +234,16 @@ export function GroupDetailClient({
         </div>
       </section>
 
-      {/* Tabs: Members | Recordings */}
-      <GroupTabs
-        groupId={g.id}
-        members={members}
-        stats={stats}
-        canMutate={canMutate}
-      />
+      <GroupTabs groupId={g.id} members={members} stats={stats} canMutate={canMutate} />
 
-      {/* Confirm dialogs */}
       <ConfirmDialog
         open={suspendOpen}
         onOpenChange={setSuspendOpen}
         title={`Suspend group "${g.name}"?`}
         description={
           <span>
-            Group sẽ bị ẩn khỏi public explore. Member sẽ không gửi được message mới
-            (Phase 2 enforcement). Có thể unsuspend bất kỳ lúc nào.
+            Group sẽ bị ẩn khỏi public explore. Member sẽ không gửi được message mới (Phase 2
+            enforcement). Có thể unsuspend bất kỳ lúc nào.
           </span>
         }
         confirmLabel="Suspend group"
@@ -278,8 +260,8 @@ export function GroupDetailClient({
         title={`Khôi phục group "${g.name}"?`}
         description={
           <span>
-            Group sẽ hoạt động bình thường trở lại. Member có thể chat. Mọi data
-            của group được giữ nguyên.
+            Group sẽ hoạt động bình thường trở lại. Member có thể chat. Mọi data của group được giữ
+            nguyên.
           </span>
         }
         confirmLabel="Unsuspend"
@@ -298,20 +280,15 @@ export function GroupDetailClient({
           <span>
             Hard delete — toàn bộ <strong>{stats.channelCount} channels</strong>,{' '}
             <strong>{stats.messageCount} messages</strong>,{' '}
-            <strong>{stats.memberCount} members</strong>, voice recordings sẽ bị
-            xoá (FK CASCADE). KHÔNG khôi phục được. Chỉ SUPER_ADMIN dùng được.
+            <strong>{stats.memberCount} members</strong>, voice recordings sẽ bị xoá (FK CASCADE).
+            KHÔNG khôi phục được. Chỉ SUPER_ADMIN dùng được.
           </span>
         }
         confirmLabel="Xoá vĩnh viễn"
         variant="destructive"
         loading={loading}
         onConfirm={async (reason) => {
-          await doAction(
-            'Xoá group',
-            `/api/admin/groups/${g.id}/delete`,
-            reason,
-            'back',
-          );
+          await doAction('Xoá group', `/api/admin/groups/${g.id}/delete`, reason, 'back');
           setDeleteOpen(false);
         }}
       />
@@ -339,9 +316,7 @@ function MemberRow({ m }: { m: Member }) {
             <p className="truncate text-[13px] font-medium leading-tight">
               {m.nickname || m.userName || '—'}
             </p>
-            <p className="truncate font-mono text-[10.5px] text-slate-500">
-              {m.userEmail ?? '—'}
-            </p>
+            <p className="truncate font-mono text-[10.5px] text-slate-500">{m.userEmail ?? '—'}</p>
           </div>
         </Link>
       </td>
@@ -404,10 +379,6 @@ function StatTile({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// Tabs: Members | Recordings
-// ────────────────────────────────────────────────────────────
-
 type Recording = {
   id: string;
   channelId: string | null;
@@ -439,7 +410,6 @@ function GroupTabs({
   const [recordings, setRecordings] = React.useState<Recording[] | null>(null);
   const [recLoading, setRecLoading] = React.useState(false);
 
-  // Lazy-load recordings khi user click tab — không fetch sẵn để tiết kiệm DB.
   const loadRecordings = React.useCallback(async () => {
     setRecLoading(true);
     try {
@@ -643,8 +613,8 @@ function RecordingsList({
         title="Xoá recording?"
         description={
           <span>
-            Xoá DB row recording. File trên R2 sẽ được cleanup job nightly dọn
-            (orphan storageKey). Audit log lưu storageKey để forensic recovery.
+            Xoá DB row recording. File trên R2 sẽ được cleanup job nightly dọn (orphan storageKey).
+            Audit log lưu storageKey để forensic recovery.
           </span>
         }
         confirmLabel="Xoá recording"

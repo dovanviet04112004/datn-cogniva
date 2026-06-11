@@ -1,7 +1,3 @@
-/**
- * Zod schemas — copy NGUYÊN từ route cũ apps/web/src/app/api/workspaces
- * (CREATE_SCHEMA / PATCH_SCHEMA) để 400 flatten() byte-identical.
- */
 import { z } from 'zod';
 
 export const createWorkspaceSchema = z.object({

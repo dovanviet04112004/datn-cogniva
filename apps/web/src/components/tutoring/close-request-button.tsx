@@ -1,9 +1,3 @@
-/**
- * CloseRequestButton — chủ yêu cầu đóng yêu cầu tìm gia sư (status → CLOSED).
- *
- * Dùng khi đã tìm được gia sư ngoài luồng / không cần nữa. Gọi PATCH
- * /api/tutoring/requests/[id] { status: 'CLOSED' } rồi refresh.
- */
 'use client';
 
 import * as React from 'react';
@@ -51,9 +45,13 @@ export function CloseRequestButton({ requestId }: { requestId: string }) {
       type="button"
       onClick={close}
       disabled={busy}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-divider px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+      className="border-divider text-muted-foreground hover:bg-muted hover:text-foreground inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
     >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <XCircle className="h-3.5 w-3.5" />
+      )}
       Đóng yêu cầu
     </button>
   );

@@ -1,16 +1,3 @@
-/**
- * @cogniva/realtime — Socket.IO gateway self-host (thay Soketi/Pusher).
- *
- * Luồng:
- *   1. CONNECT  : middleware verify session qua Next (cookie web / bearer mobile). Fail → từ chối.
- *   2. SUBSCRIBE: client `emit('subscribe', channel)` → authorize membership qua Next → join room.
- *                 Channel presence → track + phát presence:state/join/leave.
- *   3. EMIT     : apps/web KHÔNG emit trực tiếp ở đây — nó publish qua @socket.io/redis-emitter;
- *                 redis-adapter ở gateway fan-out tới socket trong room. Quy ước domain event:
- *                 `emit(event, channel, data)` (channel = arg #1) để client lọc đúng channel.
- *
- * Transport WS-only (bỏ long-polling) → không cần sticky session khi chạy nhiều replica.
- */
 import { createServer } from 'node:http';
 
 import { createAdapter } from '@socket.io/redis-adapter';
@@ -23,7 +10,6 @@ import { cfg } from './config';
 import { onJoin, onLeave } from './presence';
 import { pubClient, subClient } from './redis';
 
-// HTTP server: phục vụ /healthz cho health-check.sh; còn lại Socket.IO tự cầm (/socket.io).
 const httpServer = createServer((req, res) => {
   if (req.url === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -41,7 +27,6 @@ const io = new Server(httpServer, {
   adapter: createAdapter(pubClient, subClient),
 });
 
-// 1) Verify session lúc handshake.
 io.use(async (socket, next) => {
   const user = await verifySession(socket.handshake);
   if (!user) return next(new Error('unauthorized'));
@@ -49,16 +34,11 @@ io.use(async (socket, next) => {
   next();
 });
 
-// 2) Subscribe có authorize + join room + presence.
 io.on('connection', (socket: Socket) => {
-  // Channel presence đã ĐẾM cho socket này — đảm bảo onJoin/onLeave đúng 1 lần/socket/channel,
-  // kể cả khi 2 'subscribe' trùng xen kẽ nhau qua await authorize (check+add đồng bộ = atomic
-  // trong event loop nên không double-count ref presence).
   const presenceJoined = new Set<string>();
 
   socket.on('subscribe', async (channel: string, ack?: (ok: boolean) => void) => {
     if (typeof channel !== 'string' || !parseChannel(channel)) return ack?.(false);
-    // Đã ở trong room rồi (component khác đã subscribe trên cùng socket) → idempotent.
     if (socket.rooms.has(channel)) return ack?.(true);
 
     const ok = await authorizeChannel(socket.handshake, channel);
@@ -78,8 +58,6 @@ io.on('connection', (socket: Socket) => {
     if (presenceJoined.delete(channel)) await onLeave(io, socket, channel);
   });
 
-  // Rời mọi presence đã đếm khi mất kết nối (đóng tab / mạng rớt). Fire-and-forget +
-  // .catch để Redis lỗi không thành unhandled rejection.
   socket.on('disconnecting', () => {
     for (const channel of presenceJoined) {
       void onLeave(io, socket, channel).catch(() => {});
@@ -92,7 +70,6 @@ httpServer.listen(cfg.port, () => {
   console.log(`[realtime] Socket.IO gateway nghe cổng ${cfg.port} (WS-only)`);
 });
 
-// Graceful shutdown — đóng socket + Redis khi nhận tín hiệu dừng.
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
     console.log(`[realtime] ${sig} — đang tắt…`);

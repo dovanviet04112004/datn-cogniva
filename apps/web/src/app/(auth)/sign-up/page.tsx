@@ -1,10 +1,3 @@
-/**
- * Trang sign-up — wrap form đăng ký + honor `?redirect=` query.
- *
- * Use case: student vào /join?code=X chưa login → /sign-in?redirect=/join?code=X.
- * Click "Sign up" link → /sign-up?redirect=/join?code=X. Đăng ký xong bounce
- * về URL gốc thay vì /dashboard.
- */
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
@@ -22,9 +15,7 @@ type Props = {
 
 export default async function SignUpPage({ searchParams }: Props) {
   const { redirect } = await searchParams;
-  const signInHref = redirect
-    ? `/sign-in?redirect=${encodeURIComponent(redirect)}`
-    : '/sign-in';
+  const signInHref = redirect ? `/sign-in?redirect=${encodeURIComponent(redirect)}` : '/sign-in';
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
@@ -35,9 +26,12 @@ export default async function SignUpPage({ searchParams }: Props) {
       </CardHeader>
       <CardContent>
         <SignUpForm redirectTo={redirect ?? '/dashboard'} />
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-6 text-center text-sm">
           Already have an account?{' '}
-          <Link href={signInHref} className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link
+            href={signInHref}
+            className="text-foreground font-medium underline-offset-4 hover:underline"
+          >
             Sign in
           </Link>
         </p>

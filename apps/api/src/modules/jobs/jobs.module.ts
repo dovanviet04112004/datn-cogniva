@@ -21,18 +21,6 @@ import { TutoringAutoCompleteJob } from './handlers/tutoring-auto-complete.job';
 import { TutoringRecurringRolloutJob } from './handlers/tutoring-recurring-rollout.job';
 import { TutoringRefreshEmbeddingsJob } from './handlers/tutoring-refresh-embeddings.job';
 
-/**
- * JobsModule — CHỈ import vào WorkerModule (worker.ts). Đừng đưa vào
- * AppModule: @Processor sẽ mở worker BullMQ ngay trong process HTTP.
- *
- * AiModule + StorageModule import tường minh ở đây vì WorkerModule KHÔNG
- * mount chúng như app.module — @Global chỉ có tác dụng khi module nằm trong
- * graph; DocumentsModule (ConceptsService/IngestService) cần cả hai.
- * NotificationsModule → getPushTokens cho flashcard-due-reminder +
- * library-pro-expiry-warn + library-saved-search-notify.
- * RoomsPipelineModule (KHÔNG phải RoomsModule — tránh kéo controllers/LiveKit
- * vào worker) → RecordingPipelineService cho RecordingProcessor.
- */
 @Module({
   imports: [
     QueueModule,

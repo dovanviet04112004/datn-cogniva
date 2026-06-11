@@ -1,6 +1,3 @@
-// tsconfig cho package @cogniva/db — chỉ chạy typecheck, không emit (drizzle-kit
-// đọc trực tiếp file TS). Loại trừ drizzle.config.ts và thư mục migrations vì
-// chúng không thuộc rootDir và chỉ được drizzle-kit dùng tại runtime.
 {
   "extends": "@cogniva/tsconfig/base.json",
   "compilerOptions": {

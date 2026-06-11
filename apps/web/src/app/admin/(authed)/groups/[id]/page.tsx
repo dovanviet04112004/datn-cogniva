@@ -1,6 +1,3 @@
-/**
- * /admin/groups/[id] — chi tiết group + members + actions.
- */
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';

@@ -51,6 +51,7 @@ REDIS_URL=redis://localhost:6379
 ```
 
 **Lưu ý local:**
+
 - Không có TURN → user behind symmetric NAT sẽ không connect được (95% case OK trên cùng LAN/wifi).
 - Không có TLS — chỉ test localhost. Production bắt buộc TLS qua Caddy.
 - Không có Hocuspocus — Phase 14 sẽ add khi cần whiteboard/notes collab.

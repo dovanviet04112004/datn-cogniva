@@ -1,15 +1,3 @@
-/**
- * BookingPaymentBox — student thanh toán booking.
- *
- * Hiển thị status payment + CTA:
- *   - CREATED   → "Tạo intent + thanh toán" (gọi /api/payments/intent)
- *   - AUTHORIZED → "Hoàn tất thanh toán" (call capture STUB / chờ webhook)
- *   - REFUNDED  → "Đã hoàn tiền"
- *   - FAILED    → "Thanh toán thất bại — thử lại"
- *
- * Provider STUB: paymentUrl trỏ về booking page với ?stub=1, FE thấy stub
- * thì auto call /capture endpoint → mark CAPTURED.
- */
 'use client';
 
 import * as React from 'react';
@@ -28,19 +16,12 @@ type Payment = {
   status: string;
 };
 
-export function BookingPaymentBox({
-  bookingId,
-  payment,
-}: {
-  bookingId: string;
-  payment: Payment;
-}) {
+export function BookingPaymentBox({ bookingId, payment }: { bookingId: string; payment: Payment }) {
   const router = useRouter();
   const sp = useSearchParams();
   const [busy, setBusy] = React.useState(false);
   const stubDone = sp.get('stub') === '1';
 
-  // Auto-capture nếu provider STUB và FE bị redirect về với ?stub=1
   React.useEffect(() => {
     if (stubDone && payment.status !== 'CAPTURED' && payment.provider === 'STUB') {
       void doCapture();
@@ -105,16 +86,16 @@ export function BookingPaymentBox({
   const isStub = payment.provider === 'STUB';
 
   return (
-    <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-5">
+    <div className="border-primary/20 from-primary/5 rounded-2xl border bg-gradient-to-br to-transparent p-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+        <div className="bg-primary/15 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
           <CreditCard className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold tracking-tight">
             Thanh toán {payment.amountVnd.toLocaleString('vi-VN')}đ
           </p>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <p className="text-muted-foreground mt-0.5 text-[11.5px]">
             {isStub
               ? 'Dev mode — STUB provider auto-capture (no real payment).'
               : `${payment.provider} · Order ${payment.orderCode}`}
@@ -123,10 +104,10 @@ export function BookingPaymentBox({
             className={cn(
               'mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
               payment.status === 'CREATED'
-                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/20'
+                ? 'bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400'
                 : payment.status === 'REFUNDED'
                   ? 'bg-muted/60 text-muted-foreground ring-border'
-                  : 'bg-red-500/10 text-red-700 dark:text-red-400 ring-red-500/20',
+                  : 'bg-red-500/10 text-red-700 ring-red-500/20 dark:text-red-400',
             )}
           >
             <ShieldCheck className="h-2.5 w-2.5" />

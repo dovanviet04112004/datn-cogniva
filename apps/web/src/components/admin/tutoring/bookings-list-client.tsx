@@ -1,12 +1,3 @@
-/**
- * BookingsListClient — tutoring bookings cross-marketplace.
- *
- * UX:
- *   - Search email tutor/student
- *   - Filter status chip
- *   - Table dense: time slot · subject · tutor · student · rate · status · payment
- *   - Click row → detail
- */
 'use client';
 
 import * as React from 'react';
@@ -18,12 +9,7 @@ import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { cn } from '@/lib/utils';
 
-type BookingStatus =
-  | 'PENDING_TUTOR'
-  | 'CONFIRMED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED';
+type BookingStatus = 'PENDING_TUTOR' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 type Row = {
   id: string;
@@ -86,17 +72,12 @@ export function BookingsListClient() {
   } = useInfiniteQuery({
     queryKey: qk.adminTutoringBookings(debouncedQ, status),
     queryFn: ({ pageParam }) =>
-      apiGet<Page>(
-        `/api/admin/tutoring/bookings?${buildQuery(pageParam ?? undefined)}`,
-      ),
+      apiGet<Page>(`/api/admin/tutoring/bookings?${buildQuery(pageParam ?? undefined)}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const rows = React.useMemo(
-    () => data?.pages.flatMap((p) => p.bookings) ?? [],
-    [data],
-  );
+  const rows = React.useMemo(() => data?.pages.flatMap((p) => p.bookings) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -223,7 +204,8 @@ function BookingRow({ b }: { b: Row }) {
             })}
           </p>
           <p className="font-mono text-[10px] text-slate-500">
-            → {new Date(b.endAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+            →{' '}
+            {new Date(b.endAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </Link>
       </td>
@@ -251,9 +233,7 @@ function BookingRow({ b }: { b: Row }) {
           href={`/admin/users/${b.studentId}`}
           className="flex flex-col leading-tight hover:text-red-300"
         >
-          <span className="truncate text-[11.5px] text-slate-300">
-            {b.studentName ?? '—'}
-          </span>
+          <span className="truncate text-[11.5px] text-slate-300">{b.studentName ?? '—'}</span>
           <span className="truncate font-mono text-[10px] text-slate-500">
             {b.studentEmail ?? '—'}
           </span>

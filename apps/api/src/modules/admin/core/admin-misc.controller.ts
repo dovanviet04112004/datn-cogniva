@@ -1,7 +1,3 @@
-/**
- * /api/admin/{audit,search,impersonate} — cụm route admin không có prefix con
- * riêng. Impersonate set/clear cookie 'cogniva-imp' qua @Res passthrough.
- */
 import {
   Body,
   Controller,
@@ -44,7 +40,16 @@ export class AdminMiscController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.misc.listAudit({ adminEmail, action, targetType, targetId, from, to, cursor, limit });
+    return this.misc.listAudit({
+      adminEmail,
+      action,
+      targetType,
+      targetId,
+      from,
+      to,
+      cursor,
+      limit,
+    });
   }
 
   @Get('search')

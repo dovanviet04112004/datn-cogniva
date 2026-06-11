@@ -1,16 +1,3 @@
-/**
- * RoomTutorService — AI tutor cho in-room chat, port từ
- * apps/web/src/lib/ai/room-tutor.ts + lib/chat/{pipeline,system-prompt}.ts +
- * lib/retrieval/index.ts (basic mode).
- *
- * Khác bản web (deviation CÓ CHỦ ĐÍCH, ghi rõ cho golden diff):
- *   - LLM qua LlmService.complete (non-stream) thay vì AI SDK streamText —
- *     caller bắn 1 event `ai:streaming` với delta = full text rồi `ai:complete`
- *     (client accumulate theo messageId nên tương thích, chỉ mất hiệu ứng gõ).
- *   - Retrieval = basic vector top-5 (web default 'advanced': HyDE + hybrid +
- *     rerank + MMR — pipeline đó chưa port sang api, Wave 7 AI router sẽ gom).
- *   - Usage tokens không có từ LlmService → metadata promptTokens/completionTokens = 0.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -18,7 +5,6 @@ import { PrismaService } from '../../infra/database/prisma.service';
 import { EmbeddingService } from '../../infra/ai/embedding.service';
 import { LlmService } from '../../infra/ai/llm.service';
 
-/** Message format subset — y TutorChatMessage của lib cũ. */
 export type TutorChatMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -34,9 +20,7 @@ type RetrievedChunk = {
 };
 
 export type RoomTutorResult = {
-  /** Full text trả lời (non-stream). */
   text: string;
-  /** Model id thực dùng — ghi vào metadata message y route cũ. */
   modelId: string;
 };
 
@@ -48,10 +32,6 @@ export class RoomTutorService {
     private readonly llm: LlmService,
   ) {}
 
-  /**
-   * Sinh câu trả lời tutor: RAG scope theo người HỎI (không leak doc của
-   * participant khác) + persona + room context + ≤20 message gần nhất.
-   */
   async answer(opts: {
     userQuery: string;
     askingUserId: string;
@@ -70,8 +50,6 @@ export class RoomTutorService {
       ragSystemPrompt: this.buildRagSystemPrompt(chunks),
     });
 
-    // LlmService nhận 1 prompt — flatten history hội thoại (cũ → mới) vào
-    // prompt thay vì messages array của streamText.
     const historyBlock = opts.recentMessages
       .slice(-20)
       .map((m) => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.content}`)
@@ -82,10 +60,6 @@ export class RoomTutorService {
     return { text, modelId: this.pickModelId() };
   }
 
-  /**
-   * Vector top-5 trên chunks của user — copy semantics retrieveChunks basic
-   * (lib/retrieval/index.ts): cosine <=>, JOIN document check user + READY.
-   */
   private async retrieveChunks(query: string, userId: string): Promise<RetrievedChunk[]> {
     const queryEmbedding = await this.embedding.embedQuery(query);
     const vectorLiteral = `[${queryEmbedding.join(',')}]`;
@@ -121,12 +95,10 @@ export class RoomTutorService {
       documentId: r.document_id,
       filename: r.filename,
       page: r.page,
-      // Cosine distance ∈ [0, 2] → similarity [0, 1]
       score: Math.max(0, 1 - Number(r.distance) / 2),
     }));
   }
 
-  /** Persona + room context + RAG block — copy buildTutorSystemPrompt lib cũ. */
   private buildTutorSystemPrompt(opts: {
     roomName: string;
     roomDescription?: string | null;
@@ -152,7 +124,6 @@ export class RoomTutorService {
     return [personaBlock, '', roomBlock, '', opts.ragSystemPrompt].join('\n');
   }
 
-  /** Copy buildSystemPrompt từ lib/chat/system-prompt.ts (giữ nguyên văn prompt). */
   private buildRagSystemPrompt(chunks: RetrievedChunk[]): string {
     const today = new Date().toISOString().split('T')[0];
 
@@ -198,10 +169,6 @@ ${contextBlock}
 - If user asks in Vietnamese, answer in Vietnamese; if in English, English.`;
   }
 
-  /**
-   * Model id ghi vào metadata — mirror pick order + default model của
-   * LlmService (NGUỒN CHUẨN ở infra/ai/llm.service.ts, đổi thì sửa cả 2).
-   */
   private pickModelId(): string {
     const forced = process.env.LLM_PROVIDER;
     const provider =

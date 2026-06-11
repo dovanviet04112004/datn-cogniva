@@ -1,19 +1,3 @@
-/**
- * NeuralNetworkScene — 3D neural network animation cho landing hero.
- *
- * Render N particle node trong cầu (sphere distribution random), connect các
- * cặp gần nhau bằng line semi-transparent → trông như brain neural network.
- * Auto-rotate camera + pulse màu chậm để có cảm giác "alive".
- *
- * Performance:
- *   - Particles dùng `THREE.Points` với BufferGeometry (1 draw call).
- *   - Lines dùng `THREE.LineSegments` (1 draw call cho tất cả edges).
- *   - LOD: mobile (width < 768) giảm 50% particle.
- *   - Pause animation khi tab hidden (Page Visibility API).
- *
- * Theme-aware: detect `prefers-color-scheme` qua matchMedia, hoặc đọc CSS var.
- * Dark: nodes sáng (cyan), light: nodes tối (indigo).
- */
 'use client';
 
 import * as React from 'react';
@@ -21,20 +5,12 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 type Props = {
-  /** Số node particle. Default 80 desktop / 40 mobile. */
   nodeCount?: number;
-  /** Khoảng cách tối đa giữa 2 node để vẽ edge connect (world units). */
   connectDistance?: number;
-  /** ClassName wrap canvas. */
   className?: string;
 };
 
-export function NeuralNetworkScene({
-  nodeCount,
-  connectDistance = 1.2,
-  className,
-}: Props) {
-  // Detect mobile để giảm node count + tắt antialias
+export function NeuralNetworkScene({ nodeCount, connectDistance = 1.2, className }: Props) {
   const [isMobile, setIsMobile] = React.useState(false);
   React.useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -62,21 +38,16 @@ export function NeuralNetworkScene({
   );
 }
 
-/**
- * Inner scene — generate random positions trong sphere, compute edges, animate.
- */
 function NeuralNet({ count, connectDistance }: { count: number; connectDistance: number }) {
   const groupRef = React.useRef<THREE.Group>(null);
   const pointsRef = React.useRef<THREE.Points>(null);
   const linesRef = React.useRef<THREE.LineSegments>(null);
 
-  // Detect dark mode 1 lần lúc mount
   const isDark = React.useMemo(() => {
     if (typeof window === 'undefined') return true;
     return document.documentElement.classList.contains('dark');
   }, []);
 
-  // Pause khi tab hidden
   const isVisibleRef = React.useRef(true);
   React.useEffect(() => {
     const onVis = () => {
@@ -86,17 +57,15 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
-  // Generate positions trong sphere (Fibonacci spiral cho distribution đều)
   const positions = React.useMemo(() => {
     const arr = new Float32Array(count * 3);
     const radius = 2;
     for (let i = 0; i < count; i++) {
-      // Random trong sphere bằng spherical coordinates
       const u = Math.random();
       const v = Math.random();
       const theta = 2 * Math.PI * u;
       const phi = Math.acos(2 * v - 1);
-      const r = radius * Math.cbrt(Math.random()); // uniform trong volume
+      const r = radius * Math.cbrt(Math.random());
       arr[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       arr[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       arr[i * 3 + 2] = r * Math.cos(phi);
@@ -104,7 +73,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
     return arr;
   }, [count]);
 
-  // Compute edges: cặp (i,j) với distance < connectDistance
   const edges = React.useMemo(() => {
     const edgeList: number[] = [];
     for (let i = 0; i < count; i++) {
@@ -128,7 +96,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
     return new Float32Array(edgeList);
   }, [positions, count, connectDistance]);
 
-  // Velocity per node — slow drift
   const velocities = React.useMemo(() => {
     const v = new Float32Array(count * 3);
     for (let i = 0; i < count * 3; i++) {
@@ -137,7 +104,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
     return v;
   }, [count]);
 
-  // Animate: rotate group + drift particles + recompute edges mỗi frame N
   const frameCount = React.useRef(0);
   useFrame((_, delta) => {
     if (!isVisibleRef.current) return;
@@ -146,7 +112,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
       groupRef.current.rotation.x += delta * 0.05;
     }
 
-    // Drift particles
     if (pointsRef.current) {
       const pos = pointsRef.current.geometry.attributes.position as THREE.BufferAttribute;
       const arr = pos.array as Float32Array;
@@ -154,10 +119,7 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
         arr[i * 3]! += velocities[i * 3]!;
         arr[i * 3 + 1]! += velocities[i * 3 + 1]!;
         arr[i * 3 + 2]! += velocities[i * 3 + 2]!;
-        // Bounce ngược nếu ra ngoài sphere bán kính 2.5
-        const r = Math.sqrt(
-          arr[i * 3]! ** 2 + arr[i * 3 + 1]! ** 2 + arr[i * 3 + 2]! ** 2,
-        );
+        const r = Math.sqrt(arr[i * 3]! ** 2 + arr[i * 3 + 1]! ** 2 + arr[i * 3 + 2]! ** 2);
         if (r > 2.5) {
           velocities[i * 3]! *= -1;
           velocities[i * 3 + 1]! *= -1;
@@ -167,7 +129,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
       pos.needsUpdate = true;
     }
 
-    // Recompute edges mỗi 10 frame (đủ smooth, không expensive)
     frameCount.current++;
     if (frameCount.current % 10 === 0 && pointsRef.current && linesRef.current) {
       const pos = pointsRef.current.geometry.attributes.position!.array as Float32Array;
@@ -191,21 +152,16 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
         }
       }
       const newArr = new Float32Array(newEdges);
-      linesRef.current.geometry.setAttribute(
-        'position',
-        new THREE.BufferAttribute(newArr, 3),
-      );
+      linesRef.current.geometry.setAttribute('position', new THREE.BufferAttribute(newArr, 3));
       (linesRef.current.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     }
   });
 
-  // Color scheme — Cogniva primary = indigo/violet
-  const nodeColor = isDark ? '#a5b4fc' : '#6366f1'; // indigo-300 vs indigo-500
+  const nodeColor = isDark ? '#a5b4fc' : '#6366f1';
   const edgeColor = isDark ? '#6366f1' : '#a5b4fc';
 
   return (
     <group ref={groupRef}>
-      {/* Particle nodes */}
       <points ref={pointsRef}>
         <bufferGeometry>
           <bufferAttribute
@@ -216,16 +172,9 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
             args={[positions, 3]}
           />
         </bufferGeometry>
-        <pointsMaterial
-          size={0.08}
-          color={nodeColor}
-          transparent
-          opacity={0.9}
-          sizeAttenuation
-        />
+        <pointsMaterial size={0.08} color={nodeColor} transparent opacity={0.9} sizeAttenuation />
       </points>
 
-      {/* Edges */}
       <lineSegments ref={linesRef}>
         <bufferGeometry>
           <bufferAttribute
@@ -239,7 +188,6 @@ function NeuralNet({ count, connectDistance }: { count: number; connectDistance:
         <lineBasicMaterial color={edgeColor} transparent opacity={0.25} />
       </lineSegments>
 
-      {/* Glow effect — sphere mờ trong tâm */}
       <CenterGlow isDark={isDark} />
     </group>
   );
@@ -249,7 +197,6 @@ function CenterGlow({ isDark }: { isDark: boolean }) {
   const meshRef = React.useRef<THREE.Mesh>(null);
   useFrame((state) => {
     if (meshRef.current) {
-      // Pulse scale chậm
       const t = state.clock.getElapsedTime();
       const s = 1 + Math.sin(t * 0.5) * 0.1;
       meshRef.current.scale.setScalar(s);
@@ -258,12 +205,7 @@ function CenterGlow({ isDark }: { isDark: boolean }) {
   return (
     <mesh ref={meshRef}>
       <sphereGeometry args={[0.4, 32, 32]} />
-      <meshBasicMaterial
-        color={isDark ? '#818cf8' : '#6366f1'}
-        transparent
-        opacity={0.15}
-      />
+      <meshBasicMaterial color={isDark ? '#818cf8' : '#6366f1'} transparent opacity={0.15} />
     </mesh>
   );
 }
-

@@ -1,8 +1,3 @@
-/**
- * AdminConversationsService — port từ apps/web/src/app/api/admin/
- * conversations/** + recordings/[id]. Subselect COUNT/MAX per-row của route
- * cũ đổi sang _count + groupBy 1 query (cùng output, tránh N+1 trong SQL).
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { onRoomRecordingsChanged } from '@cogniva/server-core/cache/invalidate';
@@ -19,7 +14,6 @@ export class AdminConversationsService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  /** GET /admin/conversations — list + messageCount + lastMessageAt. */
   async list(params: { q?: string; userEmail?: string; cursor?: string; limit?: string }) {
     const q = params.q?.trim() ?? '';
     const userEmail = params.userEmail?.trim() ?? '';
@@ -60,11 +54,8 @@ export class AdminConversationsService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
-    // lastMessageAt: 1 groupBy cho cả trang thay cho subselect per-row cũ.
     const lastByConv = new Map<string, Date>();
     if (trimmed.length > 0) {
       const grouped = await this.prisma.message.groupBy({
@@ -100,7 +91,6 @@ export class AdminConversationsService {
     };
   }
 
-  /** GET /admin/conversations/:id — full thread (mọi messages ASC, không paginate). */
   async getDetail(id: string) {
     const row = await this.prisma.conversation.findUnique({
       where: { id },
@@ -151,7 +141,6 @@ export class AdminConversationsService {
     };
   }
 
-  /** DELETE /admin/conversations/:id — hard delete row, FK cascade messages. */
   async deleteConversation(ctx: AdminContext, id: string, reason: string) {
     return this.audit.withAudit(
       ctx,
@@ -176,10 +165,6 @@ export class AdminConversationsService {
     );
   }
 
-  /**
-   * DELETE /admin/recordings/:id — xoá DB row; file R2 KHÔNG xoá (cleanup job
-   * nightly scan orphan storageKey). Audit ghi storageKey để forensic.
-   */
   async deleteRecording(ctx: AdminContext, id: string, reason: string) {
     return this.audit.withAudit(ctx, 'recording.delete', { type: 'recording', id }, async () => {
       const row = await this.prisma.recording.findUnique({
@@ -195,7 +180,6 @@ export class AdminConversationsService {
       if (!row) throw new Error('Recording not found');
 
       await this.prisma.recording.delete({ where: { id } });
-      // Recording biến khỏi list của room → bust cache (chỉ room recording mới cache).
       if (row.room_id) await onRoomRecordingsChanged(row.room_id);
 
       return {

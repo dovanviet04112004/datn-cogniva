@@ -1,10 +1,3 @@
-/**
- * AdminKycService — port từ apps/web/src/app/api/admin/kyc/**.
- *
- * Route web LEGACY auth bằng isAdminEmail + KHÔNG audit; api ĐỒNG NHẤT sang
- * AdminGuard + withAudit (deviation có chủ đích theo khảo sát) — response
- * shape giữ y cũ.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -20,7 +13,6 @@ export class AdminKycService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  /** GET /admin/kyc — queue group theo tutor, ?status default PENDING. */
   async listQueue(statusParam: string | undefined) {
     const status = statusParam ?? 'PENDING';
 
@@ -61,7 +53,6 @@ export class AdminKycService {
     return { tutors };
   }
 
-  /** PATCH /admin/kyc/:id — approve/reject doc + recompute verification status. */
   async review(ctx: AdminContext, id: string, body: KycReviewInput) {
     const doc = await this.prisma.tutor_kyc_document.findUnique({
       where: { id },
@@ -82,9 +73,6 @@ export class AdminKycService {
         },
       });
 
-      // Recompute verification status — cần đủ CCCD_FRONT + CCCD_BACK +
-      // (DEGREE hoặc CERTIFICATE) approved. Có thể HẠ CẤP tutor đã verified
-      // nếu mất loại doc — giữ y semantics cũ.
       const approved = await this.prisma.tutor_kyc_document.findMany({
         where: { tutor_id: doc.tutor_id, status: 'APPROVED' },
         select: { doc_type: true },

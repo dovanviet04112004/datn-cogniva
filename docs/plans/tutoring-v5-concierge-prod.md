@@ -37,6 +37,7 @@ STUDENT intent (search TUTORS) — default:
 ```
 
 Planner returns:
+
 ```json
 {
   "role": "student" | "tutor",
@@ -47,12 +48,14 @@ Planner returns:
 ```
 
 Route branches:
+
 - `searchTarget=tutor` → `hybridSearchTutors()` (existing)
 - `searchTarget=request` → `hybridSearchRequests()` (NEW)
 
 Cache `role` trong `tutoring_concierge_thread.metadata` để giữ context.
 
 **Files**:
+
 - `apps/web/src/lib/tutoring/concierge-agent.ts` — planner prompt + schema
 - `apps/web/src/app/api/tutoring/concierge/threads/[id]/messages/route.ts` — branch logic
 - `apps/web/src/components/tutoring/concierge/concierge-panel.tsx` — render request card variant
@@ -69,11 +72,13 @@ hybridSearchRequests({ query, filters: { subjectSlug, level, budgetMinVnd, modal
 ```
 
 Same RRF pattern as tutors:
+
 - FTS qua `tutoring_request.search_vec` (cần add column + index)
 - Vector qua `tutoring_request.description_embedding` (cần add column + backfill)
 - Filter `status='OPEN'` cứng
 
 Migration `0045_tutoring_v5_request_search.sql`:
+
 ```sql
 ALTER TABLE tutoring_request ADD COLUMN search_vec tsvector
   GENERATED ALWAYS AS (
@@ -95,6 +100,7 @@ Backfill embedding via existing `embedQuery` helper.
 **3a. Sync embed on publish**: `/api/tutors/[id]/publish` POST đã có. Add `embedQuery(bio)` synchronously → update `bio_embedding` + `bio_embedding_updated_at`. Cron chỉ refresh stale > 14 days.
 
 **3b. Subject hierarchy expansion**:
+
 - Build taxonomy helper `expandSubjectSlug(slug)`:
   - `english` → `['english', 'english-ielts', 'english-toeic']`
   - `cs-programming` → `['cs-programming', 'cs-algorithms']`
@@ -102,6 +108,7 @@ Backfill embedding via existing `embedQuery` helper.
 - hybrid-search filter: thay `ts.subject_slug = ${slug}` bằng `ts.subject_slug = ANY(${expanded})` (typed inArray).
 
 **3c. Fail-soft match-reason**:
+
 - Khi RRF returns 0 + fallback rating → SKIP match-reason LLM call entirely.
 - Emit generic reason: `"Gia sư ${môn} — rating ${rating ?? 'mới'}"` (deterministic).
 - Saves cost + avoids hallucination.
@@ -113,6 +120,7 @@ Backfill embedding via existing `embedQuery` helper.
 `apps/web/scripts/seed-tutoring-v5.ts`:
 
 **Tutors (200)**:
+
 - Subjects: phân bố theo SUBJECT_BY_SLUG (Toán 25%, English 15%, Lý 10%, Hoá 8%, Văn 5%, IELTS 12%, TOEIC 8%, Lập trình 10%, others 7%).
 - Levels: PRIMARY 20%, SECONDARY 25%, HIGH_SCHOOL 35%, UNIVERSITY 15%, ADULT 5%.
 - Modality: ONLINE 40%, HYBRID 35%, OFFLINE_HN 12%, OFFLINE_HCM 13%.
@@ -125,6 +133,7 @@ Backfill embedding via existing `embedQuery` helper.
 - Headline: 60–120 chars, kèm emoji.
 
 **Requests (300)**:
+
 - Subjects: cùng phân bố như tutor.
 - Modality: ONLINE 50%, OFFLINE_HN 20%, OFFLINE_HCM 20%, HYBRID 10%.
 - Budget: 100k–500k/h.
@@ -132,10 +141,12 @@ Backfill embedding via existing `embedQuery` helper.
 - Status: 80% OPEN, 15% MATCHED, 5% CLOSED.
 
 **Classes (40)**:
+
 - Mix subject + size 4–20.
 - Schedule: ONE_OFF 20%, WEEKLY 60%, BIWEEKLY 20%.
 
 **Source data**:
+
 - Hard-coded name pool (Vietnamese 200+ unique names).
 - Bio templates per subject (slot fill with concrete details).
 - Avatar URL: dicebear avatars seeded by name.
@@ -151,6 +162,7 @@ Idempotent: check existing first, skip if seeded.
 `apps/web/src/lib/tutoring/__tests__/concierge.test.ts`:
 
 **Fixtures** (`fixtures/concierge-cases.json`):
+
 ```json
 [
   { "input": "toán 12", "expect": { "role": "student", "subject": "math", "level": "HIGH_SCHOOL", "minResults": 5 } },
@@ -164,6 +176,7 @@ Idempotent: check existing first, skip if seeded.
 ```
 
 **Runner** (`scripts/eval-concierge.ts`):
+
 - Load fixtures
 - Gọi planner + search cho từng case
 - Compare against `expect`
@@ -192,11 +205,13 @@ CI integration: add to `package.json` script `eval:concierge`.
 ## V5.1 + V5.2 (shipped 2026-05-22)
 
 **V5.1 — Deep Q&A**:
+
 - Action `tutor_detail` — "review về cô Mai", "lịch của thầy X", "giá của tutor số 2"
 - Resolver fuzzy-match qua context thread (last shown tutor IDs) + global fallback
 - TutorDetailBubble UI render reviews + stats + CTA
 
 **V5.2 — Toàn diện**:
+
 - FAQ knowledge base (`concierge-faq.ts`) với 15 entries cover: trial, refund, payment, pack discount, KYC, commission, payout, visibility, instant-book, cancel policy, support, platform overview, pricing, find good tutor, tutor cancel
 - Action `faq` planner detect platform-level questions
 - FaqBubble UI render Q + answer + optional CTA
@@ -216,12 +231,12 @@ CI integration: add to `package.json` script `eval:concierge`.
 
 ## Estimate tổng
 
-| Phase | Time | Critical? |
-|---|---|---|
-| 1. Role detection | 45m | YES |
-| 2. Request search engine | 30m | YES |
-| 3. AI quality fixes | 30m | YES |
-| 4. Seed realistic | 60m | YES |
-| 5. Test suite | 45m | YES |
-| 6. Verify | 15m | YES |
-| **Total** | **~3h45m** | |
+| Phase                    | Time       | Critical? |
+| ------------------------ | ---------- | --------- |
+| 1. Role detection        | 45m        | YES       |
+| 2. Request search engine | 30m        | YES       |
+| 3. AI quality fixes      | 30m        | YES       |
+| 4. Seed realistic        | 60m        | YES       |
+| 5. Test suite            | 45m        | YES       |
+| 6. Verify                | 15m        | YES       |
+| **Total**                | **~3h45m** |           |

@@ -1,9 +1,3 @@
-/**
- * MaintenanceBannerClient — render + dismiss state cho banner maintenance.
- *
- * Dismiss state lưu sessionStorage. Banner text thay đổi → key cache khác →
- * lại hiện. Đơn giản hash text để dùng làm key version.
- */
 'use client';
 
 import * as React from 'react';
@@ -19,16 +13,13 @@ export function MaintenanceBannerClient({
   dismissible: boolean;
 }) {
   const [dismissed, setDismissed] = React.useState(false);
-  // Hash đơn giản cho key — thay đổi banner text sẽ tạo key mới, dismiss reset.
   const key = STORAGE_KEY_PREFIX + djb2(banner);
 
   React.useEffect(() => {
     if (!dismissible) return;
     try {
       if (sessionStorage.getItem(key) === '1') setDismissed(true);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, [key, dismissible]);
 
   if (dismissed) return null;
@@ -36,21 +27,19 @@ export function MaintenanceBannerClient({
   return (
     <div
       role="alert"
-      className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2.5 text-[12px] text-warning"
+      className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 border-b px-4 py-2.5 text-[12px]"
     >
-      <Hammer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+      <Hammer className="text-warning mt-0.5 h-3.5 w-3.5 shrink-0" />
       <p className="flex-1">{banner}</p>
       {dismissible && (
         <button
           onClick={() => {
             try {
               sessionStorage.setItem(key, '1');
-            } catch {
-              /* ignore */
-            }
+            } catch {}
             setDismissed(true);
           }}
-          className="shrink-0 rounded p-0.5 text-warning transition-colors hover:bg-warning/20"
+          className="text-warning hover:bg-warning/20 shrink-0 rounded p-0.5 transition-colors"
           aria-label="Đóng banner"
         >
           <X className="h-3.5 w-3.5" />

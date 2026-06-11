@@ -1,18 +1,3 @@
-/**
- * Job `flashcard-due-reminder` (13:00 UTC = 20:00 VN daily) — push nhắc ôn FSRS.
- * Port NGUYÊN semantics từ apps/web/src/jobs/flashcard-due-reminder.ts:
- *
- *   1. User có ≥ 5 thẻ due (state != NEW, due <= now) — aggregate 1 round-trip.
- *   2. Dedupe: skip user đã có notification_log `flashcard-due` status 'sent'
- *      trong 24h → chạy lại job (BullMQ retry) KHÔNG gửi trùng.
- *   3. Token enabled qua NotificationsService.getPushTokens (1 user nhiều device).
- *   4. Batch ≤ 100 message/request tới Expo Push API.
- *   5. Cleanup token DeviceNotRegistered + ghi notification_log sent/failed.
- *
- * Send loop giữ TẠI ĐÂY (không dùng NotificationsService.sendExpoPush) vì job
- * cần TICKET từng message để phân sent/failed per-user + gom token invalid —
- * service chỉ fail-soft log warn, không trả ticket.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -45,7 +30,6 @@ export class FlashcardDueReminderJob {
   ) {}
 
   async run(): Promise<Record<string, number>> {
-    // Step 1: users có due cards ≥ threshold — GROUP BY + HAVING như Drizzle cũ.
     const candidates = await this.prisma.$queryRaw<
       Array<{ userId: string; dueCount: number; userName: string | null }>
     >(Prisma.sql`
@@ -67,7 +51,6 @@ export class FlashcardDueReminderJob {
       return { processed: 0, sent: 0, skipped: 0 };
     }
 
-    // Step 2: dedupe — loại user đã nhận reminder 'sent' trong 24h.
     const userIds = candidates.map((c) => c.userId);
     const cutoff = new Date(Date.now() - DEDUPE_WINDOW_HOURS * 60 * 60 * 1000);
     const recent = await this.prisma.notification_log.findMany({
@@ -88,7 +71,6 @@ export class FlashcardDueReminderJob {
       return { processed: candidates.length, sent: 0, skipped: candidates.length };
     }
 
-    // Step 3: token enabled — 1 user nhiều device → 1 message / token.
     const tokens = await this.notifications.getPushTokens(dedupedUserIds);
     const dueByUser = new Map(candidates.map((c) => [c.userId, c.dueCount]));
     const targets = tokens.map((t) => ({
@@ -102,7 +84,6 @@ export class FlashcardDueReminderJob {
       return { processed: candidates.length, sent: 0, skipped: dedupedUserIds.length };
     }
 
-    // Step 4: batch gửi Expo, giữ ticket từng message.
     const messages: ExpoPushMessage[] = targets.map((t) => ({
       to: t.token,
       title: 'Đến giờ ôn tập rồi!',
@@ -110,7 +91,7 @@ export class FlashcardDueReminderJob {
       data: { type: REMINDER_TYPE, dueCount: t.dueCount },
       sound: 'default',
       priority: 'high',
-      channelId: 'default', // Android
+      channelId: 'default',
     }));
 
     const ticketResults: Array<{ token: string; userId: string; ticket: ExpoPushTicket }> = [];
@@ -132,7 +113,6 @@ export class FlashcardDueReminderJob {
         });
 
         if (!res.ok) {
-          // 400 = batch malformed; 429 = rate limit; 5xx = Expo issue → cả batch failed.
           const text = await res.text().catch(() => '');
           logger.error('expo-push.batch-failed', {
             status: res.status,
@@ -153,7 +133,6 @@ export class FlashcardDueReminderJob {
         json.data.forEach((ticket, idx) => {
           const target = batchTargets[idx]!;
           ticketResults.push({ token: target.token, userId: target.userId, ticket });
-          // DeviceNotRegistered → token revoke vĩnh viễn, mark để xoá.
           if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
             invalidTokens.push(target.token);
           }
@@ -173,13 +152,11 @@ export class FlashcardDueReminderJob {
       }
     }
 
-    // Step 5a: cleanup token invalid.
     if (invalidTokens.length > 0) {
       await this.prisma.push_token.deleteMany({ where: { token: { in: invalidTokens } } });
       logger.info('expo-push.cleanup-invalid', { count: invalidTokens.length });
     }
 
-    // Step 5b: notification_log — 1 row/user, 'sent' nếu BẤT KỲ device thành công.
     const byUser = new Map<
       string,
       { anySuccess: boolean; firstError: string | null; receipts: string[]; dueCount: number }
@@ -201,7 +178,6 @@ export class FlashcardDueReminderJob {
     }
 
     const rows = Array.from(byUser.entries()).map(([userId, info]) => ({
-      // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default).
       id: randomUUID(),
       user_id: userId,
       type: REMINDER_TYPE,

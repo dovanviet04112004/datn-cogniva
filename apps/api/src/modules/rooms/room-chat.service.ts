@@ -1,8 +1,3 @@
-/**
- * RoomChatService — port từ apps/web/src/app/api/rooms/[id]/{chat,ai-message}/route.ts.
- * Save DB trước → broadcast sau (DB fail thì không phát message giả); event
- * realtime giữ NGUYÊN tên kênh + event + payload route cũ.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -31,7 +26,6 @@ export class RoomChatService {
     private readonly tutor: RoomTutorService,
   ) {}
 
-  /** GET /rooms/:id/chat — 50 message gần nhất + leftJoin user info, trả chronological. */
   async listMessages(uid: string, roomId: string) {
     if (!(await this.rooms.isActiveMember(roomId, uid))) {
       throw new ForbiddenException({ error: 'Not a member' });
@@ -43,8 +37,6 @@ export class RoomChatService {
       take: 50,
     });
 
-    // room_message.user_id KHÔNG có FK (AI_TUTOR không phải user thật) — route
-    // cũ leftJoin; ở đây lookup map, user không tồn tại → name/image null y leftJoin.
     const userIds = [...new Set(rows.map((r) => r.user_id))];
     const users = userIds.length
       ? await this.prisma.user.findMany({
@@ -68,11 +60,9 @@ export class RoomChatService {
       };
     });
 
-    // Reverse để hiển thị chronological (cũ → mới)
     return { messages: messages.reverse() };
   }
 
-  /** POST /rooms/:id/chat — save + broadcast `chat:message` lên presence-room-{id}. */
   async postMessage(user: AuthUser, roomId: string, raw: unknown) {
     if (!(await this.rooms.isActiveMember(roomId, user.id))) {
       throw new ForbiddenException({ error: 'Not a member' });
@@ -111,28 +101,16 @@ export class RoomChatService {
     return { ok: true, id: saved.id };
   }
 
-  /**
-   * POST /rooms/:id/ai-message — `@AI <câu hỏi>` → tutor trả lời.
-   * Member check + rate limit nằm ở controller (429 cần Retry-After header,
-   * và route cũ check member TRƯỚC rate limit TRƯỚC parse body).
-   *
-   * Event flow giữ nguyên: `chat:message` placeholder → `ai:streaming` →
-   * (`ai:error` nếu fail) → `ai:complete`. LlmService non-stream nên
-   * `ai:streaming` bắn 1 lần với delta = full text (client accumulate theo
-   * messageId, tương thích).
-   */
   async aiMessage(user: AuthUser, roomId: string, raw: unknown) {
     const userId = user.id;
     const userName = user.name ?? 'Anonymous';
 
-    // 3. Parse body (sau member + rate limit ở controller)
     const parsed = aiMessageSchema.safeParse(raw);
     if (!parsed.success) {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
     const userQuery = parsed.data.message;
 
-    // 4. Load room + recent messages
     const roomRow = await this.prisma.room.findUnique({
       where: { id: roomId },
       select: { name: true, description: true, features: true },
@@ -152,7 +130,6 @@ export class RoomChatService {
       select: { user_id: true, content: true, type: true },
     });
 
-    // Reverse (cũ → mới), bỏ SYSTEM/FILE — y route cũ
     const recentMessages: TutorChatMessage[] = recent
       .reverse()
       .filter((m) => m.type === 'TEXT' || m.type === 'AI')
@@ -161,7 +138,6 @@ export class RoomChatService {
         content: m.content,
       }));
 
-    // 5. Insert placeholder AI message — khoá messageId trước khi generate
     let placeholder;
     try {
       placeholder = await this.prisma.room_message.create({
@@ -190,7 +166,6 @@ export class RoomChatService {
       createdAt: placeholder.created_at,
     });
 
-    // 6. Generate + broadcast
     let fullText = '';
     let aborted = false;
     let modelId = 'unknown';
@@ -205,7 +180,6 @@ export class RoomChatService {
       });
       fullText = result.text;
       modelId = result.modelId;
-      // Fire-and-forget y chunk loop cũ — realtime lỗi không hủy persist
       void triggerEvent(`presence-room-${roomId}`, 'ai:streaming', {
         messageId,
         delta: fullText,
@@ -218,9 +192,6 @@ export class RoomChatService {
       await triggerEvent(`presence-room-${roomId}`, 'ai:error', { messageId, error: msg });
     }
 
-    // 7. Persist final + broadcast complete. promptTokens/completionTokens = 0:
-    // LlmService không trả usage (deviation metadata-only, không lộ ra wire).
-    // updateMany: y Drizzle update (no-op nếu room bị xoá cascade giữa chừng).
     await this.prisma.room_message.updateMany({
       where: { id: messageId },
       data: {

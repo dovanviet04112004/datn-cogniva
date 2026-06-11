@@ -1,21 +1,3 @@
-/**
- * ProfileHoverCard — V2 G7.2 (2026-05-21).
- *
- * Wrapper hover popup hiển thị thông tin nhanh của 1 member khi user hover
- * vào avatar/name (Discord pattern). Trigger: 400ms delay để tránh spam khi
- * scroll qua.
- *
- * Layout popup:
- *   - Banner gradient theo role color
- *   - Avatar lớn + status dot
- *   - Display name + nickname
- *   - Role badge
- *   - Custom status (text + emoji) nếu có
- *   - Joined date
- *   - "Nhắn tin riêng" button (POST /api/dm)
- *
- * Spec: docs/plans/study-group-v2.md item 20 (User profile card).
- */
 'use client';
 
 import * as React from 'react';
@@ -44,10 +26,7 @@ type MemberDetail = {
   statusEmoji?: string | null;
 };
 
-const ROLE_META: Record<
-  GroupRole,
-  { label: string; color: string; icon: typeof Crown | null }
-> = {
+const ROLE_META: Record<GroupRole, { label: string; color: string; icon: typeof Crown | null }> = {
   OWNER: { label: 'Owner', color: 'text-amber-500', icon: Crown },
   ADMIN: { label: 'Admin', color: 'text-purple-500', icon: ShieldCheck },
   MODERATOR: { label: 'Moderator', color: 'text-blue-500', icon: Shield },
@@ -74,9 +53,7 @@ type Props = {
   groupId: string;
   userId: string;
   children: React.ReactNode;
-  /** Skip nếu user hover chính mình (Discord cũng skip). */
   isSelf?: boolean;
-  /** Position popup: bên dưới (default) hoặc bên phải trigger. */
   side?: 'bottom' | 'right';
 };
 
@@ -92,12 +69,9 @@ export function ProfileHoverCard({
   const openTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Member detail qua React Query — cache 5 phút thay cho memberCache Map cũ,
-  // fetch chỉ khi popup đã mở (sau delay 400ms) và không phải chính mình.
   const { data: detail, isLoading: loading } = useQuery({
     queryKey: qk.groupMemberDetail(groupId, userId),
-    queryFn: () =>
-      apiGet<MemberDetail>(`/api/groups/${groupId}/members/${userId}`),
+    queryFn: () => apiGet<MemberDetail>(`/api/groups/${groupId}/members/${userId}`),
     enabled: open && !isSelf,
     staleTime: 5 * 60_000,
   });
@@ -105,13 +79,11 @@ export function ProfileHoverCard({
   const onEnter = () => {
     if (isSelf) return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    // Mở sau 400ms hover → enabled bật → query fire (giữ hành vi delay cũ).
     openTimerRef.current = setTimeout(() => setOpen(true), 400);
   };
 
   const onLeave = () => {
     if (openTimerRef.current) clearTimeout(openTimerRef.current);
-    // Delay close để user kịp di chuột vào popup
     closeTimerRef.current = setTimeout(() => setOpen(false), 200);
   };
 
@@ -132,16 +104,14 @@ export function ProfileHoverCard({
           }}
           onMouseLeave={onLeave}
           className={cn(
-            'absolute z-50 w-64 rounded-xl border bg-popover shadow-elevated',
+            'bg-popover shadow-elevated absolute z-50 w-64 rounded-xl border',
             side === 'bottom' ? 'left-0 top-[calc(100%+6px)]' : 'left-[calc(100%+6px)] top-0',
           )}
           role="dialog"
           aria-label="Profile preview"
         >
           {loading && !detail && (
-            <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              Đang tải…
-            </div>
+            <div className="text-muted-foreground px-4 py-6 text-center text-xs">Đang tải…</div>
           )}
           {detail && <ProfileBody detail={detail} />}
         </div>
@@ -177,7 +147,6 @@ function ProfileBody({ detail }: { detail: MemberDetail }) {
 
   return (
     <>
-      {/* Banner — gradient theo role */}
       <div
         className={cn(
           'h-12 rounded-t-xl bg-gradient-to-br',
@@ -189,7 +158,7 @@ function ProfileBody({ detail }: { detail: MemberDetail }) {
       />
       <div className="px-3 pb-3">
         <div className="relative -mt-7">
-          <Avatar className="h-14 w-14 ring-4 ring-popover">
+          <Avatar className="ring-popover h-14 w-14 ring-4">
             <AvatarImage src={detail.image ?? undefined} />
             <AvatarFallback className="text-base">
               {(display[0] ?? 'U').toUpperCase()}
@@ -200,7 +169,7 @@ function ProfileBody({ detail }: { detail: MemberDetail }) {
               aria-label={STATUS_LABEL[detail.status]}
               title={STATUS_LABEL[detail.status]}
               className={cn(
-                'absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full ring-2 ring-popover',
+                'ring-popover absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full ring-2',
                 STATUS_DOT[detail.status],
               )}
             />
@@ -212,21 +181,19 @@ function ProfileBody({ detail }: { detail: MemberDetail }) {
             {Icon && <Icon className={cn('h-3.5 w-3.5', meta.color)} />}
           </div>
           {detail.nickname && detail.name && (
-            <p className="text-[11px] text-muted-foreground">@{detail.name}</p>
+            <p className="text-muted-foreground text-[11px]">@{detail.name}</p>
           )}
           <p className={cn('text-[11px] font-medium', meta.color)}>{meta.label}</p>
         </div>
 
         {statusOk && (detail.statusText || detail.statusEmoji) && (
-          <div className="mt-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
-            {detail.statusEmoji && (
-              <span className="mr-1">{detail.statusEmoji}</span>
-            )}
+          <div className="bg-muted/40 mt-2 rounded-md px-2 py-1.5 text-xs">
+            {detail.statusEmoji && <span className="mr-1">{detail.statusEmoji}</span>}
             {detail.statusText}
           </div>
         )}
 
-        <div className="mt-2 flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
+        <div className="text-muted-foreground mt-2 flex items-center gap-1.5 text-[10.5px]">
           <Calendar className="h-2.5 w-2.5" />
           Tham gia{' '}
           {new Date(detail.joinedAt).toLocaleDateString('vi-VN', {

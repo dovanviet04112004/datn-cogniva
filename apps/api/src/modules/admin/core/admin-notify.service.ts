@@ -1,10 +1,3 @@
-/**
- * AdminNotifyService — port từ apps/web/src/lib/admin/notify.ts.
- * In-app notification: insert notification_log status='pending' (worker push
- * Expo pick up sau, web poll). Caller group suspend/unsuspend/delete gọi
- * fire-and-forget (`void ...catch`) để không block response; riêng warn trong
- * resolve report được AWAIT y route cũ.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
@@ -33,7 +26,6 @@ const GROUP_NOTIFY_CFG = {
 export class AdminNotifyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 1 notification mỗi member khi admin suspend/unsuspend/delete group. */
   async notifyGroupSuspend(opts: {
     groupId: string;
     groupName: string;
@@ -58,7 +50,6 @@ export class AdminNotifyService {
     });
   }
 
-  /** Warning notification cho 1 user (report resolution=warn). */
   async notifyWarnUser(opts: {
     userId: string;
     reason: string;

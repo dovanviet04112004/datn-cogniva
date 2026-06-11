@@ -1,15 +1,3 @@
-/**
- * /chat/[id] — view 1 conversation cụ thể (persistent).
- *
- * V7 (2026-05-20): page đơn giản, KHÔNG còn ChatShell. Workspace chat đã
- * thay thế /chat/new entry. Page này chỉ dùng cho:
- *   - Deep link 1 conv
- *   - Click "Full" từ workspace ChatView ConversationSwitcher
- *   - Share URL
- *
- * Server: verify ownership, load messages + workspace name (nếu có).
- * Client: ChatDetailClient render simple chat + composer.
- */
 import { notFound, redirect } from 'next/navigation';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Message as AIMessage } from 'ai';
@@ -30,7 +18,6 @@ export default async function ChatDetailPage({ params }: Props) {
   if (!session) redirect('/sign-in');
   const { id } = await params;
 
-  // Load conversation + verify ownership + join workspace name
   const [conv] = await db
     .select({
       id: conversation.id,
@@ -50,9 +37,6 @@ export default async function ChatDetailPage({ params }: Props) {
     .where(eq(message.conversationId, id))
     .orderBy(asc(message.createdAt));
 
-  // V8: hydrate citations cho assistant messages — JOIN chunk + document
-  // để có documentId/filename/page (DB chỉ lưu chunkId compact). Batch
-  // 1 query thay vì N+1.
   const allChunkIds = new Set<string>();
   for (const m of dbMessages) {
     if (Array.isArray(m.citations)) {
@@ -123,8 +107,7 @@ export default async function ChatDetailPage({ params }: Props) {
       role: m.role.toLowerCase() as AIMessage['role'],
       content: m.content,
       createdAt: m.createdAt,
-      annotations:
-        citations.length > 0 ? [{ type: 'citations', citations }] : undefined,
+      annotations: citations.length > 0 ? [{ type: 'citations', citations }] : undefined,
     };
   });
 

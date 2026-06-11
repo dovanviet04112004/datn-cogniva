@@ -1,4 +1,3 @@
-/** /api/atoms/:id + /api/atoms/:id/items — port từ route Next (atom-centric). */
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 

@@ -1,6 +1,3 @@
-/**
- * ImpersonationBannerClient — banner đỏ + countdown TTL + Stop button.
- */
 'use client';
 
 import * as React from 'react';
@@ -34,7 +31,6 @@ export function ImpersonationBannerClient({
     return () => clearInterval(id);
   }, [expiresAt]);
 
-  // Auto refresh khi hết hạn để clear banner (cookie expired ở server)
   React.useEffect(() => {
     if (remaining === 0) {
       router.refresh();
@@ -59,27 +55,24 @@ export function ImpersonationBannerClient({
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/10 px-4 py-2 text-[12px] text-destructive"
+      className="border-destructive/40 bg-destructive/10 text-destructive flex flex-wrap items-center gap-3 border-b px-4 py-2 text-[12px]"
     >
-      <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-destructive" />
+      <ShieldAlert className="text-destructive h-3.5 w-3.5 shrink-0" />
       <div className="flex-1">
         <p className="font-semibold">
           Đang impersonate{' '}
-          <code className="rounded bg-destructive/15 px-1 font-mono text-[11px]">
+          <code className="bg-destructive/15 rounded px-1 font-mono text-[11px]">
             {targetEmail}
           </code>{' '}
           {mode === 'readonly' && (
-            <span className="ml-1 inline-flex items-center rounded-full bg-destructive/20 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider">
+            <span className="bg-destructive/20 ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider">
               read-only
             </span>
           )}
         </p>
         <p className="text-[11px] opacity-90">
-          Admin: <code className="font-mono text-[11px]">{adminEmail}</code> · Hết
-          hạn sau{' '}
-          <span className="font-mono tabular-nums">
-            {formatRemaining(remaining)}
-          </span>
+          Admin: <code className="font-mono text-[11px]">{adminEmail}</code> · Hết hạn sau{' '}
+          <span className="font-mono tabular-nums">{formatRemaining(remaining)}</span>
         </p>
       </div>
       <Button

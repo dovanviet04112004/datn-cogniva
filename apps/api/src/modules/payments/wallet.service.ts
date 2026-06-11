@@ -1,14 +1,3 @@
-/**
- * WalletService — single source ví VND, port ĐẦY ĐỦ từ
- * apps/web/src/lib/tutoring/wallet.ts (thay LibraryWalletService SUBSET W5).
- *
- * Pattern bất biến: mọi mutation = $transaction { SELECT FOR UPDATE user_wallet
- * → validate → UPDATE balance → INSERT user_wallet_txn ledger } rồi
- * onWalletChanged bust cache. chargeWallet consume promo balance TRƯỚC balance
- * chính. Số tiền luôn tính trên row lock trong txn — cache CHỈ phục vụ hiển thị
- * (getWallet TTL 30s, key wallet:v1 dùng chung với SSR web nên giữ shape
- * camelCase y bản cũ).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -62,7 +51,6 @@ export type WalletView = {
 export class WalletService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Lazy ensure wallet row tồn tại — idempotent (ON CONFLICT DO NOTHING). */
   async ensureWallet(userId: string): Promise<void> {
     await this.prisma.user_wallet.createMany({
       data: [{ user_id: userId }],
@@ -70,10 +58,6 @@ export class WalletService {
     });
   }
 
-  /**
-   * Balance hiển thị (lazy create). Cache-aside 30s; check promo-hết-hạn chạy
-   * MỖI lần kể cả cache hit — reset chỉ khi thực sự hết hạn (hiếm) + bust cache.
-   */
   async getWallet(userId: string): Promise<WalletView> {
     await this.ensureWallet(userId);
     const w = await cached(ck.wallet(userId), 30, async () => {
@@ -103,10 +87,6 @@ export class WalletService {
     return { ...w, promoExpiresAt: exp };
   }
 
-  /**
-   * Trừ tiền (booking/pack/library). Promo balance consume TRƯỚC. KHÔNG
-   * lazy-create — chưa từng nạp coi như available=0.
-   */
   async chargeWallet(opts: {
     userId: string;
     amountVnd: number;
@@ -149,7 +129,6 @@ export class WalletService {
     return result;
   }
 
-  /** Nạp tiền (đã confirm từ provider). Nạp ≥ 1M → cashback 5% promo 90 ngày. */
   async topupWallet(opts: {
     userId: string;
     amountVnd: number;
@@ -183,8 +162,7 @@ export class WalletService {
         balanceAfterVnd: newBalance + newPromoBalance,
         relatedId: opts.relatedId,
         relatedType: 'payment',
-        description:
-          opts.description ?? `Nạp ${opts.amountVnd.toLocaleString('vi-VN')}đ`,
+        description: opts.description ?? `Nạp ${opts.amountVnd.toLocaleString('vi-VN')}đ`,
       });
       if (cashback > 0) {
         await this.insertLedger(tx, {
@@ -203,7 +181,6 @@ export class WalletService {
     return result;
   }
 
-  /** Cộng tiền balance chính — payout creator share / admin adjustment. Lazy create. */
   async creditWallet(opts: {
     userId: string;
     amountVnd: number;
@@ -238,7 +215,6 @@ export class WalletService {
     return result;
   }
 
-  /** Refund instant vào ví (type='REFUND') — cancel ≥24h / PRO prorate. */
   async refundToWallet(opts: {
     userId: string;
     amountVnd: number;
@@ -271,7 +247,6 @@ export class WalletService {
     return result;
   }
 
-  /** Promo credit (admin push / redeem code) — expiry lấy mốc XA hơn giữa cũ và mới. */
   async applyPromoCredit(opts: {
     userId: string;
     amountVnd: number;

@@ -1,8 +1,3 @@
-/**
- * Job `health-monitor` (mỗi 5') — fetch /api/health (aggregate của Next, còn
- * sống tới W7) + track uptime counter Redis 7 ngày + log alert khi down/degraded.
- * Idempotent về side-effect (chỉ INCR metric). Port từ apps/web jobs.
- */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRedis, logger } from '@cogniva/server-core';
@@ -18,7 +13,12 @@ export class HealthMonitorJob {
     let result: { ok: boolean; status: number; latencyMs: number; payload: unknown };
     try {
       const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(10_000) });
-      result = { ok: res.ok, status: res.status, latencyMs: Date.now() - start, payload: await res.json() };
+      result = {
+        ok: res.ok,
+        status: res.status,
+        latencyMs: Date.now() - start,
+        payload: await res.json(),
+      };
     } catch (err) {
       result = {
         ok: false,
@@ -28,7 +28,6 @@ export class HealthMonitorJob {
       };
     }
 
-    // Daily uptime counter (7 ngày) — lệch nhẹ khi retry là vô hại.
     const date = new Date().toISOString().slice(0, 10);
     const bucket = result.ok ? 'up' : 'down';
     try {
@@ -52,7 +51,10 @@ export class HealthMonitorJob {
         .filter(([, v]) => !v.ok)
         .map(([k]) => k);
       if (failed.length > 0) {
-        logger.warn('health-monitor.degraded', { failed_subsystems: failed, latency_ms: result.latencyMs });
+        logger.warn('health-monitor.degraded', {
+          failed_subsystems: failed,
+          latency_ms: result.latencyMs,
+        });
       }
     }
 

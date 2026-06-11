@@ -1,9 +1,3 @@
-/**
- * ImportToWorkspaceButton — V1 Library.
- *
- * CTA chính: chọn workspace + import doc vào → 1-click clone.
- * Sau import: toast + redirect tới workspace/[id] hoặc /workspaces.
- */
 'use client';
 
 import * as React from 'react';
@@ -43,17 +37,12 @@ export function ImportToWorkspaceButton({
   const [importing, setImporting] = React.useState(false);
   const [selectedWsId, setSelectedWsId] = React.useState<string | null>(null);
 
-  // Workspaces list (chỉ fetch khi mở dialog) — key dùng chung qk.workspaces().
   const { data: workspaces = [], isLoading: loading } = useQuery({
     queryKey: qk.workspaces(),
-    queryFn: () =>
-      apiGet<{ workspaces: Workspace[] }>('/api/workspaces').then(
-        (d) => d.workspaces,
-      ),
+    queryFn: () => apiGet<{ workspaces: Workspace[] }>('/api/workspaces').then((d) => d.workspaces),
     enabled: open,
   });
 
-  // Auto-chọn workspace đầu khi list load.
   React.useEffect(() => {
     if (workspaces.length > 0 && !selectedWsId) setSelectedWsId(workspaces[0]!.id);
   }, [workspaces, selectedWsId]);
@@ -85,7 +74,6 @@ export function ImportToWorkspaceButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {/* Render qua <Button> để tự nhận shadow-primary + focus-ring chuẩn. */}
         <Button type="button" disabled={disabled}>
           <Plus className="h-4 w-4" />
           {t('library.import.add_to_ws')}
@@ -97,23 +85,19 @@ export function ImportToWorkspaceButton({
         </DialogHeader>
 
         {loading ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="text-muted-foreground py-4 text-center text-xs">
             <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
             {t('library.import.loading_ws')}
           </p>
         ) : workspaces.length === 0 ? (
           <div className="space-y-3 py-2">
-            <p className="text-[13px] text-muted-foreground">
-              {t('library.import.no_ws')}
-            </p>
-            {/* CTA "Tạo workspace" → <Button asChild> giữ layout w-full. */}
+            <p className="text-muted-foreground text-[13px]">{t('library.import.no_ws')}</p>
             <Button asChild className="w-full">
               <Link href="/workspaces">{t('library.import.create_ws')}</Link>
             </Button>
           </div>
         ) : (
           <div className="space-y-2 py-1">
-            {/* B2.12: cap height + scroll khi user có nhiều workspace. */}
             <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
               {workspaces.map((ws) => (
                 <li key={ws.id}>
@@ -122,7 +106,7 @@ export function ImportToWorkspaceButton({
                     onClick={() => setSelectedWsId(ws.id)}
                     className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-[13px] transition-colors ${
                       selectedWsId === ws.id
-                        ? 'border-primary/40 bg-primary/5 font-semibold text-primary'
+                        ? 'border-primary/40 bg-primary/5 text-primary font-semibold'
                         : 'border-divider hover:bg-muted'
                     }`}
                   >
@@ -132,7 +116,6 @@ export function ImportToWorkspaceButton({
                 </li>
               ))}
             </ul>
-            {/* Submit "Thêm vào" → <Button> giữ onClick/disabled + layout mt-3 w-full. */}
             <Button
               type="button"
               onClick={doImport}

@@ -1,27 +1,9 @@
-/**
- * VoiceMiniContent — lõi mini-player voice (video + control bar), dùng chung cho:
- *   - VoicePiPView: render vào cửa sổ Document PiP (nổi ra ngoài tab/app).
- *   - FloatingVoicePlayer (voice-session-provider): card nổi TRONG app khi chuyển
- *     trang.
- *
- * Hiển thị như Google Meet mini: video (camera/screen của ai đó) hoặc placeholder
- * + nút mic / cam / (PiP) / quay lại phòng / rời. Dùng hook LiveKit → phải nằm
- * trong <LiveKitRoom> (qua portal vẫn ok vì cùng React tree).
- */
 'use client';
 
 import * as React from 'react';
 import { VideoTrack, useLocalParticipant, useTracks } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import {
-  Maximize2,
-  Mic,
-  MicOff,
-  PhoneOff,
-  PictureInPicture2,
-  Video,
-  VideoOff,
-} from 'lucide-react';
+import { Maximize2, Mic, MicOff, PhoneOff, PictureInPicture2, Video, VideoOff } from 'lucide-react';
 
 export function VoiceMiniContent({
   channelName,
@@ -32,7 +14,6 @@ export function VoiceMiniContent({
   channelName: string;
   onLeave: () => void;
   onReturn: () => void;
-  /** Mở cửa sổ Document PiP (chỉ dùng cho player trong app). */
   onPiP?: () => void;
 }) {
   const { localParticipant } = useLocalParticipant();
@@ -129,7 +110,6 @@ function MiniBtn({
   );
 }
 
-/** Wrapper render vào cửa sổ Document PiP (full size cửa sổ). */
 export function VoicePiPView(props: {
   channelName: string;
   onLeave: () => void;

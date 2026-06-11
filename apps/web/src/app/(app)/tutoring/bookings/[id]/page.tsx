@@ -1,12 +1,3 @@
-/**
- * /tutoring/bookings/[id] — đã gom vào modal ở hub.
- *
- * Trang đầy đủ bị bỏ: mọi thao tác (info · phòng học · thanh toán · đánh giá ·
- * xác nhận/huỷ/hoàn thành) làm trong BookingDetailModal ở /tutoring tab "Đơn
- * học". Route này chỉ redirect deep-link (return thanh toán, iCal, calendar,
- * tạo booking…) về hub + auto mở modal, GIỮ NGUYÊN query để luồng thanh toán
- * (?stub / ?paid) vẫn chạy trong modal.
- */
 import { redirect } from 'next/navigation';
 
 export const runtime = 'nodejs';

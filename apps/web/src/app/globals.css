@@ -1,71 +1,42 @@
-/*
- * Stylesheet toàn cục — load 1 lần ở root layout.tsx.
- *
- * Tổ chức theo 3 layer của Tailwind:
- *   @layer base       — CSS variables (light + dark theme), reset
- *   @layer components — class component-level (chưa dùng nhiều, để sẵn)
- *   @layer utilities  — utility class custom (scrollbar-thin, ambient bg)
- *
- * Design system Cogniva (intelligent study OS):
- *   - Color: indigo/violet AI-accent, calm dark depths (#0b1020 base, NOT
- *     pure black), spatial light surface (#f6f8fc base).
- *   - Layered surfaces: background → surface → elevated → card với HSL
- *     lightness ladder 1-3% step, tạo depth không cần shadow nặng.
- *   - Ambient bg: subtle radial accent mesh trên body (fixed, không scroll)
- *     → cảm giác "spatial OS" không phải dashboard phẳng.
- *   - Typography: Geist + font-feature-settings, letter-spacing tight cho
- *     headings (Linear-style).
- *
- * Token mapping theo shadcn/ui HSL channels (H S L%, không hsl() wrapper)
- * để Tailwind wrap `hsl(var(--xxx))` trong tailwind.config.ts — cho phép
- * alpha modifier `bg-primary/50`.
- */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* ── Light mode — calm spacious surfaces ─────────────── */
   :root {
-    /* Surfaces ladder — depth hierarchy without harsh borders.
-       background → surface → surface-secondary → elevated → card */
-    --background: 220 40% 98%;       /* #f6f8fc */
-    --foreground: 222 47% 11%;       /* #0f172a — textPrimary */
-    --surface: 0 0% 100%;            /* #ffffff */
-    --surface-secondary: 210 40% 98%;/* #f8fafc */
-    --elevated: 0 0% 100%;           /* #ffffff (light: surface == elevated) */
+    --background: 220 40% 98%;
+    --foreground: 222 47% 11%;
+    --surface: 0 0% 100%;
+    --surface-secondary: 210 40% 98%;
+    --elevated: 0 0% 100%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    /* AI-accent: indigo electric. accent-hover dùng cho hover/active. */
-    --primary: 239 84% 67%;          /* #6366f1 */
-    --primary-hover: 239 84% 57%;    /* #4f46e5 — darker on hover */
+    --primary: 239 84% 67%;
+    --primary-hover: 239 84% 57%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary / muted / accent — tone subtle xám-blue */
     --secondary: 220 14% 96%;
     --secondary-foreground: 222 47% 11%;
     --muted: 220 14% 96%;
-    --muted-foreground: 215 25% 35%; /* #475569 — textSecondary */
-    --text-muted: 215 16% 65%;       /* #94a3b8 — textMuted (extra subtle) */
+    --muted-foreground: 215 25% 35%;
+    --text-muted: 215 16% 65%;
     --accent: 220 14% 96%;
     --accent-foreground: 222 47% 11%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 71% 45%;          /* #22c55e */
-    --warning: 38 92% 50%;            /* #f59e0b */
-    --border: 220 13% 91%;            /* #e5e7eb */
-    --divider: 215 28% 95%;           /* #eef2f7 — softer than border */
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --border: 220 13% 91%;
+    --divider: 215 28% 95%;
     --input: 220 13% 91%;
     --ring: 239 84% 67%;
 
-    /* Radius scale — slightly more rounded than shadcn default */
-    --radius: 0.625rem;              /* 10px */
+    --radius: 0.625rem;
 
-    /* Sidebar — tone tách khỏi background, hơi blue-tinted */
     --sidebar-background: 220 33% 96%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-accent: 220 14% 93%;
@@ -73,48 +44,41 @@
     --sidebar-border: 220 13% 89%;
     --sidebar-ring: 239 84% 67%;
 
-    /* Motion duration tokens — premium fluid feel */
     --motion-fast: 150ms;
     --motion-base: 220ms;
     --motion-slow: 380ms;
 
-    /* Soft shadows — replace harsh shadow-* defaults */
     --shadow-soft: 0 1px 2px 0 rgb(15 23 42 / 0.04),
                    0 1px 3px 0 rgb(15 23 42 / 0.06);
     --shadow-elevated: 0 4px 12px -2px rgb(15 23 42 / 0.08),
                        0 2px 6px -1px rgb(15 23 42 / 0.05);
     --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.18),
                    0 8px 32px -8px hsl(var(--primary) / 0.32);
-    /* Primary button — inset top sheen + soft drop + faint accent glow → nút
-       "nổi khối" premium thay vì phẳng. Gộp 1 box-shadow DUY NHẤT (tránh xung
-       đột với Tailwind `ring` cũng ghi đè box-shadow). */
     --shadow-primary: inset 0 1px 0 0 hsl(0 0% 100% / 0.18),
                       0 1px 2px 0 rgb(15 23 42 / 0.10),
                       0 2px 8px -2px hsl(var(--primary) / 0.28);
   }
 
-  /* ── Dark mode — calm depths, blue-tinted, NOT pure black ─── */
   .dark {
-    --background: 228 49% 8%;        /* #0b1020 */
-    --foreground: 220 56% 97%;       /* #f3f6fc — textPrimary */
-    --surface: 222 36% 11%;          /* #121826 */
-    --surface-secondary: 220 36% 15%;/* #182133 */
-    --elevated: 224 34% 19%;         /* #1f2940 */
-    --card: 220 36% 15%;             /* #182133 */
+    --background: 228 49% 8%;
+    --foreground: 220 56% 97%;
+    --surface: 222 36% 11%;
+    --surface-secondary: 220 36% 15%;
+    --elevated: 224 34% 19%;
+    --card: 220 36% 15%;
     --card-foreground: 220 56% 97%;
     --popover: 224 34% 19%;
     --popover-foreground: 220 56% 97%;
 
-    /* AI-accent — lighter, more saturated trong dark */
-    --primary: 233 100% 74%;         /* #7c8cff */
-    --primary-hover: 232 100% 80%;   /* #98a6ff — lighter on hover */
+    --primary: 233 100% 74%;
+    --primary-hover: 232 100% 80%;
     --primary-foreground: 228 49% 8%;
 
     --secondary: 222 30% 18%;
     --secondary-foreground: 220 56% 97%;
     --muted: 222 30% 18%;
-    --muted-foreground: 215 20% 65%; /* #94a3b8 — textSecondary */
-    --text-muted: 215 19% 47%;        /* #64748b — textMuted */
+    --muted-foreground: 215 20% 65%;
+    --text-muted: 215 19% 47%;
     --accent: 222 30% 18%;
     --accent-foreground: 220 56% 97%;
 
@@ -122,12 +86,11 @@
     --destructive-foreground: 0 0% 100%;
     --success: 142 71% 45%;
     --warning: 38 92% 50%;
-    --border: 222 25% 22%;            /* ≈ rgba(255,255,255,0.06) trên bg */
-    --divider: 222 30% 14%;           /* softer interior divider */
+    --border: 222 25% 22%;
+    --divider: 222 30% 14%;
     --input: 222 25% 22%;
     --ring: 233 100% 74%;
 
-    /* Sidebar dark — hơi tối hơn surface (rail tones xuống nền) */
     --sidebar-background: 223 36% 10%;
     --sidebar-foreground: 220 56% 97%;
     --sidebar-accent: 222 30% 18%;
@@ -135,7 +98,6 @@
     --sidebar-border: 222 25% 18%;
     --sidebar-ring: 233 100% 74%;
 
-    /* Shadows dark — opacity thấp hơn vì bg đã tối */
     --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / 0.3),
                    0 1px 3px 0 rgb(0 0 0 / 0.4);
     --shadow-elevated: 0 8px 24px -8px rgb(0 0 0 / 0.5),
@@ -149,26 +111,21 @@
 }
 
 @layer base {
-  /* Reset border + áp font-feature cho ligature & contextual alternates */
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1, 'cv11' 1, 'ss01' 1;
-    /* Letter-spacing subtle tighten — Linear/Vercel style */
     letter-spacing: -0.011em;
-    /* Antialiasing crisp text */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Headings: tighter tracking, smoother rendering */
   h1, h2, h3, h4 {
     letter-spacing: -0.022em;
   }
 
-  /* Smooth scroll cho anchor link (vd #features) */
   html {
     scroll-behavior: smooth;
   }
@@ -176,21 +133,15 @@
     scroll-margin-top: 2rem;
   }
 
-  /* Selection — primary-tinted để nhất quán identity */
   ::selection {
     background-color: hsl(var(--primary) / 0.22);
     color: hsl(var(--foreground));
   }
 
-  /* Focus-visible ring nhất quán — replace browser default outline */
   :focus-visible {
     outline: none;
   }
 
-  /*
-   * A11y: tôn trọng prefers-reduced-motion — user tắt chuyển động (say tàu xe /
-   * tiền đình) thì gần như tắt mọi animation + transition. Guard toàn cục.
-   */
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -204,14 +155,6 @@
 }
 
 @layer base {
-  /*
-   * Ambient mesh background — subtle radial gradients tạo cảm giác
-   * "spatial study OS" thay vì flat dashboard. Fixed attachment để không
-   * scroll cùng content. Opacity thấp để không cướp attention.
-   *
-   * Light mode: 1 ellipse từ top-center (4% opacity) — cảm giác đèn ambient.
-   * Dark mode: 2 ellipse đối góc (6% + 4%) — chiều sâu spatial.
-   */
   body {
     background-image:
       radial-gradient(
@@ -248,10 +191,6 @@
 }
 
 @layer utilities {
-  /*
-   * Scrollbar mảnh — dùng trong các vùng chat / list dài.
-   * Hỗ trợ cả Firefox (scrollbar-width) và WebKit (-webkit-scrollbar).
-   */
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
@@ -271,24 +210,14 @@
     background-color: hsl(var(--muted-foreground) / 0.4);
   }
 
-  /*
-   * Scrollbar ẩn hoàn toàn — dùng cho horizontal card strips (curated,
-   * recently-viewed, saved-search). Vẫn scroll được (touch/wheel/drag) nhưng
-   * không hiện thanh cuộn xám thô làm xấu UI.
-   */
   .scrollbar-hide {
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
   .scrollbar-hide::-webkit-scrollbar {
-    display: none; /* WebKit */
+    display: none;
   }
 
-  /*
-   * Layered surface utilities — semantic tokens cho depth hierarchy.
-   *   bg-surface   = card-equivalent, 1 lớp trên background
-   *   bg-elevated  = popover/floating panel, 2 lớp trên background
-   */
   .bg-surface {
     background-color: hsl(var(--surface));
   }
@@ -296,9 +225,6 @@
     background-color: hsl(var(--elevated));
   }
 
-  /*
-   * Soft shadow tokens — premium, dùng CSS var thay vì hardcode hex.
-   */
   .shadow-soft {
     box-shadow: var(--shadow-soft);
   }
@@ -312,11 +238,6 @@
     box-shadow: var(--shadow-primary);
   }
 
-  /*
-   * Aurora mesh — nền gradient đa sắc brand (indigo + violet + blue) cho hero /
-   * panel lớn → cảm giác "spatial depth" thay vì phẳng. Phủ qua 1 lớp absolute,
-   * opacity thấp; hợp cả light/dark (màu cộng sáng, không cướp contrast chữ).
-   */
   .bg-aurora {
     background-image:
       radial-gradient(ellipse 70% 60% at 12% -10%, hsl(var(--primary) / 0.20), transparent 60%),
@@ -324,10 +245,6 @@
       radial-gradient(ellipse 65% 55% at 60% 115%, hsl(217 91% 60% / 0.12), transparent 60%);
   }
 
-  /*
-   * Frosted glass surface — backdrop-blur + saturation boost. Dùng cho
-   * topbar sticky, popover trên ảnh nền, modal overlay.
-   */
   .glass {
     background-color: hsl(var(--background) / 0.7);
     backdrop-filter: blur(12px) saturate(1.4);
@@ -339,10 +256,6 @@
     -webkit-backdrop-filter: blur(16px) saturate(1.5);
   }
 
-  /*
-   * Focus ring utility — soft glow thay vì outline cứng.
-   * Áp dụng vào button/link/input qua focus-visible:focus-ring.
-   */
   .focus-ring {
     @apply outline-none ring-offset-2 ring-offset-background;
   }
@@ -352,9 +265,6 @@
       0 0 0 4px hsl(var(--ring));
   }
 
-  /*
-   * Animation cho ReactionsLayer trong room — emoji bay từ dưới lên 2s.
-   */
   @keyframes float-up {
     from {
       transform: translateY(0) scale(1);
@@ -369,9 +279,6 @@
     animation: float-up 2s ease-out forwards;
   }
 
-  /*
-   * Subtle pulse — dùng cho streaming indicator, live recording dot.
-   */
   @keyframes soft-pulse {
     0%, 100% {
       opacity: 1;
@@ -384,9 +291,6 @@
     animation: soft-pulse 1.8s ease-in-out infinite;
   }
 
-  /*
-   * Fade-in slide — premium content entrance.
-   */
   @keyframes fade-in-up {
     from {
       opacity: 0;
@@ -401,9 +305,6 @@
     animation: fade-in-up var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  /*
-   * TipTap CollaborationCaret (v3 rename từ CollaborationCursor).
-   */
   .ProseMirror .collaboration-carets__caret {
     border-left: 1px solid;
     border-right: 1px solid;
@@ -428,9 +329,6 @@
     white-space: nowrap;
   }
 
-  /*
-   * ProseMirror placeholder — hiển thị khi editor rỗng.
-   */
   .ProseMirror p.is-editor-empty:first-child::before {
     color: hsl(var(--muted-foreground));
     content: attr(data-placeholder);

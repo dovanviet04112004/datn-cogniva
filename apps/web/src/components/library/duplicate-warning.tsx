@@ -1,9 +1,3 @@
-/**
- * DuplicateWarning — Phase 2 Duplicate Detection UI (2026-05-27).
- *
- * Banner hiển thị khi doc có near-duplicate (sim ≥ 0.92). Liệt kê tối đa 3
- * doc tương tự + link xem nhanh. Client-only fetch để không block SSR.
- */
 'use client';
 
 import * as React from 'react';
@@ -27,9 +21,9 @@ export function DuplicateWarning({ docId }: { docId: string }) {
   const { data: matches = [] } = useQuery({
     queryKey: qk.libraryDocDuplicates(docId),
     queryFn: () =>
-      apiGet<{ matches?: DupMatch[] }>(
-        `/api/library/docs/${docId}/duplicates?nearOnly=true`,
-      ).then((d) => d.matches ?? []),
+      apiGet<{ matches?: DupMatch[] }>(`/api/library/docs/${docId}/duplicates?nearOnly=true`).then(
+        (d) => d.matches ?? [],
+      ),
     enabled: !!docId,
   });
 

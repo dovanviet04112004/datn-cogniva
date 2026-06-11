@@ -1,18 +1,3 @@
-/**
- * VoiceTextChat — chat persistent trong voice channel (sidebar Chat tab).
- *
- * Persist DB (study_group_message với channelId = voice channel id), lịch sử
- * survive sau khi rời voice, hỗ trợ `@AI` mention như text channel.
- *
- * Reuse infrastructure:
- *   - GET/POST /api/channels/[id]/messages (đã lift restriction VOICE)
- *   - POST /api/channels/[id]/ai-reply (đã lift restriction VOICE)
- *   - Realtime channel `private-channel-{channelId}` event 'message:new'
- *
- * UI compact cho sidebar (~360px) — bubble nhỏ hơn full TextChannel, không
- * thread/reactions/pinned (tránh phình to). Click vào tin nhắn AI vẫn thấy
- * sparkle badge.
- */
 'use client';
 
 import * as React from 'react';
@@ -35,7 +20,6 @@ type Message = {
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
-  // AI Tutor identity — đến từ schema (authorId = 'system-ai-tutor')
 };
 
 const AI_TUTOR_ID = 'system-ai-tutor';
@@ -55,7 +39,6 @@ export function VoiceTextChat({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef(true);
 
-  // Initial load
   React.useEffect(() => {
     setLoading(true);
     fetch(`/api/channels/${channelId}/messages?limit=50`)
@@ -65,7 +48,6 @@ export function VoiceTextChat({
       .finally(() => setLoading(false));
   }, [channelId]);
 
-  // Realtime — message:new
   const onNew = React.useCallback((msg: Message) => {
     setMessages((prev) => {
       if (prev.some((m) => m.id === msg.id)) return prev;
@@ -74,7 +56,6 @@ export function VoiceTextChat({
   }, []);
   useRealtimeEvent<Message>(`private-channel-${channelId}`, 'message:new', onNew);
 
-  // Auto-scroll
   React.useEffect(() => {
     if (isAtBottomRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -93,7 +74,6 @@ export function VoiceTextChat({
     const isAi = AI_REGEX.test(content);
     setSending(true);
     try {
-      // 1. Post message gốc
       const res = await fetch(`/api/channels/${channelId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +85,6 @@ export function VoiceTextChat({
       }
       const data = (await res.json()) as { message: Message };
 
-      // 2. Nếu có @AI → trigger AI reply (fire-and-forget, BE process sync rồi push)
       if (isAi) {
         fetch(`/api/channels/${channelId}/ai-reply`, {
           method: 'POST',
@@ -137,32 +116,24 @@ export function VoiceTextChat({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+      <div className="text-text-muted border-b px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
         Lịch sử chat · lưu cố định
       </div>
 
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="flex-1 space-y-2.5 overflow-y-auto p-3"
-      >
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-2.5 overflow-y-auto p-3">
         {loading ? (
           <div className="flex justify-center py-6">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
           </div>
         ) : messages.length === 0 ? (
-          <p className="py-6 text-center text-xs text-muted-foreground">
+          <p className="text-muted-foreground py-6 text-center text-xs">
             Chưa có tin nhắn.
             <br />
-            Gõ <code className="rounded bg-muted px-1">@AI &lt;câu hỏi&gt;</code> để hỏi AI Tutor.
+            Gõ <code className="bg-muted rounded px-1">@AI &lt;câu hỏi&gt;</code> để hỏi AI Tutor.
           </p>
         ) : (
           messages.map((m) => (
-            <MessageRow
-              key={m.id}
-              msg={m}
-              isOwn={m.authorId === currentUserId}
-            />
+            <MessageRow key={m.id} msg={m} isOwn={m.authorId === currentUserId} />
           ))
         )}
       </div>
@@ -177,7 +148,7 @@ export function VoiceTextChat({
             rows={2}
             maxLength={2000}
             disabled={sending}
-            className="flex-1 resize-none rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            className="bg-background focus-visible:ring-primary/30 flex-1 resize-none rounded-md border px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2"
           />
           <Button
             onClick={send}
@@ -190,7 +161,7 @@ export function VoiceTextChat({
           </Button>
         </div>
         {willTriggerAi && (
-          <p className="mt-1 text-[11px] text-primary">
+          <p className="text-primary mt-1 text-[11px]">
             <Sparkles className="mr-0.5 inline h-3 w-3" />
             AI Tutor sẽ trả lời — cả phòng đều thấy.
           </p>
@@ -210,22 +181,18 @@ function MessageRow({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
 
   if (msg.deletedAt) {
     return (
-      <p className="text-center text-[11px] italic text-muted-foreground">
-        [tin nhắn đã xoá]
-      </p>
+      <p className="text-muted-foreground text-center text-[11px] italic">[tin nhắn đã xoá]</p>
     );
   }
 
   if (isAi) {
     return (
-      <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
-        <p className="flex items-center gap-1 text-[11px] font-semibold uppercase text-primary">
+      <div className="border-primary/20 bg-primary/5 rounded-md border p-2">
+        <p className="text-primary flex items-center gap-1 text-[11px] font-semibold uppercase">
           <Sparkles className="h-3 w-3" />
           AI Tutor · {time}
         </p>
-        <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">
-          {msg.content}
-        </p>
+        <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
       </div>
     );
   }
@@ -234,12 +201,10 @@ function MessageRow({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
     <div className={cn('flex gap-2', isOwn && 'flex-row-reverse')}>
       <Avatar className="h-6 w-6 shrink-0">
         {msg.authorImage && <AvatarImage src={msg.authorImage} alt={name} />}
-        <AvatarFallback className="text-[10px]">
-          {name[0]?.toUpperCase() ?? '?'}
-        </AvatarFallback>
+        <AvatarFallback className="text-[10px]">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>
       </Avatar>
       <div className={cn('flex max-w-[78%] flex-col', isOwn && 'items-end')}>
-        <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+        <div className="text-muted-foreground flex items-baseline gap-2 text-[11px]">
           <span className="font-medium">{isOwn ? 'Bạn' : name}</span>
           <span>{time}</span>
           {msg.editedAt && <span className="italic">(đã sửa)</span>}

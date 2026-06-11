@@ -1,15 +1,3 @@
-/**
- * TutorsService — port từ apps/web/src/app/api/tutors/** (Wave 7):
- *   POST /tutors, PUT /tutors/:id/availability, POST /tutors/:id/favorite,
- *   POST /tutors/:id/publish, POST /tutors/:id/subjects.
- *
- * Body parse bằng safeParse TRONG service (sau ownership check) vì route cũ
- * trả 404/403 TRƯỚC 400 — pipe ở controller sẽ đảo thứ tự status.
- *
- * tutor_profile có cột pgvector (bio_embedding) Prisma không select được →
- * đọc row qua $queryRaw với cast ::text (rating_avg giữ format "4.50" của
- * numeric, bio_embedding parse lại thành number[] như Drizzle vector cũ).
- */
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -23,7 +11,7 @@ import { z } from 'zod';
 
 import { EmbeddingService } from '../../../infra/ai/embedding.service';
 import { PrismaService } from '../../../infra/database/prisma.service';
-import { validateSubject, type SubjectLevel } from '../../library/subject-taxonomy';
+import { validateSubject, type SubjectLevel } from '../../../common/subject-taxonomy';
 
 const CREATE_SCHEMA = z.object({
   headline: z.string().min(10).max(160),
@@ -48,7 +36,6 @@ const SUBJECT_SCHEMA = z.object({
   level: z.enum(['PRIMARY', 'SECONDARY', 'HIGH_SCHOOL', 'UNIVERSITY', 'ADULT']),
 });
 
-/** Row thô tutor_profile — rating_avg + bio_embedding đã cast ::text. */
 interface TutorProfileRow {
   id: string;
   user_id: string;
@@ -92,10 +79,6 @@ export class TutorsService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /**
-   * POST /tutors — lazy-create profile DRAFT. Idempotent: đã có profile thì
-   * trả 200 {tutor, reused:true} TRƯỚC khi parse body (body rác vẫn 200).
-   */
   async createProfile(
     userId: string,
     rawBody: unknown,
@@ -123,14 +106,12 @@ export class TutorsService {
         bio: parsed.data.bio.trim(),
         hourly_rate_vnd: parsed.data.hourlyRateVnd,
         modality: parsed.data.modality,
-        // Status mặc định DRAFT — user phải publish riêng sau khi fill subjects.
       },
     });
     const tutor = await this.fetchProfileDto(id);
     return { httpStatus: 201, body: { tutor } };
   }
 
-  /** PUT /tutors/:id/availability — bulk replace (delete-all + insert) 1 tx. */
   async replaceAvailability(userId: string, id: string, rawBody: unknown) {
     await this.ensureOwnerProfile(id, userId);
 
@@ -140,7 +121,6 @@ export class TutorsService {
     }
 
     for (const slot of parsed.data.slots) {
-      // So sánh CHUỖI "HH:MM" — đúng vì zero-padded (giữ y route cũ).
       if (slot.startTime >= slot.endTime) {
         throw new BadRequestException({
           error: `Slot ${slot.dayOfWeek}: start phải nhỏ hơn end`,
@@ -169,7 +149,6 @@ export class TutorsService {
     return { ok: true, count: parsed.data.slots.length };
   }
 
-  /** POST /tutors/:id/favorite — toggle (select-then-insert/delete như route cũ). */
   async toggleFavorite(userId: string, tutorId: string) {
     const tutor = await this.prisma.tutor_profile.findUnique({
       where: { id: tutorId },
@@ -183,7 +162,6 @@ export class TutorsService {
     });
 
     if (existing) {
-      // deleteMany: race double-click xoá 0 row vẫn no-op như Drizzle delete.
       await this.prisma.tutor_favorite.deleteMany({
         where: { user_id: userId, tutor_id: tutorId },
       });
@@ -195,10 +173,6 @@ export class TutorsService {
     return { favorited: true };
   }
 
-  /**
-   * POST /tutors/:id/publish — DRAFT → PUBLISHED, guard ≥1 subject + ≥1 slot.
-   * Embed bio fail-soft: lỗi chỉ log, vẫn publish (cron refresh retry 14d).
-   */
   async publish(userId: string, id: string) {
     const existing = await this.prisma.tutor_profile.findUnique({
       where: { id },
@@ -233,7 +207,6 @@ export class TutorsService {
 
     const now = new Date();
     if (bioEmbedding) {
-      // Cột pgvector — Prisma client không set được, đi raw với literal ::vector.
       await this.prisma.$executeRaw`
         UPDATE tutor_profile
         SET status = 'PUBLISHED', updated_at = ${now},
@@ -251,7 +224,6 @@ export class TutorsService {
     return { tutor };
   }
 
-  /** POST /tutors/:id/subjects — thêm môn dạy (validate taxonomy, dup → 409). */
   async addSubject(userId: string, id: string, rawBody: unknown) {
     await this.ensureOwnerProfile(id, userId);
 
@@ -260,10 +232,7 @@ export class TutorsService {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
 
-    const subject = validateSubject(
-      parsed.data.subjectSlug,
-      parsed.data.level as SubjectLevel,
-    );
+    const subject = validateSubject(parsed.data.subjectSlug, parsed.data.level as SubjectLevel);
     if (!subject) {
       throw new BadRequestException({ error: 'Môn / level không hợp lệ' });
     }
@@ -279,7 +248,6 @@ export class TutorsService {
       });
       return { subject: this.toSubjectDto(inserted) };
     } catch (err) {
-      // Catch-all 409 như route cũ (unique (tutor, slug, level) là case chính).
       throw new ConflictException({
         error: 'Môn này đã được thêm',
         details: (err as Error).message,
@@ -287,7 +255,6 @@ export class TutorsService {
     }
   }
 
-  /** Ownership check chung: 404 {error:'Not found'} → 403 {error:'Forbidden'}. */
   private async ensureOwnerProfile(id: string, userId: string) {
     const profile = await this.prisma.tutor_profile.findUnique({
       where: { id },
@@ -299,7 +266,6 @@ export class TutorsService {
     }
   }
 
-  /** Đọc full row (kèm cột vector) + map về shape camelCase Drizzle cũ. */
   private async fetchProfileDto(id: string) {
     const rows = await this.prisma.$queryRaw<TutorProfileRow[]>`
       SELECT id, user_id, headline, bio, hourly_rate_vnd, modality, avatar_url,
@@ -314,7 +280,6 @@ export class TutorsService {
     return row ? this.toTutorDto(row) : null;
   }
 
-  /** Key theo ĐÚNG thứ tự cột Drizzle tutorProfile (golden diff so key order). */
   private toTutorDto(row: TutorProfileRow) {
     return {
       id: row.id,
@@ -329,9 +294,7 @@ export class TutorsService {
       ratingAvg: row.rating_avg,
       ratingCount: row.rating_count,
       verificationStatus: row.verification_status,
-      bioEmbedding: row.bio_embedding
-        ? (JSON.parse(row.bio_embedding) as number[])
-        : null,
+      bioEmbedding: row.bio_embedding ? (JSON.parse(row.bio_embedding) as number[]) : null,
       bioEmbeddingUpdatedAt: row.bio_embedding_updated_at,
       instantBookEnabled: row.instant_book_enabled,
       trialSessionEnabled: row.trial_session_enabled,

@@ -1,15 +1,3 @@
-/**
- * Library access gate (Phase 4 Step 5, 2026-05-27).
- *
- * Tập trung logic "user có quyền xem/import/download doc này không" để:
- *   - File proxy route + download route + import route dùng chung
- *   - Detail page server-side fetch xác định state hiển thị "Mua" hay "Mở"
- *
- * Quy tắc PRO:
- *   PRO user → free access mọi premium doc + free preview. Mua doc vẫn ghi
- *   purchase row (free, price=0) để track analytics? — V1 đơn giản skip
- *   purchase row, gate chỉ check plan + ownership + purchase.
- */
 import { and, eq } from 'drizzle-orm';
 
 import { db, libraryDoc, libraryDocPurchase, user as userTable } from '@cogniva/db';
@@ -27,16 +15,9 @@ export type DocAccessInfo = {
     status: string;
   };
   access: AccessResult;
-  /** PRO active = user.plan='PRO' && (proUntilAt > now hoặc proUntilAt=NULL legacy). */
   isProActive: boolean;
 };
 
-/**
- * Check access cho 1 doc cụ thể. userId=null cho anonymous viewer.
- *
- * Anonymous được phép xem preview free doc (status=PUBLISHED, isPremium=false)
- * nhưng KHÔNG được xem premium doc.
- */
 export async function checkDocAccess(
   docId: string,
   userId: string | null,
@@ -54,8 +35,6 @@ export async function checkDocAccess(
     .limit(1);
   if (!doc) return null;
 
-  // Free doc → ai cũng xem được (nhưng cần PUBLISHED). Preview demo PROCESSING
-  // không cấp truy cập trừ owner.
   if (!doc.isPremium) {
     if (doc.status === 'PUBLISHED') {
       return {
@@ -64,7 +43,6 @@ export async function checkDocAccess(
         isProActive: false,
       };
     }
-    // Doc draft/processing → chỉ owner xem
     if (userId && userId === doc.uploaderId) {
       return {
         doc,
@@ -79,7 +57,6 @@ export async function checkDocAccess(
     };
   }
 
-  // Premium doc — cần auth
   if (!userId) {
     return {
       doc,
@@ -88,7 +65,6 @@ export async function checkDocAccess(
     };
   }
 
-  // Owner luôn pass
   if (userId === doc.uploaderId) {
     return {
       doc,
@@ -97,7 +73,6 @@ export async function checkDocAccess(
     };
   }
 
-  // Check PRO + purchase parallel
   const [proRow] = await db
     .select({ plan: userTable.plan, proUntilAt: userTable.proUntilAt })
     .from(userTable)
@@ -105,8 +80,7 @@ export async function checkDocAccess(
     .limit(1);
 
   const isProActive =
-    proRow?.plan === 'PRO' &&
-    (proRow.proUntilAt === null || proRow.proUntilAt > new Date());
+    proRow?.plan === 'PRO' && (proRow.proUntilAt === null || proRow.proUntilAt > new Date());
 
   if (isProActive) {
     return { doc, access: { allowed: true, reason: 'pro' }, isProActive: true };
@@ -115,12 +89,7 @@ export async function checkDocAccess(
   const [purchase] = await db
     .select({ id: libraryDocPurchase.id })
     .from(libraryDocPurchase)
-    .where(
-      and(
-        eq(libraryDocPurchase.docId, docId),
-        eq(libraryDocPurchase.buyerId, userId),
-      ),
-    )
+    .where(and(eq(libraryDocPurchase.docId, docId), eq(libraryDocPurchase.buyerId, userId)))
     .limit(1);
 
   if (purchase) {
@@ -138,10 +107,6 @@ export async function checkDocAccess(
   };
 }
 
-/**
- * Lightweight PRO active check — chỉ user.plan + proUntilAt, không touch libraryDoc.
- * Dùng cho rate-limit free vs PRO.
- */
 export async function isUserPro(userId: string): Promise<boolean> {
   const [row] = await db
     .select({ plan: userTable.plan, proUntilAt: userTable.proUntilAt })

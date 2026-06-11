@@ -1,12 +1,3 @@
-/**
- * AtomsService — AtomView (concept + mastery + counts) và items theo atom
- * (flashcards + quiz/exam questions). Port từ apps/web/src/app/api/atoms/[id]/**
- * + lib/atoms/get-atom.ts — GIỮ NGUYÊN wire shape camelCase + cùng cache key
- * `atomView` TTL 60s (bust qua onMasteryChanged(…, conceptId)).
- *
- * Atom là global (không scope user) nên không kiểm tra ownership — chỉ cần
- * userId để query mastery/flashcards của user.
- */
 import { Injectable } from '@nestjs/common';
 import { cached } from '@cogniva/server-core/cache/cache-aside';
 import { ck } from '@cogniva/server-core/cache/keys';
@@ -22,7 +13,6 @@ export type AtomView = {
   difficulty: number | null;
   previewQuestion: string | null;
   previewAnswer: string | null;
-  /** Mastery của user hiện tại — null nếu chưa attempt lần nào. */
   mastery: {
     score: number;
     attempts: number;
@@ -43,16 +33,10 @@ export type AtomView = {
 export class AtomsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * GET /atoms/:id — cache-aside per-(user, atom) TTL 60s: nhiều click cùng
-   * 1 atom → 1 lần query Neon. Date serialize ISO khi ghi cache → cache hit
-   * trả string sẵn, đồng nhất với JSON response (như đường cũ).
-   */
   async getAtomView(userId: string, atomId: string): Promise<AtomView | null> {
     return cached(ck.atomView(userId, atomId), 60, () => this.fetchAtomView(atomId, userId));
   }
 
-  /** Load AtomView từ DB — 1 query concept + 4 query song song (như lib cũ). */
   private async fetchAtomView(atomId: string, userId: string): Promise<AtomView | null> {
     const conceptRow = await this.prisma.concept.findUnique({ where: { id: atomId } });
     if (!conceptRow) return null;
@@ -92,11 +76,6 @@ export class AtomsService {
     };
   }
 
-  /**
-   * GET /atoms/:id/items — flashcards (của user) + quiz questions + exam
-   * questions của 1 atom; optional ?workspaceId scope. Quiz/exam KHÔNG scope
-   * user (có thể share). Trả null nếu atom không tồn tại (controller → 404).
-   */
   async getAtomItems(userId: string, atomId: string, workspaceId: string | null) {
     const atomRow = await this.prisma.concept.findUnique({
       where: { id: atomId },
@@ -105,7 +84,6 @@ export class AtomsService {
     if (!atomRow) return null;
 
     const [flashcards, quizQuestions, examQuestions] = await Promise.all([
-      // Flashcards của user, optional scope workspace — order due ASC.
       this.prisma.flashcard.findMany({
         where: {
           user_id: userId,
@@ -124,7 +102,6 @@ export class AtomsService {
         orderBy: { due: 'asc' },
         take: 50,
       }),
-      // Quiz questions kèm parent quiz info — optional scope theo quiz.workspaceId.
       this.prisma.question.findMany({
         where: {
           concept_id: atomId,
@@ -140,7 +117,6 @@ export class AtomsService {
         orderBy: { quiz: { created_at: 'desc' } },
         take: 50,
       }),
-      // Exam questions kèm parent exam info — optional scope workspace.
       this.prisma.exam_question.findMany({
         where: {
           concept_id: atomId,

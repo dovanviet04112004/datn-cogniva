@@ -1,9 +1,3 @@
-/**
- * CreateChannelButton — popover form tạo TEXT/VOICE channel mới.
- *
- * Render children làm trigger, click → mở dialog mini với input name + topic.
- * Auto reload page sau khi tạo để layout server re-fetch channels list.
- */
 'use client';
 
 import * as React from 'react';
@@ -82,7 +76,8 @@ export function CreateChannelButton({ groupId, type, children }: Props) {
             {type === 'TEXT' && 'Channel chat — mọi member có thể gửi tin nhắn.'}
             {type === 'VOICE' && 'Channel voice — audio/video qua LiveKit.'}
             {type === 'ANNOUNCEMENT' && 'Chỉ ADMIN+ post được. Member chỉ đọc.'}
-            {type === 'STAGE' && 'Stage channel — audience nghe, speaker nói. Mod promote audience.'}
+            {type === 'STAGE' &&
+              'Stage channel — audience nghe, speaker nói. Mod promote audience.'}
             {type === 'FORUM' && 'Forum channel — mỗi post = thread. Q&A, thảo luận chuyên đề.'}
           </DialogDescription>
         </DialogHeader>

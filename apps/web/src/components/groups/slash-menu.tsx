@@ -1,15 +1,3 @@
-/**
- * SlashMenu — popover trigger khi user gõ `/` đầu dòng composer.
- *
- * Commands:
- *   - /doc <query>       → search Cogniva documents
- *   - /flashcard <query> → search flashcards
- *   - /exam <query>      → search exams
- *
- * Khi user pick item → callback `onPick(text)` với markdown link để
- * MessageComposer thay thế phần `/cmd query` bằng `[title](/route/id)`.
- * Client UrlPreview sau đó render rich card cho link Cogniva.
- */
 'use client';
 
 import * as React from 'react';
@@ -19,22 +7,24 @@ type ResourceItem = { id: string; title: string; type: 'doc' | 'flashcard' | 'ex
 
 const COMMANDS = [
   { key: 'doc', label: '/doc', desc: 'Đính kèm document', icon: FileText, route: 'documents' },
-  { key: 'flashcard', label: '/flashcard', desc: 'Đính kèm flashcard', icon: BrainCircuit, route: 'flashcards' },
+  {
+    key: 'flashcard',
+    label: '/flashcard',
+    desc: 'Đính kèm flashcard',
+    icon: BrainCircuit,
+    route: 'flashcards',
+  },
   { key: 'exam', label: '/exam', desc: 'Đính kèm exam', icon: ClipboardList, route: 'exams' },
 ] as const;
 
 type CmdKey = (typeof COMMANDS)[number]['key'];
 
 type Props = {
-  /** Toàn bộ content của composer — slash menu parse `/<cmd> <q>`. */
   content: string;
-  /** Khi user pick item → trả về markdown link để composer replace. */
   onPick: (markdownLink: string) => void;
 };
 
-/** Detect "/cmd query" ở đầu hoặc cuối dòng cuối — return { cmd, query } hoặc null. */
 function parseSlash(content: string): { cmd: CmdKey | null; query: string } | null {
-  // Lấy line cuối cùng (nơi cursor đang gõ)
   const lines = content.split('\n');
   const last = lines[lines.length - 1] ?? '';
   if (!last.startsWith('/')) return null;
@@ -75,11 +65,10 @@ export function SlashMenu({ content, onPick }: Props) {
 
   if (!parsed) return null;
 
-  // Stage 1: hiện list commands khi user mới gõ "/" hoặc gõ sai cmd
   if (!parsed.cmd) {
     return (
-      <div className="absolute bottom-full left-0 right-0 mb-2 max-h-[200px] overflow-auto rounded-md border bg-popover shadow-xl">
-        <div className="border-b px-3 py-1 text-[10px] uppercase text-muted-foreground">
+      <div className="bg-popover absolute bottom-full left-0 right-0 mb-2 max-h-[200px] overflow-auto rounded-md border shadow-xl">
+        <div className="text-muted-foreground border-b px-3 py-1 text-[10px] uppercase">
           Slash commands
         </div>
         {COMMANDS.map((c) => {
@@ -92,11 +81,11 @@ export function SlashMenu({ content, onPick }: Props) {
                 e.preventDefault();
                 onPick(c.label + ' ');
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              className="hover:bg-accent flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
             >
-              <Icon className="h-4 w-4 text-muted-foreground" />
+              <Icon className="text-muted-foreground h-4 w-4" />
               <span className="font-mono text-xs">{c.label}</span>
-              <span className="text-xs text-muted-foreground">{c.desc}</span>
+              <span className="text-muted-foreground text-xs">{c.desc}</span>
             </button>
           );
         })}
@@ -104,17 +93,16 @@ export function SlashMenu({ content, onPick }: Props) {
     );
   }
 
-  // Stage 2: hiện kết quả search
   const command = COMMANDS.find((c) => c.key === parsed.cmd)!;
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 max-h-[260px] overflow-auto rounded-md border bg-popover shadow-xl">
-      <div className="border-b px-3 py-1 text-[10px] uppercase text-muted-foreground">
+    <div className="bg-popover absolute bottom-full left-0 right-0 mb-2 max-h-[260px] overflow-auto rounded-md border shadow-xl">
+      <div className="text-muted-foreground border-b px-3 py-1 text-[10px] uppercase">
         {command.label} — {parsed.query ? `tìm "${parsed.query}"` : 'recent items'}
       </div>
       {loading ? (
-        <p className="p-3 text-xs text-muted-foreground">Đang tìm...</p>
+        <p className="text-muted-foreground p-3 text-xs">Đang tìm...</p>
       ) : items.length === 0 ? (
-        <p className="p-3 text-xs text-muted-foreground">Không tìm thấy</p>
+        <p className="text-muted-foreground p-3 text-xs">Không tìm thấy</p>
       ) : (
         items.map((it) => {
           const url = `/${command.route}/${it.id}`;
@@ -127,9 +115,9 @@ export function SlashMenu({ content, onPick }: Props) {
                 e.preventDefault();
                 onPick(markdown);
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+              className="hover:bg-accent flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
             >
-              <command.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <command.icon className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{it.title}</span>
             </button>
           );

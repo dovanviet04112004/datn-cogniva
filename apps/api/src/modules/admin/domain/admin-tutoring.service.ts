@@ -1,11 +1,3 @@
-/**
- * AdminTutoringService — port từ apps/web/src/app/api/admin/tutoring/**.
- *
- * Refund là STUB y route cũ: chỉ flip payment.status=REFUNDED + refunded_at,
- * KHÔNG gọi VNPay/MoMo API (admin xử lý ngoài); partial amount chỉ nằm trong
- * audit payload + notification, KHÔNG persist lên payment row.
- * Hide/restore review KHÔNG recompute rating trung bình tutor (y cũ).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -22,9 +14,6 @@ export class AdminTutoringService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  /* ── Bookings ──────────────────────────────────────────────────────────── */
-
-  /** GET /admin/tutoring/bookings — cursor theo startAt (KHÔNG phải createdAt). */
   async listBookings(params: { q?: string; status?: string; cursor?: string; limit?: string }) {
     const q = params.q?.trim() ?? '';
     const limit = clampLimit(params.limit, 50, 100);
@@ -76,9 +65,7 @@ export class AdminTutoringService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.start_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.start_at.toISOString() : null;
 
     let total: number | null = null;
     if (conditions === 0) {
@@ -113,7 +100,6 @@ export class AdminTutoringService {
     };
   }
 
-  /** GET /admin/tutoring/bookings/:id — full detail + payment full row + review. */
   async getBookingDetail(id: string) {
     const row = await this.prisma.tutoring_booking.findUnique({
       where: { id },
@@ -184,8 +170,6 @@ export class AdminTutoringService {
         studentEmail: row.user.email,
         studentImage: row.user.image,
       },
-      // Payment full row (kèm raw provider response — chỉ admin xem), key
-      // camelCase y select() drizzle cũ.
       payment: payment
         ? {
             id: payment.id,
@@ -223,7 +207,6 @@ export class AdminTutoringService {
     };
   }
 
-  /** POST /admin/tutoring/bookings/:id/cancel — force cancel + notify 2 bên. */
   async cancelBooking(ctx: AdminContext, id: string, reason: string) {
     const result = await this.audit.withAudit(
       ctx,
@@ -242,8 +225,7 @@ export class AdminTutoringService {
         });
         if (!before) throw new Error('Booking not found');
         if (before.status === 'CANCELLED') throw new Error('Booking đã bị huỷ');
-        if (before.status === 'COMPLETED')
-          throw new Error('Booking đã hoàn thành, không huỷ được');
+        if (before.status === 'COMPLETED') throw new Error('Booking đã hoàn thành, không huỷ được');
 
         const now = new Date();
         await this.prisma.tutoring_booking.update({
@@ -256,7 +238,6 @@ export class AdminTutoringService {
           },
         });
 
-        // Lookup tutor userId để notify
         const tutor = await this.prisma.tutor_profile.findUnique({
           where: { id: before.tutor_id },
           select: { user_id: true },
@@ -281,8 +262,6 @@ export class AdminTutoringService {
       },
     );
 
-    // Fire-and-forget notify cả 2 bên — KHÔNG xoá study_group đã tạo, KHÔNG
-    // tự refund (admin gọi /refund riêng).
     const notifyRows: Prisma.notification_logCreateManyInput[] = [];
     if (result.tutorUserId) {
       notifyRows.push({
@@ -311,7 +290,6 @@ export class AdminTutoringService {
     return { ok: true };
   }
 
-  /** POST /admin/tutoring/bookings/:id/refund — STUB flip status, SUPER_ADMIN only. */
   async refundBooking(ctx: AdminContext, id: string, body: RefundInput) {
     const { amountVnd: requestedAmount, reason } = body;
 
@@ -358,7 +336,6 @@ export class AdminTutoringService {
       },
     );
 
-    // Notify student
     void this.prisma.notification_log
       .create({
         data: {
@@ -376,9 +353,6 @@ export class AdminTutoringService {
     return { ok: true, refundAmount: result.refundAmount };
   }
 
-  /* ── Reviews ───────────────────────────────────────────────────────────── */
-
-  /** GET /admin/tutoring/reviews — visibility/rating/q + hiddenCount badge. */
   async listReviews(params: {
     visibility?: string;
     rating?: string;
@@ -389,9 +363,7 @@ export class AdminTutoringService {
     const visibility = params.visibility ?? 'visible';
     const ratingRaw = Number(params.rating);
     const rating =
-      Number.isFinite(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5
-        ? Math.floor(ratingRaw)
-        : null;
+      Number.isFinite(ratingRaw) && ratingRaw >= 1 && ratingRaw <= 5 ? Math.floor(ratingRaw) : null;
     const q = params.q?.trim() ?? '';
     const limit = clampLimit(params.limit, 50, 100);
 
@@ -437,16 +409,13 @@ export class AdminTutoringService {
         orderBy: { created_at: 'desc' },
         take: limit + 1,
       }),
-      // Hidden count for badge — luôn trả (y route cũ)
       this.prisma.tutor_review.count({ where: { hidden_at: { not: null } } }),
     ]);
 
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
     return {
       reviews: trimmed.map((r) => ({
@@ -472,7 +441,6 @@ export class AdminTutoringService {
     };
   }
 
-  /** POST /admin/tutoring/reviews/:id/hide — set hidden_at + notify reviewer. */
   async hideReview(ctx: AdminContext, id: string, reason: string) {
     const result = await this.audit.withAudit(
       ctx,
@@ -501,7 +469,6 @@ export class AdminTutoringService {
       },
     );
 
-    // Notify reviewer biết review của họ bị hide (giúp họ tránh vi phạm tiếp)
     void this.prisma.notification_log
       .create({
         data: {
@@ -519,7 +486,6 @@ export class AdminTutoringService {
     return { ok: true };
   }
 
-  /** POST /admin/tutoring/reviews/:id/restore — clear hidden_*, không notify. */
   async restoreReview(ctx: AdminContext, id: string, reason: string) {
     await this.audit.withAudit(ctx, 'review.restore', { type: 'review', id }, async () => {
       const before = await this.prisma.tutor_review.findUnique({

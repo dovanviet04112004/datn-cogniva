@@ -1,3 +1,0 @@
-[
-  { "name": "healthz", "method": "GET", "path": "/api/healthz" }
-]

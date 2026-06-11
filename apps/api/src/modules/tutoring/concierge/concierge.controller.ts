@@ -1,13 +1,3 @@
-/**
- * /api/tutoring/concierge/** — port từ route Next:
- *   GET  concierge/threads               — list ≤20 thread của user
- *   POST concierge/threads               — tạo thread trống (201)
- *   GET  concierge/threads/:id/messages  — messages ASC + hydrate metadata
- *   POST concierge/threads/:id/messages  — agent loop, trả SSE stream
- *
- * concierge/search KHÔNG port — dead route (0 caller, logic search nằm
- * trong messages POST).
- */
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';

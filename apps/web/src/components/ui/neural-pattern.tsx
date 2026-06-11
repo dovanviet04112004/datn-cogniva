@@ -1,36 +1,13 @@
-/**
- * NeuralPattern — SVG decorative pattern dùng cho hero bands, empty states,
- * floating panels. Mô phỏng "neural connection" — node + đường nối subtle,
- * tạo identity rõ rệt cho Cogniva (AI Learning OS) khác với dashboard SaaS
- * generic.
- *
- * Implementation:
- *   - SVG `<pattern>` lặp tile 120x120px
- *   - Node = circle bán kính 2px
- *   - Connection = path cong subtle giữa các node
- *   - currentColor → bind tone primary qua className `text-primary`
- *   - Opacity prop để tinh chỉnh visibility (default 0.08)
- *
- * Cách dùng:
- *   <NeuralPattern className="text-primary opacity-[0.06]" />
- *   wrap trong absolute container có mask để fade edge:
- *     <div className="absolute inset-0 [mask-image:radial-gradient(...)]">
- *       <NeuralPattern />
- *     </div>
- */
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
 type Props = {
   className?: string;
-  /** Tile size px. Default 120 — vừa đủ subtle, không quá to. */
   size?: number;
 };
 
 export function NeuralPattern({ className, size = 120 }: Props) {
-  // Random-looking nhưng deterministic — không generate runtime để SSR ổn định.
-  // Mỗi tile có 4 node + 5 connection cong nhẹ.
   const nodes = [
     { cx: 15, cy: 22, r: 2 },
     { cx: 85, cy: 18, r: 1.5 },
@@ -54,7 +31,6 @@ export function NeuralPattern({ className, size = 120 }: Props) {
           height={size}
           patternUnits="userSpaceOnUse"
         >
-          {/* Connections — cong nhẹ (quadratic bezier), stroke mảnh */}
           <path
             d={`M ${nodes[0]!.cx} ${nodes[0]!.cy} Q 30 40 ${nodes[2]!.cx} ${nodes[2]!.cy}`}
             fill="none"
@@ -90,7 +66,6 @@ export function NeuralPattern({ className, size = 120 }: Props) {
             strokeWidth="0.6"
             strokeLinecap="round"
           />
-          {/* Nodes — filled circles, accent dot ở center node */}
           {nodes.map((n, i) => (
             <circle
               key={i}

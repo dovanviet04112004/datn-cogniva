@@ -1,28 +1,3 @@
-/**
- * Flashcards review screen — FSRS với SWIPE GESTURES (Reanimated 4.1 + Gesture Handler 2.24).
- *
- * Setup yêu cầu (đã wire ở M6 W3 final):
- *   - react-native-reanimated@~4.1.0
- *   - react-native-worklets@0.5.1  (match Expo Go SDK 54 native 0.5.1)
- *   - babel.config.js plugins: ['react-native-worklets/plugin']  (PHẢI ở cuối)
- *   - runOnJS import từ 'react-native-worklets' (Reanimated 4 đổi từ '/reanimated')
- *
- * Interaction:
- *   - Mặt trước: tap card → fade flip → mặt sau
- *   - Mặt sau swipe 4 hướng (Anki/Mochi style):
- *       ← Trái:    Quên     (rating=1, đỏ)
- *       ↓ Xuống:   Khó      (rating=2, vàng)
- *       → Phải:    Tốt      (rating=3, xanh lá)
- *       ↑ Lên:     Dễ       (rating=4, xanh dương)
- *   - 4 button bên dưới luôn hiện cho accessibility (user tay yếu / accessibility mode)
- *
- * Animation:
- *   - PanGestureHandler track delta x/y trên SharedValue
- *   - Card translate + rotate ±15° theo drag → mimic physical card
- *   - Color overlay theo direction → user thấy luôn rating sắp chọn
- *   - Threshold 80px theo trục dominant → trigger rate + withTiming fly off
- *   - Spring back nếu swipe nhẹ
- */
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -42,7 +17,6 @@ import Animated, {
   interpolate,
   Extrapolation,
 } from 'react-native-reanimated';
-// Reanimated 4: runOnJS đã move sang react-native-worklets package.
 import { runOnJS } from 'react-native-worklets';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FlashcardDTO } from '@cogniva/shared';
@@ -94,10 +68,9 @@ export default function FlashcardsScreen() {
   const [revealed, setRevealed] = useState(false);
   const currentCard = queue[idx];
 
-  // Shared values cho gesture animation
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const flipProgress = useSharedValue(0); // 0 = front, 1 = back
+  const flipProgress = useSharedValue(0);
 
   const reviewMutation = useMutation({
     mutationFn: async (input: { flashcardId: string; rating: Rating }) => {
@@ -119,13 +92,11 @@ export default function FlashcardsScreen() {
     },
   });
 
-  /** JS-thread function — gọi từ worklet qua runOnJS. */
   const submitRating = (rating: Rating) => {
     if (!currentCard) return;
     reviewMutation.mutate({ flashcardId: currentCard.id, rating });
   };
 
-  /** Worklet helper: card fly off màn hình rồi gọi mutation. */
   const flyAndRate = (rating: Rating, direction: Direction) => {
     'worklet';
     const dx = direction === 'left' ? -FLY_DISTANCE : direction === 'right' ? FLY_DISTANCE : 0;
@@ -142,8 +113,6 @@ export default function FlashcardsScreen() {
       setRevealed(true);
     }
   };
-
-  // ── Gestures ───────────────────────────────────────────────────────
 
   const panGesture = Gesture.Pan()
     .enabled(revealed && !reviewMutation.isPending)
@@ -180,15 +149,8 @@ export default function FlashcardsScreen() {
 
   const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
-  // ── Animated styles ────────────────────────────────────────────────
-
   const cardStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-200, 0, 200],
-      [-15, 0, 15],
-      Extrapolation.CLAMP,
-    );
+    const rotate = interpolate(translateX.value, [-200, 0, 200], [-15, 0, 15], Extrapolation.CLAMP);
     return {
       transform: [
         { translateX: translateX.value },
@@ -226,8 +188,6 @@ export default function FlashcardsScreen() {
     opacity: interpolate(flipProgress.value, [0, 0.5, 1], [0, 0, 1], Extrapolation.CLAMP),
   }));
 
-  // ── State views ────────────────────────────────────────────────────
-
   if (dueQuery.isLoading) {
     return (
       <View style={styles.center}>
@@ -253,9 +213,7 @@ export default function FlashcardsScreen() {
       <View style={styles.center}>
         <Text style={styles.celebrateIcon}>🎉</Text>
         <Text style={styles.empty}>Không có thẻ nào tới hạn!</Text>
-        <Text style={styles.emptyHint}>
-          Tạo flashcards trên web hoặc đợi ngày ôn tập kế tiếp.
-        </Text>
+        <Text style={styles.emptyHint}>Tạo flashcards trên web hoặc đợi ngày ôn tập kế tiếp.</Text>
       </View>
     );
   }
@@ -279,8 +237,6 @@ export default function FlashcardsScreen() {
     );
   }
 
-  // ── Main card view với gestures ────────────────────────────────────
-
   return (
     <View style={styles.container}>
       <View style={styles.progress}>
@@ -288,9 +244,7 @@ export default function FlashcardsScreen() {
           Thẻ {idx + 1} / {queue.length}
         </Text>
         <View style={styles.progressBar}>
-          <View
-            style={[styles.progressFill, { width: `${((idx + 1) / queue.length) * 100}%` }]}
-          />
+          <View style={[styles.progressFill, { width: `${((idx + 1) / queue.length) * 100}%` }]} />
         </View>
       </View>
 

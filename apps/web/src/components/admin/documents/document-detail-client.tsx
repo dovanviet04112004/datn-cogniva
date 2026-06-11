@@ -1,23 +1,9 @@
-/**
- * DocumentDetailClient — chi tiết 1 document + chunks preview + actions.
- *
- * Actions:
- *   - Re-ingest (chỉ enable khi status FAILED hoặc READY) — SUPER_ADMIN/ADMIN
- *   - Delete (mọi status) — SUPER_ADMIN/ADMIN
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  AlertCircle,
-  CircleCheck,
-  FileText,
-  MoreHorizontal,
-  RotateCw,
-  Trash2,
-} from 'lucide-react';
+import { AlertCircle, CircleCheck, FileText, MoreHorizontal, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { AdminRole } from '@cogniva/db';
@@ -104,7 +90,6 @@ export function DocumentDetailClient({
 
   return (
     <>
-      {/* Header card */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
@@ -131,7 +116,10 @@ export function DocumentDetailClient({
               <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800">
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 border-slate-800 bg-slate-900 text-slate-100">
+              <DropdownMenuContent
+                align="end"
+                className="w-52 border-slate-800 bg-slate-900 text-slate-100"
+              >
                 <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-slate-500">
                   Hành động
                 </DropdownMenuLabel>
@@ -175,32 +163,24 @@ export function DocumentDetailClient({
         </div>
       </section>
 
-      {/* Storage info */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
         <h2 className="mb-3 text-sm font-semibold tracking-tight">Storage</h2>
         <dl className="grid grid-cols-1 gap-2 text-[12px] sm:grid-cols-2">
           <KV k="storage_key" v={doc.storageKey} mono />
           <KV
             k="metadata"
-            v={
-              Object.keys(doc.metadata ?? {}).length === 0
-                ? '—'
-                : JSON.stringify(doc.metadata)
-            }
+            v={Object.keys(doc.metadata ?? {}).length === 0 ? '—' : JSON.stringify(doc.metadata)}
             mono
           />
         </dl>
       </section>
 
-      {/* Chunks preview */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold tracking-tight">
             Chunks <span className="text-slate-500">(top 20 theo token count)</span>
           </h2>
-          <span className="font-mono text-[10.5px] text-slate-500">
-            {stats.chunkCount} total
-          </span>
+          <span className="font-mono text-[10.5px] text-slate-500">{stats.chunkCount} total</span>
         </div>
         {chunks.length === 0 ? (
           <p className="text-xs text-slate-500">
@@ -209,34 +189,28 @@ export function DocumentDetailClient({
         ) : (
           <ul className="space-y-2">
             {chunks.map((c, i) => (
-              <li
-                key={c.id}
-                className="rounded-md border border-slate-800/60 bg-slate-950/40 p-3"
-              >
+              <li key={c.id} className="rounded-md border border-slate-800/60 bg-slate-950/40 p-3">
                 <div className="mb-1.5 flex items-center justify-between font-mono text-[10px] text-slate-500">
                   <span>
                     #{i + 1} · {c.id.slice(0, 8)}
                   </span>
                   <span>{c.tokens} tokens</span>
                 </div>
-                <p className="line-clamp-3 text-[12px] leading-snug text-slate-300">
-                  {c.preview}…
-                </p>
+                <p className="line-clamp-3 text-[12px] leading-snug text-slate-300">{c.preview}…</p>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {/* Confirm dialogs */}
       <ConfirmDialog
         open={reingestOpen}
         onOpenChange={setReingestOpen}
         title="Re-ingest document?"
         description={
           <span>
-            Sẽ xoá toàn bộ <strong>{stats.chunkCount}</strong> chunks hiện tại và chạy lại
-            pipeline parse + chunk + embed. File trên R2 không bị động đến.
+            Sẽ xoá toàn bộ <strong>{stats.chunkCount}</strong> chunks hiện tại và chạy lại pipeline
+            parse + chunk + embed. File trên R2 không bị động đến.
           </span>
         }
         confirmLabel="Re-ingest"
@@ -260,8 +234,8 @@ export function DocumentDetailClient({
         title="Xoá document khỏi DB?"
         description={
           <span>
-            Document + tất cả chunks sẽ bị xoá (FK cascade). File trên R2 KHÔNG bị xoá —
-            cleanup job riêng. Hành động không thể undo qua admin UI.
+            Document + tất cả chunks sẽ bị xoá (FK cascade). File trên R2 KHÔNG bị xoá — cleanup job
+            riêng. Hành động không thể undo qua admin UI.
           </span>
         }
         confirmLabel="Xoá document"
@@ -297,7 +271,12 @@ function KV({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   return (
     <div className="rounded-md border border-slate-800/60 bg-slate-950/40 px-3 py-2">
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{k}</p>
-      <p className={cn('mt-0.5 truncate text-[12px] text-slate-300', mono && 'font-mono text-[11px]')}>
+      <p
+        className={cn(
+          'mt-0.5 truncate text-[12px] text-slate-300',
+          mono && 'font-mono text-[11px]',
+        )}
+      >
         {v}
       </p>
     </div>
@@ -320,7 +299,10 @@ function StatusPill({ status }: { status: DocStatus }) {
       )}
     >
       <Icon
-        className={cn('h-2.5 w-2.5', status === 'PROCESSING' || status === 'UPLOADING' ? 'animate-spin' : '')}
+        className={cn(
+          'h-2.5 w-2.5',
+          status === 'PROCESSING' || status === 'UPLOADING' ? 'animate-spin' : '',
+        )}
       />
       {status}
     </span>

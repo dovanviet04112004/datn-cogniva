@@ -1,13 +1,3 @@
-/**
- * TutorKycService — POST /tutors/:id/kyc, port từ
- * apps/web/src/app/api/tutors/[id]/kyc/route.ts (chỉ POST — GET không port,
- * flow admin duyệt nằm wave khác).
- *
- * Upload multipart 'file' + 'docType' + 'originalName' → R2 key
- * `kyc/{tutorId}/{uuid}.{ext}` → insert tutor_kyc_document PENDING → set
- * profile.verificationStatus = KYC_PENDING VÔ ĐIỀU KIỆN (kể cả đang
- * KYC_VERIFIED — giữ y route cũ, admin duyệt lại).
- */
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -21,20 +11,14 @@ import { z } from 'zod';
 import { PrismaService } from '../../../infra/database/prisma.service';
 import { StorageService } from '../../../infra/storage/storage.service';
 
-export const KYC_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB cho ảnh CCCD / bằng cấp
+export const KYC_MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-const ALLOWED_MIME = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-] as const;
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
 
 const DOC_TYPES = ['CCCD_FRONT', 'CCCD_BACK', 'DEGREE', 'CERTIFICATE', 'OTHER'] as const;
 const DOC_TYPE_SCHEMA = z.enum(DOC_TYPES);
 
 interface KycUploadInput {
-  /** Content-Type header — route cũ 400 khi body không phải multipart. */
   contentType: string;
   file: Express.Multer.File | undefined;
   docType: unknown;
@@ -58,8 +42,6 @@ export class TutorKycService {
       throw new ForbiddenException({ error: 'Chỉ chính tutor mới upload được' });
     }
 
-    // Route cũ: request.formData() throw khi không phải multipart → 400.
-    // Multer skip silent → tự check content-type giữ message cũ.
     if (!input.contentType.includes('multipart/form-data')) {
       throw new BadRequestException({ error: 'Body phải multipart/form-data' });
     }
@@ -67,12 +49,9 @@ export class TutorKycService {
       throw new BadRequestException({ error: '"file" thiếu' });
     }
 
-    // busboy (multer) decode filename latin1 → tên tiếng Việt vỡ; Next
-    // formData() decode UTF-8 — convert lại cho parity.
     const fileName = Buffer.from(input.file.originalname, 'latin1').toString('utf8');
     const docType = typeof input.docType === 'string' ? input.docType : '';
-    const originalName =
-      typeof input.originalName === 'string' ? input.originalName : fileName;
+    const originalName = typeof input.originalName === 'string' ? input.originalName : fileName;
 
     const dtParsed = DOC_TYPE_SCHEMA.safeParse(docType);
     if (!dtParsed.success) {
@@ -92,10 +71,14 @@ export class TutorKycService {
     }
 
     const docId = randomUUID();
-    const ext = input.file.mimetype === 'application/pdf' ? 'pdf'
-      : input.file.mimetype === 'image/jpeg' ? 'jpg'
-      : input.file.mimetype === 'image/png' ? 'png'
-      : 'webp';
+    const ext =
+      input.file.mimetype === 'application/pdf'
+        ? 'pdf'
+        : input.file.mimetype === 'image/jpeg'
+          ? 'jpg'
+          : input.file.mimetype === 'image/png'
+            ? 'png'
+            : 'webp';
     const storageKey = `kyc/${tutorId}/${docId}.${ext}`;
 
     await this.storage.put(storageKey, input.file.buffer, input.file.mimetype);
@@ -113,7 +96,6 @@ export class TutorKycService {
       },
     });
 
-    // Chuyển profile sang KYC_PENDING nếu chưa
     await this.prisma.tutor_profile.update({
       where: { id: tutorId },
       data: { verification_status: 'KYC_PENDING', updated_at: new Date() },

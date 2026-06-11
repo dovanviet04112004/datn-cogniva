@@ -1,12 +1,3 @@
-/**
- * AiReplyService — AI Tutor trả lời khi user mention `@AI` trong channel.
- * Port từ apps/web/src/lib/group/ai-reply.ts + route ai-reply/route.ts.
- *
- * streamText (AI SDK) → LlmService.complete (REST non-stream): route cũ vốn
- * collect full text rồi mới insert nên wire không đổi; system prompt + user
- * message GIỮ NGUYÊN VĂN. temperature/maxTokens dùng default LlmService
- * (0.6/1024 — generateText cũ cũng không set).
- */
 import { HttpException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { logger } from '@cogniva/server-core';
@@ -18,7 +9,6 @@ import { aiReplySchema } from './dto/channels.dto';
 
 const AI_TUTOR_ID = 'system-ai-tutor';
 const MAX_CONTEXT_MSGS = 10;
-/** Bỏ AI reply nếu prompt quá ngắn (vd `@AI` 1 mình) — tránh AI trả vô nghĩa. */
 const MIN_PROMPT_LENGTH = 4;
 
 @Injectable()
@@ -28,10 +18,6 @@ export class AiReplyService {
     private readonly llm: LlmService,
   ) {}
 
-  /**
-   * POST /channels/:id/ai-reply — xử lý đồng bộ (giữ request alive tới khi AI
-   * generate xong). Thứ tự status y route cũ: 404 → 403 → 400 → 400 → 500.
-   */
   async handleAiReply(user: { id: string; name: string | null }, channelId: string, raw: unknown) {
     const ch = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -79,7 +65,6 @@ export class AiReplyService {
       return;
     }
 
-    // Load context — 10 message gần nhất CỦA CHANNEL NÀY, bỏ tin AI (chống loop)
     const recent = await this.prisma.study_group_message.findMany({
       where: { channel_id: opts.channelId, author_id: { not: AI_TUTOR_ID } },
       orderBy: { created_at: 'desc' },
@@ -88,7 +73,6 @@ export class AiReplyService {
     });
 
     try {
-      // Đảo ngược → cũ → mới
       const context = recent
         .reverse()
         .map((m) => `${m.user.name ?? 'User'}: ${m.content}`)
@@ -115,7 +99,6 @@ ${context || '(chưa có)'}`;
         return;
       }
 
-      // Insert AI reply — user row 'system-ai-tutor' đã seed sẵn (FK author_id)
       const created = await this.prisma.study_group_message.create({
         data: {
           id: randomUUID(),
@@ -126,7 +109,6 @@ ${context || '(chưa có)'}`;
         },
       });
 
-      // Load channel groupId để broadcast presence-group event (update unread badge)
       const ch = await this.prisma.study_group_channel.findUnique({
         where: { id: opts.channelId },
         select: { group_id: true },
@@ -160,15 +142,12 @@ ${context || '(chưa có)'}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error('ai-reply.fail', { error: msg, channelId: opts.channelId });
-      // Log stack đầy đủ ra console để debug terminal
       console.error('[ai-reply] FAIL', err);
-      // Rethrow để endpoint /ai-reply trả 500 + error chi tiết về client
       throw err;
     }
   }
 }
 
-/** Có phải mention `@AI` không? Pattern: `@AI` standalone hoặc `@[AI](system-ai-tutor)`. */
 export function hasAiMention(
   content: string,
   mentions: Array<{ type: string; id: string }>,
@@ -177,7 +156,6 @@ export function hasAiMention(
   return /(^|\s)@AI(\s|$|[?!.,])/i.test(content);
 }
 
-/** Strip "@AI" hoặc "@[AI](id)" khỏi prompt trước khi gửi AI để LLM không phân tâm. */
 function extractPrompt(content: string): string {
   return content
     .replace(/@\[AI\]\(system-ai-tutor\)/gi, '')

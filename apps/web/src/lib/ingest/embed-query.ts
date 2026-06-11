@@ -1,14 +1,3 @@
-/**
- * Embed query — biến thể của embedBatch dùng cho retrieval thay vì index.
- *
- * Khác biệt với indexing:
- *   - Voyage: `inputType: 'query'` (vs 'document') — model được fine-tune
- *     riêng cho 2 use case, dùng đúng input type tăng recall ~3-5%.
- *   - Chỉ embed 1 string → trả number[] thay vì number[][].
- *
- * OpenAI fallback dùng cùng API embedBatch, không có khái niệm input type
- * (không khác biệt giữa query/document).
- */
 import OpenAI from 'openai';
 import { VoyageAIClient } from 'voyageai';
 
@@ -39,35 +28,19 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
-/**
- * Sleep helper cho retry exponential — giữ nội bộ vì Node setTimeout không
- * có Promise wrapper sẵn, và chỉ dùng ở 1 chỗ.
- */
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Detect lỗi 429 (rate limit) — Voyage trả Error.message có "429" hoặc
- * statusCode. OpenAI cũng tương tự với status code field.
- */
 function isRateLimitError(err: unknown): boolean {
   if (!err) return false;
   const message = (err as Error).message ?? '';
-  const status = (err as { status?: number; statusCode?: number }).status
-    ?? (err as { statusCode?: number }).statusCode;
+  const status =
+    (err as { status?: number; statusCode?: number }).status ??
+    (err as { statusCode?: number }).statusCode;
   return status === 429 || /429|rate limit/i.test(message);
 }
 
-/**
- * Embed 1 query string. Tự động chọn provider, dùng inputType='query'
- * khi qua Voyage để model tối ưu cho retrieval.
- *
- * Retry logic:
- *   - Voyage free tier giới hạn 3 RPM → eval batch dễ hit 429.
- *   - Retry tối đa 2 lần với delay 21s, 42s (1 phút "ngủ" cho rate limit reset).
- *   - Lỗi khác 429 → throw ngay (không retry vô nghĩa).
- */
 export async function embedQuery(text: string): Promise<number[]> {
   const provider = pickProvider();
   const MAX_RETRIES = 2;
@@ -97,7 +70,9 @@ export async function embedQuery(text: string): Promise<number[]> {
     } catch (err) {
       if (isRateLimitError(err) && attempt < MAX_RETRIES) {
         const delay = BACKOFF_MS[attempt]!;
-        console.warn(`[embed-query] Rate limited, retry sau ${delay / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        console.warn(
+          `[embed-query] Rate limited, retry sau ${delay / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        );
         await sleep(delay);
         continue;
       }
@@ -105,6 +80,5 @@ export async function embedQuery(text: string): Promise<number[]> {
     }
   }
 
-  // Theoretically unreachable (return ở trên hoặc throw trong catch)
   throw new Error('[embed-query] Hết retry sau rate limit');
 }

@@ -1,11 +1,3 @@
-/**
- * ReactionsLayer — emoji bay từ dưới lên khi user click ReactionPicker.
- *
- * Broadcast qua LiveKit data channel — không cần realtime gateway. Mỗi reaction
- * float trong 2s rồi tự cleanup.
- *
- * Position random horizontal 10-90% width để tránh chồng chéo.
- */
 'use client';
 
 import * as React from 'react';
@@ -13,7 +5,6 @@ import { useRoomContext } from '@livekit/components-react';
 
 type Reaction = { id: string; emoji: string; xPercent: number };
 
-/** Tên window event để CHÍNH người gửi cũng thấy emoji của mình bay. */
 export const REACTION_SELF_EVENT = 'cogniva:reaction-self';
 
 export function ReactionsLayer() {
@@ -31,19 +22,14 @@ export function ReactionsLayer() {
   }, []);
 
   React.useEffect(() => {
-    // Người KHÁC react → nhận qua LiveKit data channel.
     const handler = (payload: Uint8Array) => {
       try {
         const data = JSON.parse(new TextDecoder().decode(payload));
         if (data.type === 'REACTION' && data.emoji) addFloat(data.emoji);
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     };
     room.on('dataReceived', handler);
 
-    // CHÍNH MÌNH react → LiveKit KHÔNG gửi data về chính người phát, nên nghe
-    // window event do ReactionPicker bắn để người gửi cũng thấy emoji của mình.
     const onSelf = (e: Event) => {
       const emoji = (e as CustomEvent<{ emoji: string }>).detail?.emoji;
       if (emoji) addFloat(emoji);
@@ -61,7 +47,7 @@ export function ReactionsLayer() {
       {items.map((r) => (
         <span
           key={r.id}
-          className="absolute bottom-20 animate-float-up text-4xl"
+          className="animate-float-up absolute bottom-20 text-4xl"
           style={{ left: `${r.xPercent}%` }}
         >
           {r.emoji}

@@ -1,13 +1,3 @@
-/**
- * ChatDock — cửa sổ chat nổi kiểu Facebook web.
- *
- * - Mount 1 lần ở (app)/layout → state GIỮ NGUYÊN khi chuyển trang (layout không
- *   unmount). Thêm localStorage để sống qua cả reload.
- * - Mở nhanh bằng useChatDock().openChat({threadId, peer}) — từ thông báo, nút
- *   liên hệ, danh sách tin nhắn…
- * - Mỗi cửa sổ: thu nhỏ (—) thành pill, đóng (X). Tối đa 3 cửa sổ mở.
- * - Bấm tên/avatar trong cửa sổ → mở trang /messages đầy đủ.
- */
 'use client';
 
 import * as React from 'react';
@@ -46,7 +36,6 @@ export function ChatDockProvider({
   const [windows, setWindows] = React.useState<DockWindow[]>([]);
   const hydrated = React.useRef(false);
 
-  // Hydrate từ localStorage (chỉ client) — sống qua reload.
   React.useEffect(() => {
     if (hydrated.current) return;
     hydrated.current = true;
@@ -56,26 +45,20 @@ export function ChatDockProvider({
         const parsed = JSON.parse(raw) as DockWindow[];
         if (Array.isArray(parsed)) setWindows(parsed.slice(0, MAX_OPEN));
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, []);
 
-  // Persist mỗi khi đổi.
   React.useEffect(() => {
     if (!hydrated.current) return;
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(windows));
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, [windows]);
 
   const openChat: Ctx['openChat'] = React.useCallback(({ threadId, peer }) => {
     setWindows((prev) => {
       const existing = prev.find((w) => w.threadId === threadId);
       if (existing) {
-        // Đã mở → bỏ thu nhỏ + đưa lên đầu.
         return [
           { threadId, peer, minimized: false },
           ...prev.filter((w) => w.threadId !== threadId),
@@ -92,9 +75,7 @@ export function ChatDockProvider({
 
   const toggleMinimize: Ctx['toggleMinimize'] = React.useCallback((threadId) => {
     setWindows((prev) =>
-      prev.map((w) =>
-        w.threadId === threadId ? { ...w, minimized: !w.minimized } : w,
-      ),
+      prev.map((w) => (w.threadId === threadId ? { ...w, minimized: !w.minimized } : w)),
     );
   }, []);
 
@@ -114,7 +95,6 @@ export function useChatDock(): Ctx {
   return ctx;
 }
 
-/** Render các cửa sổ chat — portal vào FloatingDock chung (tránh đè voice). */
 function ChatDock() {
   const { windows, closeChat, toggleMinimize, currentUserId } = useChatDock();
   const host = useFloatingDockHost();
@@ -128,7 +108,7 @@ function ChatDock() {
             key={w.threadId}
             type="button"
             onClick={() => toggleMinimize(w.threadId)}
-            className="pointer-events-auto mb-3 flex items-center gap-2 rounded-full border border-divider bg-card py-1.5 pl-1.5 pr-3 shadow-elevated transition-transform hover:-translate-y-0.5"
+            className="border-divider bg-card shadow-elevated pointer-events-auto mb-3 flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-3 transition-transform hover:-translate-y-0.5"
           >
             <Avatar className="h-8 w-8">
               <AvatarImage src={w.peer.image ?? undefined} />
@@ -139,14 +119,14 @@ function ChatDock() {
             <span className="max-w-[7rem] truncate text-xs font-medium">
               {w.peer.name ?? 'Chat'}
             </span>
-            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+            <MessageSquare className="text-muted-foreground h-3.5 w-3.5" />
           </button>
         ) : (
           <div
             key={w.threadId}
             className={cn(
               'pointer-events-auto flex h-[26rem] w-80 flex-col overflow-hidden',
-              'rounded-t-2xl border border-divider bg-background shadow-elevated',
+              'border-divider bg-background shadow-elevated rounded-t-2xl border',
             )}
           >
             <DmChat
@@ -163,7 +143,6 @@ function ChatDock() {
     </>
   );
 
-  // Có host → xếp chung hàng với voice mini-player; chưa có → fixed như cũ.
   if (host) return createPortal(content, host);
   return (
     <div className="pointer-events-none fixed bottom-3 right-4 z-40 flex flex-row-reverse items-end gap-3">

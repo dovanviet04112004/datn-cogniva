@@ -1,8 +1,3 @@
-/**
- * Bootstrap WORKER (process 2 của @cogniva/api — plan QĐ-5): không HTTP,
- * chỉ BullMQ processors + scheduler. Chạy: pnpm --filter @cogniva/api worker.
- * Job port từ worker cũ của web sang queue `cron-v2` (xem cron-jobs.ts).
- */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -29,7 +24,6 @@ async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule);
   app.enableShutdownHooks();
 
-  // Đăng ký repeatable cron — idempotent, boot lại không tạo trùng.
   const queue = app.get<Queue>(getQueueToken(CRON_QUEUE));
   for (const c of CRON_JOBS_V2) {
     await queue.upsertJobScheduler(c.id, { pattern: c.pattern, tz: 'UTC' }, { name: c.id });

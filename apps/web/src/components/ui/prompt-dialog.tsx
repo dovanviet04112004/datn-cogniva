@@ -1,10 +1,3 @@
-/**
- * PromptDialog — modal nhập 1 dòng text, thay native `prompt()`.
- *
- * Native `prompt()` cùng vấn đề với confirm(): prefix "localhost cho biết",
- * không theme, block thread. Component này cho input styled + nút Xác nhận/Huỷ.
- * Dùng qua hook usePrompt (xem lib/use-confirm.tsx) — mount 1 lần ở provider.
- */
 'use client';
 
 import * as React from 'react';
@@ -31,10 +24,8 @@ type Props = {
   defaultValue?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** Bắt buộc nhập (không cho submit rỗng). */
   required?: boolean;
   multiline?: boolean;
-  /** Trả về value đã nhập; modal đóng sau khi resolve. */
   onSubmit: (value: string) => void | Promise<void>;
 };
 
@@ -54,7 +45,6 @@ export function PromptDialog({
   const [value, setValue] = React.useState(defaultValue);
   const [busy, setBusy] = React.useState(false);
 
-  // Reset value mỗi lần mở (defaultValue có thể đổi giữa các lần gọi).
   React.useEffect(() => {
     if (open) setValue(defaultValue);
   }, [open, defaultValue]);
@@ -68,7 +58,6 @@ export function PromptDialog({
       await onSubmit(value);
       onOpenChange(false);
     } catch {
-      /* caller tự toast */
     } finally {
       setBusy(false);
     }

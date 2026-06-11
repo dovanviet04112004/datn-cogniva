@@ -1,17 +1,7 @@
-/**
- * /groups/[id]/[channelId] — channel view (TEXT chat hoặc VOICE LiveKit).
- *
- * Server-side: verify channel thuộc group user là member, load metadata,
- * pass xuống client component. Client tự fetch messages/participants + realtime.
- */
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  db,
-  studyGroupChannel,
-  studyGroupMember,
-} from '@cogniva/db';
+import { db, studyGroupChannel, studyGroupMember } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
 
@@ -27,18 +17,14 @@ export default async function ChannelPage({ params }: PageProps) {
   const [member] = await db
     .select({ role: studyGroupMember.role })
     .from(studyGroupMember)
-    .where(
-      and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)),
-    )
+    .where(and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)))
     .limit(1);
   if (!member) redirect('/groups');
 
   const [channel] = await db
     .select()
     .from(studyGroupChannel)
-    .where(
-      and(eq(studyGroupChannel.id, channelId), eq(studyGroupChannel.groupId, id)),
-    )
+    .where(and(eq(studyGroupChannel.id, channelId), eq(studyGroupChannel.groupId, id)))
     .limit(1);
   if (!channel) notFound();
 

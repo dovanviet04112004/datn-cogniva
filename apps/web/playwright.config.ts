@@ -1,14 +1,3 @@
-/**
- * Playwright config — E2E test cho Cogniva web app.
- *
- * Chạy:
- *   pnpm --filter=@cogniva/web test:e2e
- *
- * Test ở chế độ headed (mở browser thật) khi debug bằng `--headed`.
- *
- * Note: webServer config tự `pnpm dev` khi cần — KHÔNG dùng trong CI nếu
- * đã có dev server đang chạy. Set `reuseExistingServer: !process.env.CI`.
- */
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.PORT ?? 3000);

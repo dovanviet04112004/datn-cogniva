@@ -1,36 +1,21 @@
-/**
- * TutorSearchService — port từ apps/web/src/lib/tutoring/hybrid-search.ts
- * (hybridSearchTutors) + request-search.ts (hybridSearchRequests), GIỮ NGUYÊN
- * semantics từng nhánh.
- *
- * Cả 2 dùng FTS (tsvector) ⊕ Vector (pgvector cosine) qua Reciprocal Rank
- * Fusion: score = 1/(k + fts_rank) + 1/(k + vec_rank), k = 60. Lý do RRF:
- * không cần normalize score 2 metric khác nhau, robust với outlier rank.
- * Filter cứng áp dụng TRƯỚC ranking; query rỗng / RRF 0 hit → fallback
- * filter-only sort deterministic (không bao giờ "no result" khi có tutor
- * cùng ngành — pattern Preply/Italki).
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { EmbeddingService } from '../../../infra/ai/embedding.service';
 import { PrismaService } from '../../../infra/database/prisma.service';
-import { expandSubjectSlug } from '../../library/subject-taxonomy';
+import { expandSubjectSlug } from '../../../common/subject-taxonomy';
 
 const RRF_K = 60;
 const CANDIDATE_LIMIT = 50;
 
 export type HybridSearchInput = {
-  /** Free text query — empty thì chỉ filter, không FTS/vector. */
   query?: string;
-  /** Filter cứng. */
   filters?: {
     subjectSlug?: string;
     level?: string;
     modality?: string;
     budgetMaxVnd?: number;
   };
-  /** Max return. */
   limit?: number;
 };
 
@@ -46,24 +31,18 @@ export type HybridSearchResult = {
   ratingCount: number;
   sessionsCompleted: number;
   verificationStatus: string;
-  /** RRF fusion score (higher = better). */
   score: number;
-  /** Rank trong FTS (NULL nếu không match FTS). */
   ftsRank: number | null;
-  /** Rank trong vector (NULL nếu không có embedding hoặc query empty). */
   vecRank: number | null;
 };
 
 export type RequestSearchInput = {
   query?: string;
   filters?: {
-    /** Subject slug — có thể là parent (vd 'english') sẽ expand sang children. */
     subjectSlug?: string;
-    /** Mảng subject slug đã expand — ưu tiên hơn subjectSlug single. */
     subjectSlugs?: string[];
     level?: string;
     modality?: string;
-    /** Tutor mong muốn budget tối thiểu — match request có budget ≥ X. */
     budgetMinVnd?: number;
   };
   limit?: number;
@@ -87,7 +66,6 @@ export type RequestSearchResult = {
   vecRank: number | null;
 };
 
-/** Row RRF $queryRaw — score là numeric (Decimal) → caller Number() lại. */
 type RrfRow = { id: string; score: unknown; fts_rank: number | null; vec_rank: number | null };
 
 type TutorBaseRow = {
@@ -126,41 +104,26 @@ export class TutorSearchService {
     private readonly embedding: EmbeddingService,
   ) {}
 
-  /**
-   * Hybrid search gia sư.
-   *
-   * Trường hợp:
-   *   - query rỗng + có filter → trả theo rating DESC trong filter
-   *   - query có + có embedding tutor → FTS ⊕ vector RRF
-   *   - query có nhưng tutor chưa embed → chỉ FTS
-   */
   async hybridSearchTutors(input: HybridSearchInput): Promise<HybridSearchResult[]> {
     const limit = input.limit ?? 10;
     const query = input.query?.trim();
     const filters = input.filters ?? {};
 
-    // ── Empty query: rating sort ─────────────────────────────────────
     if (!query) {
       return this.selectTutorsBaseFiltered(filters, limit);
     }
 
-    // ── Compute embedding query lazy ─────────────────────────────────
     const queryEmbedding = await this.embedding.embedQuery(query);
     const embStr = `[${queryEmbedding.join(',')}]`;
 
-    // ── tsquery format (prefix match qua :*) ─────────────────────────
     const tsq = toTsQuery(query);
 
-    // Subject hierarchy: "english" → ['english', 'english-ielts', 'english-toeic'].
     const expandedSlugs = filters.subjectSlug ? expandSubjectSlug(filters.subjectSlug) : null;
     const needSubjectJoin = !!(filters.subjectSlug || filters.level);
 
-    // ── RRF query: FULL OUTER JOIN FTS + vector ──────────────────────
-    // HYBRID là superset → modality=ONLINE matches cả ONLINE và HYBRID
     const modalitySql = filters.modality
       ? Prisma.sql`AND (tp.modality = ${filters.modality} OR tp.modality = 'HYBRID')`
       : Prisma.empty;
-    // Postgres text array literal '{a,b}'::text[] để ANY() nhận array (như lib cũ).
     const expandedSlugLiteral = expandedSlugs
       ? `{${expandedSlugs.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`
       : null;
@@ -213,13 +176,10 @@ export class TutorSearchService {
       LIMIT ${limit}
     `);
 
-    // ── Fallback filter-only: nếu RRF không match (FTS không bắt từ + tutor
-    // chưa có embedding) → vẫn trả tutor khớp filter, sort theo rating.
     if (rawResults.length === 0) {
       return this.selectTutorsBaseFiltered(filters, limit);
     }
 
-    // ── Fetch full tutor data typed ──────────────────────────────────
     const ids = rawResults.map((r) => r.id);
     const tutors = await this.prisma.tutor_profile.findMany({
       where: { id: { in: ids } },
@@ -264,18 +224,10 @@ export class TutorSearchService {
       .filter((x): x is HybridSearchResult => !!x);
   }
 
-  /**
-   * Hybrid search tutoring requests (tutor-side concierge).
-   *
-   * Trường hợp:
-   *   - query rỗng + có filter → trả request mới nhất / urgency cao nhất
-   *   - query có → FTS ⊕ vector RRF, fallback sort deterministic khi 0 result
-   */
   async hybridSearchRequests(input: RequestSearchInput): Promise<RequestSearchResult[]> {
     const limit = input.limit ?? 10;
     const query = input.query?.trim();
     const filters = input.filters ?? {};
-    // Subject slug có thể là single (auto-expand) hoặc array (caller pre-expanded).
     const slugList =
       filters.subjectSlugs && filters.subjectSlugs.length > 0
         ? filters.subjectSlugs
@@ -283,18 +235,14 @@ export class TutorSearchService {
           ? expandSubjectSlug(filters.subjectSlug)
           : [];
 
-    // ── Empty query: sort theo urgency + createdAt ───────────────────
     if (!query) {
       return this.selectRequestsBaseFiltered({ ...filters, slugList }, limit);
     }
 
-    // ── Build embedding lazy ─────────────────────────────────────────
     const queryEmbedding = await this.embedding.embedQuery(query);
     const embStr = `[${queryEmbedding.join(',')}]`;
     const tsq = toTsQuery(query);
 
-    // ── Filter SQL fragment dùng chung 2 CTE ─────────────────────────
-    // HYBRID modality cũng match (tutor có thể dạy cả 2 hình thức).
     const modalitySql = filters.modality
       ? Prisma.sql`AND (tr.modality = ${filters.modality} OR tr.modality = 'HYBRID')`
       : Prisma.empty;
@@ -348,12 +296,10 @@ export class TutorSearchService {
       LIMIT ${limit}
     `);
 
-    // ── Fallback sort deterministic khi RRF empty ────────────────────
     if (rawResults.length === 0) {
       return this.selectRequestsBaseFiltered({ ...filters, slugList }, limit);
     }
 
-    // ── Fetch full request data typed ────────────────────────────────
     const ids = rawResults.map((r) => r.id);
     const requests = await this.prisma.tutor_request.findMany({
       where: { id: { in: ids } },
@@ -400,17 +346,11 @@ export class TutorSearchService {
       .filter((x): x is RequestSearchResult => !!x);
   }
 
-  /**
-   * Empty query path tutors — pre-filter, sort theo rating + sessions DESC.
-   * Lib cũ: LIMIT áp lên joined rows TRƯỚC khi dedupe theo tutor id — giữ
-   * nguyên (kết quả có thể < limit khi tutor trùng nhiều subject row).
-   */
   private async selectTutorsBaseFiltered(
     filters: HybridSearchInput['filters'] = {},
     limit: number,
   ): Promise<HybridSearchResult[]> {
     const conds: Prisma.Sql[] = [Prisma.sql`tp.status = 'PUBLISHED'`];
-    // Lib cũ nhánh này KHÔNG nới HYBRID — modality match đúng giá trị.
     if (filters.modality) conds.push(Prisma.sql`tp.modality = ${filters.modality}`);
     if (filters.budgetMaxVnd) {
       conds.push(Prisma.sql`tp.hourly_rate_vnd <= ${filters.budgetMaxVnd}`);
@@ -435,7 +375,6 @@ export class TutorSearchService {
         WHERE ${Prisma.join(conds, ' AND ')}
         ORDER BY ${orderBy}
         LIMIT ${limit}`);
-      // Dedupe theo tutorId vì subject join có thể duplicate
       const seen = new Set<string>();
       rows = joined.filter((r) => {
         if (seen.has(r.id)) return false;
@@ -469,10 +408,6 @@ export class TutorSearchService {
     }));
   }
 
-  /**
-   * Filter-only path requests — sort urgency DESC + createdAt DESC.
-   * Map: ASAP=3, THIS_WEEK=2, THIS_MONTH=1, FLEXIBLE=0.
-   */
   private async selectRequestsBaseFiltered(
     filters: NonNullable<RequestSearchInput['filters']> & { slugList?: string[] },
     limit: number,
@@ -483,10 +418,7 @@ export class TutorSearchService {
     }
     if (filters.level) conds.push(Prisma.sql`tr.level = ${filters.level}`);
     if (filters.modality) {
-      // Nhánh base này CÓ nới HYBRID (khác nhánh tutors) — y lib cũ.
-      conds.push(
-        Prisma.sql`(tr.modality = ${filters.modality} OR tr.modality = 'HYBRID')`,
-      );
+      conds.push(Prisma.sql`(tr.modality = ${filters.modality} OR tr.modality = 'HYBRID')`);
     }
     if (filters.budgetMinVnd) {
       conds.push(Prisma.sql`tr.budget_vnd >= ${filters.budgetMinVnd}`);
@@ -528,15 +460,7 @@ export class TutorSearchService {
   }
 }
 
-/**
- * Convert text query → Postgres tsquery format với prefix wildcard.
- * "toán lớp 11" → "toán:* & lớp:* & 11:*"
- *
- * Strip mọi punctuation (giữ letters + digits + whitespace) — Postgres
- * tsquery throw nếu có ký tự đặc biệt như comma, question mark, parens.
- */
 function toTsQuery(text: string): string {
-  // \p{L} = letter (incl. Vietnamese), \p{N} = number, \s = whitespace
   const cleaned = text
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .trim()

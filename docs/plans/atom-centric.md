@@ -47,14 +47,14 @@ preview Q/A) và **chưa được wire vào flashcard**.
 
 **Wiring matrix hiện tại:**
 
-| Feature | Bảng | Link tới concept | Update mastery? |
-|---------|------|------------------|-----------------|
-| Flashcard | `flashcard.conceptId` | nullable — **luôn NULL khi generate** ❌ | ❌ Không gọi `applyAttempt` |
-| Quiz question | `question.conceptId` | populated từ `chunkConcept` pivot ✅ | ✅ `quiz/[id]/attempt` gọi `applyAttempt` |
-| Exam question | `examQuestion.conceptId` | populated ✅ | ❌ Attempt submit không gọi |
-| Knowledge graph | `concept` + `conceptRelation` | native ✅ | N/A (read-only) |
-| Study plan | `studyPlanItem.conceptId` | nullable — rarely set ❌ | N/A |
-| AI Tutor (chat) | retrieval qua `chunk` | không qua concept ❌ | N/A |
+| Feature         | Bảng                          | Link tới concept                         | Update mastery?                           |
+| --------------- | ----------------------------- | ---------------------------------------- | ----------------------------------------- |
+| Flashcard       | `flashcard.conceptId`         | nullable — **luôn NULL khi generate** ❌ | ❌ Không gọi `applyAttempt`               |
+| Quiz question   | `question.conceptId`          | populated từ `chunkConcept` pivot ✅     | ✅ `quiz/[id]/attempt` gọi `applyAttempt` |
+| Exam question   | `examQuestion.conceptId`      | populated ✅                             | ❌ Attempt submit không gọi               |
+| Knowledge graph | `concept` + `conceptRelation` | native ✅                                | N/A (read-only)                           |
+| Study plan      | `studyPlanItem.conceptId`     | nullable — rarely set ❌                 | N/A                                       |
+| AI Tutor (chat) | retrieval qua `chunk`         | không qua concept ❌                     | N/A                                       |
 
 → Quiz là feature **duy nhất** chạy đúng atom-centric. Còn lại đứt 1 hoặc cả 2
 đầu.
@@ -162,6 +162,7 @@ Hai option:
   ~50 file (route, component, type, comment).
 
 **Quyết định: Option A** — giữ `concept`. Lý do:
+
 - Quiz/exam/graph code đã quen với `conceptId`. Đổi tên không cải thiện
   function, chỉ đẹp.
 - Trong UI **show "atom"** cho user (label), nhưng DB giữ `concept`. Đây là
@@ -304,13 +305,13 @@ NULL.
 // apps/web/src/lib/flashcards/generate.ts (sau refactor)
 async function generateForDocument(docId: string, userId: string) {
   const chunks = await db.select().from(chunk).where(eq(chunk.documentId, docId));
-  const atoms = await ensureAtomsForChunks(chunks);  // extract concept nếu chưa có
+  const atoms = await ensureAtomsForChunks(chunks); // extract concept nếu chưa có
 
   for (const atom of atoms) {
-    const card = await llm.generateBasicCard(atom);  // input: atom, không chunk
+    const card = await llm.generateBasicCard(atom); // input: atom, không chunk
     await db.insert(flashcard).values({
       userId,
-      conceptId: atom.id,            // ← REQUIRED
+      conceptId: atom.id, // ← REQUIRED
       sourceChunkId: atom.sourceChunks[0],
       front: card.q,
       back: card.a,
@@ -326,7 +327,10 @@ async function generateForDocument(docId: string, userId: string) {
 // apps/web/src/app/api/flashcards/[id]/review/route.ts
 const card = await db.select().from(flashcard).where(eq(flashcard.id, id));
 const next = fsrsSchedule(card, grade);
-await db.update(flashcard).set({ ...next }).where(eq(flashcard.id, id));
+await db
+  .update(flashcard)
+  .set({ ...next })
+  .where(eq(flashcard.id, id));
 
 // ← THÊM: update mastery nếu link concept
 if (card.conceptId) {
@@ -337,6 +341,7 @@ if (card.conceptId) {
 ### 4.2. Quiz
 
 **Đã đúng atom-centric.** Không đổi. Chỉ verify:
+
 - Question.conceptId luôn set khi generate ✅
 - Attempt gọi `applyAttempt` ✅
 
@@ -348,7 +353,7 @@ question:
 ```ts
 // apps/web/src/app/api/attempts/[id]/responses/route.ts (sau refactor)
 for (const resp of responses) {
-  const q = examQuestions.find(x => x.id === resp.questionId);
+  const q = examQuestions.find((x) => x.id === resp.questionId);
   if (q.conceptId) {
     await applyAttempt(userId, q.conceptId, resp.score / q.maxScore);
   }
@@ -361,13 +366,14 @@ for (const resp of responses) {
 
 **Target:** Mỗi node có 3 màu theo mastery:
 
-| Mastery score | Màu | UI label |
-|---------------|-----|----------|
-| `>= 0.85` | 🟢 xanh | Đã master |
-| `0.3 - 0.85` | 🟡 vàng | Đang học |
-| `< 0.3` hoặc null | ⚪ xám | Chưa biết |
+| Mastery score     | Màu     | UI label  |
+| ----------------- | ------- | --------- |
+| `>= 0.85`         | 🟢 xanh | Đã master |
+| `0.3 - 0.85`      | 🟡 vàng | Đang học  |
+| `< 0.3` hoặc null | ⚪ xám  | Chưa biết |
 
 Click node xám → mở action sheet:
+
 - "Học atom này 10 phút" → start Pomodoro session với flashcard + quiz + AI
   Tutor context pre-loaded
 - "Show source" → mở doc preview tại chunk gốc
@@ -379,12 +385,14 @@ API: extend `/api/concepts/graph` trả thêm `mastery.score` cho mỗi node.
 **Hiện tại:** `/chat` là page riêng. User pin PDF manual.
 
 **Target:** Slide-out panel mở từ mọi nơi:
+
 - Trang document: nút "Hỏi về đoạn này" → mở chat, auto-pin chunk hiện tại
 - Trang flashcard: nút "Tại sao sai?" → mở chat với atom + câu trả lời sai
 - Trang graph: click node → nút "Giải thích atom này" → chat pre-context atom
 - Trang exam: nút "Giải thích đáp án" → chat với question + correct answer
 
 **Implement:**
+
 - Tạo component `<AiTutorPanel atomId={...} chunkId={...} />` — drawer từ phải
 - Backend: `/api/chat` đã accept `workspaceId` + `documentIds` — extend thêm
   `atomIds[]` (concept-level scope) và `chunkIds[]` (chunk-level pin)
@@ -407,30 +415,23 @@ async function proposeForToday(userId: string) {
   const dueAtoms = await db
     .select()
     .from(mastery)
-    .where(and(
-      eq(mastery.userId, userId),
-      lt(mastery.nextReviewAt, new Date()),
-    ))
-    .orderBy(asc(mastery.score))   // yếu nhất trước
+    .where(and(eq(mastery.userId, userId), lt(mastery.nextReviewAt, new Date())))
+    .orderBy(asc(mastery.score)) // yếu nhất trước
     .limit(5);
 
   // 2. Atom mới (chưa có mastery row) — chọn 1-2
   const newAtoms = await db
     .select()
     .from(concept)
-    .leftJoin(mastery, and(
-      eq(mastery.conceptId, concept.id),
-      eq(mastery.userId, userId),
-    ))
-    .where(and(
-      eq(concept.workspaceId, userActiveWorkspace),
-      isNull(mastery.userId),
-    ))
-    .orderBy(asc(concept.difficulty))   // dễ trước
+    .leftJoin(mastery, and(eq(mastery.conceptId, concept.id), eq(mastery.userId, userId)))
+    .where(and(eq(concept.workspaceId, userActiveWorkspace), isNull(mastery.userId)))
+    .orderBy(asc(concept.difficulty)) // dễ trước
     .limit(2);
 
   // 3. Atom yếu nhất (mastery < 0.5) → quiz format
-  const weakAtoms = await db.select().from(mastery)
+  const weakAtoms = await db
+    .select()
+    .from(mastery)
     .where(and(eq(mastery.userId, userId), lt(mastery.score, 0.5)))
     .orderBy(asc(mastery.score))
     .limit(3);
@@ -458,7 +459,7 @@ thay vì textarea.
   - Top: "Hôm nay" card — 5 atom review (SRS due) + 1 atom mới + 3 quiz, 1
     button "Bắt đầu phiên 15 phút"
   - Section "Flashcard" — list filterable, expand 1 atom thấy tất cả flashcard
-    + quiz item của atom đó
+    - quiz item của atom đó
   - Section "Quiz" — list quiz sets
   - Section "Exam" — list exam (giữ nguyên vì exam ít hơn, có context riêng)
 - **Atoms** — list atom + state. Click 1 atom thấy:
@@ -484,6 +485,7 @@ Trên top mỗi workspace detail (cả khi vào tab nào):
 ```
 
 Click "Bắt đầu phiên" → flow 15 phút:
+
 1. 5 phút review flashcard atom due
 2. 5 phút atom mới (đọc definition + 2 flashcard ngay)
 3. 3 phút quiz check
@@ -493,6 +495,7 @@ Click "Bắt đầu phiên" → flow 15 phút:
 
 Component mới: `<AiTutorDrawer>` — render ở root layout `(app)/layout.tsx`,
 toggle bằng:
+
 - Phím tắt `Cmd/Ctrl + J`
 - Nút floating "Hỏi AI" góc dưới phải khi đang ở document / flashcard /
   graph page
@@ -508,13 +511,13 @@ API extend (file mới hoặc patch existing `/api/concepts/graph`):
 ```ts
 // Trả thêm: per-node mastery + count
 return {
-  nodes: concepts.map(c => ({
+  nodes: concepts.map((c) => ({
     id: c.id,
     label: c.name,
     domain: c.domain,
-    mastery: masteryMap.get(c.id)?.score ?? null,  // ← NEW
-    flashcardCount: counts.get(c.id)?.fc ?? 0,     // ← NEW
-    quizCount: counts.get(c.id)?.qc ?? 0,          // ← NEW
+    mastery: masteryMap.get(c.id)?.score ?? null, // ← NEW
+    flashcardCount: counts.get(c.id)?.fc ?? 0, // ← NEW
+    quizCount: counts.get(c.id)?.qc ?? 0, // ← NEW
   })),
   edges: relations,
 };
@@ -524,10 +527,10 @@ UI map mastery → color trong [graph component]:
 
 ```ts
 function nodeColor(mastery: number | null) {
-  if (mastery === null) return '#94a3b8';      // slate-400 — chưa biết
-  if (mastery >= 0.85) return '#10b981';        // emerald-500 — master
-  if (mastery >= 0.3) return '#f59e0b';         // amber-500 — đang học
-  return '#ef4444';                              // red-500 — yếu
+  if (mastery === null) return '#94a3b8'; // slate-400 — chưa biết
+  if (mastery >= 0.85) return '#10b981'; // emerald-500 — master
+  if (mastery >= 0.3) return '#f59e0b'; // amber-500 — đang học
+  return '#ef4444'; // red-500 — yếu
 }
 ```
 
@@ -578,11 +581,13 @@ Hôm nay (2026-05-21)
 **A11.** ✅ Update [lib/mastery/update.ts](../../apps/web/src/lib/mastery/update.ts) — `applyAttempt` thêm param `source: 'quiz' | 'flashcard' | 'exam'`, set timestamp tương ứng
 
 **Verify:**
+
 - Migration 0032 chạy → 15 flashcard cũ populated conceptId, 2 mastery rows backfilled
 - Typecheck: `@cogniva/db` + `@cogniva/web` đều pass
 - Manual test cần làm sau: upload PDF mới → wait worker BullMQ extract atom → bấm gen flashcard → review sai → check `SELECT * FROM mastery WHERE user_id=...`
 
 **Deferred (out of Phase A scope):**
+
 - Replay flashcard review history retroactive (decision: heuristic-only đủ cho backfill)
 - Concurrency lock chống race khi 5 quiz cùng concept đồng thời (chấp nhận overwrite Phase A; lock optional Phase F)
 - Update existing concept fields khi extract gặp existing match (Phase A: chỉ populate khi INSERT mới, existing concept giữ nguyên)
@@ -592,7 +597,7 @@ Hôm nay (2026-05-21)
 **B0.** ✅ Migration 0034 — studyPlanItem `kind` enum (`manual` / `review` / `new` / `practice`) + `metadata` jsonb + status `SKIPPED` enum value. Rows cũ tự classify `manual`, không phá UI legacy.
 **B1.** ✅ [lib/study-plan/propose.ts](../../apps/web/src/lib/study-plan/propose.ts) — `proposeForToday(userId, workspaceId?)` parallel 3 query: (1) atom có flashcard `due ≤ NOW()` group concept GROUP BY concept_id, (2) concept linked với chunk của user nhưng chưa có mastery row, (3) mastery score < 0.5 có ≥ 1 question.
 **B2.** ✅ [lib/study-plan/materialize.ts](../../apps/web/src/lib/study-plan/materialize.ts) — idempotent: check `WHERE created_at >= startOfDay AND kind != 'manual'`, nếu rỗng → INSERT items với kind + dueDate=today + metadata (estimatedMinutes, masteryScore, preview Q/A).
-**B3.** ✅ [/study-plan/page.tsx](../../apps/web/src/app/(app)/study-plan/page.tsx) rewrite: hero band đếm proposal + estimated minutes, 3 section atom (Ôn / Mới / Quiz) màu emerald/blue/amber, mỗi card có "Bắt đầu" (link kind-appropriate) + "Bỏ qua hôm nay" (skip). Section "Todo cá nhân" giữ logic cũ ở dưới.
+**B3.** ✅ [/study-plan/page.tsx](<../../apps/web/src/app/(app)/study-plan/page.tsx>) rewrite: hero band đếm proposal + estimated minutes, 3 section atom (Ôn / Mới / Quiz) màu emerald/blue/amber, mỗi card có "Bắt đầu" (link kind-appropriate) + "Bỏ qua hôm nay" (skip). Section "Todo cá nhân" giữ logic cũ ở dưới.
 **B4.** ✅ [components/workspaces/today-card.tsx](../../apps/web/src/components/workspaces/today-card.tsx) + wire vào [workspace-detail-client.tsx](../../apps/web/src/components/workspaces/workspace-detail-client.tsx) — chip preview 3 nhóm + "Bắt đầu phiên" button link `/study-plan`. KHÔNG materialize (preview only).
 **B5.** ✅ [/api/workspaces/[id]/today](../../apps/web/src/app/api/workspaces/[id]/today/route.ts) — `proposeForToday(userId, workspaceId)`.
 **B6.** ✅ [/api/study-plan/today](../../apps/web/src/app/api/study-plan/today/route.ts) — GET trigger materialize + return items.
@@ -600,11 +605,13 @@ Hôm nay (2026-05-21)
 **B8.** ✅ [/api/study-plan](../../apps/web/src/app/api/study-plan/route.ts) — extend GET query param `?kind=manual|review|new|practice` để page filter.
 
 **Verify:**
+
 - Migration 0034 applied: `study_plan_status` enum thêm SKIPPED, `study_plan_kind` enum created, `study_plan_item.kind/metadata` columns
 - Typecheck: `@cogniva/db` + `@cogniva/web` đều pass
 - Manual test cần làm sau: upload PDF → đợi worker BullMQ extract atom → vào `/study-plan` thấy 3 section (review trống nếu chưa có flashcard due, new section show 1-2 atom đầu)
 
 **Deferred Phase B+:**
+
 - Auto-regenerate alternative khi user skip (V1 chỉ mark SKIPPED, không gen replacement)
 - Cron daily background materialize (V1 on-demand khi user mở page lần đầu)
 - Timezone-aware todayRange (V1 dùng server tz — OK cho VN user)
@@ -614,21 +621,23 @@ Hôm nay (2026-05-21)
 
 **C1.** ✅ Workspace detail page (`/workspaces/[id]`) — bỏ 3 tab Flashcards / Quizzes / Exams, gộp thành 1 tab "Practice" + bookmark URL cũ `?tab=flashcards|quizzes|exams` tự alias về `practice` (parseTabParam).
 **C2.** ✅ [tabs/practice-tab.tsx](../../apps/web/src/components/workspaces/tabs/practice-tab.tsx) — Atom-centric list:
-  - Top stats: số atom + tổng flashcard/quiz/exam + sort picker (Yếu nhất / A-Z / Khó nhất)
-  - Mỗi atom row: mastery chip 3 màu (master/đang học/yếu/chưa biết) + name + preview Q + counts FC/Q/Ex + button "Ôn" + link atom detail
-  - Generate buttons (Flashcard / Quiz / Exam) ở top row — share toolbar thay vì 3 tab.
-**C3.** ✅ Atom detail page [`/workspaces/[id]/atoms/[atomId]`](../../apps/web/src/app/(app)/workspaces/[id]/atoms/[atomId]/page.tsx) + [AtomDetailClient](../../apps/web/src/components/atoms/atom-detail-client.tsx):
-  - Header: name + domain + mastery chip + difficulty chip
-  - Definition + examples bullet
-  - Preview Q/A card (nếu LLM đã sinh)
-  - Mastery card: 3 timestamp (Flashcard / Quiz / Exam) với relative time
-  - Sections lazy-loaded: flashcards (state badge) + quiz questions (grouped by quiz) + exam questions
-**C4.** ✅ API mới:
-  - [`GET /api/workspaces/[id]/atoms`](../../apps/web/src/app/api/workspaces/[id]/atoms/route.ts) — list atom scoped workspace, kèm mastery + counts FC/Q/Ex, sort theo mastery/name/difficulty
-  - [`GET /api/atoms/[id]/items?workspaceId=X`](../../apps/web/src/app/api/atoms/[id]/items/route.ts) — flashcards (user-scoped) + quiz questions + exam questions của atom
-**C5.** ✅ Overview tab cập nhật: 6 stat card → 4 (Documents / Notes / **Practice** / Chats); quick actions thay "Generate flashcard" bằng "Practice atom".
+
+- Top stats: số atom + tổng flashcard/quiz/exam + sort picker (Yếu nhất / A-Z / Khó nhất)
+- Mỗi atom row: mastery chip 3 màu (master/đang học/yếu/chưa biết) + name + preview Q + counts FC/Q/Ex + button "Ôn" + link atom detail
+- Generate buttons (Flashcard / Quiz / Exam) ở top row — share toolbar thay vì 3 tab.
+  **C3.** ✅ Atom detail page [`/workspaces/[id]/atoms/[atomId]`](<../../apps/web/src/app/(app)/workspaces/[id]/atoms/[atomId]/page.tsx>) + [AtomDetailClient](../../apps/web/src/components/atoms/atom-detail-client.tsx):
+- Header: name + domain + mastery chip + difficulty chip
+- Definition + examples bullet
+- Preview Q/A card (nếu LLM đã sinh)
+- Mastery card: 3 timestamp (Flashcard / Quiz / Exam) với relative time
+- Sections lazy-loaded: flashcards (state badge) + quiz questions (grouped by quiz) + exam questions
+  **C4.** ✅ API mới:
+- [`GET /api/workspaces/[id]/atoms`](../../apps/web/src/app/api/workspaces/[id]/atoms/route.ts) — list atom scoped workspace, kèm mastery + counts FC/Q/Ex, sort theo mastery/name/difficulty
+- [`GET /api/atoms/[id]/items?workspaceId=X`](../../apps/web/src/app/api/atoms/[id]/items/route.ts) — flashcards (user-scoped) + quiz questions + exam questions của atom
+  **C5.** ✅ Overview tab cập nhật: 6 stat card → 4 (Documents / Notes / **Practice** / Chats); quick actions thay "Generate flashcard" bằng "Practice atom".
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test cần làm:
   1. Vào `/workspaces/<id>` → thấy 5 tab (Overview, Documents, Notes, Practice, Chats) thay vì 7
@@ -637,6 +646,7 @@ Hôm nay (2026-05-21)
   4. URL bookmark cũ `?tab=flashcards` → tự redirect logic về Practice tab
 
 **Deferred Phase C+:**
+
 - "Học atom này 10 phút" Pomodoro session (chỉ có button "Ôn" link tới /flashcards/review hiện tại — chưa filter scope theo atom)
 - Inline expand atom row để xem flashcard trực tiếp (current: phải click vào atom detail)
 - Workspace-scoped flashcard review queue (atom button "Ôn" hiện link `/flashcards/review?atom=ID` nhưng review page chưa support filter)
@@ -646,12 +656,13 @@ Hôm nay (2026-05-21)
 **D1.** ✅ [components/ui/drawer.tsx](../../apps/web/src/components/ui/drawer.tsx) — Radix Dialog primitive slide-out side=right (`max-w-md` desktop, full width mobile). Không thêm dependency mới (vaul) — reuse Radix Dialog có sẵn.
 **D2.** ✅ [components/ai-tutor/ai-tutor-context.tsx](../../apps/web/src/components/ai-tutor/ai-tutor-context.tsx) — Provider quản lý `open` state + `pinnedAtoms` (max 5) + Cmd/Ctrl+J global hotkey listener + `openWithAtom(atom)` convenience.
 **D3.** ✅ [components/ai-tutor/ai-tutor-drawer.tsx](../../apps/web/src/components/ai-tutor/ai-tutor-drawer.tsx) — mini chat UI dùng `useChat` của `@ai-sdk/react`, ephemeral session (reset messages mỗi lần đóng/mở), forward `atomIds` vào body. Pinned atom chip strip ở header. Footer có link "Mở full chat" → `/chat/new`.
-**D4.** ✅ Mount `<AiTutorProvider>` + `<AiTutorDrawer>` ở [(app)/layout.tsx](../../apps/web/src/app/(app)/layout.tsx) — chỉ render 1 lần cho toàn app, portal vào body.
+**D4.** ✅ Mount `<AiTutorProvider>` + `<AiTutorDrawer>` ở [(app)/layout.tsx](<../../apps/web/src/app/(app)/layout.tsx>) — chỉ render 1 lần cho toàn app, portal vào body.
 **D5.** ✅ [components/ai-tutor/ai-tutor-trigger.tsx](../../apps/web/src/components/ai-tutor/ai-tutor-trigger.tsx) — button sparkles ở topbar (giữa Pomodoro và ThemeToggle), tooltip nhắc ⌘J.
 **D6.** ✅ [/api/chat](../../apps/web/src/app/api/chat/route.ts) extend body `atomIds?: string[]` (max 5). Khi pass: query concept + chunk_concept pivot → INJECT "## 🎯 ATOM USER ĐANG FOCUS" section vào system prompt với name/description/examples/preview Q/A + 2 chunk gốc/atom (top strength). Best-effort: lỗi không kill request.
 **D7.** ✅ Atom detail page auto-pin atom khi mount (cleanup khi unmount) + nút "Hỏi AI Tutor" header gọi `openWithAtom`.
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test cần làm:
   1. Bấm ⌘J / Ctrl+J ở bất kỳ page (app) → drawer slide từ phải
@@ -661,6 +672,7 @@ Hôm nay (2026-05-21)
   5. Đóng drawer → messages reset (ephemeral); pin atom cleared khi navigate khỏi atom detail
 
 **Deferred Phase D+:**
+
 - URL-based auto-pin theo pathname (vd ở `/documents/[id]#page-3` → pin chunk page 3) — V1 chỉ wire ở atom detail
 - Slide-out cho flashcard review ("Tại sao sai?" nút) — V1 không có
 - Slide-out cho graph node click — V1 không có (cần wire ở Phase E)
@@ -684,15 +696,15 @@ Hôm nay (2026-05-21)
 
 ## 7. Effort estimate
 
-| Phase | Mô tả | Backend | Frontend | Total |
-|-------|-------|---------|----------|-------|
-| A | Wiring backend (migration + applyAttempt + AtomView) | 2-3 ngày | — | 2-3 ngày |
-| B | Today + Study Plan AI | 1 ngày | 2 ngày | 3 ngày |
-| C | Practice tab gộp + Atom detail | 0.5 ngày | 2 ngày | 2.5 ngày |
-| D | AI Tutor slide-out | 0.5 ngày | 1.5 ngày | 2 ngày |
-| E | Graph state coloring | 0.5 ngày | 0.5 ngày | 1 ngày |
-| F | Cleanup + telemetry | 0.5 ngày | 0.5 ngày | 1 ngày |
-| | **Tổng** | **5 ngày** | **7 ngày** | **~2 tuần** |
+| Phase | Mô tả                                                | Backend    | Frontend   | Total       |
+| ----- | ---------------------------------------------------- | ---------- | ---------- | ----------- |
+| A     | Wiring backend (migration + applyAttempt + AtomView) | 2-3 ngày   | —          | 2-3 ngày    |
+| B     | Today + Study Plan AI                                | 1 ngày     | 2 ngày     | 3 ngày      |
+| C     | Practice tab gộp + Atom detail                       | 0.5 ngày   | 2 ngày     | 2.5 ngày    |
+| D     | AI Tutor slide-out                                   | 0.5 ngày   | 1.5 ngày   | 2 ngày      |
+| E     | Graph state coloring                                 | 0.5 ngày   | 0.5 ngày   | 1 ngày      |
+| F     | Cleanup + telemetry                                  | 0.5 ngày   | 0.5 ngày   | 1 ngày      |
+|       | **Tổng**                                             | **5 ngày** | **7 ngày** | **~2 tuần** |
 
 → 1 dev full-time ~10-12 ngày làm việc.
 
@@ -737,6 +749,7 @@ Nếu user X đã review 200 flashcard trước migration, sau migration
 review đã xảy ra rồi.
 
 **Options:**
+
 - (a) Replay: chạy script đọc `flashcard.last_review` + `flashcard.state` →
   call `applyAttempt` retroactively
 - (b) Reset: bỏ qua history, mastery start từ 0 cho atom mới link
@@ -789,5 +802,5 @@ Refactor coi như xong khi:
 
 ---
 
-*Plan v1.0 — viết 2026-05-20 sau khi user critique kiến trúc feature-centric.
-Update khi build từng phase.*
+_Plan v1.0 — viết 2026-05-20 sau khi user critique kiến trúc feature-centric.
+Update khi build từng phase._

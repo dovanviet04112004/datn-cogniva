@@ -1,18 +1,3 @@
-/**
- * RecordingBanner — privacy notice "Buổi học đang được ghi" hiển thị TO ở
- * top của room khi recording active.
- *
- * Compliance (Phase 15 §🔐):
- *   - Banner BẮT BUỘC hiển thị suốt thời gian REC (không cho dismiss).
- *   - Mọi participant đều thấy (cả mod tạo record).
- *   - Sub-text ghi rõ tên người start record để minh bạch.
- *
- * State sync: subscribe `recording:started` + `recording:stopped` + `recording:ended`
- * trên cùng channel `presence-room-{id}`.
- *
- * Initial load: query GET /api/rooms/{id}/record → check có recording active
- * (case mod refresh trang giữa session, banner phải show lại).
- */
 'use client';
 
 import * as React from 'react';
@@ -32,7 +17,6 @@ type ApiRecording = {
 export function RecordingBanner({ roomId }: Props) {
   const [active, setActive] = React.useState<{ by: string } | null>(null);
 
-  // Initial check
   React.useEffect(() => {
     fetch(`/api/rooms/${roomId}/record`)
       .then((r) => (r.ok ? r.json() : null))
@@ -44,7 +28,6 @@ export function RecordingBanner({ roomId }: Props) {
       .catch(() => {});
   }, [roomId]);
 
-  // Realtime sync — recording:started/stopped/ended trên presence-room.
   const channel = `presence-room-${roomId}`;
   useRealtimeEvent<{ byUserName?: string }>(channel, 'recording:started', (data) =>
     setActive({ by: data.byUserName ?? 'mod' }),
@@ -61,7 +44,8 @@ export function RecordingBanner({ roomId }: Props) {
     >
       <Circle className="h-3 w-3 animate-pulse fill-white" />
       <span>
-        Buổi học đang được GHI HÌNH bởi <strong>{active.by}</strong>. Video + transcript sẽ được lưu sau khi kết thúc.
+        Buổi học đang được GHI HÌNH bởi <strong>{active.by}</strong>. Video + transcript sẽ được lưu
+        sau khi kết thúc.
       </span>
     </div>
   );

@@ -1,4 +1,3 @@
-/** /api/wallet — balance + ledger + topup, port từ route Next (Wave 6). */
 import { Body, Controller, Get, HttpCode, NotImplementedException, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
@@ -22,7 +21,6 @@ export class WalletController {
     private readonly prisma: PrismaService,
   ) {}
 
-  /** Balance + 10 txn gần nhất + auto-topup config. */
   @Get()
   async getWallet(@CurrentUser() user: AuthUser) {
     const wallet = await this.wallet.getWallet(user.id);
@@ -47,7 +45,6 @@ export class WalletController {
     };
   }
 
-  /** STUB auto-credit ngay (dev); VNPay/MoMo topup intent chưa wire (501 như bản cũ). */
   @Post('topup')
   @HttpCode(200)
   async topup(

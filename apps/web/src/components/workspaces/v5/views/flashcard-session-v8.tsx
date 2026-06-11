@@ -1,24 +1,3 @@
-/**
- * FlashcardSessionV8 — UI mới cho FC review trong workspace V5+.
- *
- * V8.10 (2026-05-20). Thay thế cách reuse `<ReviewSession>` của trang
- * `/flashcards/review` cũ trong [`FlashcardView`]. Lý do: ReviewSession có
- * chrome "premium card" hợp với full-page nhưng cồng kềnh khi embed trong
- * MainPanel V5 (đã có header + scope chip).
- *
- * V8 redesign:
- *   - Layout đơn giản hơn — không max-w-2xl, fit thẳng MainPanel center
- *   - Progress: 1 thanh ngang trên cùng, không counter dạng "1 / 24"
- *   - Card: rounded-xl tối giản, padding cân đối
- *   - Rating: 4 button đồng đều, label tiếng Việt + kbd hint
- *   - Support cả 3 card type (BASIC / CLOZE / IMAGE_OCCLUSION) qua existing
- *     ClozeRenderer + ImageOcclusionViewer
- *
- * API: /api/flashcards/queue?workspaceId + /api/flashcards/[id]/review
- *   (giống ReviewSession — backend không đổi).
- *
- * Keyboard: Space/Enter reveal · 1-4 rating (giống cũ, user quen).
- */
 'use client';
 
 import * as React from 'react';
@@ -54,8 +33,7 @@ const RATINGS: Rating[] = [
     rating: 1,
     label: 'Lại',
     key: '1',
-    className:
-      'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10',
+    className: 'border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10',
   },
   {
     rating: 2,
@@ -68,15 +46,13 @@ const RATINGS: Rating[] = [
     rating: 3,
     label: 'Tốt',
     key: '3',
-    className:
-      'border-success/30 bg-success/5 text-success hover:bg-success/10',
+    className: 'border-success/30 bg-success/5 text-success hover:bg-success/10',
   },
   {
     rating: 4,
     label: 'Dễ',
     key: '4',
-    className:
-      'border-sky-500/30 bg-sky-500/5 text-sky-600 hover:bg-sky-500/10 dark:text-sky-400',
+    className: 'border-sky-500/30 bg-sky-500/5 text-sky-600 hover:bg-sky-500/10 dark:text-sky-400',
   },
 ];
 
@@ -92,13 +68,11 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
   const [submitting, setSubmitting] = React.useState(false);
   const [startTime, setStartTime] = React.useState(Date.now());
   const [stats, setStats] = React.useState({ done: 0, good: 0 });
-  /** V8.20: state khi đang gen flashcards từ empty state CTA. */
   const [generating, setGenerating] = React.useState(false);
 
   const { selectedDocs } = useNotebook();
   const queryClient = useQueryClient();
 
-  // Load queue scope workspace
   const loadQueue = React.useCallback(() => {
     let cancelled = false;
     setLoading(true);
@@ -127,11 +101,6 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
     return cleanup;
   }, [loadQueue]);
 
-  /**
-   * V8.20: gen flashcard từ doc đã check trong Sources → seed FC table.
-   * Gen 10 thẻ BASIC từ doc đầu tiên đã check. User click lại để gen thêm
-   * doc khác. Sau gen → loadQueue() để FSRS pick thẻ due.
-   */
   const generateFlashcards = React.useCallback(async () => {
     if (generating) return;
     const docIds = Array.from(selectedDocs);
@@ -146,7 +115,6 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
         'POST',
         { documentId: docIds[0], type: 'BASIC', limit: 10 },
       );
-      // Dedup: báo số thẻ THẬT (có thể < 10 hoặc 0 nếu phần này đã có thẻ).
       toast.success(
         r.created > 0
           ? `Đã gen ${r.created} thẻ — load lại queue`
@@ -160,7 +128,6 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
     }
   }, [generating, selectedDocs, loadQueue]);
 
-  // Reset timer khi card đổi
   React.useEffect(() => {
     setStartTime(Date.now());
     setRevealed(false);
@@ -178,9 +145,7 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
           rating,
           duration,
         });
-        // Mastery vừa đổi → bust list atom (sources-panel) để status refetch ngay.
         queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId, 'sources'] });
-        // Thẻ vừa ôn → "đã ôn" ở trang quản trị cập nhật.
         queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId, 'manage'] });
         setStats((s) => ({
           done: s.done + 1,
@@ -196,13 +161,10 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
     [current, submitting, startTime, queryClient, workspaceId],
   );
 
-  // Keyboard shortcuts
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Ignore khi đang typing trong input/textarea
       const target = e.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA')
-        return;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
       if (!current || submitting) return;
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
@@ -218,19 +180,13 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
       </div>
     );
   }
 
   if (!current) {
-    return (
-      <SessionDone
-        stats={stats}
-        onGenerate={generateFlashcards}
-        generating={generating}
-      />
-    );
+    return <SessionDone stats={stats} onGenerate={generateFlashcards} generating={generating} />;
   }
 
   const total = queue.length;
@@ -238,36 +194,34 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Progress strip */}
-      <div className="shrink-0 border-b bg-muted/10 px-4 py-2.5">
+      <div className="bg-muted/10 shrink-0 border-b px-4 py-2.5">
         <div className="mx-auto max-w-3xl">
           <div className="mb-1.5 flex items-center justify-between text-[11px]">
-            <span className="font-mono tabular-nums text-muted-foreground">
+            <span className="text-muted-foreground font-mono tabular-nums">
               {idx + 1} / {total}
             </span>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] uppercase tracking-wider">
               {current.state}
             </span>
           </div>
-          <div className="h-1 overflow-hidden rounded-full bg-muted">
+          <div className="bg-muted h-1 overflow-hidden rounded-full">
             <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
+              className="bg-primary h-full rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
       </div>
 
-      {/* Card */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-4">
-          <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+          <div className="bg-card overflow-hidden rounded-xl border shadow-sm">
             <div className="px-6 py-7">
               <CardFront card={current} revealed={revealed} />
             </div>
             {revealed && (
-              <div className="border-t bg-muted/20 px-6 py-6">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-primary">
+              <div className="bg-muted/20 border-t px-6 py-6">
+                <p className="text-primary mb-2 text-[11px] font-semibold uppercase tracking-wider">
                   Đáp án
                 </p>
                 <CardBack card={current} />
@@ -275,16 +229,13 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
             )}
           </div>
 
-          {/* Action row */}
           {!revealed ? (
             <button
               onClick={() => setRevealed(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+              className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors"
             >
               Hiện đáp án
-              <kbd className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px]">
-                Space
-              </kbd>
+              <kbd className="bg-primary/10 rounded px-1.5 py-0.5 font-mono text-[10px]">Space</kbd>
             </button>
           ) : (
             <div className="grid grid-cols-4 gap-2">
@@ -298,10 +249,8 @@ export function FlashcardSessionV8({ workspaceId }: Props) {
                     r.className,
                   )}
                 >
-                  <span className="text-[15px] font-semibold tracking-tight">
-                    {r.label}
-                  </span>
-                  <kbd className="rounded bg-foreground/5 px-1.5 py-0.5 font-mono text-[10px] opacity-70">
+                  <span className="text-[15px] font-semibold tracking-tight">{r.label}</span>
+                  <kbd className="bg-foreground/5 rounded px-1.5 py-0.5 font-mono text-[10px] opacity-70">
                     {r.key}
                   </kbd>
                 </button>
@@ -320,16 +269,10 @@ function CardFront({ card, revealed }: { card: Flashcard; revealed: boolean }) {
   }
   if (card.cardType === 'IMAGE_OCCLUSION') {
     const masks = parseMasks(card.back);
-    return (
-      <ImageOcclusionViewer
-        imageUrl={card.front}
-        masks={masks}
-        revealed={revealed}
-      />
-    );
+    return <ImageOcclusionViewer imageUrl={card.front} masks={masks} revealed={revealed} />;
   }
   return (
-    <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/95">
+    <p className="text-foreground/95 whitespace-pre-wrap text-[15px] leading-relaxed">
       {card.front}
     </p>
   );
@@ -338,20 +281,18 @@ function CardFront({ card, revealed }: { card: Flashcard; revealed: boolean }) {
 function CardBack({ card }: { card: Flashcard }) {
   if (card.cardType === 'CLOZE') {
     return (
-      <p className="text-[12px] italic text-muted-foreground">
+      <p className="text-muted-foreground text-[12px] italic">
         Đáp án tô sáng trong câu phía trên.
       </p>
     );
   }
   if (card.cardType === 'IMAGE_OCCLUSION') {
     return (
-      <p className="text-[12px] italic text-muted-foreground">
-        Vùng cần học đã hiện trong ảnh.
-      </p>
+      <p className="text-muted-foreground text-[12px] italic">Vùng cần học đã hiện trong ảnh.</p>
     );
   }
   return (
-    <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground/90">
+    <p className="text-foreground/90 whitespace-pre-wrap text-[14px] leading-relaxed">
       {card.back}
     </p>
   );
@@ -381,22 +322,21 @@ function SessionDone({
   return (
     <div className="flex h-full items-center justify-center px-4 py-8">
       <div className="max-w-md space-y-4 text-center">
-        <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+        <div className="bg-primary/10 inline-flex h-12 w-12 items-center justify-center rounded-full">
           {stats.done > 0 ? (
-            <CheckCircle2 className="h-6 w-6 text-primary" />
+            <CheckCircle2 className="text-primary h-6 w-6" />
           ) : (
-            <Sparkles className="h-6 w-6 text-primary" />
+            <Sparkles className="text-primary h-6 w-6" />
           )}
         </div>
         <h2 className="text-xl font-semibold tracking-tight">
           {stats.done > 0 ? 'Xong phiên!' : 'Không còn thẻ đến hạn'}
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {stats.done > 0
             ? `Đã ôn ${stats.done} thẻ · retention ${rate}%`
             : 'Workspace chưa có flashcard nào tới hạn. Tạo mới từ doc đã check trong Sources.'}
         </p>
-        {/* V8.20: 2 button — primary "Tạo FC" khi queue trống, secondary reload */}
         <div className="flex justify-center gap-2 pt-1">
           {isEmptyQueue && (
             <Button size="sm" onClick={onGenerate} disabled={generating}>

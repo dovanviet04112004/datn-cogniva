@@ -1,12 +1,3 @@
-/**
- * DocumentsListClient — list docs cross-user, filter + cursor pagination.
- *
- * UX:
- *   - Search debounce 300ms (filename)
- *   - Filter status chip + email substring + mime substring
- *   - Click row → /admin/documents/[id]
- *   - "Tải thêm" khi có nextCursor
- */
 'use client';
 
 import * as React from 'react';
@@ -89,22 +80,14 @@ export function DocumentsListClient() {
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
-    queryKey: qk.adminDocuments(
-      debouncedQ,
-      filter.status,
-      debouncedEmail,
-      debouncedMime,
-    ),
+    queryKey: qk.adminDocuments(debouncedQ, filter.status, debouncedEmail, debouncedMime),
     queryFn: ({ pageParam }) =>
       apiGet<Page>(`/api/admin/documents?${buildQuery(pageParam ?? undefined)}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const rows = React.useMemo(
-    () => data?.pages.flatMap((p) => p.documents) ?? [],
-    [data],
-  );
+  const rows = React.useMemo(() => data?.pages.flatMap((p) => p.documents) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -126,9 +109,8 @@ export function DocumentsListClient() {
         </p>
       </header>
 
-      {/* Search + filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="relative min-w-[200px] max-w-md flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
           <input
             value={filter.q}
@@ -159,7 +141,6 @@ export function DocumentsListClient() {
         />
       </div>
 
-      {/* Status chips */}
       <div className="flex flex-wrap items-center gap-1.5">
         <FilterChip
           active={filter.status === ''}
@@ -178,7 +159,6 @@ export function DocumentsListClient() {
         ))}
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/30">
         <table className="w-full text-[13px]">
           <thead className="sticky top-0 bg-slate-900/80 backdrop-blur">
@@ -252,7 +232,7 @@ function DocRowItem({ d }: { d: DocRow }) {
           <span className="text-[11px] text-slate-600">—</span>
         )}
       </td>
-      <td className="px-3 py-2 truncate text-[12px] text-slate-400">{d.workspaceName ?? '—'}</td>
+      <td className="truncate px-3 py-2 text-[12px] text-slate-400">{d.workspaceName ?? '—'}</td>
       <td className="px-3 py-2 font-mono text-[11px] tabular-nums text-slate-400">
         {formatSize(d.size)}
       </td>
@@ -295,7 +275,10 @@ function StatusPill({ status }: { status: DocStatus }) {
       )}
     >
       <Icon
-        className={cn('h-2.5 w-2.5', status === 'PROCESSING' || status === 'UPLOADING' ? 'animate-spin' : '')}
+        className={cn(
+          'h-2.5 w-2.5',
+          status === 'PROCESSING' || status === 'UPLOADING' ? 'animate-spin' : '',
+        )}
       />
       {status}
     </span>

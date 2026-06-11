@@ -1,15 +1,3 @@
-/**
- * Layout cho route group (app) — bao toàn bộ trang yêu cầu đăng nhập.
- *
- * Cấu trúc 2 cột cố định:
- *  - AppSidebar (trái, w-64, hidden trên mobile)  — điều hướng chính
- *  - AppTopbar  (trên, h-14)                      — search + user menu
- *  - main (phần còn lại, scroll y)                — render route con
- *
- * Lưu ý: middleware đã chặn user chưa login → ở đây không cần check session
- * lần nữa, nhưng từng page con vẫn nên gọi getServerSession() để lấy thông tin
- * user (firstName để greet, plan để gate feature, …) — đã dedup + Redis-backed (P1).
- */
 import { AppSidebar } from '@/components/app/sidebar';
 import { AppSidebarProvider } from '@/components/app/app-sidebar-context';
 import { AppTopbar } from '@/components/app/topbar';
@@ -23,41 +11,29 @@ import { getServerSession } from '@/lib/auth-server';
 import { ConfirmProvider } from '@/lib/use-confirm';
 import { CacheUserGuard } from '@/components/providers/cache-user-guard';
 
-// V6 (2026-05-20): Bỏ AI Tutor drawer (Cmd+J global) — Chat workspace giờ là
-// trung tâm thay thế. Conversations persistent + scope theo Sources checkbox.
-
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  // currentUserId cho ChatDock (cửa sổ chat nổi cần biết user hiện tại).
-  // getServerSession: deduped trong request (share với AppTopbar) + Redis-backed (P1).
   const session = await getServerSession();
 
-  // AppSidebarProvider chia sẻ drawer state giữa AppSidebar (drawer) và
-  // MobileMenuTrigger (hamburger button trong AppTopbar).
   return (
     <ConfirmProvider>
       <FloatingDockProvider>
-      <ChatDockProvider currentUserId={session?.user.id ?? ''}>
-      <VoiceSessionProvider>
-      <AppSidebarProvider>
-        {/* Chống rò rỉ cache React Query khi đổi tài khoản trên cùng browser. */}
-        {session?.user.id && <CacheUserGuard userId={session.user.id} />}
-        {/* V2 G3.6: auto-idle 15min no input + tab hidden → set status='idle' */}
-        <AwayDetector />
-        <div className="flex h-screen overflow-hidden bg-background">
-          <AppSidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <AppTopbar />
-            {/* Impersonation banner — admin đang impersonate user (Phase 6). Top priority. */}
-            <ImpersonationBanner />
-            {/* Maintenance banner — admin bật ở /admin/system/maintenance. Cache 5s. */}
-            <MaintenanceBanner />
-            {/* main có overflow-y-auto để chỉ phần nội dung scroll, sidebar/topbar đứng yên */}
-            <main className="flex-1 overflow-y-auto">{children}</main>
-          </div>
-        </div>
-      </AppSidebarProvider>
-      </VoiceSessionProvider>
-      </ChatDockProvider>
+        <ChatDockProvider currentUserId={session?.user.id ?? ''}>
+          <VoiceSessionProvider>
+            <AppSidebarProvider>
+              {session?.user.id && <CacheUserGuard userId={session.user.id} />}
+              <AwayDetector />
+              <div className="bg-background flex h-screen overflow-hidden">
+                <AppSidebar />
+                <div className="flex flex-1 flex-col overflow-hidden">
+                  <AppTopbar />
+                  <ImpersonationBanner />
+                  <MaintenanceBanner />
+                  <main className="flex-1 overflow-y-auto">{children}</main>
+                </div>
+              </div>
+            </AppSidebarProvider>
+          </VoiceSessionProvider>
+        </ChatDockProvider>
       </FloatingDockProvider>
     </ConfirmProvider>
   );

@@ -1,6 +1,3 @@
-/**
- * /admin/system/flags — feature flags editor.
- */
 import { FlagsClient } from '@/components/admin/system/flags-client';
 import { listAllFlags } from '@/lib/system/config';
 

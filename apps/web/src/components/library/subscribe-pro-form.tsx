@@ -1,9 +1,3 @@
-/**
- * SubscribeProForm — Phase 4 Step 5 (2026-05-27).
- *
- * Client-side form chọn số tháng → POST /api/library/subscribe-pro → toast +
- * refresh để parent server component re-render PRO state.
- */
 'use client';
 
 import * as React from 'react';
@@ -17,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
 
 const MONTHLY_PRICE = 199_000;
-// Label dạng "{n} tháng" dịch tại render; badgeKey null = không badge.
 const PRESETS: Array<{ months: number; badgeKey?: string }> = [
   { months: 1 },
   { months: 3, badgeKey: 'library.subscribe.save' },
@@ -85,18 +78,16 @@ export function SubscribeProForm({ currentBalance }: { currentBalance: number })
             <p className="text-[12.5px] font-semibold">
               {p.months} {t('library.subscribe.month')}
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-muted-foreground text-[11px]">
               {(MONTHLY_PRICE * p.months).toLocaleString('vi-VN')}đ
             </p>
           </button>
         ))}
       </div>
 
-      <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-[12px]">
+      <div className="bg-muted/40 flex items-center justify-between rounded-lg px-3 py-2 text-[12px]">
         <span className="text-muted-foreground">{t('library.subscribe.total')}</span>
-        <span className="font-bold text-discovery-600">
-          {total.toLocaleString('vi-VN')}đ
-        </span>
+        <span className="text-discovery-600 font-bold">{total.toLocaleString('vi-VN')}đ</span>
       </div>
 
       {!enough && (
@@ -110,14 +101,15 @@ export function SubscribeProForm({ currentBalance }: { currentBalance: number })
         onClick={submit}
         disabled={loading || !enough}
         size="lg"
-        className="w-full bg-gradient-to-r from-discovery-600 to-fuchsia-600 text-white hover:from-discovery-700 hover:to-fuchsia-700"
+        className="from-discovery-600 hover:from-discovery-700 w-full bg-gradient-to-r to-fuchsia-600 text-white hover:to-fuchsia-700"
       >
         {loading ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
         ) : (
           <Crown className="mr-1.5 h-4 w-4" />
         )}
-        {t('library.subscribe.cta')} — {total.toLocaleString('vi-VN')}đ / {months} {t('library.subscribe.month')}
+        {t('library.subscribe.cta')} — {total.toLocaleString('vi-VN')}đ / {months}{' '}
+        {t('library.subscribe.month')}
       </Button>
     </div>
   );

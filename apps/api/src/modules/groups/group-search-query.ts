@@ -1,13 +1,3 @@
-/**
- * Parser query search message trong group — port phần SERVER dùng từ
- * apps/web/src/lib/group/search-query.ts (NGUỒN CHUẨN — client còn dùng bản
- * gốc để preview chip; đổi cú pháp filter thì sửa CẢ HAI). stringifySearch
- * (render chip) là client-only nên không port.
- *
- * Cú pháp Discord-inspired: "react from:abc in:ch has:image before:2026-05-01".
- * Supported keys: from, in, has, before, after, mentions.
- */
-
 export type SearchFilters = {
   from?: string;
   in?: string;
@@ -31,7 +21,6 @@ export function parseSearch(input: string): ParsedSearch {
   const filters: SearchFilters = {};
   const textParts: string[] = [];
 
-  // Tokenize theo whitespace (single pass — không xử lý quoted strings để gọn)
   const tokens = input.trim().split(/\s+/).filter(Boolean);
 
   for (const tok of tokens) {
@@ -48,7 +37,7 @@ export function parseSearch(input: string): ParsedSearch {
     }
     if (key === 'has') {
       if (!(HAS_VALUES as readonly string[]).includes(value)) {
-        textParts.push(tok); // invalid → treat as plain text
+        textParts.push(tok);
         continue;
       }
       filters.has = value as SearchFilters['has'];
@@ -63,10 +52,6 @@ export function parseSearch(input: string): ParsedSearch {
   };
 }
 
-/**
- * Convert text query → Postgres tsquery format: word `&` word, escape ký tự
- * đặc biệt, append `:*` wildcard prefix. "react hook" → "react:* & hook:*".
- */
 export function toTsQuery(text: string): string {
   const cleaned = text
     .replace(/[&|!():*<>]/g, ' ')

@@ -5,10 +5,11 @@
 ## Setup
 
 **Install k6:**
+
 - Windows: `winget install k6` hoặc `choco install k6`
-- Mac:     `brew install k6`
-- Linux:   `sudo apt install k6` (sau khi add repo)
-- Docker:  `docker pull grafana/k6`
+- Mac: `brew install k6`
+- Linux: `sudo apt install k6` (sau khi add repo)
+- Docker: `docker pull grafana/k6`
 
 **Verify:** `k6 version`
 
@@ -29,28 +30,29 @@ K6_PROFILE=spike k6 run apps/web/load-tests/baseline.js
 ```
 
 Override base URL:
+
 ```bash
 BASE_URL=https://staging.cogniva.app K6_PROFILE=load k6 run apps/web/load-tests/baseline.js
 ```
 
 ## Profiles
 
-| Profile | Duration | Peak VU | Use case |
-|---|---|---|---|
-| smoke | 30s | 1 | CI smoke verify scripts |
-| load | 6m30s | 50 | Baseline numbers per release |
-| stress | 11m | 500 | Find breaking point monthly |
-| spike | 50s | 200 | DoS simulation quarterly |
+| Profile | Duration | Peak VU | Use case                     |
+| ------- | -------- | ------- | ---------------------------- |
+| smoke   | 30s      | 1       | CI smoke verify scripts      |
+| load    | 6m30s    | 50      | Baseline numbers per release |
+| stress  | 11m      | 500     | Find breaking point monthly  |
+| spike   | 50s      | 200     | DoS simulation quarterly     |
 
 ## Baseline Stage 1 targets (M3 end)
 
-| Metric | Target | Current (M2) |
-|---|---|---|
-| Health P95 | < 200ms | ~50ms (warm) |
-| Landing P95 | < 800ms | ~600ms (Vercel cold ~1.2s) |
-| API P95 | < 500ms | TBD |
-| Error rate | < 2% | < 0.5% |
-| 50 VU sustained | RPS > 40 | TBD |
+| Metric          | Target   | Current (M2)               |
+| --------------- | -------- | -------------------------- |
+| Health P95      | < 200ms  | ~50ms (warm)               |
+| Landing P95     | < 800ms  | ~600ms (Vercel cold ~1.2s) |
+| API P95         | < 500ms  | TBD                        |
+| Error rate      | < 2%     | < 0.5%                     |
+| 50 VU sustained | RPS > 40 | TBD                        |
 
 ## Interpretation
 
@@ -86,12 +88,14 @@ jobs:
 ## Production load test (CAREFUL)
 
 KHÔNG chạy `stress` profile lên production unless:
+
 - Approved by team
 - Off-peak hours (2-4am UTC)
 - Status page banner advance
 - On-call standby
 
 Production load test mục đích chính:
+
 - Verify auto-scale works
 - Catch regression sau deploy
 - Plan capacity trước peak season (exam week)

@@ -1,9 +1,3 @@
-/**
- * /library/[id] — detail page V2 compact sidebar (2026-05-27).
- *
- * V2: Sidebar gọn lại 11→6 sections, gộp Quality+Stats+Badges thành hero card,
- * metadata thành icon-row inline thay vì table 8 dòng.
- */
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -51,7 +45,6 @@ import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
-/** Map docType slug → dict key. Label dịch qua t() tại call site. */
 const DOC_TYPE_KEY: Record<string, string> = {
   lecture_notes: 'library.doctype.lecture_notes',
   summary: 'library.doctype.summary',
@@ -119,7 +112,6 @@ export default async function LibraryDetailPage({ params }: Params) {
 
   if (!doc) return notFound();
 
-  // Phase 3 Bonus #12: nếu doc là remix → fetch source titles for attribution
   let parentRemixDocs: Array<{ id: string; title: string; uploaderName: string | null }> = [];
   if (doc.parentRemixDocIds && doc.parentRemixDocIds.length > 0) {
     parentRemixDocs = await db
@@ -131,10 +123,7 @@ export default async function LibraryDetailPage({ params }: Params) {
       .from(libraryDoc)
       .leftJoin(userTable, eq(userTable.id, libraryDoc.uploaderId))
       .where(
-        and(
-          inArray(libraryDoc.id, doc.parentRemixDocIds),
-          eq(libraryDoc.status, 'PUBLISHED'),
-        ),
+        and(inArray(libraryDoc.id, doc.parentRemixDocIds), eq(libraryDoc.status, 'PUBLISHED')),
       );
   }
 
@@ -143,7 +132,6 @@ export default async function LibraryDetailPage({ params }: Params) {
   const isProcessing = doc.status === 'PROCESSING';
   const isHidden = doc.status === 'HIDDEN';
 
-  // University→Course breadcrumb — fetch tên trường nếu doc gắn university.
   let universityName: string | null = null;
   if (doc.universityId) {
     const [u] = await db
@@ -154,7 +142,6 @@ export default async function LibraryDetailPage({ params }: Params) {
     universityName = u?.shortName || u?.name || null;
   }
 
-  // Phase 4 Step 5 — premium gate
   const session = await getServerSession();
   const viewerId = session?.user.id ?? null;
   const accessInfo = await checkDocAccess(doc.id, viewerId);
@@ -165,10 +152,6 @@ export default async function LibraryDetailPage({ params }: Params) {
     !!accessInfo &&
     !accessInfo.access.allowed;
 
-  // Track view history → feed "📖 Đọc tiếp" trên hub. Trước đây upsert nằm
-  // trong GET /api/library/docs/[id] nhưng page server không gọi endpoint đó
-  // nên không bao giờ ghi. Upsert trực tiếp ở đây (fire-and-forget, không await
-  // block render). 1 row/(user × doc), update viewed_at mỗi lần mở.
   if (viewerId && doc.status === 'PUBLISHED') {
     void db
       .insert(libraryDocView)
@@ -187,10 +170,9 @@ export default async function LibraryDetailPage({ params }: Params) {
 
   return (
     <PageShell size="wide">
-      {/* Back link */}
       <Link
         href="/library"
-        className="mb-3 inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-[12px]"
       >
         <ArrowLeft className="h-3 w-3" />
         {t('library.back')}
@@ -209,31 +191,27 @@ export default async function LibraryDetailPage({ params }: Params) {
         </div>
       )}
 
-      {/* Phase 2 — Duplicate Detection */}
       <DuplicateWarning docId={doc.id} />
 
-      {/* Phase 3 Bonus #12 — Remix attribution */}
       {parentRemixDocs.length > 0 && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-discovery-500/30 bg-discovery-500/5 p-3">
-          <Layers className="mt-0.5 h-4 w-4 shrink-0 text-discovery-600" />
+        <div className="border-discovery-500/30 bg-discovery-500/5 mb-4 flex items-start gap-2 rounded-xl border p-3">
+          <Layers className="text-discovery-600 mt-0.5 h-4 w-4 shrink-0" />
           <div className="text-[12.5px]">
-            <p className="font-semibold text-discovery-700 dark:text-discovery-300">
-              {t('library.detail.remix_from')} {parentRemixDocs.length} {t('library.detail.remix_sources')}
+            <p className="text-discovery-700 dark:text-discovery-300 font-semibold">
+              {t('library.detail.remix_from')} {parentRemixDocs.length}{' '}
+              {t('library.detail.remix_sources')}
             </p>
             <ul className="mt-1 space-y-0.5">
               {parentRemixDocs.map((p) => (
                 <li key={p.id}>
                   <Link
                     href={`/library/${p.id}`}
-                    className="text-[11.5px] text-discovery-700 underline-offset-2 hover:underline dark:text-discovery-300"
+                    className="text-discovery-700 dark:text-discovery-300 text-[11.5px] underline-offset-2 hover:underline"
                   >
                     → {p.title}
                   </Link>
                   {p.uploaderName && (
-                    <span className="text-[11px] text-muted-foreground">
-                      {' '}
-                      · {p.uploaderName}
-                    </span>
+                    <span className="text-muted-foreground text-[11px]"> · {p.uploaderName}</span>
                   )}
                 </li>
               ))}
@@ -252,57 +230,40 @@ export default async function LibraryDetailPage({ params }: Params) {
         </div>
       )}
 
-      {/* items-start: tránh PDF preview cell stretch theo khi sidebar (atom map
-          expand) cao hơn. lg:sticky: sidebar dính top khi scroll xuống xem PDF.
-          B3.16: trên mobile, sidebar (title + CTA Import + metadata) hiện TRƯỚC
-          preview để user thao tác ngay không phải scroll qua PDF dài 1600px.
-          Mobile fix: `min-w-0` để grid cell shrink đúng + text wrap (default
-          grid item có min-content có thể overflow viewport). */}
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px] [&>*]:min-w-0">
-        {/* Left: Preview — gate premium docs chưa mua */}
         <div className="order-2 lg:order-1">
-        {isPremiumLocked ? (
-          <PremiumLockedPreview
-            docId={doc.id}
-            priceVnd={doc.priceVnd!}
-            creatorSharePct={doc.creatorSharePct}
-            thumbUrl={doc.previewThumbUrl}
-            title={doc.title}
-          />
-        ) : (
-          <DocPreviewPanel
-            docId={doc.id}
-            fileFormat={doc.fileFormat}
-            thumbUrl={doc.previewThumbUrl}
-            title={doc.title}
-            /* Mobile fix: owner/PRO/purchased → unlock full N trang preview +
-               annotation tất cả trang. Free chỉ thấy 5 trang đầu. */
-            fullAccess={
-              !!accessInfo &&
-              accessInfo.access.allowed &&
-              ['owner', 'pro', 'purchased'].includes(accessInfo.access.reason)
-            }
-          />
-        )}
+          {isPremiumLocked ? (
+            <PremiumLockedPreview
+              docId={doc.id}
+              priceVnd={doc.priceVnd!}
+              creatorSharePct={doc.creatorSharePct}
+              thumbUrl={doc.previewThumbUrl}
+              title={doc.title}
+            />
+          ) : (
+            <DocPreviewPanel
+              docId={doc.id}
+              fileFormat={doc.fileFormat}
+              thumbUrl={doc.previewThumbUrl}
+              title={doc.title}
+              fullAccess={
+                !!accessInfo &&
+                accessInfo.access.allowed &&
+                ['owner', 'pro', 'purchased'].includes(accessInfo.access.reason)
+              }
+            />
+          )}
         </div>
 
-        {/* Right: Sidebar V2 compact — 6 sections thay vì 11.
-            B3.16: trên mobile order-1 (lên đầu), desktop order-2 (giữ vị trí right).
-            (B4.20 reverted — sticky + nested scroll tạo 2 scrollbar gây UX rối,
-             user reported "không hợp lí". Sidebar giờ scroll cùng page natural,
-             desktop user dùng PDF preview internal scroll, không cần sticky.) */}
         <aside className="order-1 flex flex-col gap-3 lg:order-2">
-          {/* ── Section 1: HERO — title + uploader inline + badges ── */}
           <section className="flex min-w-0 flex-col gap-2.5">
-            {/* Mobile fix: break-words + min-w-0 cho title không overflow viewport */}
-            {/* University → Course breadcrumb (clickable → landing pages) */}
             {(universityName || doc.courseNameCache) && (
-              <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-[11px]">
                 {universityName && doc.universityId && (
                   <>
                     <Link
                       href={`/library/university/${doc.universityId}`}
-                      className="font-medium text-foreground/70 hover:text-foreground hover:underline"
+                      className="text-foreground/70 hover:text-foreground font-medium hover:underline"
                     >
                       🏛 {universityName}
                     </Link>
@@ -312,7 +273,7 @@ export default async function LibraryDetailPage({ params }: Params) {
                 {doc.courseNameCache && doc.courseId && (
                   <Link
                     href={`/library/course/${doc.courseId}`}
-                    className="rounded-md bg-discovery-500/10 px-1.5 py-0.5 font-medium text-discovery-700 hover:bg-discovery-500/20 dark:text-discovery-300"
+                    className="bg-discovery-500/10 text-discovery-700 hover:bg-discovery-500/20 dark:text-discovery-300 rounded-md px-1.5 py-0.5 font-medium"
                   >
                     🎓 {doc.courseNameCache}
                   </Link>
@@ -323,14 +284,14 @@ export default async function LibraryDetailPage({ params }: Params) {
               {doc.title}
             </h1>
             {doc.uploaderName && (
-              <div className="flex items-center gap-2 text-[11.5px] text-muted-foreground">
+              <div className="text-muted-foreground flex items-center gap-2 text-[11.5px]">
                 <Avatar className="h-5 w-5">
                   <AvatarImage src={doc.uploaderImage ?? undefined} />
                   <AvatarFallback className="text-[9px]">
                     {doc.uploaderName[0]?.toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-foreground/85">{doc.uploaderName}</span>
+                <span className="text-foreground/85 font-medium">{doc.uploaderName}</span>
                 <span>·</span>
                 <span>{new Date(doc.createdAt).toLocaleDateString('vi-VN')}</span>
               </div>
@@ -338,24 +299,24 @@ export default async function LibraryDetailPage({ params }: Params) {
             {doc.badges && doc.badges.length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {doc.badges.includes('outcome_verified') && (
-                  <Badge className="h-5 gap-0.5 px-1.5 text-[10px] bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300">
+                  <Badge className="h-5 gap-0.5 bg-amber-500/15 px-1.5 text-[10px] text-amber-700 hover:bg-amber-500/20 dark:text-amber-300">
                     <Award className="h-2.5 w-2.5" />
                     {t('library.badge.outcome_verified')}
                   </Badge>
                 )}
                 {doc.badges.includes('educator_approved') && (
-                  <Badge className="h-5 gap-0.5 px-1.5 text-[10px] bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300">
+                  <Badge className="h-5 gap-0.5 bg-emerald-500/15 px-1.5 text-[10px] text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300">
                     <CheckCircle2 className="h-2.5 w-2.5" />
                     {t('library.badge.educator_approved')}
                   </Badge>
                 )}
                 {doc.badges.includes('syllabus_complete') && (
-                  <Badge className="h-5 px-1.5 text-[10px] bg-discovery-500/15 text-discovery-700 hover:bg-discovery-500/20 dark:text-discovery-300">
+                  <Badge className="bg-discovery-500/15 text-discovery-700 hover:bg-discovery-500/20 dark:text-discovery-300 h-5 px-1.5 text-[10px]">
                     🎯 {t('library.badge.syllabus_complete')}
                   </Badge>
                 )}
                 {doc.badges.includes('power_resource') && (
-                  <Badge className="h-5 px-1.5 text-[10px] bg-sky-500/15 text-sky-700 hover:bg-sky-500/20 dark:text-sky-300">
+                  <Badge className="h-5 bg-sky-500/15 px-1.5 text-[10px] text-sky-700 hover:bg-sky-500/20 dark:text-sky-300">
                     ⚡ {t('library.badge.power_resource')}
                   </Badge>
                 )}
@@ -363,11 +324,9 @@ export default async function LibraryDetailPage({ params }: Params) {
             )}
           </section>
 
-          {/* ── Section 2 (B4.23: PROMOTED UP): PRIMARY CTAs trước Stats ──
-              User vào page muốn nhấn Import ngay, không phải scroll qua stats. */}
           <div className="flex flex-col gap-2">
             {isPremiumLocked && (
-              <p className="rounded-md border border-discovery-500/30 bg-discovery-500/5 px-2 py-1.5 text-center text-[11px] text-discovery-700 dark:text-discovery-300">
+              <p className="border-discovery-500/30 bg-discovery-500/5 text-discovery-700 dark:text-discovery-300 rounded-md border px-2 py-1.5 text-center text-[11px]">
                 {t('library.detail.premium_locked').replace(
                   '{price}',
                   doc.priceVnd?.toLocaleString('vi-VN') ?? '',
@@ -380,7 +339,7 @@ export default async function LibraryDetailPage({ params }: Params) {
             />
             <a
               href={`/api/library/docs/${doc.id}/download`}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-divider bg-card px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
+              className="border-divider bg-card hover:bg-muted inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
               {t('library.detail.download')}
@@ -388,34 +347,29 @@ export default async function LibraryDetailPage({ params }: Params) {
             <PodcastPlayer docId={doc.id} />
           </div>
 
-          {/* ── Section 3: STATS CARD — Quality + Rating + Import + DL ── */}
-          <section className="rounded-xl border border-divider bg-gradient-to-br from-card to-muted/20 p-3">
+          <section className="border-divider from-card to-muted/20 rounded-xl border bg-gradient-to-br p-3">
             {doc.qualityScore != null && Number(doc.qualityScore) > 0 && (
-              <div className="mb-2.5 border-b border-divider/60 pb-2.5">
+              <div className="border-divider/60 mb-2.5 border-b pb-2.5">
                 <div className="mb-1 flex items-baseline justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
                     {t('library.detail.quality_score')}
                   </span>
                   <span className="font-mono text-[15px] font-bold tabular-nums">
                     {Number(doc.qualityScore).toFixed(1)}
-                    <span className="text-[10px] font-normal text-muted-foreground">/100</span>
+                    <span className="text-muted-foreground text-[10px] font-normal">/100</span>
                   </span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="bg-muted h-1.5 overflow-hidden rounded-full">
                   <div
-                    className="h-full bg-gradient-to-r from-discovery-500 to-sky-500 transition-all"
+                    className="from-discovery-500 h-full bg-gradient-to-r to-sky-500 transition-all"
                     style={{ width: `${Math.min(100, Number(doc.qualityScore))}%` }}
                   />
                 </div>
               </div>
             )}
-            {/* Zero-state: doc mới chưa có tương tác → 1 dòng gọn thay lưới 0/–/0
-                (tránh "lỗi giả" trên hàng nghìn doc seed mới). */}
-            {doc.ratingCount === 0 &&
-            doc.workspaceImportCount === 0 &&
-            doc.downloadCount === 0 ? (
-              <p className="flex items-center justify-center gap-1.5 py-1 text-[11.5px] text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-discovery-500" />
+            {doc.ratingCount === 0 && doc.workspaceImportCount === 0 && doc.downloadCount === 0 ? (
+              <p className="text-muted-foreground flex items-center justify-center gap-1.5 py-1 text-[11.5px]">
+                <Sparkles className="text-discovery-500 h-3 w-3" />
                 {t('library.detail.no_engagement')}
               </p>
             ) : (
@@ -429,19 +383,13 @@ export default async function LibraryDetailPage({ params }: Params) {
                   value={String(doc.workspaceImportCount)}
                   label={t('library.detail.import')}
                 />
-                <StatCell
-                  value={String(doc.downloadCount)}
-                  label={t('library.detail.download')}
-                />
+                <StatCell value={String(doc.downloadCount)} label={t('library.detail.download')} />
               </div>
             )}
           </section>
 
-          {/* ── Section 3.5: Difficulty + Prerequisite (Bonus #13) ── */}
           <PrereqWarning docId={doc.id} />
 
-          {/* B2.8: collapse các section ít dùng để sidebar đỡ dày.
-              Atom map + Endorse default closed, user expand khi cần. */}
           <CollapsibleSection label={t('library.detail.atom_map')}>
             <DocAtomMap docId={doc.id} pageCount={doc.pageCount} />
           </CollapsibleSection>
@@ -450,10 +398,9 @@ export default async function LibraryDetailPage({ params }: Params) {
             <EndorseSection docId={doc.id} />
           </CollapsibleSection>
 
-          {/* ── Section 5: AI summary + translate (Bonus #11) ── */}
           {doc.aiSummary && (
-            <section className="rounded-xl border border-discovery-500/20 bg-discovery-500/5 p-3">
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-discovery-600">
+            <section className="border-discovery-500/20 bg-discovery-500/5 rounded-xl border p-3">
+              <p className="text-discovery-600 mb-1 text-[11px] font-semibold uppercase tracking-wider">
                 {t('library.detail.ai_summary')}
               </p>
               <TranslatableText
@@ -464,90 +411,82 @@ export default async function LibraryDetailPage({ params }: Params) {
             </section>
           )}
 
-          {/* ── Section 6: META compact icon-row + tags + description ──
-              B2.8: collapse default — user thỉnh thoảng mới tham khảo metadata. */}
           <CollapsibleSection label={t('library.detail.detail_info')}>
-          <section className="rounded-xl border border-divider bg-card p-3">
-            <div className="grid grid-cols-2 gap-2 text-[12px]">
-              <MetaCell
-                icon={<BookOpen className="h-3 w-3" />}
-                label={`${subj?.emoji ?? ''} ${subj?.name ?? doc.subjectSlug}`}
-              />
-              <MetaCell
-                icon={<Layers className="h-3 w-3" />}
-                label={
-                  doc.grade
-                    ? t('library.detail.grade').replace('{grade}', String(doc.grade))
-                    : LEVEL_NAMES[doc.level as keyof typeof LEVEL_NAMES] ?? doc.level
-                }
-              />
-              <MetaCell
-                icon={<FileText className="h-3 w-3" />}
-                label={`${doc.fileFormat.toUpperCase()} · ${doc.pageCount ?? '–'} ${t('library.card.pages')}`}
-              />
-              <MetaCell
-                icon={<Globe className="h-3 w-3" />}
-                label={doc.language === 'vi' ? t('library.detail.lang_vi') : t('library.detail.lang_en')}
-              />
-              <MetaCell
-                icon={<Hash className="h-3 w-3" />}
-                label={DOC_TYPE_KEY[doc.docType] ? t(DOC_TYPE_KEY[doc.docType]!) : doc.docType}
-              />
-              {doc.license && (
+            <section className="border-divider bg-card rounded-xl border p-3">
+              <div className="grid grid-cols-2 gap-2 text-[12px]">
                 <MetaCell
-                  icon={<Scale className="h-3 w-3" />}
-                  label={doc.license}
+                  icon={<BookOpen className="h-3 w-3" />}
+                  label={`${subj?.emoji ?? ''} ${subj?.name ?? doc.subjectSlug}`}
                 />
+                <MetaCell
+                  icon={<Layers className="h-3 w-3" />}
+                  label={
+                    doc.grade
+                      ? t('library.detail.grade').replace('{grade}', String(doc.grade))
+                      : (LEVEL_NAMES[doc.level as keyof typeof LEVEL_NAMES] ?? doc.level)
+                  }
+                />
+                <MetaCell
+                  icon={<FileText className="h-3 w-3" />}
+                  label={`${doc.fileFormat.toUpperCase()} · ${doc.pageCount ?? '–'} ${t('library.card.pages')}`}
+                />
+                <MetaCell
+                  icon={<Globe className="h-3 w-3" />}
+                  label={
+                    doc.language === 'vi'
+                      ? t('library.detail.lang_vi')
+                      : t('library.detail.lang_en')
+                  }
+                />
+                <MetaCell
+                  icon={<Hash className="h-3 w-3" />}
+                  label={DOC_TYPE_KEY[doc.docType] ? t(DOC_TYPE_KEY[doc.docType]!) : doc.docType}
+                />
+                {doc.license && (
+                  <MetaCell icon={<Scale className="h-3 w-3" />} label={doc.license} />
+                )}
+              </div>
+              {doc.tags && doc.tags.length > 0 && (
+                <div className="border-divider/60 mt-2.5 flex flex-wrap gap-1 border-t pt-2.5">
+                  {doc.tags.map((t) => (
+                    <span
+                      key={t}
+                      className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px]"
+                    >
+                      #{t}
+                    </span>
+                  ))}
+                </div>
               )}
-            </div>
-            {doc.tags && doc.tags.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1 border-t border-divider/60 pt-2.5">
-                {doc.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            )}
-            {doc.description && (
-              <div className="mt-2.5 border-t border-divider/60 pt-2.5">
-                <TranslatableText
-                  docId={doc.id}
-                  text={doc.description}
-                  sourceLang={doc.language ?? 'vi'}
-                  className="text-[12px] text-foreground/75"
-                />
-              </div>
-            )}
-          </section>
+              {doc.description && (
+                <div className="border-divider/60 mt-2.5 border-t pt-2.5">
+                  <TranslatableText
+                    docId={doc.id}
+                    text={doc.description}
+                    sourceLang={doc.language ?? 'vi'}
+                    className="text-foreground/75 text-[12px]"
+                  />
+                </div>
+              )}
+            </section>
           </CollapsibleSection>
         </aside>
       </div>
 
-      {/* Bonus #10 — Auto-Stitched Workspace */}
       <RelatedDocsSection sourceDocId={doc.id} sourceTitle={doc.title} />
 
-      {/* Bonus #8 — Annotations / Page Notes (Phase 3) */}
       <AnnotationsSection docId={doc.id} />
 
-      {/* Reviews */}
       <DocReviewSection docId={doc.id} />
 
-      {/* B4.21: Mobile sticky CTA bottom — Import luôn visible khi user
-          scroll xuống đọc reviews/annotations. Desktop ẩn (sidebar sticky đã có).
-          Mobile fix: z-50 (cao hơn ConciergeTrigger z-40 nếu có), pb safe-area
-          cho iPhone home indicator. */}
       <div
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-divider bg-card/95 px-3 pt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden"
+        className="border-divider bg-card/95 fixed inset-x-0 bottom-0 z-50 border-t px-3 pt-2 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
       >
         <div className="mx-auto flex max-w-md items-center gap-2">
           {isPremiumLocked ? (
-            <div className="flex flex-1 items-center justify-between gap-2 rounded-lg bg-discovery-500/10 px-3 py-1.5">
-              <span className="text-[11px] font-semibold text-discovery-700 dark:text-discovery-300">
+            <div className="bg-discovery-500/10 flex flex-1 items-center justify-between gap-2 rounded-lg px-3 py-1.5">
+              <span className="text-discovery-700 dark:text-discovery-300 text-[11px] font-semibold">
                 🔒 {doc.priceVnd?.toLocaleString('vi-VN')}đ
               </span>
               <Button asChild size="sm" className="bg-discovery-600 hover:bg-discovery-700">
@@ -556,13 +495,10 @@ export default async function LibraryDetailPage({ params }: Params) {
             </div>
           ) : (
             <div className="flex flex-1 items-center gap-2">
-              <ImportToWorkspaceButton
-                docId={doc.id}
-                disabled={isProcessing || isHidden}
-              />
+              <ImportToWorkspaceButton docId={doc.id} disabled={isProcessing || isHidden} />
               <a
                 href={`/api/library/docs/${doc.id}/download`}
-                className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-md border border-divider bg-card px-3 text-[12px] font-medium"
+                className="border-divider bg-card inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-md border px-3 text-[12px] font-medium"
                 aria-label={t('library.detail.download')}
               >
                 <Download className="h-3.5 w-3.5" />
@@ -572,8 +508,6 @@ export default async function LibraryDetailPage({ params }: Params) {
         </div>
       </div>
 
-      {/* Spacer dưới page để không bị che bởi sticky bar mobile — 96px gồm
-          ~56px bar height + ~40px safe-area */}
       <div className="h-24 lg:hidden" aria-hidden />
     </PageShell>
   );
@@ -590,10 +524,8 @@ function StatCell({
 }) {
   return (
     <div>
-      <p className="font-mono text-[15px] font-bold tabular-nums leading-tight">
-        {value}
-      </p>
-      <p className="mt-0.5 flex items-center justify-center gap-0.5 text-[11px] text-muted-foreground">
+      <p className="font-mono text-[15px] font-bold tabular-nums leading-tight">{value}</p>
+      <p className="text-muted-foreground mt-0.5 flex items-center justify-center gap-0.5 text-[11px]">
         {icon}
         {label}
       </p>
@@ -601,28 +533,15 @@ function StatCell({
   );
 }
 
-function MetaCell({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label: string;
-}) {
+function MetaCell({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-foreground/85">
+    <div className="text-foreground/85 flex items-center gap-1.5">
       <span className="text-muted-foreground">{icon}</span>
       <span className="truncate font-medium">{label}</span>
     </div>
   );
 }
 
-/**
- * CollapsibleSection — B2.8: dùng `<details>` native (no JS, no client component)
- * để collapse các section ít dùng trong sidebar detail. Default closed.
- *
- * Lưu ý: server component có thể render trực tiếp vì `<details>` toggle qua
- * browser, không cần state React.
- */
 function CollapsibleSection({
   label,
   children,
@@ -633,15 +552,10 @@ function CollapsibleSection({
   defaultOpen?: boolean;
 }) {
   return (
-    <details
-      open={defaultOpen}
-      className="group rounded-xl border border-divider bg-card/40"
-    >
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold text-foreground/85 hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+    <details open={defaultOpen} className="border-divider bg-card/40 group rounded-xl border">
+      <summary className="text-foreground/85 hover:bg-muted/50 flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-[12px] font-semibold [&::-webkit-details-marker]:hidden">
         <span>{label}</span>
-        <span className="text-muted-foreground transition-transform group-open:rotate-90">
-          ›
-        </span>
+        <span className="text-muted-foreground transition-transform group-open:rotate-90">›</span>
       </summary>
       <div className="px-1 pb-1">{children}</div>
     </details>

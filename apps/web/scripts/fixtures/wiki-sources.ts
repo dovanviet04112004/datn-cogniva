@@ -1,21 +1,10 @@
-/**
- * wiki-sources.ts — catalog nguồn Wikipedia VN → university/course/subject (2026-05-28).
- *
- * Mỗi source = 1 "khoá học/môn" + danh sách category (mở rộng tự động) + seed
- * title (bảo đảm có). Orchestrator gom titles = seeds ∪ categoryMembers, fetch
- * từng bài → render doc thật. university=undefined → môn chung/THPT.
- */
-
 export type WikiSource = {
   university?: { slug: string; name: string; shortName: string };
   course: { code?: string; name: string };
-  subjectArea: string; // subjectSlug
+  subjectArea: string;
   level: 'PRIMARY' | 'SECONDARY' | 'HIGH_SCHOOL' | 'UNIVERSITY' | 'ADULT';
   grade?: number;
-  docType:
-    | 'reference_book'
-    | 'summary'
-    | 'lecture_notes';
+  docType: 'reference_book' | 'summary' | 'lecture_notes';
   categories?: string[];
   seeds?: string[];
 };
@@ -42,7 +31,6 @@ const UD = { slug: 'udn', name: 'ĐH Bách khoa - ĐH Đà Nẵng', shortName: '
 const HCE = { slug: 'hce', name: 'ĐH Kinh tế - ĐH Huế', shortName: 'HCE' };
 
 export const WIKI_SOURCES: WikiSource[] = [
-  // ─── Đại học — Toán/Khoa học cơ bản ──────────────────────────────
   {
     university: HUST,
     course: { code: 'MI1110', name: 'Giải tích 1' },
@@ -50,7 +38,15 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Giải tích', 'Vi tích phân', 'Hàm số'],
-    seeds: ['Giới hạn của hàm số', 'Đạo hàm', 'Tích phân', 'Nguyên hàm', 'Chuỗi (toán học)', 'Hàm số liên tục', 'Vi phân'],
+    seeds: [
+      'Giới hạn của hàm số',
+      'Đạo hàm',
+      'Tích phân',
+      'Nguyên hàm',
+      'Chuỗi (toán học)',
+      'Hàm số liên tục',
+      'Vi phân',
+    ],
   },
   {
     university: HUST,
@@ -59,7 +55,14 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Đại số tuyến tính', 'Ma trận'],
-    seeds: ['Ma trận (toán học)', 'Định thức', 'Không gian vectơ', 'Hệ phương trình tuyến tính', 'Giá trị riêng và vectơ riêng', 'Ánh xạ tuyến tính'],
+    seeds: [
+      'Ma trận (toán học)',
+      'Định thức',
+      'Không gian vectơ',
+      'Hệ phương trình tuyến tính',
+      'Giá trị riêng và vectơ riêng',
+      'Ánh xạ tuyến tính',
+    ],
   },
   {
     university: HUST,
@@ -68,7 +71,14 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Lý thuyết xác suất', 'Thống kê'],
-    seeds: ['Xác suất', 'Biến ngẫu nhiên', 'Phân phối chuẩn', 'Kỳ vọng (toán học)', 'Phương sai', 'Định lý giới hạn trung tâm'],
+    seeds: [
+      'Xác suất',
+      'Biến ngẫu nhiên',
+      'Phân phối chuẩn',
+      'Kỳ vọng (toán học)',
+      'Phương sai',
+      'Định lý giới hạn trung tâm',
+    ],
   },
   {
     university: HUST,
@@ -77,9 +87,15 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Cơ học', 'Nhiệt động lực học'],
-    seeds: ['Định luật Newton', 'Động lượng', 'Năng lượng', 'Dao động điều hòa', 'Sóng cơ', 'Nhiệt động lực học'],
+    seeds: [
+      'Định luật Newton',
+      'Động lượng',
+      'Năng lượng',
+      'Dao động điều hòa',
+      'Sóng cơ',
+      'Nhiệt động lực học',
+    ],
   },
-  // ─── Đại học — CNTT ──────────────────────────────────────────────
   {
     university: UET,
     course: { code: 'INT2210', name: 'Cấu trúc dữ liệu & giải thuật' },
@@ -87,7 +103,16 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Cấu trúc dữ liệu', 'Thuật toán'],
-    seeds: ['Cây (cấu trúc dữ liệu)', 'Danh sách liên kết', 'Ngăn xếp (cấu trúc dữ liệu)', 'Hàng đợi', 'Bảng băm', 'Sắp xếp nổi bọt', 'Tìm kiếm nhị phân', 'Đồ thị (cấu trúc dữ liệu)'],
+    seeds: [
+      'Cây (cấu trúc dữ liệu)',
+      'Danh sách liên kết',
+      'Ngăn xếp (cấu trúc dữ liệu)',
+      'Hàng đợi',
+      'Bảng băm',
+      'Sắp xếp nổi bọt',
+      'Tìm kiếm nhị phân',
+      'Đồ thị (cấu trúc dữ liệu)',
+    ],
   },
   {
     university: UET,
@@ -105,7 +130,13 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Trí tuệ nhân tạo', 'Học máy'],
-    seeds: ['Học máy', 'Mạng nơ-ron nhân tạo', 'Học sâu', 'Thuật toán di truyền', 'Xử lý ngôn ngữ tự nhiên'],
+    seeds: [
+      'Học máy',
+      'Mạng nơ-ron nhân tạo',
+      'Học sâu',
+      'Thuật toán di truyền',
+      'Xử lý ngôn ngữ tự nhiên',
+    ],
   },
   {
     university: HCMUT,
@@ -114,9 +145,14 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Hệ điều hành'],
-    seeds: ['Hệ điều hành', 'Tiến trình (máy tính)', 'Bộ nhớ ảo', 'Lập lịch CPU', 'Hệ thống tập tin'],
+    seeds: [
+      'Hệ điều hành',
+      'Tiến trình (máy tính)',
+      'Bộ nhớ ảo',
+      'Lập lịch CPU',
+      'Hệ thống tập tin',
+    ],
   },
-  // ─── Đại học — Kinh tế / Luật / Y ────────────────────────────────
   {
     university: NEU,
     course: { code: 'KTVM1101', name: 'Kinh tế vi mô' },
@@ -124,7 +160,13 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Kinh tế học vi mô'],
-    seeds: ['Cung và cầu', 'Độ co giãn của cầu', 'Thị trường cạnh tranh hoàn hảo', 'Độc quyền', 'Chi phí cơ hội'],
+    seeds: [
+      'Cung và cầu',
+      'Độ co giãn của cầu',
+      'Thị trường cạnh tranh hoàn hảo',
+      'Độc quyền',
+      'Chi phí cơ hội',
+    ],
   },
   {
     university: NEU,
@@ -133,7 +175,13 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'UNIVERSITY',
     docType: 'reference_book',
     categories: ['Kinh tế học vĩ mô'],
-    seeds: ['Tổng sản phẩm quốc nội', 'Lạm phát', 'Thất nghiệp', 'Chính sách tiền tệ', 'Chính sách tài khóa'],
+    seeds: [
+      'Tổng sản phẩm quốc nội',
+      'Lạm phát',
+      'Thất nghiệp',
+      'Chính sách tiền tệ',
+      'Chính sách tài khóa',
+    ],
   },
   {
     university: HLU,
@@ -154,7 +202,6 @@ export const WIKI_SOURCES: WikiSource[] = [
     seeds: ['Hệ tuần hoàn', 'Hệ thần kinh', 'Hệ hô hấp', 'Hệ tiêu hóa', 'Tim'],
   },
 
-  // ─── THPT — môn chung (university=undefined) ──────────────────────
   {
     course: { name: 'Toán 12' },
     subjectArea: 'math',
@@ -162,7 +209,15 @@ export const WIKI_SOURCES: WikiSource[] = [
     grade: 12,
     docType: 'summary',
     categories: ['Hình học giải tích', 'Lượng giác'],
-    seeds: ['Số phức', 'Hàm số mũ', 'Logarit', 'Hình học không gian', 'Phương trình lượng giác', 'Tổ hợp (toán học)', 'Xác suất'],
+    seeds: [
+      'Số phức',
+      'Hàm số mũ',
+      'Logarit',
+      'Hình học không gian',
+      'Phương trình lượng giác',
+      'Tổ hợp (toán học)',
+      'Xác suất',
+    ],
   },
   {
     course: { name: 'Vật lý 12' },
@@ -171,7 +226,14 @@ export const WIKI_SOURCES: WikiSource[] = [
     grade: 12,
     docType: 'summary',
     categories: ['Điện học', 'Quang học'],
-    seeds: ['Dao động điều hòa', 'Sóng âm', 'Dòng điện xoay chiều', 'Giao thoa ánh sáng', 'Hiện tượng quang điện', 'Phóng xạ'],
+    seeds: [
+      'Dao động điều hòa',
+      'Sóng âm',
+      'Dòng điện xoay chiều',
+      'Giao thoa ánh sáng',
+      'Hiện tượng quang điện',
+      'Phóng xạ',
+    ],
   },
   {
     course: { name: 'Hóa học 12' },
@@ -197,7 +259,16 @@ export const WIKI_SOURCES: WikiSource[] = [
     level: 'HIGH_SCHOOL',
     grade: 12,
     docType: 'summary',
-    seeds: ['Vợ chồng A Phủ', 'Vợ nhặt', 'Chiếc thuyền ngoài xa', 'Tây Tiến', 'Việt Bắc (thơ)', 'Sóng (bài thơ)', 'Người lái đò Sông Đà', 'Đất Nước (trường ca)'],
+    seeds: [
+      'Vợ chồng A Phủ',
+      'Vợ nhặt',
+      'Chiếc thuyền ngoài xa',
+      'Tây Tiến',
+      'Việt Bắc (thơ)',
+      'Sóng (bài thơ)',
+      'Người lái đò Sông Đà',
+      'Đất Nước (trường ca)',
+    ],
   },
   {
     course: { name: 'Lịch sử 12' },
@@ -218,107 +289,305 @@ export const WIKI_SOURCES: WikiSource[] = [
     seeds: ['Khí hậu Việt Nam', 'Đồng bằng sông Cửu Long', 'Tây Nguyên', 'Công nghiệp Việt Nam'],
   },
 
-  // ─── Mở rộng category lớn để đạt volume 1000-2000 ────────────────
   {
-    university: HUST, course: { code: 'MI2010', name: 'Hình học & Tổ hợp' },
-    subjectArea: 'math', level: 'UNIVERSITY', docType: 'reference_book',
+    university: HUST,
+    course: { code: 'MI2010', name: 'Hình học & Tổ hợp' },
+    subjectArea: 'math',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Hình học', 'Tổ hợp', 'Lý thuyết đồ thị', 'Lý thuyết số', 'Số học'],
   },
   {
-    university: HUST, course: { code: 'PH1120', name: 'Vật lý đại cương 2' },
-    subjectArea: 'physics', level: 'UNIVERSITY', docType: 'reference_book',
+    university: HUST,
+    course: { code: 'PH1120', name: 'Vật lý đại cương 2' },
+    subjectArea: 'physics',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Điện từ học', 'Quang học', 'Nhiệt động lực học', 'Vật lý hạt'],
   },
   {
-    university: HUST, course: { code: 'PH3110', name: 'Vật lý hiện đại' },
-    subjectArea: 'physics', level: 'UNIVERSITY', docType: 'reference_book',
+    university: HUST,
+    course: { code: 'PH3110', name: 'Vật lý hiện đại' },
+    subjectArea: 'physics',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Cơ học lượng tử', 'Thuyết tương đối', 'Vật lý thiên văn'],
   },
   {
-    university: HUST, course: { code: 'CH1010', name: 'Hóa học đại cương' },
-    subjectArea: 'chemistry', level: 'UNIVERSITY', docType: 'reference_book',
+    university: HUST,
+    course: { code: 'CH1010', name: 'Hóa học đại cương' },
+    subjectArea: 'chemistry',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Hóa vô cơ', 'Phản ứng hóa học', 'Nguyên tố hóa học', 'Hóa lý'],
   },
   {
-    university: UET, course: { code: 'INT2202', name: 'Ngôn ngữ lập trình' },
-    subjectArea: 'cs-programming', level: 'UNIVERSITY', docType: 'reference_book',
+    university: UET,
+    course: { code: 'INT2202', name: 'Ngôn ngữ lập trình' },
+    subjectArea: 'cs-programming',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Ngôn ngữ lập trình', 'Lập trình máy tính', 'Mẫu thiết kế'],
   },
   {
-    university: UET, course: { code: 'INT3306', name: 'Cơ sở dữ liệu' },
-    subjectArea: 'cs-programming', level: 'UNIVERSITY', docType: 'reference_book',
+    university: UET,
+    course: { code: 'INT3306', name: 'Cơ sở dữ liệu' },
+    subjectArea: 'cs-programming',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Cơ sở dữ liệu', 'Hệ quản trị cơ sở dữ liệu'],
   },
   {
-    university: UIT_, course: { code: 'NT101', name: 'An toàn thông tin' },
-    subjectArea: 'cs-programming', level: 'UNIVERSITY', docType: 'reference_book',
+    university: UIT_,
+    course: { code: 'NT101', name: 'An toàn thông tin' },
+    subjectArea: 'cs-programming',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['An ninh máy tính', 'Mật mã học'],
   },
   {
-    university: NEU, course: { code: 'TCH101', name: 'Tài chính - Ngân hàng' },
-    subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book',
+    university: NEU,
+    course: { code: 'TCH101', name: 'Tài chính - Ngân hàng' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Tài chính', 'Ngân hàng', 'Đầu tư'],
   },
   {
-    university: UMP, course: { code: 'Y202', name: 'Sinh lý & Hóa sinh' },
-    subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book',
+    university: UMP,
+    course: { code: 'Y202', name: 'Sinh lý & Hóa sinh' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Sinh lý học', 'Hóa sinh', 'Bệnh học'],
   },
   {
     course: { name: 'Sinh học đại cương' },
-    subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book',
-    categories: ['Sinh học tế bào', 'Sinh thái học', 'Vi sinh vật học', 'Thực vật học', 'Động vật học'],
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: [
+      'Sinh học tế bào',
+      'Sinh thái học',
+      'Vi sinh vật học',
+      'Thực vật học',
+      'Động vật học',
+    ],
   },
   {
     course: { name: 'Lịch sử thế giới' },
-    subjectArea: 'other', level: 'HIGH_SCHOOL', grade: 11, docType: 'summary',
+    subjectArea: 'other',
+    level: 'HIGH_SCHOOL',
+    grade: 11,
+    docType: 'summary',
     categories: ['Lịch sử thế giới', 'Chiến tranh thế giới thứ hai', 'Lịch sử cổ đại'],
   },
   {
     course: { name: 'Địa lý thế giới' },
-    subjectArea: 'other', level: 'HIGH_SCHOOL', grade: 11, docType: 'summary',
+    subjectArea: 'other',
+    level: 'HIGH_SCHOOL',
+    grade: 11,
+    docType: 'summary',
     categories: ['Địa lý tự nhiên', 'Châu lục', 'Khí hậu học'],
   },
   {
     course: { code: 'ENG101', name: 'Tiếng Anh học thuật' },
-    subjectArea: 'english', level: 'UNIVERSITY', docType: 'reference_book',
+    subjectArea: 'english',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
     categories: ['Ngữ pháp tiếng Anh', 'Ngôn ngữ học'],
   },
 
-  // ─── Đợt mở rộng 2: thêm trường + môn (category riêng biệt) ──────
-  // HUS — Toán/Lý/Hóa nâng cao
-  { university: HUS, course: { code: 'MAT201', name: 'Tô pô & Giải tích hàm' }, subjectArea: 'math', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Tô pô', 'Giải tích phức', 'Phương trình vi phân'] },
-  { university: HUS, course: { code: 'MAT202', name: 'Đại số trừu tượng & Logic' }, subjectArea: 'math', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Đại số trừu tượng', 'Logic toán học', 'Lý thuyết tập hợp'] },
-  { university: HUS, course: { code: 'PHY301', name: 'Vật lý chất rắn' }, subjectArea: 'physics', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Vật lý vật chất ngưng tụ', 'Âm học'] },
-  { university: HUS, course: { code: 'CHE301', name: 'Hóa phân tích & Điện hóa' }, subjectArea: 'chemistry', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Hóa phân tích', 'Điện hóa học'] },
-  { university: HUS, course: { code: 'GEO201', name: 'Địa chất & Thiên văn' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Địa chất học', 'Thiên văn học'] },
-  // HMU — Y khoa
-  { university: HMU, course: { code: 'MED101', name: 'Dược lý & Miễn dịch' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Dược học', 'Miễn dịch học'] },
-  { university: HMU, course: { code: 'MED201', name: 'Bệnh học & Nội khoa' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Bệnh', 'Bệnh truyền nhiễm'] },
-  // VNUA — Nông nghiệp/Sinh
-  { university: VNUA, course: { code: 'AGR101', name: 'Khoa học cây trồng' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Nông nghiệp', 'Thực vật học'] },
-  { university: VNUA, course: { code: 'AGR201', name: 'Thú y & Chăn nuôi' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Thú y', 'Động vật học'] },
-  // NUCE — Xây dựng
-  { university: NUCE, course: { code: 'CE101', name: 'Cơ học kết cấu & Vật liệu' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Kỹ thuật kết cấu', 'Vật liệu xây dựng'] },
-  // ULIS — Ngôn ngữ/Văn học Anh
-  { university: ULIS, course: { code: 'ENG201', name: 'Văn học Anh - Mỹ' }, subjectArea: 'english', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Văn học Anh', 'Văn học Mỹ'] },
-  // USSH — KHXH
-  { university: USSH, course: { code: 'PHI101', name: 'Triết học' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Triết học', 'Triết học phương Tây'] },
-  { university: USSH, course: { code: 'PSY101', name: 'Tâm lý học' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Tâm lý học'] },
-  { university: USSH, course: { code: 'SOC101', name: 'Xã hội học & Truyền thông' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Xã hội học', 'Báo chí'] },
-  // HNUE — Giáo dục/Văn/Sử
-  { university: HNUE, course: { code: 'LIT301', name: 'Văn học Việt Nam' }, subjectArea: 'literature', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Văn học Việt Nam', 'Nhà văn Việt Nam'] },
-  { university: HNUE, course: { code: 'HIS301', name: 'Lịch sử Việt Nam' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Lịch sử Việt Nam', 'Triều đại Việt Nam'] },
-  // TMU — Kinh tế/Quản trị
-  { university: TMU, course: { code: 'BUS101', name: 'Quản trị kinh doanh & Marketing' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Quản trị kinh doanh', 'Tiếp thị'] },
-  { university: TMU, course: { code: 'ACC101', name: 'Nguyên lý kế toán' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Kế toán'] },
-  // HAU — Kiến trúc
-  { university: NTU, course: { code: 'ARC101', name: 'Kiến trúc & Quy hoạch' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Kiến trúc', 'Quy hoạch đô thị'] },
-  // FPTU — CNTT nâng cao
-  { university: FPTU, course: { code: 'SE201', name: 'Kỹ thuật phần mềm' }, subjectArea: 'cs-programming', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Công nghệ phần mềm', 'Phát triển phần mềm'] },
-  { university: FPTU, course: { code: 'CG201', name: 'Đồ họa máy tính & Web' }, subjectArea: 'cs-programming', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Đồ họa máy tính', 'Công nghệ web'] },
-  // CTU/UD/HCE
-  { university: CTU, course: { code: 'ENV101', name: 'Khoa học môi trường' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Khoa học môi trường', 'Sinh thái học'] },
-  { university: UD, course: { code: 'EE201', name: 'Kỹ thuật điện - điện tử' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Kỹ thuật điện', 'Điện tử học'] },
-  { university: HCE, course: { code: 'INT101', name: 'Kinh tế quốc tế' }, subjectArea: 'other', level: 'UNIVERSITY', docType: 'reference_book', categories: ['Kinh tế quốc tế', 'Thương mại quốc tế'] },
+  {
+    university: HUS,
+    course: { code: 'MAT201', name: 'Tô pô & Giải tích hàm' },
+    subjectArea: 'math',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Tô pô', 'Giải tích phức', 'Phương trình vi phân'],
+  },
+  {
+    university: HUS,
+    course: { code: 'MAT202', name: 'Đại số trừu tượng & Logic' },
+    subjectArea: 'math',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Đại số trừu tượng', 'Logic toán học', 'Lý thuyết tập hợp'],
+  },
+  {
+    university: HUS,
+    course: { code: 'PHY301', name: 'Vật lý chất rắn' },
+    subjectArea: 'physics',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Vật lý vật chất ngưng tụ', 'Âm học'],
+  },
+  {
+    university: HUS,
+    course: { code: 'CHE301', name: 'Hóa phân tích & Điện hóa' },
+    subjectArea: 'chemistry',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Hóa phân tích', 'Điện hóa học'],
+  },
+  {
+    university: HUS,
+    course: { code: 'GEO201', name: 'Địa chất & Thiên văn' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Địa chất học', 'Thiên văn học'],
+  },
+  {
+    university: HMU,
+    course: { code: 'MED101', name: 'Dược lý & Miễn dịch' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Dược học', 'Miễn dịch học'],
+  },
+  {
+    university: HMU,
+    course: { code: 'MED201', name: 'Bệnh học & Nội khoa' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Bệnh', 'Bệnh truyền nhiễm'],
+  },
+  {
+    university: VNUA,
+    course: { code: 'AGR101', name: 'Khoa học cây trồng' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Nông nghiệp', 'Thực vật học'],
+  },
+  {
+    university: VNUA,
+    course: { code: 'AGR201', name: 'Thú y & Chăn nuôi' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Thú y', 'Động vật học'],
+  },
+  {
+    university: NUCE,
+    course: { code: 'CE101', name: 'Cơ học kết cấu & Vật liệu' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Kỹ thuật kết cấu', 'Vật liệu xây dựng'],
+  },
+  {
+    university: ULIS,
+    course: { code: 'ENG201', name: 'Văn học Anh - Mỹ' },
+    subjectArea: 'english',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Văn học Anh', 'Văn học Mỹ'],
+  },
+  {
+    university: USSH,
+    course: { code: 'PHI101', name: 'Triết học' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Triết học', 'Triết học phương Tây'],
+  },
+  {
+    university: USSH,
+    course: { code: 'PSY101', name: 'Tâm lý học' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Tâm lý học'],
+  },
+  {
+    university: USSH,
+    course: { code: 'SOC101', name: 'Xã hội học & Truyền thông' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Xã hội học', 'Báo chí'],
+  },
+  {
+    university: HNUE,
+    course: { code: 'LIT301', name: 'Văn học Việt Nam' },
+    subjectArea: 'literature',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Văn học Việt Nam', 'Nhà văn Việt Nam'],
+  },
+  {
+    university: HNUE,
+    course: { code: 'HIS301', name: 'Lịch sử Việt Nam' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Lịch sử Việt Nam', 'Triều đại Việt Nam'],
+  },
+  {
+    university: TMU,
+    course: { code: 'BUS101', name: 'Quản trị kinh doanh & Marketing' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Quản trị kinh doanh', 'Tiếp thị'],
+  },
+  {
+    university: TMU,
+    course: { code: 'ACC101', name: 'Nguyên lý kế toán' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Kế toán'],
+  },
+  {
+    university: NTU,
+    course: { code: 'ARC101', name: 'Kiến trúc & Quy hoạch' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Kiến trúc', 'Quy hoạch đô thị'],
+  },
+  {
+    university: FPTU,
+    course: { code: 'SE201', name: 'Kỹ thuật phần mềm' },
+    subjectArea: 'cs-programming',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Công nghệ phần mềm', 'Phát triển phần mềm'],
+  },
+  {
+    university: FPTU,
+    course: { code: 'CG201', name: 'Đồ họa máy tính & Web' },
+    subjectArea: 'cs-programming',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Đồ họa máy tính', 'Công nghệ web'],
+  },
+  {
+    university: CTU,
+    course: { code: 'ENV101', name: 'Khoa học môi trường' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Khoa học môi trường', 'Sinh thái học'],
+  },
+  {
+    university: UD,
+    course: { code: 'EE201', name: 'Kỹ thuật điện - điện tử' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Kỹ thuật điện', 'Điện tử học'],
+  },
+  {
+    university: HCE,
+    course: { code: 'INT101', name: 'Kinh tế quốc tế' },
+    subjectArea: 'other',
+    level: 'UNIVERSITY',
+    docType: 'reference_book',
+    categories: ['Kinh tế quốc tế', 'Thương mại quốc tế'],
+  },
 ];

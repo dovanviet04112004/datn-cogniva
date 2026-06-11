@@ -8,17 +8,17 @@ This repository follows the master plan in [`docs/plans/master.md`](./docs/plans
 
 ## Stack
 
-| Layer        | Choice                                                |
-| ------------ | ----------------------------------------------------- |
-| Frontend     | Next.js 15 (App Router) + React 19 + TypeScript       |
-| UI           | Tailwind CSS 3 + shadcn/ui (New York) + Lucide icons  |
-| State        | Zustand (client) · server components by default       |
-| Forms        | React Hook Form + Zod                                 |
-| Auth         | **Better Auth** (email/password + optional Google)    |
-| Database     | **Drizzle ORM** + PostgreSQL 16 + pgvector            |
-| AI           | **Mastra** (planned, Phase 2) + Claude + OpenAI       |
-| Tooling      | pnpm workspaces + Turborepo + Vitest + Playwright     |
-| Hosting      | Vercel (web) · self-hosted Postgres or Neon (db)      |
+| Layer    | Choice                                               |
+| -------- | ---------------------------------------------------- |
+| Frontend | Next.js 15 (App Router) + React 19 + TypeScript      |
+| UI       | Tailwind CSS 3 + shadcn/ui (New York) + Lucide icons |
+| State    | Zustand (client) · server components by default      |
+| Forms    | React Hook Form + Zod                                |
+| Auth     | **Better Auth** (email/password + optional Google)   |
+| Database | **Drizzle ORM** + PostgreSQL 16 + pgvector           |
+| AI       | **Mastra** (planned, Phase 2) + Claude + OpenAI      |
+| Tooling  | pnpm workspaces + Turborepo + Vitest + Playwright    |
+| Hosting  | Vercel (web) · self-hosted Postgres or Neon (db)     |
 
 See [`docs/plans/master.md`](./docs/plans/master.md) §3 for the original rationale.
 
@@ -92,14 +92,14 @@ pnpm dev
 
 Open http://localhost:3000.
 
-- `/`              — marketing landing
-- `/sign-up`       — create an account
-- `/sign-in`       — sign in
-- `/dashboard`     — authenticated home (protected by middleware)
+- `/` — marketing landing
+- `/sign-up` — create an account
+- `/sign-in` — sign in
+- `/dashboard` — authenticated home (protected by middleware)
 
 > ⚠️ On Windows, prefer `db:generate` + `db:migrate` over `db:push`. The
 > `drizzle-kit push` confirmation prompt requires a real TTY (arrow-key
-> picker) and hangs in non-interactive shells. See *Troubleshooting* below.
+> picker) and hangs in non-interactive shells. See _Troubleshooting_ below.
 
 ---
 
@@ -128,14 +128,14 @@ pnpm --filter=@cogniva/db db:migrate   # apply it
 
 ### App-level
 
-| Command              | Action                                                          |
-| -------------------- | --------------------------------------------------------------- |
-| `pnpm dev`           | Run all dev servers via Turborepo                               |
-| `pnpm build`         | Build every package                                             |
-| `pnpm typecheck`     | TypeScript check across the monorepo                            |
-| `pnpm lint`          | ESLint                                                          |
-| `pnpm format`        | Prettier write                                                  |
-| `pnpm format:check`  | Prettier check (used in CI)                                     |
+| Command             | Action                               |
+| ------------------- | ------------------------------------ |
+| `pnpm dev`          | Run all dev servers via Turborepo    |
+| `pnpm build`        | Build every package                  |
+| `pnpm typecheck`    | TypeScript check across the monorepo |
+| `pnpm lint`         | ESLint                               |
+| `pnpm format`       | Prettier write                       |
+| `pnpm format:check` | Prettier check (used in CI)          |
 
 ### Database (local Postgres via Docker)
 
@@ -182,9 +182,11 @@ up to 4000 dim) or to `vector(3072)` with an `IVFFlat` index. See
 
 **Better Auth warns about a low-entropy `BETTER_AUTH_SECRET`.**
 Regenerate one with:
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
+
 and paste it into `apps/web/.env.local`. The default placeholder only
 exists so the dev server doesn't crash on first boot.
 

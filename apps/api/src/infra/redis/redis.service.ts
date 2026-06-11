@@ -1,8 +1,3 @@
-/**
- * RedisService — ioredis client dùng chung (session lookup `ba:`, sau này
- * cache/rate-limit). FAIL-OPEN theo chuẩn hệ: Redis chết → trả null, caller
- * tự fallback (vd AuthGuard fallback đọc bảng session).
- */
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis, { type RedisOptions } from 'ioredis';
@@ -13,8 +8,6 @@ export class RedisService implements OnModuleDestroy {
   private readonly client: Redis;
 
   constructor(config: ConfigService) {
-    // Options object thay chuỗi URL — ioredis parseURL dùng url.parse()
-    // (DeprecationWarning DEP0169 trên Node ≥24).
     const parsed = redisOptionsFromUrl(config.getOrThrow<string>('REDIS_URL'));
     const common: RedisOptions = {
       maxRetriesPerRequest: 1,
@@ -22,15 +15,10 @@ export class RedisService implements OnModuleDestroy {
       enableOfflineQueue: false,
     };
     this.client =
-      typeof parsed === 'string'
-        ? new Redis(parsed, common)
-        : new Redis({ ...parsed, ...common });
-    this.client.on('error', () => {
-      /* fail-open — lỗi đã được caller xử lý qua getSafe() */
-    });
+      typeof parsed === 'string' ? new Redis(parsed, common) : new Redis({ ...parsed, ...common });
+    this.client.on('error', () => {});
   }
 
-  /** GET fail-open: lỗi/timeout → null thay vì throw. */
   async getSafe(key: string): Promise<string | null> {
     try {
       if (this.client.status === 'wait') await this.client.connect();
@@ -40,17 +28,13 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  /** DEL fail-open: lỗi Redis → bỏ qua (caller không cần biết). */
   async delSafe(key: string): Promise<void> {
     try {
       if (this.client.status === 'wait') await this.client.connect();
       await this.client.del(key);
-    } catch {
-      /* fail-open */
-    }
+    } catch {}
   }
 
-  /** Client thô cho pattern phức tạp (pipeline/SCAN/SETNX) — null khi Redis chết (fail-open). */
   async raw(): Promise<Redis | null> {
     try {
       if (this.client.status === 'wait') await this.client.connect();

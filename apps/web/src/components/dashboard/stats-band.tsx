@@ -1,22 +1,4 @@
-/**
- * DashboardStatsBand — DẢI thống kê ngang liền mạch (thay 4 "ô vuông + số").
- *
- * Vì sao đổi: 4 KPI là số ĐẾM thuần (tài liệu/thẻ/hội thoại) + XP — theo ui-ux-pro
- * (chart domain) số đếm hợp "stat sạch", chỉ metric có-mục-tiêu mới hợp gauge/vòng;
- * trộn vòng cho số đếm sẽ rối. Pattern phổ biến + premium nhất cho cụm KPI loại này
- * là DẢI THỐNG KÊ NGANG (Linear/Vercel/Stripe): 1 card liền, các mục chia bằng vạch
- * mảnh, mỗi mục = icon màu + số to + nhãn + ngữ cảnh + thanh accent đáy. Hết cảm
- * giác "4 ô vuông rời". Responsive: mobile xếp dọc (list), desktop nằm ngang.
- *
- * Presentational (server-safe). Token theo design-system/MASTER.md.
- */
-import {
-  BrainCircuit,
-  FileText,
-  MessageSquare,
-  Trophy,
-  type LucideIcon,
-} from 'lucide-react';
+import { BrainCircuit, FileText, MessageSquare, Trophy, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
@@ -25,11 +7,8 @@ type Seg = {
   value: number;
   label: string;
   sub: string;
-  /** Nền badge icon (tint nhạt). */
   tint: string;
-  /** Màu icon. */
   tintText: string;
-  /** Màu thanh accent đáy (đặc). */
   bar: string;
 };
 
@@ -86,23 +65,22 @@ export function DashboardStatsBand({
   ];
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-divider bg-card/70 shadow-soft backdrop-blur-sm">
-      {/* Sheen line mép trên — premium edge. */}
+    <div className="border-divider bg-card/70 shadow-soft relative overflow-hidden rounded-2xl border backdrop-blur-sm">
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent"
+        className="via-foreground/10 pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent to-transparent"
       />
-      <div className="grid grid-cols-1 divide-y divide-divider sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+      <div className="divide-divider grid grid-cols-1 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
         {segs.map((s) => {
           const Icon = s.icon;
           return (
             <div
               key={s.label}
-              className="group/seg relative flex items-center gap-3 px-4 py-4 transition-colors duration-base hover:bg-foreground/[0.025] sm:px-5"
+              className="group/seg duration-base hover:bg-foreground/[0.025] relative flex items-center gap-3 px-4 py-4 transition-colors sm:px-5"
             >
               <span
                 className={cn(
-                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ring-border/50 transition-transform duration-base group-hover/seg:scale-105',
+                  'ring-border/50 duration-base flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset transition-transform group-hover/seg:scale-105',
                   s.tint,
                   s.tintText,
                 )}
@@ -113,16 +91,15 @@ export function DashboardStatsBand({
                 <p className="text-2xl font-bold tabular-nums leading-none tracking-tight">
                   {s.value.toLocaleString('vi-VN')}
                 </p>
-                <p className="mt-1.5 truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                <p className="text-muted-foreground mt-1.5 truncate text-[11px] font-semibold uppercase tracking-[0.1em]">
                   {s.label}
                 </p>
-                <p className="mt-0.5 truncate text-[11px] text-text-muted">{s.sub}</p>
+                <p className="text-text-muted mt-0.5 truncate text-[11px]">{s.sub}</p>
               </div>
-              {/* Thanh accent đáy — chỉ báo màu domain, sáng lên khi hover. */}
               <span
                 aria-hidden
                 className={cn(
-                  'pointer-events-none absolute bottom-0 left-4 right-4 h-0.5 rounded-full opacity-35 transition-opacity duration-base group-hover/seg:opacity-80 sm:left-5 sm:right-5',
+                  'duration-base pointer-events-none absolute bottom-0 left-4 right-4 h-0.5 rounded-full opacity-35 transition-opacity group-hover/seg:opacity-80 sm:left-5 sm:right-5',
                   s.bar,
                 )}
               />

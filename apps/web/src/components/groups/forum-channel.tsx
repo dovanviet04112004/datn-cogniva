@@ -1,16 +1,3 @@
-/**
- * ForumChannel — Discord forum style: mỗi post = thread riêng.
- *
- * 2 view trong cùng component (state-driven):
- *   - 'list'  : list post cards + filter tag + nút "Post mới"
- *   - 'post'  : 1 post detail + reply list + reply composer
- *
- * Layout post card: title (lớn) + author + tags chips + replyCount + lastActivity.
- * Sort: pinned trước, sau đó thread_last_at DESC.
- *
- * Tag filter: click chip → fetch lại list với ?tag=X.
- * New post: dialog với title + content + multi-select tags từ channel.availableTags.
- */
 'use client';
 
 import * as React from 'react';
@@ -79,7 +66,6 @@ type ForumPost = {
   lastActivityAt: string | null;
   createdAt: string;
   pinned: boolean;
-  /** V2 G5.4: true nếu thread đã có 1 reply được mark solution. */
   hasSolution?: boolean;
 };
 
@@ -91,7 +77,6 @@ type Props = {
   currentUserImage: string | null;
 };
 
-/** Response list forum từ API (theo channel + sort + tag). */
 type ForumResponse = { posts: ForumPost[]; availableTags: Tag[] };
 
 export function ForumChannel({ channel, myRole, currentUserId }: Props) {
@@ -105,8 +90,6 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
   const canPost = can(myRole, 'message.send');
   const canManageTags = can(myRole, 'channel.update');
 
-  // ── React Query: list forum theo (channel, sort, tag). Vào lại forum / đổi filter
-  //    đã xem → hiện NGAY từ cache (persist IndexedDB), revalidate ngầm. ──
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.forum(channel.id, sort, activeTag),
     queryFn: () => {
@@ -117,16 +100,13 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
     },
   });
   const posts = data?.posts ?? [];
-  // Tag chips: ưu tiên list từ server, fallback prop channel khi chưa load.
   const availableTags = data?.availableTags ?? (channel.availableTags as Tag[] | null) ?? [];
 
-  // Invalidate mọi view forum của channel (mọi sort/tag) → dùng sau khi tạo post.
   const invalidateForum = React.useCallback(
     () => qc.invalidateQueries({ queryKey: ['channel', channel.id, 'forum'] }),
     [qc, channel.id],
   );
 
-  // Realtime: post/reply mới hoặc đánh dấu solution → refetch ngầm list.
   useRealtimeInvalidate(`private-channel-${channel.id}`, 'message:new', [
     ['channel', channel.id, 'forum'],
   ]);
@@ -134,7 +114,6 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
     ['channel', channel.id, 'forum'],
   ]);
 
-  // Post detail view
   if (activePostId) {
     return (
       <div className="flex h-full flex-col">
@@ -165,18 +144,17 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b pl-12 pr-3 md:pl-4 md:pr-3 lg:pr-14">
-        <BookOpen className="h-4 w-4 shrink-0 text-forum" />
+        <BookOpen className="text-forum h-4 w-4 shrink-0" />
         <span className="truncate font-semibold">{channel.name}</span>
         {channel.topic && (
           <>
-            <span className="hidden h-4 w-px bg-border sm:block" />
-            <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+            <span className="bg-border hidden h-4 w-px sm:block" />
+            <span className="text-muted-foreground hidden truncate text-xs sm:inline">
               {channel.topic}
             </span>
           </>
         )}
         <div className="ml-auto flex items-center gap-1">
-          {/* V2 G5.4: sort dropdown */}
           <SortDropdown sort={sort} onChange={setSort} />
           {canManageTags && (
             <Button
@@ -199,7 +177,6 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
         </div>
       </header>
 
-      {/* Tag filter row */}
       {availableTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 border-b px-3 py-2">
           <button
@@ -235,11 +212,11 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
           <ForumSkeleton />
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <BookOpen className="mb-3 h-10 w-10 text-muted-foreground/50" />
+            <BookOpen className="text-muted-foreground/50 mb-3 h-10 w-10" />
             <p className="text-sm font-medium">
               {activeTag ? `Không có post nào với tag #${activeTag}` : 'Chưa có post nào'}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-xs">
               {canPost ? 'Bấm "Post mới" để bắt đầu thảo luận.' : 'Đợi mod tạo post đầu tiên.'}
             </p>
           </div>
@@ -249,7 +226,7 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
               <li key={p.id}>
                 <button
                   onClick={() => setActivePostId(p.id)}
-                  className="group block w-full rounded-lg border bg-card p-3 text-left transition hover:border-foreground/20 hover:shadow-md sm:p-4"
+                  className="bg-card hover:border-foreground/20 group block w-full rounded-lg border p-3 text-left transition hover:shadow-md sm:p-4"
                 >
                   <div className="flex items-start gap-3">
                     <Avatar className="h-9 w-9 shrink-0">
@@ -260,26 +237,23 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {p.pinned && (
-                          <Pin className="h-3 w-3 shrink-0 text-amber-500" />
-                        )}
+                        {p.pinned && <Pin className="h-3 w-3 shrink-0 text-amber-500" />}
                         <h3 className="truncate text-sm font-semibold sm:text-base">
                           {p.title ?? '(Không tiêu đề)'}
                         </h3>
-                        {/* V2 G5.4: Solved badge */}
                         {p.hasSolution && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full bg-forum/15 px-1.5 py-0.5 text-[10px] font-semibold text-forum">
+                          <span className="bg-forum/15 text-forum inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
                             <CheckCircle2 className="h-2.5 w-2.5" />
                             Đã giải đáp
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      <p className="text-muted-foreground mt-0.5 text-xs">
                         {p.authorName ?? 'Anonymous'} ·{' '}
                         {fmtRelative(p.lastActivityAt ?? p.createdAt)}
                       </p>
                       {p.content && (
-                        <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground sm:text-sm">
+                        <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs sm:text-sm">
                           {p.content}
                         </p>
                       )}
@@ -287,12 +261,12 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
                         {(p.tags ?? []).map((t) => (
                           <span
                             key={t}
-                            className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                            className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium"
                           >
                             #{t}
                           </span>
                         ))}
-                        <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <span className="text-muted-foreground ml-auto flex items-center gap-1 text-[11px]">
                           <MessageSquare className="h-3 w-3" />
                           {p.replyCount}
                         </span>
@@ -325,7 +299,6 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
           channelId={channel.id}
           tags={availableTags}
           onSaved={(newTags) => {
-            // Nếu activeTag bị xoá → clear filter, rồi refetch list (lấy availableTags mới).
             if (activeTag && !newTags.find((t) => t.name === activeTag)) {
               setActiveTag(null);
             }
@@ -337,15 +310,12 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
   );
 }
 
-/**
- * ForumSkeleton — V2 G6.4: 4 row placeholder để giảm layout shift khi load.
- */
 function ForumSkeleton() {
   return (
     <ul className="space-y-2">
       {Array.from({ length: 4 }).map((_, i) => (
         <li key={i}>
-          <div className="rounded-lg border bg-card p-3 sm:p-4">
+          <div className="bg-card rounded-lg border p-3 sm:p-4">
             <div className="flex items-start gap-3">
               <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
               <div className="min-w-0 flex-1 space-y-2">
@@ -365,17 +335,7 @@ function ForumSkeleton() {
   );
 }
 
-/**
- * SortDropdown — V2 G5.4: chọn sort order cho forum post list.
- * Cookie KHÔNG persist (per-session intent). Default = 'latest'.
- */
-function SortDropdown({
-  sort,
-  onChange,
-}: {
-  sort: SortOption;
-  onChange: (s: SortOption) => void;
-}) {
+function SortDropdown({ sort, onChange }: { sort: SortOption; onChange: (s: SortOption) => void }) {
   const ActiveIcon = SORT_META[sort].icon;
   return (
     <DropdownMenu>
@@ -401,9 +361,9 @@ function SortDropdown({
               onClick={() => onChange(s)}
               className="flex items-center gap-2"
             >
-              <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+              <Icon className="text-muted-foreground h-3.5 w-3.5" />
               <span className="flex-1 text-[12.5px]">{meta.label}</span>
-              {active && <Check className="h-3.5 w-3.5 text-primary" />}
+              {active && <Check className="text-primary h-3.5 w-3.5" />}
             </DropdownMenuItem>
           );
         })}
@@ -498,19 +458,19 @@ function TagManagerDialog({
               Thêm
             </Button>
           </div>
-          <div className="flex flex-wrap gap-1.5 rounded-md border bg-muted/30 p-3 min-h-[60px]">
+          <div className="bg-muted/30 flex min-h-[60px] flex-wrap gap-1.5 rounded-md border p-3">
             {local.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Chưa có tag nào.</p>
+              <p className="text-muted-foreground text-xs">Chưa có tag nào.</p>
             ) : (
               local.map((tag) => (
                 <span
                   key={tag.name}
-                  className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 text-xs"
+                  className="bg-background inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs"
                 >
                   #{tag.name}
                   <button
                     onClick={() => removeTag(tag.name)}
-                    className="rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive"
+                    className="hover:bg-destructive/20 hover:text-destructive rounded-full p-0.5"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -624,7 +584,7 @@ function NewPostDialog({
               rows={6}
               maxLength={4000}
               placeholder="Mô tả chi tiết, paste link, kèm code..."
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="bg-background focus:ring-ring w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2"
             />
           </div>
           {availableTags.length > 0 && (

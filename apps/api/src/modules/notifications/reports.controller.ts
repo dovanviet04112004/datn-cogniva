@@ -1,7 +1,3 @@
-/**
- * /api/reports — port từ route Next (apps/web/src/app/api/reports/route.ts).
- * Guard mặc định lo 401; route cũ trả 201 khi tạo = Nest POST mặc định.
- */
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -16,7 +12,6 @@ import { createReportSchema, type CreateReportInput } from './dto/notifications.
 export class ReportsController {
   constructor(private readonly reports: ReportsService) {}
 
-  /** POST /reports — báo cáo nội dung vi phạm (201 | 400 | 404 | 409). */
   @Post()
   create(
     @CurrentUser() user: AuthUser,

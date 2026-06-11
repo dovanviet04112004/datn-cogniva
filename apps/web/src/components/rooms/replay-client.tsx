@@ -1,20 +1,3 @@
-/**
- * ReplayClient — UI client cho /rooms/[id]/recordings/[recId].
- *
- * Layout 2 cột:
- *   - Main : video player + summary card (top) + chapters list (bottom mobile).
- *   - Aside: chapters + transcript scrollable, click chapter → seek video.
- *
- * Polling khi status=PROCESSING:
- *   - Refetch /api/rooms/{id}/recordings/{recId} mỗi 10s cho tới khi
- *     PROCESSED hoặc FAILED → router.refresh() reload server data.
- *   - Subscribe realtime `recording:processed` để biết ngay khi worker BullMQ xong
- *     (instant feedback < 1s thay vì chờ polling tick).
- *
- * Note: video src dùng presigned URL hoặc public R2 URL. Phase 15 dev có thể
- * test với LiveKit egress local (file://) → cần serve qua /api/recordings/[id]/file
- * (V2 thêm route signed). Hiện trust fileUrl backend trả.
- */
 'use client';
 
 import * as React from 'react';
@@ -51,29 +34,13 @@ type Props = {
   roomId: string;
   roomName: string;
   recording: RecordingData;
-  /**
-   * Override realtime channel prefix khi component dùng cho voice channel của
-   * study group (`presence-voice-`). Default `presence-room-` cho rooms.
-   */
   pusherChannelPrefix?: string;
-  /**
-   * URL endpoint force-sync egress status từ LiveKit (workaround khi webhook
-   * chưa cấu hình). Nếu set, hiện nút "Sync ngay" cạnh status badge khi đang
-   * PROCESSING. Format: `/api/channels/{id}/record/{recId}/sync`.
-   */
   syncUrl?: string;
-  /**
-   * URL endpoint xoá recording. Nếu set + canDelete=true → hiện nút "Xoá".
-   * Format: `/api/channels/{id}/record/{recId}` (DELETE method).
-   */
   deleteUrl?: string;
-  /** Redirect tới URL này sau khi xoá thành công. */
   afterDeleteHref?: string;
-  /** Cho phép xoá — caller check role mod+. */
   canDelete?: boolean;
 };
 
-/** Format giây → mm:ss (dùng cho chapter timestamp). */
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -91,7 +58,6 @@ export function ReplayClient({
   canDelete = false,
 }: Props) {
   const router = useRouter();
-  // Hook confirm styled — hoist ở đầu component
   const confirm = useConfirm();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [syncing, setSyncing] = React.useState(false);
@@ -144,7 +110,6 @@ export function ReplayClient({
     [syncUrl, syncing, router],
   );
 
-  // Realtime "processed" event → refresh ngay khi pipeline xong (chỉ khi đang PROCESSING).
   useRealtimeEvent<{ recordingId: string }>(
     `${pusherChannelPrefix}${roomId}`,
     'recording:processed',
@@ -154,9 +119,6 @@ export function ReplayClient({
     recording.status === 'PROCESSING',
   );
 
-  // Fallback polling 15s nếu realtime miss event. Nếu có syncUrl (channel
-  // recording — không có webhook tin cậy) thì gọi cả /sync để force-poll
-  // egress status từ LiveKit, không chỉ refresh trang.
   React.useEffect(() => {
     if (recording.status !== 'PROCESSING') return;
     const id = setInterval(() => {
@@ -177,20 +139,19 @@ export function ReplayClient({
   };
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr] bg-background lg:grid-rows-1 lg:grid-cols-[1fr_360px]">
-      {/* ── Main: video + summary ───────────────────── */}
+    <div className="bg-background grid h-full grid-rows-[auto_1fr] lg:grid-cols-[1fr_360px] lg:grid-rows-1">
       <main className="flex min-h-0 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b px-4 py-2">
           <div className="flex items-center gap-2">
             <Link
               href={`/rooms/${roomId}`}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
             >
               <ArrowLeft className="h-3 w-3" />
               {roomName}
             </Link>
             <span className="text-sm font-semibold">· Replay</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground text-xs">
               {new Date(recording.startedAt).toLocaleString('vi-VN')}
               {recording.duration ? ` · ${fmtTime(recording.duration)}` : null}
             </span>
@@ -225,7 +186,11 @@ export function ReplayClient({
                 className="inline-flex items-center gap-1 rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
                 title="Xoá recording (R2 file + DB row)"
               >
-                {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                {deleting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
                 {deleting ? 'Đang xoá...' : 'Xoá'}
               </button>
             )}
@@ -233,7 +198,6 @@ export function ReplayClient({
           </div>
         </header>
 
-        {/* Video */}
         <div className="aspect-video bg-black">
           {recording.fileUrl ? (
             <video
@@ -244,40 +208,38 @@ export function ReplayClient({
               preload="metadata"
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Video chưa sẵn sàng (đang chờ egress upload)
             </div>
           )}
         </div>
 
-        {/* Summary card */}
         <div className="flex-1 overflow-y-auto p-4">
           <h3 className="text-sm font-semibold">Tóm tắt</h3>
           {recording.summary ? (
-            <div className="prose prose-sm mt-2 max-w-none dark:prose-invert">
+            <div className="prose prose-sm dark:prose-invert mt-2 max-w-none">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{recording.summary}</ReactMarkdown>
             </div>
           ) : recording.status === 'PROCESSING' ? (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-xs">
               <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
               Đang AI tóm tắt buổi học. Sẽ tự refresh khi xong (~1-3 phút).
             </p>
           ) : recording.status === 'FAILED' ? (
-            <p className="mt-2 text-xs text-destructive">
+            <p className="text-destructive mt-2 text-xs">
               <AlertCircle className="mr-1 inline h-3 w-3" />
               Pipeline lỗi — không có tóm tắt. Liên hệ mod để retry.
             </p>
           ) : (
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-xs">
               Không có transcript (Whisper chưa cấu hình hoặc audio rỗng).
             </p>
           )}
         </div>
       </main>
 
-      {/* ── Sidebar: chapters + transcript ──────────── */}
-      <aside className="border-t bg-muted/20 overflow-y-auto lg:border-l lg:border-t-0">
+      <aside className="bg-muted/20 overflow-y-auto border-t lg:border-l lg:border-t-0">
         <section className="border-b p-4">
           <h3 className="mb-2 text-sm font-semibold">Chương ({recording.chapters?.length ?? 0})</h3>
           {recording.chapters && recording.chapters.length > 0 ? (
@@ -286,15 +248,15 @@ export function ReplayClient({
                 <li key={i}>
                   <button
                     onClick={() => seekTo(c.startSec)}
-                    className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+                    className="hover:bg-accent flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs"
                   >
-                    <PlayCircle className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                    <PlayCircle className="text-primary mt-0.5 h-3 w-3 shrink-0" />
                     <span className="flex-1">
-                      <span className="font-mono text-[11px] text-muted-foreground">
+                      <span className="text-muted-foreground font-mono text-[11px]">
                         {fmtTime(c.startSec)}
                       </span>
                       <span className="ml-2 font-medium">{c.title}</span>
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground line-clamp-2">
+                      <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-[11px]">
                         {c.preview}
                       </span>
                     </span>
@@ -303,21 +265,19 @@ export function ReplayClient({
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-muted-foreground">Chưa phát hiện chương nào.</p>
+            <p className="text-muted-foreground text-xs">Chưa phát hiện chương nào.</p>
           )}
         </section>
 
         <section className="p-4">
           <h3 className="mb-2 text-sm font-semibold">Transcript</h3>
           {recording.transcript ? (
-            <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+            <p className="text-muted-foreground whitespace-pre-wrap text-xs leading-relaxed">
               {recording.transcript}
             </p>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              {recording.status === 'PROCESSING'
-                ? 'Đang transcribe...'
-                : 'Không có transcript.'}
+            <p className="text-muted-foreground text-xs">
+              {recording.status === 'PROCESSING' ? 'Đang transcribe...' : 'Không có transcript.'}
             </p>
           )}
         </section>
@@ -329,21 +289,21 @@ export function ReplayClient({
 function StatusBadge({ status }: { status: RecordingData['status'] }) {
   if (status === 'PROCESSED') {
     return (
-      <span className="rounded bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+      <span className="bg-success/10 text-success rounded px-2 py-0.5 text-[10px] font-medium">
         ĐÃ XỬ LÝ
       </span>
     );
   }
   if (status === 'PROCESSING') {
     return (
-      <span className="flex items-center gap-1 rounded bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+      <span className="bg-warning/10 text-warning flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium">
         <Loader2 className="h-2.5 w-2.5 animate-spin" />
         ĐANG XỬ LÝ
       </span>
     );
   }
   return (
-    <span className="rounded bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
+    <span className="bg-destructive/10 text-destructive rounded px-2 py-0.5 text-[10px] font-medium">
       LỖI
     </span>
   );

@@ -1,19 +1,3 @@
-/**
- * GroupShell — layout cho group detail. KHÔNG Discord-style rail.
- *
- * Cogniva pattern (Linear/Notion-inspired):
- *   - Col2 (260px): channel list với GROUP SWITCHER dropdown ở header
- *     (avatar hue-deterministic + group name + chevron) thay vì stack
- *     icons dọc 60px discord-rail.
- *   - Col3 (flex): channel content
- *   - Col4 (lg+, 240px): member sidebar
- *
- * Mobile: Col2 thành drawer trượt từ trái (hamburger button trong content).
- * Col4 mobile drawer phải.
- *
- * Group switcher: click group name header → dropdown list groups user joined
- * + link "Tạo group mới". Eliminate redundant /groups list page.
- */
 'use client';
 
 import * as React from 'react';
@@ -86,7 +70,6 @@ const TYPE_ICON = {
   FORUM: BookOpen,
 } as const;
 
-/** Hash deterministic string → HSL hue. Same group → same color avatar. */
 function hueFromString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
@@ -139,18 +122,12 @@ function GroupShellInner({
   const canManage = myRole === 'OWNER' || myRole === 'ADMIN';
   const { unread } = useUnread();
 
-  // Channel đang mở là voice/stage? → KHÔNG hiện member sidebar bên phải (voice
-  // room đã hiện participant trong grid riêng + có sidebar chat/notes riêng nên
-  // member sidebar group thừa & chỏi). Cũng dùng để style nút toggle theo header tối.
   const activeChannelId = pathname.split('/')[3] ?? '';
   const activeChannelType = channels.find((c) => c.id === activeChannelId)?.type ?? '';
   const inVoiceView = activeChannelType === 'VOICE' || activeChannelType === 'STAGE';
 
   const [navOpen, setNavOpen] = React.useState(false);
   const [memberOpen, setMemberOpen] = React.useState(false);
-  // Cài đặt nhóm mở dạng MODAL overlay (không đổi route) → đóng modal KHÔNG
-  // unmount channel đang xem, KHÔNG reload tin nhắn (giống Discord). settingsTab
-  // cho phép mở thẳng tab cần (vd quick-action "Category" → tab Danh mục).
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsTab, setSettingsTab] = React.useState<'overview' | 'categories'>('overview');
   const openSettings = React.useCallback((tab: 'overview' | 'categories' = 'overview') => {
@@ -158,13 +135,6 @@ function GroupShellInner({
     setSettingsOpen(true);
     setNavOpen(false);
   }, []);
-  /**
-   * Desktop collapse cho member sidebar (col 4) — persist localStorage.
-   * Dùng `null` cho phase chưa hydrate để TRÁNH flash open→close khi user đã
-   * close trước đó: SSR + first client render đều hide sidebar, useEffect mới
-   * đọc localStorage rồi mới quyết định show/hide. Mặc định nếu chưa có pref
-   * là OPEN (false) — match desktop UX phổ biến.
-   */
   const [memberCollapsed, setMemberCollapsed] = React.useState<boolean | null>(null);
   const [collapsedCats, setCollapsedCats] = React.useState<Set<string>>(new Set());
   const [draggedId, setDraggedId] = React.useState<string | null>(null);
@@ -183,32 +153,24 @@ function GroupShellInner({
       const next = !(prev ?? false);
       try {
         localStorage.setItem('cogniva.group.member-sidebar.collapsed', next ? '1' : '0');
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       return next;
     });
   }, []);
 
-  // Auto-close drawer khi route đổi
   React.useEffect(() => {
     setNavOpen(false);
     setMemberOpen(false);
   }, [pathname]);
 
-  // V2 G6.5: edge swipe trên mobile mở drawer (chỉ kích hoạt khi drawer đóng)
   useEdgeSwipe({
     enabled: !navOpen && !memberOpen,
     onSwipeFromLeft: () => setNavOpen(true),
-    // Voice view không có member sidebar → vuốt phải không mở gì.
     onSwipeFromRight: inVoiceView ? undefined : () => setMemberOpen(true),
   });
 
   const isVoiceLike = (t: string) => t === 'VOICE' || t === 'STAGE';
 
-  // Nút toggle nổi: PHẲNG + canh giữa theo header h-12 (top-2.5) để THẲNG HÀNG +
-  // đồng tông với các icon action phẳng trong header (bỏ box/border/shadow cho hết
-  // "lạc quẻ"). Voice (header tối) → icon trắng; còn lại → muted theo theme.
   const floatBtnClass = (extra: string) =>
     cn(
       'absolute top-2.5 z-20 inline-flex items-center justify-center rounded p-1.5 transition-colors',
@@ -237,20 +199,16 @@ function GroupShellInner({
     }
   };
 
-  // Override categoryId tạm thời (optimistic) → channel "nhảy" danh mục NGAY, không
-  // chờ router.refresh() round-trip (hết delay trên PC). Server chốt sau, prop mới
-  // khớp nên override giữ nguyên; lỗi thì revert.
   const [optimisticCat, setOptimisticCat] = React.useState<Record<string, string | null>>({});
   const effectiveCat = React.useCallback(
     (ch: StudyGroupChannel) => (ch.id in optimisticCat ? optimisticCat[ch.id] : ch.categoryId),
     [optimisticCat],
   );
 
-  // Gán channel vào 1 danh mục (categoryId) hoặc bỏ ra (null). Optimistic + PATCH.
   const assignCategory = async (channelId: string, categoryId: string | null) => {
     const ch = channels.find((c) => c.id === channelId);
     if (!ch || effectiveCat(ch) === categoryId) return;
-    setOptimisticCat((p) => ({ ...p, [channelId]: categoryId })); // chuyển NGAY
+    setOptimisticCat((p) => ({ ...p, [channelId]: categoryId }));
     try {
       const res = await fetch(`/api/groups/${group.id}/channels/${channelId}`, {
         method: 'PUT',
@@ -271,7 +229,6 @@ function GroupShellInner({
       toast.error((err as Error).message);
     }
   };
-  // Danh mục đang được kéo channel ngang qua → highlight. 'root' = vùng chưa phân loại.
   const [dragOverCat, setDragOverCat] = React.useState<string | null>(null);
 
   const toggleCat = (catId: string) => {
@@ -283,7 +240,6 @@ function GroupShellInner({
     });
   };
 
-  // ChannelLink — row trong channel list, drag-drop reorder cho mod
   const renderChannelLink = (ch: StudyGroupChannel) => {
     const Icon = TYPE_ICON[ch.type];
     const href = `/groups/${group.id}/${ch.id}`;
@@ -319,52 +275,46 @@ function GroupShellInner({
             active
               ? 'bg-primary/10 text-foreground'
               : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-            hasUnread && !active && 'font-semibold text-foreground',
+            hasUnread && !active && 'text-foreground font-semibold',
             draggedId === ch.id && 'opacity-50',
-            canMoveCat && 'pr-8', // chừa chỗ cho nút ⋮ (chuyển danh mục)
+            canMoveCat && 'pr-8',
           )}
         >
           {active && (
             <span
               aria-hidden
-              className="absolute -left-1 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-primary"
+              className="bg-primary absolute -left-1 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full"
             />
           )}
           <Icon
-            className={cn(
-              'h-4 w-4 shrink-0',
-              active ? 'text-primary' : 'text-text-muted',
-            )}
+            className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-muted')}
             strokeWidth={active ? 2.25 : 1.75}
           />
           <span className="truncate">{ch.name}</span>
           {hasUnread && (
-            <span className="ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+            <span className="bg-primary text-primary-foreground ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 font-mono text-[10px] font-bold">
               {count > 99 ? '99+' : count}
             </span>
           )}
         </Link>
-        {/* Nút ⋮ chuyển danh mục — hoạt động cả CẢM ỨNG (mobile) lẫn PC, thay cho
-            kéo-thả (HTML5 drag không chạy trên touch). Hiện sẵn trên mobile, hover
-            mới hiện trên desktop. */}
         {canMoveCat && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
                 aria-label="Chuyển channel vào danh mục"
-                className="absolute right-1 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded text-text-muted opacity-100 transition-opacity hover:bg-muted hover:text-foreground md:opacity-0 md:group-hover/ch:opacity-100"
+                className="text-text-muted hover:bg-muted hover:text-foreground absolute right-1 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded opacity-100 transition-opacity md:opacity-0 md:group-hover/ch:opacity-100"
               >
                 <MoreVertical className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-text-muted">
+              <DropdownMenuLabel className="text-text-muted text-[11px] uppercase tracking-wider">
                 Chuyển vào danh mục
               </DropdownMenuLabel>
               <DropdownMenuItem onClick={() => void assignCategory(ch.id, null)} className="gap-2">
                 <span className="flex-1">Không phân loại</span>
-                {!effectiveCat(ch) && <Check className="h-3.5 w-3.5 text-primary" />}
+                {!effectiveCat(ch) && <Check className="text-primary h-3.5 w-3.5" />}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {(categories ?? []).map((cat) => (
@@ -373,22 +323,16 @@ function GroupShellInner({
                   onClick={() => void assignCategory(ch.id, cat.id)}
                   className="gap-2"
                 >
-                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+                  <FolderOpen className="text-text-muted h-3.5 w-3.5 shrink-0" />
                   <span className="flex-1 truncate">{cat.name}</span>
-                  {effectiveCat(ch) === cat.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {effectiveCat(ch) === cat.id && <Check className="text-primary h-3.5 w-3.5" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {/* Discord-style nested participants list — fetch + subscribe presence
-            qua realtime (Socket.IO), ẩn nếu chưa có ai. */}
         {isVoice && (
-          <VoiceChannelMembers
-            groupId={group.id}
-            channelId={ch.id}
-            currentUserId={currentUserId}
-          />
+          <VoiceChannelMembers groupId={group.id} channelId={ch.id} currentUserId={currentUserId} />
         )}
       </div>
     );
@@ -405,18 +349,14 @@ function GroupShellInner({
   const groupHue = hueFromString(group.name || group.id);
   const groupInitial = (group.name[0] ?? '?').toUpperCase();
 
-  // ── Col 2 body — Group switcher header + channel scroll + user footer ──
   const channelListBody = (
     <>
-      {/* Header: Group switcher dropdown. pr-12 mobile chừa chỗ cho nút X đóng
-          drawer (absolute right-2) → không đè lên gear settings. md:pr-3 desktop
-          (Col2 desktop không có nút X). */}
-      <div className="flex h-14 items-center gap-2 border-b border-divider pl-3 pr-12 md:pr-3">
+      <div className="border-divider flex h-14 items-center gap-2 border-b pl-3 pr-12 md:pr-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="group/sw flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60"
+              className="group/sw hover:bg-muted/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors"
               aria-label="Đổi group"
             >
               <div
@@ -441,11 +381,11 @@ function GroupShellInner({
               <span className="min-w-0 flex-1 truncate text-left text-sm font-semibold tracking-tight">
                 {group.name}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-muted transition-colors group-hover/sw:text-foreground" />
+              <ChevronDown className="text-text-muted group-hover/sw:text-foreground h-3.5 w-3.5 shrink-0 transition-colors" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-64">
-            <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <DropdownMenuLabel className="text-text-muted text-[11px] font-semibold uppercase tracking-[0.14em]">
               Group của bạn
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -480,15 +420,12 @@ function GroupShellInner({
                       )}
                     </div>
                     <span
-                      className={cn(
-                        'min-w-0 flex-1 truncate text-sm',
-                        isActive && 'font-semibold',
-                      )}
+                      className={cn('min-w-0 flex-1 truncate text-sm', isActive && 'font-semibold')}
                     >
                       {g.name}
                     </span>
                     {isActive && (
-                      <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-primary">
+                      <span className="text-primary font-mono text-[11px] uppercase tracking-[0.1em]">
                         đang ở
                       </span>
                     )}
@@ -497,14 +434,13 @@ function GroupShellInner({
               );
             })}
             <DropdownMenuSeparator />
-            {/* Actions — custom trigger rows fit dropdown width */}
             <JoinGroupDialog
               trigger={
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted/60 hover:text-foreground"
+                  className="text-foreground/80 hover:bg-muted/60 hover:text-foreground flex w-full items-center gap-2.5 px-2 py-1.5 text-sm transition-colors"
                 >
-                  <KeyRound className="h-4 w-4 text-text-muted" />
+                  <KeyRound className="text-text-muted h-4 w-4" />
                   Tham gia bằng code
                 </button>
               }
@@ -513,16 +449,15 @@ function GroupShellInner({
               trigger={
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-muted/60 hover:text-foreground"
+                  className="text-foreground/80 hover:bg-muted/60 hover:text-foreground flex w-full items-center gap-2.5 px-2 py-1.5 text-sm transition-colors"
                 >
-                  <Plus className="h-4 w-4 text-text-muted" />
+                  <Plus className="text-text-muted h-4 w-4" />
                   Tạo group mới
                 </button>
               }
             />
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* Nút ⚙ cho MỌI member: mời (code/link), cài đặt (admin), rời nhóm. */}
         <GroupActionsMenu
           groupId={group.id}
           groupName={group.name}
@@ -532,11 +467,8 @@ function GroupShellInner({
         />
       </div>
 
-      {/* Channel list scroll */}
       <ScrollArea className="flex-1">
         <div className="space-y-4 px-2 py-4">
-          {/* Uncategorized — TEXT trước, VOICE/STAGE sau. Cũng là drop target để
-              KÉO channel RA khỏi danh mục (categoryId=null). */}
           {uncategorized.length > 0 && (
             <div
               onDragOver={(e) => {
@@ -555,19 +487,14 @@ function GroupShellInner({
               }}
               className={cn(
                 'space-y-0.5 rounded-md',
-                dragOverCat === 'root' && 'ring-2 ring-inset ring-primary/50 bg-primary/5',
+                dragOverCat === 'root' && 'ring-primary/50 bg-primary/5 ring-2 ring-inset',
               )}
             >
-              {uncategorized
-                .filter((c) => !isVoiceLike(c.type))
-                .map((c) => renderChannelLink(c))}
-              {uncategorized
-                .filter((c) => isVoiceLike(c.type))
-                .map((c) => renderChannelLink(c))}
+              {uncategorized.filter((c) => !isVoiceLike(c.type)).map((c) => renderChannelLink(c))}
+              {uncategorized.filter((c) => isVoiceLike(c.type)).map((c) => renderChannelLink(c))}
             </div>
           )}
 
-          {/* Categories — collapsible + kéo-thả channel vào để gán (mod) */}
           {(categories ?? []).map((cat) => {
             const items = byCategory[cat.id] ?? [];
             const collapsed = collapsedCats.has(cat.id);
@@ -590,55 +517,52 @@ function GroupShellInner({
                 }}
                 className={cn(
                   'space-y-0.5 rounded-md',
-                  dragOverCat === cat.id && 'ring-2 ring-inset ring-primary/50 bg-primary/5',
+                  dragOverCat === cat.id && 'ring-primary/50 bg-primary/5 ring-2 ring-inset',
                 )}
               >
                 <button
                   type="button"
                   onClick={() => toggleCat(cat.id)}
-                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/40"
+                  className="hover:bg-muted/40 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors"
                 >
                   {collapsed ? (
-                    <ChevronRight className="h-3 w-3 text-text-muted" />
+                    <ChevronRight className="text-text-muted h-3 w-3" />
                   ) : (
-                    <ChevronDown className="h-3 w-3 text-text-muted" />
+                    <ChevronDown className="text-text-muted h-3 w-3" />
                   )}
-                  <span className="flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+                  <span className="text-text-muted flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.14em]">
                     {cat.name}
                   </span>
                 </button>
                 {!collapsed && (
-                  <div className="space-y-0.5">
-                    {items.map((c) => renderChannelLink(c))}
-                  </div>
+                  <div className="space-y-0.5">{items.map((c) => renderChannelLink(c))}</div>
                 )}
               </div>
             );
           })}
 
-          {/* Quick actions cho mod — bo radius hơn, tone subtle */}
           {canManage && (
-            <div className="flex flex-wrap items-center gap-1.5 border-t border-divider pt-3">
+            <div className="border-divider flex flex-wrap items-center gap-1.5 border-t pt-3">
               <CreateChannelButton groupId={group.id} type="TEXT">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-muted hover:text-foreground">
+                <span className="bg-muted/40 text-text-muted hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors">
                   <Plus className="h-3 w-3" />
                   Text
                 </span>
               </CreateChannelButton>
               <CreateChannelButton groupId={group.id} type="VOICE">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-muted hover:text-foreground">
+                <span className="bg-muted/40 text-text-muted hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors">
                   <Plus className="h-3 w-3" />
                   Voice
                 </span>
               </CreateChannelButton>
               <CreateChannelButton groupId={group.id} type="STAGE">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-muted hover:text-foreground">
+                <span className="bg-muted/40 text-text-muted hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors">
                   <Plus className="h-3 w-3" />
                   Stage
                 </span>
               </CreateChannelButton>
               <CreateChannelButton groupId={group.id} type="FORUM">
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-muted hover:text-foreground">
+                <span className="bg-muted/40 text-text-muted hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors">
                   <Plus className="h-3 w-3" />
                   Forum
                 </span>
@@ -646,7 +570,7 @@ function GroupShellInner({
               <button
                 type="button"
                 onClick={() => openSettings('categories')}
-                className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-1.5 py-1 text-[11px] text-text-muted transition-colors hover:bg-muted hover:text-foreground"
+                className="bg-muted/40 text-text-muted hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] transition-colors"
               >
                 <Folder className="h-3 w-3" />
                 Category
@@ -655,7 +579,7 @@ function GroupShellInner({
           )}
 
           {channels.length === 0 && (
-            <p className="px-2 text-xs text-text-muted">Chưa có channel nào</p>
+            <p className="text-text-muted px-2 text-xs">Chưa có channel nào</p>
           )}
         </div>
       </ScrollArea>
@@ -665,22 +589,20 @@ function GroupShellInner({
 
   return (
     <div className="relative flex h-full w-full overflow-hidden">
-      {/* ── Col 2: Channel list (desktop md+) — không còn Col1 rail Discord ── */}
-      <aside className="hidden h-full w-[260px] shrink-0 flex-col border-r border-divider bg-surface-secondary/50 md:flex">
+      <aside className="border-divider bg-surface-secondary/50 hidden h-full w-[260px] shrink-0 flex-col border-r md:flex">
         {channelListBody}
       </aside>
 
-      {/* ── Col 2 mobile drawer ── */}
       {navOpen && (
         <div
           role="presentation"
           onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-40 bg-foreground/30 md:hidden"
+          className="bg-foreground/30 fixed inset-0 z-40 md:hidden"
         />
       )}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-divider bg-surface-secondary shadow-elevated transition-transform md:hidden',
+          'border-divider bg-surface-secondary shadow-elevated fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r transition-transform md:hidden',
           navOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -688,17 +610,14 @@ function GroupShellInner({
           type="button"
           onClick={() => setNavOpen(false)}
           aria-label="Đóng channel list"
-          className="absolute right-2 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
+          className="hover:bg-muted absolute right-2 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md"
         >
           <X className="h-4 w-4" />
         </button>
         {channelListBody}
       </aside>
 
-      {/* ── Col 3: Channel view ── */}
-      <main className="relative flex h-full min-w-0 flex-1 flex-col bg-background">
-        {/* Mobile: nút mở channel list — icon PanelLeft (KHÁC ≡ Menu của app
-            sidebar trên topbar) để 2 nút không nhìn y hệt nhau, đỡ nhầm. */}
+      <main className="bg-background relative flex h-full min-w-0 flex-1 flex-col">
         <button
           type="button"
           onClick={() => setNavOpen(true)}
@@ -708,11 +627,8 @@ function GroupShellInner({
         >
           <PanelLeft className="h-4 w-4" />
         </button>
-        {/* Nút toggle member sidebar — ẨN trong voice view (voice room tự hiện
-            participant + không có member sidebar bên phải). */}
         {!inVoiceView && (
           <>
-            {/* Mobile */}
             <button
               type="button"
               onClick={() => setMemberOpen(true)}
@@ -721,7 +637,6 @@ function GroupShellInner({
             >
               <Users className="h-4 w-4" />
             </button>
-            {/* Desktop: toggle col 4 collapse. z-20 để nổi trên header sticky (z-10). */}
             <button
               type="button"
               onClick={toggleMemberSidebar}
@@ -737,68 +652,55 @@ function GroupShellInner({
           <div className="border-b border-red-500/40 bg-red-500/10 px-4 py-2.5 text-[12.5px] text-red-700 dark:text-red-300">
             <p className="font-semibold">⚠ Group đang bị tạm khoá bởi ban quản trị</p>
             {group.suspendReason && (
-              <p className="mt-0.5 text-[11.5px] opacity-90">
-                Lý do: {group.suspendReason}
-              </p>
+              <p className="mt-0.5 text-[11.5px] opacity-90">Lý do: {group.suspendReason}</p>
             )}
             <p className="mt-0.5 text-[11px] opacity-75">
-              Bạn vẫn xem được lịch sử nhưng không gửi được tin nhắn mới. Liên
-              hệ admin nếu cần khiếu nại.
+              Bạn vẫn xem được lịch sử nhưng không gửi được tin nhắn mới. Liên hệ admin nếu cần
+              khiếu nại.
             </p>
           </div>
         )}
         {children}
       </main>
 
-      {/* Member sidebar (desktop col4 + mobile drawer) — ẨN HẲN khi đang ở voice
-          channel (voice room tự hiện participant, không cần member sidebar phải). */}
       {!inVoiceView && (
         <>
-      {/* ── Col 4: Group member sidebar (desktop lg+). Animate WIDTH thay vì
-           mount/unmount snap → đóng/mở mượt như Discord. memberCollapsed === null
-           (chưa hydrate) coi như MỞ (đúng intent "default open"); effect đọc
-           localStorage rồi CSS tự transition. ── */}
-      <div
-        className={cn(
-          'hidden h-full shrink-0 overflow-hidden transition-[width] duration-base ease-soft-out lg:block',
-          memberCollapsed === true ? 'w-0' : 'w-[220px]',
-        )}
-        aria-hidden={memberCollapsed === true}
-      >
-        <MemberSidebar groupId={group.id} myRole={myRole} />
-      </div>
+          <div
+            className={cn(
+              'duration-base ease-soft-out hidden h-full shrink-0 overflow-hidden transition-[width] lg:block',
+              memberCollapsed === true ? 'w-0' : 'w-[220px]',
+            )}
+            aria-hidden={memberCollapsed === true}
+          >
+            <MemberSidebar groupId={group.id} myRole={myRole} />
+          </div>
 
-      {/* ── Col 4 mobile drawer ── */}
-      {memberOpen && (
-        <div
-          role="presentation"
-          onClick={() => setMemberOpen(false)}
-          className="fixed inset-0 z-40 bg-foreground/30 lg:hidden"
-        />
-      )}
-      <div
-        className={cn(
-          // bg-surface-secondary: MemberSidebar dùng bg-muted/20 (20%) → drawer
-          // fixed bị lộ nền sau (trong suốt). Thêm nền đặc + shadow như Col2.
-          'fixed inset-y-0 right-0 z-50 flex w-[260px] border-l border-divider bg-surface-secondary shadow-elevated transition-transform lg:hidden',
-          memberOpen ? 'translate-x-0' : 'translate-x-full',
-        )}
-      >
-        <button
-          type="button"
-          onClick={() => setMemberOpen(false)}
-          aria-label="Đóng danh sách thành viên"
-          className="absolute left-2 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
-        >
-          <X className="h-4 w-4" />
-        </button>
-        <MemberSidebar groupId={group.id} myRole={myRole} forceVisible />
-      </div>
+          {memberOpen && (
+            <div
+              role="presentation"
+              onClick={() => setMemberOpen(false)}
+              className="bg-foreground/30 fixed inset-0 z-40 lg:hidden"
+            />
+          )}
+          <div
+            className={cn(
+              'border-divider bg-surface-secondary shadow-elevated fixed inset-y-0 right-0 z-50 flex w-[260px] border-l transition-transform lg:hidden',
+              memberOpen ? 'translate-x-0' : 'translate-x-full',
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setMemberOpen(false)}
+              aria-label="Đóng danh sách thành viên"
+              className="hover:bg-muted absolute left-2 top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <MemberSidebar groupId={group.id} myRole={myRole} forceVisible />
+          </div>
         </>
       )}
 
-      {/* Cài đặt nhóm — MODAL overlay (admin+), mount sẵn nhưng chỉ fetch khi mở.
-          Đóng = setSettingsOpen(false), KHÔNG đổi route → channel/tin nhắn giữ nguyên. */}
       {canManage && (
         <GroupSettings
           groupId={group.id}
@@ -814,26 +716,18 @@ function GroupShellInner({
 }
 
 function UserFooter() {
-  // useMe() — GET /api/auth/me (JWT stack mới) qua TanStack Query.
   const { data: user } = useMe();
-  // Mounted guard chống hydration mismatch: SSR `user=null` (render null) ≠
-  // client render đầu có user từ cache persist (render div) → lệch. Giữ null
-  // ở render đầu (khớp SSR), sau mount mới hiện footer.
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   const me = mounted ? user : null;
   if (!me) return null;
   return (
-    <div className="flex h-12 items-center gap-2.5 border-t border-divider bg-card/40 px-3">
+    <div className="border-divider bg-card/40 flex h-12 items-center gap-2.5 border-t px-3">
       <Avatar className="h-7 w-7">
         <AvatarImage src={me.image ?? undefined} />
-        <AvatarFallback className="text-xs">
-          {(me.name ?? 'U')[0]}
-        </AvatarFallback>
+        <AvatarFallback className="text-xs">{(me.name ?? 'U')[0]}</AvatarFallback>
       </Avatar>
-      <span className="flex-1 truncate text-xs font-medium tracking-tight">
-        {me.name ?? 'Bạn'}
-      </span>
+      <span className="flex-1 truncate text-xs font-medium tracking-tight">{me.name ?? 'Bạn'}</span>
     </div>
   );
 }

@@ -1,9 +1,3 @@
-/**
- * BrowseDirectory — directory "Khám phá" kiểu Studocu (2026-05-28).
- *
- * Client component: 1 search bar lọc real-time + grid card trường (avatar chữ
- * cái + tên + N môn · M tài liệu) và grid môn chung. Thay dropdown cũ chật chội.
- */
 'use client';
 
 import * as React from 'react';
@@ -22,12 +16,9 @@ type Uni = {
 };
 type Course = { id: string; name: string; code: string | null; docCount: number };
 
-// Giới hạn hiển thị ban đầu — phần còn lại ẩn sau "Xem tất cả" để trang gọn
-// khi nhiều trường/môn. Search vẫn lọc toàn bộ.
 const UNI_LIMIT = 9;
 const COURSE_LIMIT = 12;
 
-// Palette avatar trường — hash theo id để mỗi trường 1 màu ổn định.
 const AVATAR_COLORS = [
   'bg-discovery-500',
   'bg-sky-500',
@@ -72,17 +63,12 @@ export function BrowseDirectory({
   const searching = nq.length > 0;
 
   const unisFull = searching
-    ? universities.filter((u) =>
-        `${u.name} ${u.shortName ?? ''}`.toLowerCase().includes(nq),
-      )
+    ? universities.filter((u) => `${u.name} ${u.shortName ?? ''}`.toLowerCase().includes(nq))
     : universities;
   const coursesFull = searching
-    ? generalCourses.filter((c) =>
-        `${c.name} ${c.code ?? ''}`.toLowerCase().includes(nq),
-      )
+    ? generalCourses.filter((c) => `${c.name} ${c.code ?? ''}`.toLowerCase().includes(nq))
     : generalCourses;
 
-  // Khi search → hiện hết match; khi duyệt → cap đến khi bấm "Xem tất cả".
   const unis = searching || uniAll ? unisFull : unisFull.slice(0, UNI_LIMIT);
   const courses = searching || courseAll ? coursesFull : coursesFull.slice(0, COURSE_LIMIT);
   const uniHidden = unisFull.length - unis.length;
@@ -90,25 +76,23 @@ export function BrowseDirectory({
 
   return (
     <div className="space-y-6">
-      {/* Search bar */}
       <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="text-muted-foreground pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t('library.browse.search_placeholder')}
-          className="w-full rounded-full border border-divider bg-card py-3 pl-11 pr-4 text-[14px] outline-none transition-colors focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+          className="border-divider bg-card focus:border-primary/50 focus:ring-primary/10 w-full rounded-full border py-3 pl-11 pr-4 text-[14px] outline-none transition-colors focus:ring-4"
           aria-label={t('library.browse.search_placeholder')}
         />
       </div>
 
-      {/* Trường */}
       {unisFull.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-muted-foreground mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
             <Building2 className="h-3.5 w-3.5" />
             {t('library.hub.browse_by_university')}
-            <span className="font-mono tabular-nums text-muted-foreground/60">
+            <span className="text-muted-foreground/60 font-mono tabular-nums">
               {unisFull.length}
             </span>
           </h2>
@@ -117,7 +101,7 @@ export function BrowseDirectory({
               <Link
                 key={u.id}
                 href={`/library/university/${u.id}`}
-                className="group flex items-center gap-3 rounded-xl border border-divider bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="border-divider bg-card hover:border-primary/30 hover:shadow-soft focus-visible:ring-primary/50 focus-visible:ring-offset-background group flex items-center gap-3 rounded-xl border p-3 transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
               >
                 <span
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${colorFor(u.id)} text-[13px] font-bold text-white`}
@@ -125,10 +109,8 @@ export function BrowseDirectory({
                   {initials(u)}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-semibold">
-                    {u.name}
-                  </span>
-                  <span className="block text-[11px] text-muted-foreground">
+                  <span className="block truncate text-[13.5px] font-semibold">{u.name}</span>
+                  <span className="text-muted-foreground block text-[11px]">
                     {u.courseCount} {t('library.university.courses')} · {u.docCount}{' '}
                     {t('library.hub.stats.docs')}
                   </span>
@@ -146,13 +128,12 @@ export function BrowseDirectory({
         </section>
       )}
 
-      {/* Môn chung */}
       {coursesFull.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-muted-foreground mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
             <GraduationCap className="h-3.5 w-3.5" />
             {t('library.hub.browse_by_course')}
-            <span className="font-mono tabular-nums text-muted-foreground/60">
+            <span className="text-muted-foreground/60 font-mono tabular-nums">
               {coursesFull.length}
             </span>
           </h2>
@@ -161,17 +142,17 @@ export function BrowseDirectory({
               <Link
                 key={c.id}
                 href={`/library/course/${c.id}`}
-                className="group flex items-center justify-between gap-2 rounded-xl border border-divider bg-card p-3 transition-all hover:-translate-y-0.5 hover:border-discovery-500/30 hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="border-divider bg-card hover:border-discovery-500/30 hover:shadow-soft focus-visible:ring-primary/50 focus-visible:ring-offset-background group flex items-center justify-between gap-2 rounded-xl border p-3 transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
               >
                 <span className="min-w-0">
                   {c.code && (
-                    <span className="block font-mono text-[10px] font-semibold text-discovery-600">
+                    <span className="text-discovery-600 block font-mono text-[10px] font-semibold">
                       {c.code}
                     </span>
                   )}
                   <span className="block truncate text-[13px] font-medium">{c.name}</span>
                 </span>
-                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] tabular-nums">
                   {c.docCount}
                 </span>
               </Link>
@@ -188,7 +169,7 @@ export function BrowseDirectory({
       )}
 
       {unisFull.length === 0 && coursesFull.length === 0 && (
-        <p className="py-12 text-center text-[13px] text-muted-foreground">
+        <p className="text-muted-foreground py-12 text-center text-[13px]">
           {t('library.browse.no_results')}
         </p>
       )}
@@ -196,7 +177,6 @@ export function BrowseDirectory({
   );
 }
 
-/** Nút "Xem tất cả (N)" / "Thu gọn" cho mỗi section. */
 function ExpandToggle({
   expanded,
   hidden,
@@ -211,14 +191,12 @@ function ExpandToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="mt-3 inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-primary"
+      className="text-muted-foreground hover:text-primary mt-3 inline-flex items-center gap-1 text-[12px] font-medium transition-colors"
     >
       {expanded
         ? t('library.browse.show_less')
         : t('library.browse.show_all').replace('{count}', `(${hidden})`)}
-      <ChevronDown
-        className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')}
-      />
+      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-180')} />
     </button>
   );
 }

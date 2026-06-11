@@ -6,15 +6,15 @@ Stage 2 (M4-M5) — Edge gateway in front of Vercel origin.
 
 Workers chạy ở > 300 PoP toàn cầu (Anycast). Trước khi request chạm Vercel, edge làm:
 
-| Step | Middleware | Mục đích |
-|---|---|---|
-| 1 | `trace` | Gen / reuse `x-trace-id` end-to-end |
-| 2 | `geo` | CF country → region tag → origin chọn DB replica |
-| 3 | `jwtVerify` | Verify Better Auth JWT (JWKS), extract `userId` |
-| 4 | `csrf` | Double-submit cookie cho POST/PUT/PATCH/DELETE |
-| 5 | `rateLimit` | Token bucket per user/IP qua Durable Object |
-| 6 | `featureFlags` | Eval flag từ KV, set `x-cogniva-flags` header |
-| 7 | `proxyToOrigin` | Forward tới Vercel với headers enriched |
+| Step | Middleware      | Mục đích                                         |
+| ---- | --------------- | ------------------------------------------------ |
+| 1    | `trace`         | Gen / reuse `x-trace-id` end-to-end              |
+| 2    | `geo`           | CF country → region tag → origin chọn DB replica |
+| 3    | `jwtVerify`     | Verify Better Auth JWT (JWKS), extract `userId`  |
+| 4    | `csrf`          | Double-submit cookie cho POST/PUT/PATCH/DELETE   |
+| 5    | `rateLimit`     | Token bucket per user/IP qua Durable Object      |
+| 6    | `featureFlags`  | Eval flag từ KV, set `x-cogniva-flags` header    |
+| 7    | `proxyToOrigin` | Forward tới Vercel với headers enriched          |
 
 **Hit rate target:** 60% static cache hit, < 50ms JWT verify global, < 250ms p95 cho API regional.
 
@@ -46,6 +46,7 @@ pnpm --filter @cogniva/edge dev
 Wrangler dev emulate Workers runtime LOCAL — DO + KV in-memory, không cần CF account.
 
 Sau khi chạy:
+
 - `http://localhost:8787/__edge/health` → JSON health
 - `http://localhost:8787/*` → proxy tới `http://localhost:3000` (Next.js)
 
@@ -53,14 +54,14 @@ Sau khi chạy:
 
 ## Bindings reference
 
-| Binding | Type | Mục đích |
-|---|---|---|
-| `RATE_LIMIT_DO` | Durable Object | Token bucket per user/IP |
-| `FLAGS_KV` | KV namespace | Feature flag config (eventually consistent) |
-| `ORIGIN_URL` | Var | URL Vercel origin (forward target) |
-| `JWKS_URL` | Var | Better Auth JWKS endpoint cho RSA verify |
-| `JWT_ISSUER` / `JWT_AUDIENCE` | Var | Match Better Auth JWT plugin |
-| `EDGE_SHARED_SECRET` | Secret | Anti-bypass marker (origin check header) |
+| Binding                       | Type           | Mục đích                                    |
+| ----------------------------- | -------------- | ------------------------------------------- |
+| `RATE_LIMIT_DO`               | Durable Object | Token bucket per user/IP                    |
+| `FLAGS_KV`                    | KV namespace   | Feature flag config (eventually consistent) |
+| `ORIGIN_URL`                  | Var            | URL Vercel origin (forward target)          |
+| `JWKS_URL`                    | Var            | Better Auth JWKS endpoint cho RSA verify    |
+| `JWT_ISSUER` / `JWT_AUDIENCE` | Var            | Match Better Auth JWT plugin                |
+| `EDGE_SHARED_SECRET`          | Secret         | Anti-bypass marker (origin check header)    |
 
 ## Deploy
 
@@ -86,6 +87,7 @@ pnpm --filter @cogniva/edge deploy
 ### CI/CD (Stage 2 W3+)
 
 Add GitHub Action với `cloudflare/wrangler-action@v3`. CF API token cần permission:
+
 - Account: Workers Scripts:Edit
 - Zone: Workers Routes:Edit (nếu dùng custom domain)
 
@@ -126,11 +128,13 @@ Khi deploy production, Vercel project KHÔNG nên expose public URL. Setup:
 ## Cost estimate
 
 Workers paid plan ($5/mo bundled):
+
 - 10M requests/month included
 - DO: 1M requests + 400K GB-s storage
 - KV: 10M reads + 1M writes
 
 Cogniva Stage 2 target (10K MAU):
+
 - ~30M requests/month → $5 base + $0.30/M extra = ~$10/mo
 - DO: ~30M rate-limit checks → +$3/mo
 - KV: ~3M flag reads → $0 (within 10M)

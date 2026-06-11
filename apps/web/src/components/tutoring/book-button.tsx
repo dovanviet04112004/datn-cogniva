@@ -1,16 +1,14 @@
-/**
- * BookButton — CTA "Đặt buổi học" trên tutor profile.
- *
- * Mở BookingDialog. Tách riêng để giảm bundle ban đầu của tutor profile —
- * dialog chỉ render khi user click.
- */
 'use client';
 
 import * as React from 'react';
 import { Calendar } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { BookingDialog, type AvailabilitySlot, type TutorSubjectMini } from '@/components/tutoring/booking-dialog';
+import {
+  BookingDialog,
+  type AvailabilitySlot,
+  type TutorSubjectMini,
+} from '@/components/tutoring/booking-dialog';
 import { cn } from '@/lib/utils';
 
 export function BookButton({
@@ -28,9 +26,7 @@ export function BookButton({
   hourlyRateVnd: number;
   subjects: TutorSubjectMini[];
   availability: AvailabilitySlot[];
-  /** V4 T2 — bypass tutor confirm, status = CONFIRMED ngay. */
   instantBookEnabled?: boolean;
-  /** V4 T2 — student chưa từng book trial với tutor này. */
   trialEligible?: boolean;
   variant?: 'default' | 'large';
 }) {
@@ -41,10 +37,7 @@ export function BookButton({
       <Button
         type="button"
         onClick={() => setOpen(true)}
-        className={cn(
-          'gap-1.5',
-          variant === 'large' && 'px-5 py-2.5 text-sm',
-        )}
+        className={cn('gap-1.5', variant === 'large' && 'px-5 py-2.5 text-sm')}
       >
         <Calendar className="h-4 w-4" />
         {instantBookEnabled ? 'Đặt ngay' : 'Đặt buổi học'}

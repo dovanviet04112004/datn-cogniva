@@ -1,6 +1,3 @@
-/**
- * /admin/system/jobs — trạng thái BullMQ queues + cron schedules.
- */
 import { headers } from 'next/headers';
 
 import { JobsClient } from '@/components/admin/system/jobs-client';

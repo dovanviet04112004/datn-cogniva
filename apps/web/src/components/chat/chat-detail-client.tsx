@@ -1,17 +1,3 @@
-/**
- * ChatDetailClient — minimal chat view cho /chat/[id] persisted conversation.
- *
- * V7 (2026-05-20): thay thế ChatInterface (875 dòng) sau khi xoá /chat/new
- * + ChatShell. Workspace chat là center; /chat/[id] chỉ là deep link view
- * cho conv cụ thể (vd shared URL, history).
- *
- * Render:
- *   - Top bar: title + "Mở trong workspace" link (nếu conv có workspaceId)
- *   - Message list (cùng style với V6 workspace ChatView)
- *   - Composer dưới (textarea + send)
- *
- * KHÔNG có: workspace pill, file attach, voice, context panel — defer hết.
- */
 'use client';
 
 import * as React from 'react';
@@ -38,14 +24,9 @@ type Props = {
 };
 
 export function ChatDetailClient({ conversation, initialMessages }: Props) {
-  // V8.7: citation click → DocPreviewPanel modal (portal ở body root) thay
-  // vì right side panel. Single column chat layout.
   return (
     <DocPreviewProvider>
-      <ChatDetailInner
-        conversation={conversation}
-        initialMessages={initialMessages}
-      />
+      <ChatDetailInner conversation={conversation} initialMessages={initialMessages} />
       <DocPreviewPanel />
     </DocPreviewProvider>
   );
@@ -79,15 +60,14 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <header className="shrink-0 border-b bg-muted/20 px-4 py-2">
+      <header className="bg-muted/20 shrink-0 border-b px-4 py-2">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold tracking-tight">
               {conversation.title ?? 'Untitled conversation'}
             </h1>
             {conversation.workspaceName && (
-              <p className="truncate text-[10.5px] text-muted-foreground">
+              <p className="text-muted-foreground truncate text-[10.5px]">
                 trong workspace · {conversation.workspaceName}
               </p>
             )}
@@ -95,7 +75,7 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
           {conversation.workspaceId && (
             <Link
               href={`/workspaces/${conversation.workspaceId}?view=chat`}
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+              className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium"
               title="Mở workspace notebook (Sources · Chat · Studio)"
             >
               <ArrowLeftRight className="h-3 w-3" />
@@ -105,19 +85,13 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
         </div>
       </header>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto max-w-3xl space-y-4">
           {messages.map((m) => (
-            <MessageItem
-              key={m.id}
-              role={m.role}
-              content={m.content}
-              annotations={m.annotations}
-            />
+            <MessageItem key={m.id} role={m.role} content={m.content} annotations={m.annotations} />
           ))}
           {isLoading && messages[messages.length - 1]?.role === 'user' && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <Loader2 className="h-3 w-3 animate-spin" />
               AI đang suy nghĩ…
             </div>
@@ -126,8 +100,7 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
         </div>
       </div>
 
-      {/* Composer */}
-      <div className="shrink-0 border-t bg-background px-4 py-3" data-composer>
+      <div className="bg-background shrink-0 border-t px-4 py-3" data-composer>
         <form
           onSubmit={(e) => {
             if (!input.trim() || isLoading) {
@@ -138,21 +111,21 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
           }}
           className="mx-auto max-w-3xl"
         >
-          <div className="flex items-end gap-2 rounded-xl border bg-card p-2 shadow-sm focus-within:border-foreground/30">
+          <div className="bg-card focus-within:border-foreground/30 flex items-end gap-2 rounded-xl border p-2 shadow-sm">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder="Hỏi tiếp… (⌘+Enter để gửi)"
               rows={2}
-              className="block max-h-40 w-full resize-none border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="placeholder:text-muted-foreground block max-h-40 w-full resize-none border-0 bg-transparent text-sm outline-none"
             />
             {isLoading ? (
               <button
                 type="button"
                 onClick={() => stop()}
                 aria-label="Dừng"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                className="bg-foreground text-background hover:bg-foreground/80 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
               >
                 <Square className="h-3 w-3 fill-current" strokeWidth={0} />
               </button>
@@ -161,7 +134,7 @@ function ChatDetailInner({ conversation, initialMessages }: Props) {
                 type="submit"
                 disabled={!input.trim()}
                 aria-label="Gửi"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full disabled:opacity-50"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
               </button>
@@ -189,9 +162,7 @@ function MessageItem({
       <div
         className={cn(
           'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm',
-          isUser
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-foreground',
+          isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground',
         )}
       >
         {isUser ? (

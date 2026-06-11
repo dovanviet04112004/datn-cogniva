@@ -1,22 +1,8 @@
-/**
- * DocCard — Library V1 (2026-05-22).
- *
- * Card hiển thị 1 library doc trong grid. Click → /library/[id].
- *
- * Design: format icon + thumbnail + title + meta + badges + import CTA.
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  FileImage,
-  FileText,
-  GraduationCap,
-  ImportIcon,
-  Lock,
-  Star,
-} from 'lucide-react';
+import { FileImage, FileText, GraduationCap, ImportIcon, Lock, Star } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -43,12 +29,9 @@ export type DocCardData = {
   workspaceImportCount: number;
   uploaderName: string | null;
   badges: string[];
-  /** Phase 3 Bonus #13 — easy/medium/hard. */
   difficulty?: string | null;
-  /** Phase 4 Step 5 — premium price gating. */
   isPremium?: boolean;
   priceVnd?: number | null;
-  /** University→Course model — tên course (vd "Hệ thống nhúng"). */
   courseNameCache?: string | null;
   createdAt: string | Date;
 };
@@ -62,7 +45,7 @@ const DIFFICULTY_META: Record<string, { label: string; class: string }> = {
 const FORMAT_ICON: Record<string, React.ReactNode> = {
   pdf: <FileText className="h-3 w-3 text-rose-600" />,
   docx: <FileText className="h-3 w-3 text-sky-600" />,
-  image: <FileImage className="h-3 w-3 text-discovery-600" />,
+  image: <FileImage className="text-discovery-600 h-3 w-3" />,
 };
 
 const DOC_TYPE_LABEL: Record<string, string> = {
@@ -78,30 +61,22 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   other: 'Khác',
 };
 
-
 export function DocCard({ doc }: { doc: DocCardData }) {
   const subj = SUBJECT_BY_SLUG[doc.subjectSlug];
   const formatIcon = FORMAT_ICON[doc.fileFormat] ?? <FileText className="h-3 w-3" />;
-  // Track img load error → swap sang placeholder để tránh browser show alt text
-  // overlap với badges (lỗi khi external URL như DiceBear trả 400).
   const [thumbErrored, setThumbErrored] = React.useState(false);
   const showThumb = doc.previewThumbUrl && !thumbErrored;
   const t = useT();
 
-  // B3.14: tooltip native browser hiển thị AI summary đầy đủ khi user hover lâu
-  // (không cần Radix Tooltip — title attribute đủ cho card preview).
-  const tooltipText = doc.aiSummary
-    ? `${doc.title}\n\n${doc.aiSummary}`
-    : doc.title;
+  const tooltipText = doc.aiSummary ? `${doc.title}\n\n${doc.aiSummary}` : doc.title;
 
   return (
     <Link
       href={`/library/${doc.id}`}
       title={tooltipText}
-      className="group/c flex flex-col gap-3 overflow-hidden rounded-2xl border border-divider bg-card p-4 shadow-soft transition-all duration-base ease-expo-out hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group/c border-divider bg-card shadow-soft duration-base ease-expo-out hover:border-primary/30 hover:shadow-elevated focus-visible:ring-primary/50 focus-visible:ring-offset-background flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
     >
-      {/* Thumbnail */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-gradient-to-br from-muted to-muted/50">
+      <div className="from-muted to-muted/50 relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-gradient-to-br">
         {showThumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -112,40 +87,35 @@ export function DocCard({ doc }: { doc: DocCardData }) {
             onError={() => setThumbErrored(true)}
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
+          <div className="text-muted-foreground/40 flex h-full w-full flex-col items-center justify-center gap-2">
             <FileText className="h-12 w-12" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">
               {doc.fileFormat}
             </span>
           </div>
         )}
-        {/* Watermark */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent px-2 py-1">
           <span className="text-[8px] font-medium uppercase tracking-wider text-white/70">
             Cogniva Library
           </span>
         </div>
-        {/* Format badge */}
-        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-card/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase backdrop-blur-sm">
+        <span className="bg-card/95 absolute left-2 top-2 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase backdrop-blur-sm">
           {formatIcon}
           {doc.fileFormat}
         </span>
-        {/* Page count */}
         {doc.pageCount && (
-          <span className="absolute right-2 top-2 rounded-md bg-card/95 px-1.5 py-0.5 font-mono text-[10px] backdrop-blur-sm">
+          <span className="bg-card/95 absolute right-2 top-2 rounded-md px-1.5 py-0.5 font-mono text-[10px] backdrop-blur-sm">
             {doc.pageCount} trang
           </span>
         )}
-        {/* Premium chip — Phase 4 Step 5 */}
         {doc.isPremium && doc.priceVnd && doc.priceVnd > 0 && (
           <div className="absolute inset-x-2 bottom-6 flex justify-center">
-            <span className="inline-flex items-center gap-1 rounded-full bg-discovery-600/95 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-md backdrop-blur-sm">
+            <span className="bg-discovery-600/95 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-md backdrop-blur-sm">
               <Lock className="h-2.5 w-2.5" />
               {t('library.card.premium')} · {doc.priceVnd.toLocaleString('vi-VN')}đ
             </span>
           </div>
         )}
-        {/* Difficulty pill bottom-left — B2.6: rời khỏi meta row để giảm noise */}
         {doc.difficulty && DIFFICULTY_META[doc.difficulty] && (
           <span
             className={cn(
@@ -163,21 +133,18 @@ export function DocCard({ doc }: { doc: DocCardData }) {
         )}
       </div>
 
-      {/* Title */}
       <h3 className="line-clamp-2 text-[13.5px] font-semibold leading-tight tracking-tight">
         {doc.title}
       </h3>
 
-      {/* Course chip — University→Course model. Ưu tiên hiện course name. */}
       {doc.courseNameCache && (
-        <span className="inline-flex w-fit items-center gap-1 rounded-md bg-discovery-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-discovery-700 dark:text-discovery-300">
+        <span className="bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 inline-flex w-fit items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium">
           <GraduationCap className="h-3 w-3 shrink-0" />
           <span className="truncate">{doc.courseNameCache}</span>
         </span>
       )}
 
-      {/* Meta row — B2.6: bỏ difficulty (đã move vào thumbnail overlay) */}
-      <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-[11px]">
         <span className="inline-flex items-center gap-0.5">
           {subj?.emoji} {subj?.name ?? doc.subjectSlug}
         </span>
@@ -185,15 +152,14 @@ export function DocCard({ doc }: { doc: DocCardData }) {
         <span>
           {doc.grade
             ? `${t('library.card.grade')} ${doc.grade}`
-            : LEVEL_NAMES[doc.level as keyof typeof LEVEL_NAMES] ?? doc.level}
+            : (LEVEL_NAMES[doc.level as keyof typeof LEVEL_NAMES] ?? doc.level)}
         </span>
         <span>·</span>
-        <span className="rounded bg-muted px-1.5 py-0 text-[10px]">
+        <span className="bg-muted rounded px-1.5 py-0 text-[10px]">
           {t(`library.doctype.${doc.docType}`)}
         </span>
       </div>
 
-      {/* Badges — B2.6: limit 2 thay vì 3 để giảm visual noise */}
       {doc.badges.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {doc.badges.slice(0, 2).map((b) => {
@@ -211,23 +177,19 @@ export function DocCard({ doc }: { doc: DocCardData }) {
             );
           })}
           {doc.badges.length > 2 && (
-            <span className="text-[9.5px] text-muted-foreground/70">
-              +{doc.badges.length - 2}
-            </span>
+            <span className="text-muted-foreground/70 text-[9.5px]">+{doc.badges.length - 2}</span>
           )}
         </div>
       )}
 
-      {/* AI summary preview */}
       {doc.aiSummary && (
-        <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-muted-foreground line-clamp-2 text-[11px] leading-relaxed">
           {doc.aiSummary}
         </p>
       )}
 
-      {/* Footer */}
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-divider pt-2.5">
-        <div className="flex items-center gap-2 text-[10.5px] text-muted-foreground">
+      <div className="border-divider mt-auto flex items-center justify-between gap-2 border-t pt-2.5">
+        <div className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
           {doc.ratingAvg ? (
             <span className="inline-flex items-center gap-0.5">
               <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
@@ -248,9 +210,7 @@ export function DocCard({ doc }: { doc: DocCardData }) {
           )}
         </div>
         {doc.uploaderName && (
-          <span className="truncate text-[10px] text-muted-foreground/70">
-            {doc.uploaderName}
-          </span>
+          <span className="text-muted-foreground/70 truncate text-[10px]">{doc.uploaderName}</span>
         )}
       </div>
     </Link>

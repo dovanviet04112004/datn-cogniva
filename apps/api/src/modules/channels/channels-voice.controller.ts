@@ -1,16 +1,3 @@
-/**
- * /api/channels/:id/{voice,stage,record,collab-token} — port từ route Next
- * apps/web/src/app/api/channels/[id]/** (nhánh voice/stage/record/collab).
- *
- * Mọi route cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- * Route cũ POST đều trả 200 → @HttpCode(200) toàn bộ.
- *
- * Body validation:
- *   - voice/state: ZodValidationPipe (route cũ parse body ngay sau session,
- *     error shape {error: flatten()} — pipe khớp).
- *   - stage POST + collab-token: safeParse TRONG service vì route cũ check
- *     403/404 trước hoặc message lỗi custom — giữ THỨ TỰ status + nguyên văn.
- */
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -28,8 +15,6 @@ export class ChannelsVoiceController {
     private readonly voice: VoiceService,
     private readonly recordings: VoiceRecordingsService,
   ) {}
-
-  /* ── Voice ─────────────────────────────────────────────────────────── */
 
   @HttpCode(200)
   @Post(':id/voice/join')
@@ -64,8 +49,6 @@ export class ChannelsVoiceController {
     return this.voice.listParticipants(user.id, channelId);
   }
 
-  /* ── Stage ─────────────────────────────────────────────────────────── */
-
   @Get(':id/stage')
   getStageState(@CurrentUser() user: AuthUser, @Param('id') channelId: string) {
     return this.voice.getStageState(user, channelId);
@@ -73,11 +56,7 @@ export class ChannelsVoiceController {
 
   @HttpCode(200)
   @Post(':id/stage')
-  raiseHand(
-    @CurrentUser() user: AuthUser,
-    @Param('id') channelId: string,
-    @Body() raw: unknown,
-  ) {
+  raiseHand(@CurrentUser() user: AuthUser, @Param('id') channelId: string, @Body() raw: unknown) {
     return this.voice.raiseHand(user, channelId, raw);
   }
 
@@ -100,8 +79,6 @@ export class ChannelsVoiceController {
   ) {
     return this.voice.demoteSpeaker(user, channelId, targetUserId);
   }
-
-  /* ── Recording ─────────────────────────────────────────────────────── */
 
   @HttpCode(200)
   @Post(':id/record')
@@ -133,7 +110,6 @@ export class ChannelsVoiceController {
     return this.recordings.stopRecording(user, channelId, recordingId);
   }
 
-  /** ?force=1 → re-process recording đã PROCESSED/FAILED (mod retry). */
   @HttpCode(200)
   @Post(':id/record/:recordingId/sync')
   syncRecording(
@@ -144,8 +120,6 @@ export class ChannelsVoiceController {
   ) {
     return this.recordings.syncRecording(user, channelId, recordingId, force === '1');
   }
-
-  /* ── Collab (Hocuspocus) ───────────────────────────────────────────── */
 
   @HttpCode(200)
   @Post(':id/collab-token')

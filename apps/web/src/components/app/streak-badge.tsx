@@ -1,11 +1,3 @@
-/**
- * StreakBadge — flame icon + số ngày streak hiện tại, hiển thị trong topbar.
- *
- * Fetch /api/profile/me 1 lần khi mount + cache. Khi user làm activity
- * (review/quiz/note/upload), badge có thể stale tới khi refresh page.
- *
- * Click → navigate sang /profile.
- */
 'use client';
 
 import * as React from 'react';
@@ -22,11 +14,9 @@ type Stats = {
 };
 
 export function StreakBadge() {
-  // Dùng chung key qk.profileMe() → activity (review/quiz/note) invalidate là badge tươi.
   const { data: stats } = useQuery({
     queryKey: qk.profileMe(),
-    queryFn: () =>
-      apiGet<{ stats: Stats }>('/api/profile/me').then((d) => d.stats),
+    queryFn: () => apiGet<{ stats: Stats }>('/api/profile/me').then((d) => d.stats),
   });
 
   if (!stats) return null;
@@ -34,7 +24,7 @@ export function StreakBadge() {
   return (
     <Link
       href="/profile"
-      className="hidden items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted sm:flex"
+      className="hover:bg-muted hidden items-center gap-1 rounded-md border px-2 py-1 text-xs sm:flex"
       title={`${stats.xp} XP · ${stats.currentStreak} ngày streak`}
     >
       <Flame
@@ -42,9 +32,9 @@ export function StreakBadge() {
           stats.currentStreak > 0 ? 'text-orange-500' : 'text-muted-foreground'
         }`}
       />
-      <span className="tabular-nums font-medium">{stats.currentStreak}</span>
+      <span className="font-medium tabular-nums">{stats.currentStreak}</span>
       <span className="text-muted-foreground">·</span>
-      <span className="tabular-nums text-muted-foreground">{stats.xp} XP</span>
+      <span className="text-muted-foreground tabular-nums">{stats.xp} XP</span>
     </Link>
   );
 }

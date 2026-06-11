@@ -39,6 +39,7 @@ schema thì lưu được bất kỳ MIME nào (column tự do), chỉ là pipel
 - **MIME**: `text/plain`, `text/markdown`, fallback theo extension `.txt` `.md`
 
 **Việc cần làm:**
+
 1. `lib/ingest/parse/text.ts` mới: `parseText(buffer) → { pages: [{ pageNumber: 1, text }] }`
    - TXT: `buffer.toString('utf-8')` trực tiếp
    - MD: parse markdown nếu muốn split theo heading `#`, hoặc giữ
@@ -60,6 +61,7 @@ schema thì lưu được bất kỳ MIME nào (column tự do), chỉ là pipel
 - **MIME**: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 
 **Việc cần làm:**
+
 1. `lib/ingest/parse/docx.ts`:
    ```ts
    import mammoth from 'mammoth';
@@ -85,6 +87,7 @@ chấp nhận được cho V1.
 - **MIME**: `text/html` (file upload), hoặc URL string input riêng
 
 **Việc cần làm:**
+
 1. `lib/ingest/parse/html.ts`:
    ```ts
    import { JSDOM } from 'jsdom';
@@ -109,6 +112,7 @@ chấp nhận được cho V1.
 - **Input**: URL YouTube paste vào chat
 
 **Việc cần làm:**
+
 1. Detect YouTube URL pattern (`youtube.com/watch?v=` / `youtu.be/`)
 2. `lib/ingest/parse/youtube.ts`:
    - Try `youtube-transcript` lib (free, lấy caption nếu có)
@@ -129,6 +133,7 @@ chấp nhận được cho V1.
 - **Input**: PDF không có text layer (parse được 0 chunk), hoặc upload ảnh
 
 **Việc cần làm:**
+
 1. Detect: `parsePdf` trả 0 chunk → trigger OCR fallback (hiện đang throw)
 2. `lib/ingest/parse/ocr.ts`: render PDF page → image → Tesseract → text
 3. Async pipeline (BullMQ) vì OCR mất 30s-2min cho PDF lớn
@@ -175,6 +180,7 @@ export async function parseDocument(
 ```
 
 Pipeline chỉ cần đổi 1 dòng:
+
 ```ts
 // Trước
 const parsed = await parsePdf(buffer);
@@ -223,13 +229,13 @@ PDF lớn user thường upload từ trang /documents.
 
 ## Roadmap đề xuất
 
-| Đợt | Format | Effort | Khi nào làm |
-|---|---|---|---|
-| 1 | TXT, MD | 30m | Trước, easy win |
-| 2 | DOCX | 1h | Sau đợt 1 — coverage tăng mạnh |
-| 3 | HTML / URL | 2h | Khi user request "paste link" |
-| 4 | YouTube | 2h | Phase mở rộng learning content |
-| 5 | OCR | 4h | Khi user upload PDF scan |
+| Đợt | Format     | Effort | Khi nào làm                    |
+| --- | ---------- | ------ | ------------------------------ |
+| 1   | TXT, MD    | 30m    | Trước, easy win                |
+| 2   | DOCX       | 1h     | Sau đợt 1 — coverage tăng mạnh |
+| 3   | HTML / URL | 2h     | Khi user request "paste link"  |
+| 4   | YouTube    | 2h     | Phase mở rộng learning content |
+| 5   | OCR        | 4h     | Khi user upload PDF scan       |
 
 Đợt 1 + 2 cover ~90% format giáo trình/bài giảng thông dụng ở VN.
 

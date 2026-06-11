@@ -1,21 +1,3 @@
-/**
- * Generate REAL PDFs cho seed docs (2026-05-27).
- *
- * Script này thay thế `seed-v1://` placeholder fileUrl bằng real R2 PDFs:
- *   1. Loop docs PUBLISHED có fileUrl bắt đầu 'seed-'
- *   2. Fetch library_doc_chunk content theo page_num
- *   3. Generate PDF qua pdf-lib: title page + 1 page mỗi chunk page
- *   4. Generate thumbnail trang 1 (first page rendered as PNG via canvas) — skip vì
- *      pdf-lib không render canvas. Dùng preview SVG đơn giản thay thế.
- *   5. Upload PDF lên R2 tại lib/{uploaderId}/{docId}.pdf
- *   6. UPDATE library_doc.fileUrl = R2 public URL + fileSizeBytes
- *
- * Idempotent: chỉ chạy doc có fileUrl prefix 'seed-' (PDF thật sẽ skip).
- *
- * Usage:
- *   pnpm exec tsx --env-file=.env.local scripts/generate-real-pdfs-for-seeds.ts
- *   pnpm exec tsx --env-file=.env.local scripts/generate-real-pdfs-for-seeds.ts --regenerate
- */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,12 +11,10 @@ import { putR2Object, getPublicUrl } from '../src/lib/r2-client';
 
 const REGENERATE = process.argv.includes('--regenerate');
 
-// Noto Sans Vietnamese TTF — load once, share across all PDFs.
 const FONTS_DIR = path.join(process.cwd(), 'assets', 'fonts');
 const REGULAR_TTF = fs.readFileSync(path.join(FONTS_DIR, 'NotoSans-Regular.ttf'));
 const BOLD_TTF = fs.readFileSync(path.join(FONTS_DIR, 'NotoSans-Bold.ttf'));
 
-/** Wrap text qua nhiều line theo width (rough char-based, không pixel-perfect). */
 function wrapText(text: string, maxCharsPerLine = 85): string[] {
   const paragraphs = text.split(/\n+/);
   const lines: string[] = [];
@@ -54,7 +34,7 @@ function wrapText(text: string, maxCharsPerLine = 85): string[] {
       }
     }
     if (current) lines.push(current);
-    lines.push(''); // paragraph break
+    lines.push('');
   }
   return lines;
 }
@@ -65,22 +45,19 @@ async function generatePdf(
 ): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  // Embed Noto Sans Vietnamese — full Unicode support cho diacritics
   const font = await pdfDoc.embedFont(REGULAR_TTF);
   const titleFont = await pdfDoc.embedFont(BOLD_TTF);
 
   const PAGE_WIDTH = 595;
-  const PAGE_HEIGHT = 842; // A4
+  const PAGE_HEIGHT = 842;
   const MARGIN_LEFT = 60;
   const MARGIN_TOP = 760;
   const MARGIN_BOTTOM = 70;
   const LINE_HEIGHT = 16;
   const FONT_SIZE = 11;
 
-  // ── Title page ──────────────────────────────────────────────────
   {
     const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    // Logo bar
     page.drawRectangle({
       x: 0,
       y: PAGE_HEIGHT - 60,
@@ -96,7 +73,6 @@ async function generatePdf(
       color: rgb(1, 1, 1),
     });
 
-    // Title
     const wrappedTitle = wrapText(title, 50);
     let y = PAGE_HEIGHT / 2 + 60;
     for (const line of wrappedTitle.slice(0, 5)) {
@@ -112,7 +88,6 @@ async function generatePdf(
       y -= 32;
     }
 
-    // Footer
     page.drawText(`Tạo bởi Cogniva Library — ${new Date().toLocaleDateString('vi-VN')}`, {
       x: MARGIN_LEFT,
       y: 50,
@@ -122,7 +97,6 @@ async function generatePdf(
     });
   }
 
-  // ── Content pages ──────────────────────────────────────────────
   const sortedPages = [...pages].sort((a, b) => a.pageNum - b.pageNum);
   for (const p of sortedPages) {
     const lines = wrapText(p.text, 85);
@@ -130,7 +104,6 @@ async function generatePdf(
     let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     let y = MARGIN_TOP;
 
-    // Page header
     page.drawText(`Trang ${p.pageNum}`, {
       x: MARGIN_LEFT,
       y: PAGE_HEIGHT - 40,
@@ -147,7 +120,6 @@ async function generatePdf(
 
     for (const line of lines) {
       if (y < MARGIN_BOTTOM) {
-        // Page overflow — add new page
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         y = MARGIN_TOP;
         page.drawText(`Trang ${p.pageNum} (tt.)`, {
@@ -176,7 +148,6 @@ async function generatePdf(
 }
 
 async function main() {
-  // Find docs cần generate
   const filter = REGENERATE
     ? eq(libraryDoc.status, 'PUBLISHED')
     : and(eq(libraryDoc.status, 'PUBLISHED'), like(libraryDoc.fileUrl, 'seed-%'));
@@ -207,7 +178,6 @@ async function main() {
     console.log(`${idx} ${doc.title.slice(0, 50)}${doc.title.length > 50 ? '…' : ''}`);
 
     try {
-      // Fetch chunks of doc
       const chunks = await db
         .select({
           pageNum: libraryDocChunk.pageNum,
@@ -222,7 +192,6 @@ async function main() {
         continue;
       }
 
-      // Group chunks by pageNum
       const pageMap = new Map<number, string[]>();
       for (const c of chunks) {
         if (!pageMap.has(c.pageNum)) pageMap.set(c.pageNum, []);
@@ -233,28 +202,23 @@ async function main() {
         text: contents.join('\n\n'),
       }));
 
-      // Generate PDF
       const pdfBuffer = await generatePdf(doc.title, pages);
 
-      // Upload R2
       const storageKey = `lib/${doc.uploaderId}/${doc.id}.pdf`;
       await putR2Object(storageKey, pdfBuffer, 'application/pdf');
       const publicUrl = getPublicUrl(storageKey);
 
-      // UPDATE library_doc
       await db
         .update(libraryDoc)
         .set({
           fileUrl: publicUrl,
           fileSizeBytes: pdfBuffer.length,
-          pageCount: pages.length + 1, // +1 cho title page
+          pageCount: pages.length + 1,
           updatedAt: new Date(),
         })
         .where(eq(libraryDoc.id, doc.id));
 
-      console.log(
-        `       ✓ ${pages.length + 1} trang, ${(pdfBuffer.length / 1024).toFixed(1)} KB`,
-      );
+      console.log(`       ✓ ${pages.length + 1} trang, ${(pdfBuffer.length / 1024).toFixed(1)} KB`);
       success++;
     } catch (err) {
       console.log(`       ✗ ${(err as Error).message}`);

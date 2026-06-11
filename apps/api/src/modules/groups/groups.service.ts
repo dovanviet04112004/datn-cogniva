@@ -1,14 +1,3 @@
-/**
- * GroupsService — core study group: list/create/join/detail/update/delete +
- * ping/unread/search/audit/resource-search. Port từ apps/web/src/app/api/
- * groups/{route,join,resource-search,[id]/{route,ping,unread,search,audit}}
- * — GIỮ NGUYÊN wire shape, status code, message tiếng Việt, cache key
- * (ck.groupsList/groupDetail/groupUnread) + invalidator nên Next/Nest sống
- * chung không lệch cache.
- *
- * Route cũ đọc qua dbReplica cho read thuần; api 1 PrismaClient (primary) —
- * chấp nhận trong strangler-fig (như search.service).
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -20,10 +9,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { cached } from '@cogniva/server-core/cache/cache-aside';
 import { ck } from '@cogniva/server-core/cache/keys';
-import {
-  onGroupChanged,
-  onGroupMembershipChanged,
-} from '@cogniva/server-core/cache/invalidate';
+import { onGroupChanged, onGroupMembershipChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -32,16 +18,11 @@ import { PermissionsService, type GroupRole } from './permissions.service';
 import { generateInviteCode, normalizeInviteCode } from './group-code';
 import { parseSearch, toTsQuery } from './group-search-query';
 import { toChannelDto, toGroupDto } from './group.mappers';
-import {
-  updateGroupSchema,
-  type CreateGroupInput,
-  type JoinGroupInput,
-} from './dto/groups.dto';
+import { updateGroupSchema, type CreateGroupInput, type JoinGroupInput } from './dto/groups.dto';
 
 const SEARCH_MAX_LIMIT = 50;
 const AUDIT_MAX_LIMIT = 100;
 
-/** Row search message — alias camelCase đặt ngay trong SQL như Drizzle cũ. */
 type SearchRow = {
   id: string;
   channelId: string;
@@ -64,16 +45,11 @@ export class GroupsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  /** Membership của user trong group — null nếu không phải member. */
   private membership(groupId: string, userId: string) {
     return this.prisma.study_group_member.findUnique({
       where: { group_id_user_id: { group_id: groupId, user_id: userId } },
     });
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /groups — sidebar list (cache-aside 60s per-user)
-  // ──────────────────────────────────────────────────────────
 
   async listGroups(uid: string) {
     const rows = await cached(ck.groupsList(uid), 60, () =>
@@ -95,10 +71,6 @@ export class GroupsService {
     );
     return { groups: rows };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /groups — tạo group + OWNER member + #chung + invite đầu tiên (txn)
-  // ──────────────────────────────────────────────────────────
 
   async createGroup(uid: string, input: CreateGroupInput) {
     const legacyCode = generateInviteCode();
@@ -131,7 +103,6 @@ export class GroupsService {
         },
       });
 
-      // Invite mặc định — unlimited use, không expires
       await tx.study_group_invite.create({
         data: { id: randomUUID(), group_id: g.id, code: inviteCode, created_by: uid },
       });
@@ -139,20 +110,14 @@ export class GroupsService {
       return { group: g, channel: c };
     });
 
-    // Owner vừa được thêm làm member → bust groupsList(owner) để sidebar hiện group mới.
     await onGroupMembershipChanged(uid, group.id);
 
     return { group: toGroupDto(group), defaultChannel: toChannelDto(channel) };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /groups/join — invite mới (max_uses/expiry) → fallback legacy code
-  // ──────────────────────────────────────────────────────────
-
   async joinGroup(user: AuthUser, input: JoinGroupInput) {
     const code = normalizeInviteCode(input.code);
 
-    // Resolve code: prefer new invite table → fallback legacy inviteCode
     const invite = await this.prisma.study_group_invite.findUnique({ where: { code } });
 
     let groupId: string | null = null;
@@ -182,13 +147,11 @@ export class GroupsService {
     const group = await this.prisma.study_group.findUnique({ where: { id: groupId } });
     if (!group) throw new NotFoundException({ error: 'Group không tồn tại' });
 
-    // Đã là member?
     const existing = await this.membership(group.id, user.id);
     if (existing) {
       return { group: toGroupDto(group), alreadyMember: true };
     }
 
-    // Check maxMembers
     const count = await this.prisma.study_group_member.count({
       where: { group_id: group.id },
     });
@@ -196,7 +159,6 @@ export class GroupsService {
       throw new HttpException({ error: 'Group đã đầy thành viên' }, 423);
     }
 
-    // Insert member + (nếu invite mới) INCR uses_count — chạy trong txn
     await this.prisma.$transaction(async (tx) => {
       await tx.study_group_member.create({
         data: { id: randomUUID(), group_id: group.id, user_id: user.id, role: 'MEMBER' },
@@ -211,7 +173,6 @@ export class GroupsService {
 
     await onGroupMembershipChanged(user.id, group.id);
 
-    // Thông báo cho chủ nhóm: có thành viên mới (realtime, non-blocking).
     if (group.owner_user_id !== user.id) {
       void this.notifications
         .createNotification({
@@ -226,10 +187,6 @@ export class GroupsService {
 
     return { group: toGroupDto(group) };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/:id — guard per-user NGOÀI cache, nội dung chung cache 120s
-  // ──────────────────────────────────────────────────────────
 
   async getGroupDetail(uid: string, id: string) {
     const mine = await this.membership(id, uid);
@@ -275,13 +232,8 @@ export class GroupsService {
 
     if (!detail) throw new NotFoundException({ error: 'Not found' });
 
-    // myRole lấy từ guard (per-user) — không cache chung, gắn lại vào response.
     return { ...detail, myRole: mine.role };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // PUT /groups/:id — ADMIN+ update meta (parse body SAU check 403)
-  // ──────────────────────────────────────────────────────────
 
   async updateGroup(uid: string, id: string, raw: unknown) {
     const me = await this.membership(id, uid);
@@ -295,7 +247,6 @@ export class GroupsService {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
 
-    // Verify recordingLogChannelId thuộc cùng group + là TEXT (chống IDOR)
     if (parsed.data.recordingLogChannelId) {
       const ch = await this.prisma.study_group_channel.findFirst({
         where: { id: parsed.data.recordingLogChannelId, group_id: id },
@@ -328,10 +279,6 @@ export class GroupsService {
     return { group: toGroupDto(updated) };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // DELETE /groups/:id — OWNER only (DELETE WHERE owner = uid, 0 row → 403)
-  // ──────────────────────────────────────────────────────────
-
   async deleteGroup(uid: string, id: string) {
     const result = await this.prisma.study_group.deleteMany({
       where: { id, owner_user_id: uid },
@@ -340,25 +287,17 @@ export class GroupsService {
       throw new ForbiddenException({ error: 'Not owner or not found' });
     }
 
-    // groupsList của member KHÁC không bust được (invalidator nhận 1 userId) —
-    // dựa TTL 60s tự hết hạn, y route cũ.
     await onGroupChanged(id);
     await onGroupMembershipChanged(uid, id);
 
     return { deleted: true };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/:id/unread — per-user badge (cache 30s), 1 query SQL
-  // ──────────────────────────────────────────────────────────
-
   async unread(uid: string, groupId: string) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
 
     const unread = await cached(ck.groupUnread(groupId, uid), 30, async () => {
-      // Với mỗi channel TEXT/ANNOUNCEMENT, đếm message sau lastRead (nếu có),
-      // trừ message của chính user — copy NGUYÊN SQL route cũ.
       const rows = await this.prisma.$queryRaw<Array<{ channel_id: string; unread: number }>>(
         Prisma.sql`
           SELECT
@@ -395,10 +334,6 @@ export class GroupsService {
     return { unread };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/:id/search — Postgres FTS + filter chip Discord-style
-  // ──────────────────────────────────────────────────────────
-
   async searchMessages(uid: string, groupId: string, q: string, limitRaw?: string) {
     const member = await this.membership(groupId, uid);
     if (!member) throw new ForbiddenException({ error: 'Forbidden' });
@@ -409,11 +344,9 @@ export class GroupsService {
     const hasFilters = Object.keys(parsed.filters).length > 0;
 
     if (parsed.text.trim().length < 2 && !hasFilters) {
-      // Route cũ trả 200 kèm field error — KHÔNG phải lỗi HTTP.
       return { results: [], error: 'Cần ≥ 2 ký tự hoặc 1 filter', sort: 'rank' };
     }
 
-    // ── Build WHERE — copy nguyên semantics các mệnh đề Drizzle cũ ──────────
     const whereParts: Prisma.Sql[] = [
       Prisma.sql`c.group_id = ${groupId}`,
       Prisma.sql`m.deleted_at IS NULL`,
@@ -480,7 +413,6 @@ export class GroupsService {
       ORDER BY ${orderBy}
       LIMIT ${limit}`);
 
-    // Build snippet — extract đoạn quanh match (copy nguyên logic route cũ)
     const lowerText = parsed.text.trim().toLowerCase();
     const results = rows.map((r) => {
       let snippet = r.content;
@@ -511,10 +443,6 @@ export class GroupsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/:id/audit — ADMIN+ đọc mod actions
-  // ──────────────────────────────────────────────────────────
-
   async getAuditLog(uid: string, groupId: string, limitRaw?: string) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
@@ -524,7 +452,6 @@ export class GroupsService {
 
     const limit = Math.min(Math.max(Number(limitRaw ?? 50), 1), AUDIT_MAX_LIMIT);
 
-    // Action prefix 'study_group.' VÀ (resource_id = groupId HOẶC metadata->>groupId)
     const rows = await this.prisma.$queryRaw<unknown[]>(Prisma.sql`
       SELECT
         a.id,
@@ -547,15 +474,9 @@ export class GroupsService {
     return { entries: rows };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/resource-search — search resource MÌNH SỞ HỮU để attach
-  // ──────────────────────────────────────────────────────────
-
   async resourceSearch(uid: string, type: string | null, qRaw: string | null) {
     const q = (qRaw ?? '').trim();
-    // Empty query OK — list 10 recent items để user pick mà không cần gõ keyword.
     const hasQuery = q.length >= 1;
-    // ILIKE %q% raw (giữ semantics wildcard %/_ của Drizzle ilike, như search.service)
     const like = `%${q}%`;
 
     switch (type) {

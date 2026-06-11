@@ -1,21 +1,3 @@
-/**
- * Job `library-saved-search-notify` (14:00 UTC = 21:00 VN daily, sau flashcard
- * reminder 1h để tách traffic) — Phase 4 Step 4. Port NGUYÊN semantics từ
- * apps/web/src/jobs/library-saved-search-notify.ts:
- *
- *   1. saved_search có notify_on_new=true.
- *   2. Mỗi saved-search: count + doc PUBLISHED mới nhất khớp filter, mới hơn
- *      last_run_at (lần đầu lấy mốc created_at).
- *   3. ≥1 match → Expo push (1 push/match, multi-device fan-out), insert
- *      notification_log (dedupe key user×savedSearch), update last_run_at=NOW()
- *      cho TẤT CẢ saved-search có notify (cả không match) — windowing
- *      choke-point: chạy lại trong cùng cycle không re-quét doc cũ.
- *
- * Filter param hỗ trợ: q (FTS search_vec), subject, level, grade, docType,
- * language, fileFormat, difficulty — `sort` bỏ qua (không filter cứng).
- * Token qua NotificationsService.getPushTokens; send loop giữ TẠI ĐÂY vì cần
- * TICKET từng message (sent/failed per key + gom token DeviceNotRegistered).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -45,10 +27,8 @@ interface ExpoPushTicket {
   details?: { error?: string };
 }
 
-/** Shape query_params — copy type Drizzle $type packages/db/src/schema.ts. */
 type SavedSearchParams = Record<string, string | number | string[]>;
 
-/** Whitelist param → cột library_doc (snake_case) tương ứng. */
 const PARAM_TO_COL: Record<string, string> = {
   subject: 'subject_slug',
   level: 'level',
@@ -65,12 +45,9 @@ function buildFilterPredicates(params: SavedSearchParams, sinceAt: Date): Prisma
     Prisma.sql`library_doc."created_at" > ${sinceAt}`,
   ];
   for (const [key, value] of Object.entries(params)) {
-    // FTS text match `q` qua search_vec @@ plainto_tsquery (tự escape input).
     if (key === 'q') {
       const text = typeof value === 'string' ? value.trim() : '';
       if (text.length >= 2) {
-        // unaccent để khớp search_vec (đã unaccent từ migration 0054) — gõ
-        // không dấu vẫn match.
         predicates.push(
           Prisma.sql`library_doc.search_vec @@ plainto_tsquery('simple', immutable_unaccent(${text}))`,
         );
@@ -78,13 +55,12 @@ function buildFilterPredicates(params: SavedSearchParams, sinceAt: Date): Prisma
       continue;
     }
     const col = PARAM_TO_COL[key];
-    if (!col) continue; // 'sort' — không filter cứng
+    if (!col) continue;
     const colRef = Prisma.raw(`library_doc."${col}"`);
     if (Array.isArray(value)) {
       if (value.length === 0) continue;
       predicates.push(Prisma.sql`${colRef} IN (${Prisma.join(value)})`);
     } else if (key === 'grade') {
-      // grade là integer column
       const n = typeof value === 'number' ? value : Number(value);
       if (!Number.isFinite(n)) continue;
       predicates.push(Prisma.sql`${colRef} = ${n}`);
@@ -103,7 +79,6 @@ export class LibrarySavedSearchNotifyJob {
   ) {}
 
   async run(): Promise<Record<string, number>> {
-    // Step 1: load saved-searches đang theo dõi
     const savedSearches = await this.prisma.library_saved_search.findMany({
       where: { notify_on_new: true },
     });
@@ -114,7 +89,6 @@ export class LibrarySavedSearchNotifyJob {
       return { processed: 0, matchedSearches: 0, sent: 0 };
     }
 
-    // Step 2: với mỗi saved-search, query doc mới matching
     type MatchResult = {
       savedSearchId: string;
       userId: string;
@@ -147,7 +121,6 @@ export class LibrarySavedSearchNotifyJob {
     logger.info(`Saved-searches with new matches: ${matches.length}`);
 
     if (matches.length === 0) {
-      // Vẫn update lastRunAt để chu kỳ kế tiếp không re-quét doc cũ
       await this.prisma.library_saved_search.updateMany({
         where: { notify_on_new: true },
         data: { last_run_at: new Date() },
@@ -155,11 +128,9 @@ export class LibrarySavedSearchNotifyJob {
       return { processed: savedSearches.length, matchedSearches: 0, sent: 0 };
     }
 
-    // Step 3: push tokens cho các user có match — qua NotificationsService.
     const userIds = Array.from(new Set(matches.map((m) => m.userId)));
     const targets = await this.notifications.getPushTokens(userIds);
 
-    // Step 4: build + gửi messages (1 push per match, multi-device fan-out)
     const messages: ExpoPushMessage[] = [];
     const messageMeta: Array<{ savedSearchId: string; userId: string; token: string }> = [];
 
@@ -239,12 +210,10 @@ export class LibrarySavedSearchNotifyJob {
       }
     }
 
-    // Step 5a: cleanup invalid tokens
     if (invalidTokens.length > 0) {
       await this.prisma.push_token.deleteMany({ where: { token: { in: invalidTokens } } });
     }
 
-    // Step 5b: insert notification_log (1 row / userId × savedSearchId)
     type Entry = {
       userId: string;
       savedSearchId: string;
@@ -267,7 +236,6 @@ export class LibrarySavedSearchNotifyJob {
     const rows = Array.from(byKey.values()).map((e) => {
       const match = matches.find((m) => m.savedSearchId === e.savedSearchId);
       return {
-        // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default).
         id: randomUUID(),
         user_id: e.userId,
         type: NOTIF_TYPE,
@@ -287,8 +255,6 @@ export class LibrarySavedSearchNotifyJob {
       await this.prisma.notification_log.createMany({ data: rows });
     }
 
-    // Step 5c: update lastRunAt cho TẤT CẢ saved-search có notify (cả không
-    // match) để cycle sau không scan doc cũ — fix windowing.
     const allIds = savedSearches.map((s) => s.id);
     if (allIds.length > 0) {
       await this.prisma.library_saved_search.updateMany({

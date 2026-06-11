@@ -1,18 +1,3 @@
-/**
- * Fetcher tối giản cho React Query — dùng chung web + mobile.
- *
- * Khác `createApiClient` (Result-style ApiResult<T> không throw, method-per-endpoint),
- * fetcher này NÉM lỗi khi !ok → khớp model của React Query (queryFn/mutationFn throw
- * → vào trạng thái error). Gọi theo URL nên scale cho hàng trăm endpoint mà không cần
- * khai báo method từng cái.
- *
- *   - apiGet<T>(path)               → queryFn
- *   - apiSend<T>(path, method, body)→ mutationFn (POST/PUT/PATCH/DELETE JSON)
- *   - apiUpload<T>(path, FormData)  → upload file (không set content-type)
- *
- * baseUrl + auth + credentials lấy từ getApiConfig() (configureApi ở app).
- * Path tuyệt đối (http...) được dùng nguyên, path tương đối ghép baseUrl.
- */
 import { getApiConfig } from './config';
 
 export class ApiRequestError extends Error {
@@ -27,9 +12,7 @@ export class ApiRequestError extends Error {
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const cfg = getApiConfig();
   const fetchFn = cfg.fetchFn ?? fetch;
-  const url = /^https?:\/\//.test(path)
-    ? path
-    : `${cfg.baseUrl.replace(/\/$/, '')}${path}`;
+  const url = /^https?:\/\//.test(path) ? path : `${cfg.baseUrl.replace(/\/$/, '')}${path}`;
 
   const headers: Record<string, string> = {
     ...cfg.defaultHeaders,
@@ -49,13 +32,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     try {
       const d = (await res.json()) as { error?: string; message?: string };
       msg = d?.error ?? d?.message ?? msg;
-    } catch {
-      /* body không phải JSON */
-    }
+    } catch {}
     throw new ApiRequestError(msg, res.status);
   }
 
-  // Một số endpoint trả 204/empty body.
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }

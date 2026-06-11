@@ -1,14 +1,3 @@
-/**
- * Badge label tiếng Việt cho Library doc (2026-05-27).
- *
- * Trước đây mỗi component (doc-card, detail page, curated section) hardcode
- * nhãn tiếng Anh ("Outcome Verified", "Power"...) → không nhất quán với UI
- * tiếng Việt. Gom về 1 chỗ + Việt hóa.
- *
- * App mặc định tiếng Việt (xem lib/i18n/dict.ts). Các badge này là metadata
- * chất lượng, Việt hóa cho user VN dễ hiểu.
- */
-
 export type LibraryBadgeKey =
   | 'outcome_verified'
   | 'educator_approved'
@@ -49,10 +38,6 @@ export const BADGE_META: Record<
   },
 };
 
-/** Lấy nhãn ngắn cho badge slug bất kỳ (fallback: format slug). */
 export function badgeShortLabel(slug: string): string {
-  return (
-    BADGE_META[slug as LibraryBadgeKey]?.short ??
-    slug.replace(/_/g, ' ')
-  );
+  return BADGE_META[slug as LibraryBadgeKey]?.short ?? slug.replace(/_/g, ' ');
 }

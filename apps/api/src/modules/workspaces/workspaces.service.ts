@@ -1,13 +1,3 @@
-/**
- * WorkspacesService — CRUD workspace + stats/atoms/manage/quick-quiz/
- * conversations. Port từ apps/web/src/app/api/workspaces/** — GIỮ NGUYÊN
- * wire shape (camelCase như Drizzle alias cũ, kể cả message lỗi tiếng Việt),
- * CÙNG cache key (ck.workspaces / workspaceStats / workspaceAtoms) +
- * invalidator onWorkspaceChanged để Next/Nest sống chung không lệch cache.
- *
- * Route cũ đọc list/stats/atoms qua dbReplica; api hiện chỉ có 1 PrismaClient
- * (primary) — chấp nhận trong giai đoạn strangler-fig (như search.service.ts).
- */
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type workspace as WorkspaceRow } from '@prisma/client';
@@ -18,7 +8,6 @@ import { onWorkspaceChanged } from '@cogniva/server-core/cache/invalidate';
 import { PrismaService } from '../../infra/database/prisma.service';
 import type { CreateWorkspaceInput, UpdateWorkspaceInput } from './dto/workspaces.dto';
 
-/** Shape workspace trả client — khớp row Drizzle cũ (thứ tự cột schema). */
 interface WorkspaceDto {
   id: string;
   userId: string;
@@ -27,7 +16,6 @@ interface WorkspaceDto {
   createdAt: Date;
 }
 
-/** 1 atom trong GET :id/atoms — Date đã ISO string ngay trong cache payload (như route cũ). */
 interface WorkspaceAtomDto {
   id: string;
   name: string;
@@ -62,7 +50,6 @@ export class WorkspacesService {
     };
   }
 
-  /** Verify workspace thuộc user (chống IDOR) — route cũ nào cũng check trước. */
   async assertOwned(userId: string, workspaceId: string): Promise<void> {
     const ws = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, user_id: userId },
@@ -71,10 +58,6 @@ export class WorkspacesService {
     if (!ws) throw new NotFoundException({ error: 'Not found' });
   }
 
-  /**
-   * GET /workspaces — sidebar list kèm documentCount, cache-aside per-user
-   * TTL 120s (cùng key route cũ; POST/PATCH/DELETE bust qua onWorkspaceChanged).
-   */
   async listWorkspaces(userId: string) {
     const rows = await cached(ck.workspaces(userId), 120, () =>
       this.prisma.$queryRaw<
@@ -101,12 +84,9 @@ export class WorkspacesService {
     return { workspaces: rows };
   }
 
-  /** POST /workspaces — tạo + bust sidebar cache (tạo-rồi-thấy-ngay). */
   async createWorkspace(userId: string, input: CreateWorkspaceInput) {
     const inserted = await this.prisma.workspace.create({
       data: {
-        // Route cũ để Drizzle $defaultFn sinh cuid2; api dùng randomUUID
-        // (convention sẵn) — đều là text id opaque.
         id: randomUUID(),
         user_id: userId,
         name: input.name,
@@ -118,12 +98,10 @@ export class WorkspacesService {
     return { workspace: this.toWorkspaceDto(inserted) };
   }
 
-  /** GET /workspaces/:id — meta + documents kèm chunkCount/pageCount. */
   async getWorkspace(userId: string, id: string) {
     const ws = await this.prisma.workspace.findFirst({ where: { id, user_id: userId } });
     if (!ws) throw new NotFoundException({ error: 'Not found' });
 
-    // Route cũ chỉ filter document theo workspaceId (không thêm userId) — giữ nguyên.
     const docs = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -152,7 +130,6 @@ export class WorkspacesService {
     return { workspace: this.toWorkspaceDto(ws), documents: docs };
   }
 
-  /** PATCH /workspaces/:id — rename/đổi mô tả, bust sidebar cache sau update. */
   async updateWorkspace(userId: string, id: string, input: UpdateWorkspaceInput) {
     const existing = await this.prisma.workspace.findFirst({ where: { id, user_id: userId } });
     if (!existing) throw new NotFoundException({ error: 'Not found' });
@@ -167,7 +144,6 @@ export class WorkspacesService {
     return { workspace: this.toWorkspaceDto(updated) };
   }
 
-  /** DELETE /workspaces/:id — giữ tối thiểu 1 workspace (FK document NOT NULL). */
   async deleteWorkspace(userId: string, id: string) {
     const all = await this.prisma.workspace.findMany({
       where: { user_id: userId },
@@ -184,10 +160,6 @@ export class WorkspacesService {
     return { deleted: true };
   }
 
-  /**
-   * GET /workspaces/:id/stats — 6 COUNT badge, cache-aside TTL 30s cùng key
-   * route cũ (bust qua onWorkspaceContentChanged ở các route ghi content).
-   */
   async getStats(userId: string, id: string) {
     await this.assertOwned(userId, id);
 
@@ -206,12 +178,17 @@ export class WorkspacesService {
     return { stats };
   }
 
-  /** GET /workspaces/:id/conversations — switcher dropdown ChatView (limit 50). */
   async listConversations(userId: string, workspaceId: string) {
     await this.assertOwned(userId, workspaceId);
 
     const rows = await this.prisma.$queryRaw<
-      Array<{ id: string; title: string | null; createdAt: Date; lastMessageAt: Date | null; messageCount: number }>
+      Array<{
+        id: string;
+        title: string | null;
+        createdAt: Date;
+        lastMessageAt: Date | null;
+        messageCount: number;
+      }>
     >(Prisma.sql`
       SELECT c.id, c.title, c.created_at AS "createdAt",
         (SELECT MAX(m.created_at) FROM message m WHERE m.conversation_id = c.id) AS "lastMessageAt",
@@ -232,11 +209,6 @@ export class WorkspacesService {
     };
   }
 
-  /**
-   * GET /workspaces/:id/atoms — list atom đầy đủ cache-aside TTL 60s (key
-   * KHÔNG fold sort/limit — sort + slice ngoài cache như route cũ để giữ
-   * hit-rate; payload đã ISO string nên cache hit/miss serialize y nhau).
-   */
   async listAtoms(userId: string, workspaceId: string, sort: AtomSort, limit: number) {
     await this.assertOwned(userId, workspaceId);
 
@@ -244,15 +216,13 @@ export class WorkspacesService {
       this.loadAtoms(userId, workspaceId),
     );
 
-    // Sort theo query param (ngoài cache — in-memory, rẻ)
     atoms.sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'difficulty') {
         const da = a.difficulty ?? 0.5;
         const db_ = b.difficulty ?? 0.5;
-        return db_ - da; // khó trước
+        return db_ - da;
       }
-      // 'mastery' (default): null trước (chưa biết), sau đó score ASC (yếu nhất)
       if (a.masteryScore === null && b.masteryScore !== null) return -1;
       if (a.masteryScore !== null && b.masteryScore === null) return 1;
       return (a.masteryScore ?? 0) - (b.masteryScore ?? 0);
@@ -262,7 +232,6 @@ export class WorkspacesService {
   }
 
   private async loadAtoms(userId: string, workspaceId: string): Promise<WorkspaceAtomDto[]> {
-    // Step 1: concept IDs link với chunk thuộc document của workspace
     const conceptIdRows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT DISTINCT cc.concept_id AS id
       FROM chunk_concept cc
@@ -272,7 +241,6 @@ export class WorkspacesService {
     const conceptIds = conceptIdRows.map((r) => r.id);
     if (conceptIds.length === 0) return [];
 
-    // Step 2-4: concept rows + mastery (user-scoped) + 3 count GROUP BY
     const [concepts, masteryRows, fcCounts, qCounts, exCounts] = await Promise.all([
       this.prisma.concept.findMany({ where: { id: { in: conceptIds } } }),
       this.prisma.mastery.findMany({
@@ -320,7 +288,6 @@ export class WorkspacesService {
       previewAnswer: c.preview_answer,
       masteryScore: masteryMap.get(c.id)?.score ?? null,
       masteryAttempts: masteryMap.get(c.id)?.attempts ?? 0,
-      // lastSeenAt = mốc hoạt động gần nhất (học/đánh dấu) → sort "mới nhất lên đầu".
       lastSeenAt: masteryMap.get(c.id)?.last_seen_at?.toISOString() ?? null,
       lastFlashcardAt: masteryMap.get(c.id)?.last_flashcard_at?.toISOString() ?? null,
       lastQuizAt: masteryMap.get(c.id)?.last_quiz_at?.toISOString() ?? null,
@@ -330,14 +297,9 @@ export class WorkspacesService {
     }));
   }
 
-  /**
-   * GET /workspaces/:id/manage — flashcard + câu hỏi quiz kèm cột "đã làm".
-   * Đọc PRIMARY không cache (route cũ chủ đích read-your-own-write).
-   */
   async manage(userId: string, workspaceId: string) {
     await this.assertOwned(userId, workspaceId);
 
-    // ── Flashcards của workspace ────────────────────────────────────────────
     const fcRows = await this.prisma.flashcard.findMany({
       where: { user_id: userId, workspace_id: workspaceId },
       orderBy: { last_review: { sort: 'desc', nulls: 'last' } },
@@ -353,7 +315,6 @@ export class WorkspacesService {
       },
     });
 
-    // ── Quiz + câu hỏi của workspace ────────────────────────────────────────
     const quizzes = await this.prisma.quiz.findMany({
       where: { user_id: userId, workspace_id: workspaceId },
       select: { id: true, title: true },
@@ -369,9 +330,11 @@ export class WorkspacesService {
           })
         : [];
 
-    // "Đã làm" + đúng/sai gần nhất theo từng câu (quiz_response, lấy bản mới nhất).
     const qIds = qRows.map((q) => q.id);
-    const answeredByQuestion = new Map<string, { isCorrect: boolean | null; answeredAt: Date | null }>();
+    const answeredByQuestion = new Map<
+      string,
+      { isCorrect: boolean | null; answeredAt: Date | null }
+    >();
     if (qIds.length > 0) {
       const responses = await this.prisma.quiz_response.findMany({
         where: { user_id: userId, question_id: { in: qIds } },
@@ -379,14 +342,15 @@ export class WorkspacesService {
         select: { question_id: true, is_correct: true, answered_at: true },
       });
       for (const r of responses) {
-        // responses sort mới→cũ → bản đầu gặp mỗi câu là gần nhất.
         if (!answeredByQuestion.has(r.question_id)) {
-          answeredByQuestion.set(r.question_id, { isCorrect: r.is_correct, answeredAt: r.answered_at });
+          answeredByQuestion.set(r.question_id, {
+            isCorrect: r.is_correct,
+            answeredAt: r.answered_at,
+          });
         }
       }
     }
 
-    // ── Tên atom (concept) cho cả 2 danh sách ───────────────────────────────
     const conceptIds = [
       ...new Set(
         [...fcRows.map((r) => r.concept_id), ...qRows.map((r) => r.concept_id)].filter(
@@ -432,10 +396,6 @@ export class WorkspacesService {
     return { flashcards, questions };
   }
 
-  /**
-   * GET /workspaces/:id/quick-quiz — 5 question random từ atom của workspace,
-   * KHÔNG trả correctAnswer (client submit grade endpoint riêng).
-   */
   async quickQuiz(userId: string, workspaceId: string) {
     await this.assertOwned(userId, workspaceId);
 

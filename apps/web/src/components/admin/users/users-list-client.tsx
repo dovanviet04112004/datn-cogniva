@@ -1,26 +1,8 @@
-/**
- * UsersListClient — list users với search, filter chip, cursor pagination.
- *
- * UX:
- *   - Search debounce 300ms (substring name/email)
- *   - Filter chip toggle: all / FREE / PRO / TEAM / active / suspended / admin
- *   - Table dày 36px row, hover bg-slate-800/40
- *   - Click row → navigate /admin/users/[id]
- *   - Footer: "Tải thêm" button khi có nextCursor
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  ChevronRight,
-  Crown,
-  Loader2,
-  Search,
-  ShieldCheck,
-  UserX,
-  X,
-} from 'lucide-react';
+import { ChevronRight, Crown, Loader2, Search, ShieldCheck, UserX, X } from 'lucide-react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 import { apiGet } from '@cogniva/shared/api';
@@ -56,7 +38,6 @@ export function UsersListClient() {
   });
   const [debouncedQ, setDebouncedQ] = React.useState('');
 
-  // Debounce search 300ms
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(filter.q.trim()), 300);
     return () => clearTimeout(t);
@@ -73,8 +54,6 @@ export function UsersListClient() {
     return p.toString();
   };
 
-  // Cursor pagination qua useInfiniteQuery — key gồm filter + debouncedQ nên
-  // đổi filter tự refetch lại từ trang 1 (không cần effect reset thủ công).
   type Page = { users: UserRow[]; nextCursor: string | null; total: number | null };
   const {
     data,
@@ -90,10 +69,7 @@ export function UsersListClient() {
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const rows = React.useMemo(
-    () => data?.pages.flatMap((p) => p.users) ?? [],
-    [data],
-  );
+  const rows = React.useMemo(() => data?.pages.flatMap((p) => p.users) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -115,7 +91,6 @@ export function UsersListClient() {
         </p>
       </header>
 
-      {/* Search bar */}
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
         <input
@@ -134,7 +109,6 @@ export function UsersListClient() {
         )}
       </div>
 
-      {/* Filter chips */}
       <div className="flex flex-wrap items-center gap-1.5">
         <FilterChip
           active={filter.plan === ''}
@@ -180,7 +154,6 @@ export function UsersListClient() {
         </FilterChip>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/30">
         <table className="w-full text-[13px]">
           <thead className="sticky top-0 bg-slate-900/80 backdrop-blur">
@@ -202,10 +175,7 @@ export function UsersListClient() {
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={6}
-                  className="py-12 text-center text-xs text-slate-500"
-                >
+                <td colSpan={6} className="py-12 text-center text-xs text-slate-500">
                   Không có user khớp filter.
                 </td>
               </tr>
@@ -216,7 +186,6 @@ export function UsersListClient() {
         </table>
       </div>
 
-      {/* Pagination */}
       {hasNextPage && (
         <div className="flex justify-center">
           <button
@@ -224,9 +193,7 @@ export function UsersListClient() {
             disabled={loadingMore}
             className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
           >
-            {loadingMore ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : null}
+            {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             Tải thêm
           </button>
         </div>
@@ -240,10 +207,7 @@ function UserRowItem({ u }: { u: UserRow }) {
   return (
     <tr className="group/row border-b border-slate-800/60 transition-colors hover:bg-slate-800/40">
       <td className="px-3 py-2">
-        <Link
-          href={`/admin/users/${u.id}`}
-          className="flex items-center gap-2.5 text-slate-100"
-        >
+        <Link href={`/admin/users/${u.id}`} className="flex items-center gap-2.5 text-slate-100">
           <Avatar className="h-7 w-7 shrink-0">
             <AvatarImage src={u.image ?? undefined} />
             <AvatarFallback className="bg-slate-800 text-[10.5px] text-slate-300">
@@ -251,12 +215,8 @@ function UserRowItem({ u }: { u: UserRow }) {
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium leading-tight">
-              {u.name ?? '—'}
-            </p>
-            <p className="truncate font-mono text-[10.5px] text-slate-500">
-              {u.email}
-            </p>
+            <p className="truncate text-[13px] font-medium leading-tight">{u.name ?? '—'}</p>
+            <p className="truncate font-mono text-[10.5px] text-slate-500">{u.email}</p>
           </div>
         </Link>
       </td>

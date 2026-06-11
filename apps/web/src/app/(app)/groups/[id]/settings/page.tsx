@@ -1,9 +1,3 @@
-/**
- * /groups/[id]/settings — group settings shell với tabs.
- *
- * Tabs: Overview | Channels | Members | Invites
- * Mỗi tab là sub-component. ADMIN+ mới được truy cập (server-side check).
- */
 import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
@@ -22,9 +16,7 @@ export default async function GroupSettingsPage({ params }: PageProps) {
   const [member] = await db
     .select({ role: studyGroupMember.role })
     .from(studyGroupMember)
-    .where(
-      and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)),
-    )
+    .where(and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)))
     .limit(1);
   if (!member) redirect('/groups');
   if (member.role !== 'OWNER' && member.role !== 'ADMIN') {

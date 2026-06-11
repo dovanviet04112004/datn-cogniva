@@ -1,6 +1,3 @@
-/**
- * /admin/conversations — list conversation cross-user.
- */
 import { ConversationsListClient } from '@/components/admin/conversations/conversations-list-client';
 
 export const dynamic = 'force-dynamic';

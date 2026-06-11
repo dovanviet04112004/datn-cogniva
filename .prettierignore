@@ -1,5 +1,7 @@
 node_modules
 .next
+.expo
+.wrangler
 .turbo
 dist
 build
@@ -8,3 +10,5 @@ pnpm-lock.yaml
 *.min.js
 *.min.css
 .vercel
+.claude
+packages/db/migrations

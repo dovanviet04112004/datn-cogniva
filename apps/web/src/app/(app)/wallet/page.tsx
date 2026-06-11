@@ -1,14 +1,3 @@
-/**
- * /wallet — V4 T3 (2026-05-22).
- *
- * Wallet management cho student/tutor:
- *   - Balance + promo credit display
- *   - Topup CTA + auto-topup config
- *   - Recent transactions (10 gần nhất, link "Xem tất cả")
- *   - Promo code redeem form
- *
- * Spec: docs/plans/tutoring-v4.md §7.8.
- */
 import { redirect } from 'next/navigation';
 import { Wallet } from 'lucide-react';
 
@@ -25,7 +14,6 @@ export default async function WalletPage() {
   if (!session) redirect('/sign-in?redirect=/wallet');
   return (
     <PageShell size="default" padded className="space-y-6">
-      {/* Hero CHUNG thay header tự-chế — h1 → title, p → description. */}
       <PageHero
         eyebrow="Ví"
         eyebrowIcon={Wallet}

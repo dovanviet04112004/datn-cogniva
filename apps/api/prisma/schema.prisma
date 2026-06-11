@@ -82,7 +82,6 @@ model audit_log {
   @@index([timestamp], map: "audit_log_time_brin_idx", type: Brin)
 }
 
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model chunk {
   id            String                 @id
   document_id   String
@@ -152,7 +151,6 @@ model concept_relation {
   @@unique([from_id, to_id, relation_type], map: "concept_relation_uniq")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model content_report {
   id                                    String    @id
   reporter_id                           String
@@ -431,8 +429,6 @@ model jwks {
   @@index([created_at(sort: Desc)])
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model library_course {
   id                 String              @id
   university_id      String?
@@ -462,8 +458,6 @@ model library_creator_karma {
   @@index([points(sort: Desc)])
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
 model library_doc {
   id                      String                    @id
   uploader_id             String
@@ -541,7 +535,6 @@ model library_doc {
   @@index([uploader_id], map: "library_doc_uploader_idx")
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model library_doc_annotation {
   id                          String                        @id
   doc_id                      String
@@ -648,7 +641,6 @@ model library_doc_outcome {
   @@index([user_id], map: "library_doc_outcome_user_idx")
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model library_doc_purchase {
   id                 String      @id
   doc_id             String
@@ -683,7 +675,6 @@ model library_doc_report {
   @@index([status, created_at], map: "library_doc_report_status_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model library_doc_review {
   id            String      @id
   doc_id        String
@@ -739,7 +730,6 @@ model library_saved_search {
   @@index([user_id, created_at(sort: Desc)], map: "library_saved_search_user_idx")
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model library_university {
   id             String           @id
   slug           String           @unique
@@ -822,7 +812,6 @@ model notification_log {
   @@index([user_id, type, created_at(sort: Desc)], map: "notification_log_user_type_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model promo_code {
   code                                                               String                  @id
   type                                                               String
@@ -926,7 +915,6 @@ model quiz_response {
   @@index([user_id, question_id], map: "quiz_response_user_question_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model recording {
   id                     String               @id
   room_id                String?
@@ -1115,7 +1103,6 @@ model study_group_channel {
   @@index([group_id, position], map: "study_group_channel_group_pos_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model study_group_channel_permission {
   id                  String              @id
   channel_id          String
@@ -1214,7 +1201,6 @@ model study_group_message_revision {
   @@index([message_id, edited_at(sort: Desc)], map: "study_group_message_revision_msg_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model study_group_read_state {
   user_id              String
   channel_id           String
@@ -1339,7 +1325,6 @@ model tutor_availability {
   @@index([tutor_id], map: "tutor_availability_tutor_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutor_blocked_time {
   id            String        @id
   tutor_id      String
@@ -1401,7 +1386,6 @@ model tutor_payout {
   @@index([tutor_id, requested_at], map: "tutor_payout_tutor_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutor_profile {
   id                       String                    @id
   user_id                  String                    @unique
@@ -1584,7 +1568,6 @@ model tutoring_booking {
   @@index([tutor_id, start_at], map: "tutoring_booking_tutor_time_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutoring_class {
   id                        String                      @id
   tutor_id                  String
@@ -1611,7 +1594,6 @@ model tutoring_class {
   @@index([tutor_id, status], map: "tutoring_class_tutor_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutoring_class_enrollment {
   id               String            @id
   class_id         String
@@ -1628,7 +1610,6 @@ model tutoring_class_enrollment {
   @@index([student_id, status], map: "tutoring_class_enrollment_student_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutoring_concierge_message {
   id                        String                    @id
   thread_id                 String
@@ -1654,7 +1635,6 @@ model tutoring_concierge_thread {
   @@index([user_id, last_message_at(sort: Desc)], map: "tutoring_concierge_thread_user_time_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutoring_pack {
   id                     String                   @id
   tutor_id               String
@@ -1675,7 +1655,6 @@ model tutoring_pack {
   @@index([tutor_id, status], map: "tutoring_pack_tutor_idx")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tutoring_pack_purchase {
   id                        String             @id
   pack_id                   String
@@ -1728,8 +1707,6 @@ model two_factor {
   @@index([user_id], map: "idx_two_factor_user")
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model user {
   id                                                      String                           @id
   email                                                   String                           @unique(map: "user_email_unique")
@@ -1844,7 +1821,6 @@ model user_stats {
   @@index([xp])
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model user_wallet {
   user_id                  String    @id
   balance_vnd              Int       @default(0)
@@ -1857,7 +1833,6 @@ model user_wallet {
   user                     user      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model user_wallet_txn {
   id                String   @id
   user_id           String

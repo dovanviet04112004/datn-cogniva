@@ -1,8 +1,3 @@
-/**
- * /api/tutoring/{bookings,calendar/me,ical/:token} — port từ route Next
- * (apps/web/src/app/api/tutoring/**). KHÔNG port: bookings/:id PATCH,
- * reschedule, calendar (không /me) — 0 caller (chết).
- */
 import {
   Body,
   Controller,
@@ -22,18 +17,13 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
 import type { AuthUser } from '../../../common/auth/session.types';
-import {
-  CANCEL_SCHEMA,
-  REVIEW_SCHEMA,
-  TutoringBookingsService,
-} from './bookings.service';
+import { CANCEL_SCHEMA, REVIEW_SCHEMA, TutoringBookingsService } from './bookings.service';
 
 @ApiTags('tutoring')
 @Controller('tutoring')
 export class TutoringBookingsController {
   constructor(private readonly bookings: TutoringBookingsService) {}
 
-  /** GET /tutoring/bookings?role=student|tutor|all&upcoming=true — list ≤50. */
   @Get('bookings')
   list(
     @CurrentUser() user: AuthUser,
@@ -43,11 +33,6 @@ export class TutoringBookingsController {
     return this.bookings.listBookings(user.id, role ?? 'all', upcoming === 'true');
   }
 
-  /**
-   * POST /tutoring/bookings — student tạo booking (201).
-   * Rate-limit Redis chạy TRƯỚC body parse (429 ưu tiên 400 như route cũ)
-   * → body raw, service tự safeParse.
-   */
   @Post('bookings')
   async create(
     @CurrentUser() user: AuthUser,
@@ -62,7 +47,6 @@ export class TutoringBookingsController {
     return this.bookings.createBooking(user.id, raw);
   }
 
-  /** GET /tutoring/calendar/me?from&to — unified calendar (default +14d). */
   @Get('calendar/me')
   calendarMe(
     @CurrentUser() user: AuthUser,
@@ -72,10 +56,6 @@ export class TutoringBookingsController {
     return this.bookings.calendarMe(user.id, from, to);
   }
 
-  /**
-   * GET /tutoring/ical/:token — public feed .ics (auth bằng token trong path).
-   * Bản cũ trả raw Response text (không JSON) → control express response tay.
-   */
   @Public()
   @Get('ical/:token')
   async ical(@Param('token') token: string, @Res() res: Response) {
@@ -94,20 +74,17 @@ export class TutoringBookingsController {
       .send(out.ics);
   }
 
-  /** GET /tutoring/bookings/:id — detail + review + payment + role. */
   @Get('bookings/:id')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.bookings.getBooking(user.id, id);
   }
 
-  /** POST /tutoring/bookings/:id/confirm — tutor confirm (route cũ 200). */
   @HttpCode(200)
   @Post('bookings/:id/confirm')
   confirm(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.bookings.confirmBooking(user.id, id);
   }
 
-  /** POST /tutoring/bookings/:id/cancel — student/tutor huỷ (route cũ 200). */
   @HttpCode(200)
   @Post('bookings/:id/cancel')
   cancel(
@@ -118,14 +95,12 @@ export class TutoringBookingsController {
     return this.bookings.cancelBooking(user, id, body);
   }
 
-  /** POST /tutoring/bookings/:id/complete — tutor mark COMPLETED (route cũ 200). */
   @HttpCode(200)
   @Post('bookings/:id/complete')
   complete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.bookings.completeBooking(user.id, id);
   }
 
-  /** POST /tutoring/bookings/:id/review — student review (201 như route cũ). */
   @Post('bookings/:id/review')
   review(
     @CurrentUser() user: AuthUser,

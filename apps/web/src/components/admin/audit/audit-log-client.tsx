@@ -1,11 +1,3 @@
-/**
- * AuditLogClient — list audit log với filter + JSON diff viewer.
- *
- * UX:
- *   - Filter bar: date range + admin email + action substring + target type/id
- *   - Table row → click → expand panel với before/after JSON side-by-side
- *   - "Tải thêm" cursor pagination
- */
 'use client';
 
 import * as React from 'react';
@@ -106,10 +98,7 @@ export function AuditLogClient() {
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const entries = React.useMemo(
-    () => data?.pages.flatMap((p) => p.entries) ?? [],
-    [data],
-  );
+  const entries = React.useMemo(() => data?.pages.flatMap((p) => p.entries) ?? [], [data]);
   const distinct = data?.pages[0]?.distinct ?? { actions: [], targetTypes: [] };
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -141,22 +130,18 @@ export function AuditLogClient() {
           </button>
         </div>
         <p className="text-sm text-slate-400">
-          Mọi mutation admin được ghi qua <code>withAudit()</code>. Click row để xem
-          before/after diff + reason.
+          Mọi mutation admin được ghi qua <code>withAudit()</code>. Click row để xem before/after
+          diff + reason.
         </p>
       </header>
 
-      {/* Filter bar */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             <Filter className="h-3 w-3" />
             Filter
           </h2>
-          <button
-            onClick={resetFilter}
-            className="text-[11px] text-slate-500 hover:text-slate-300"
-          >
+          <button onClick={resetFilter} className="text-[11px] text-slate-500 hover:text-slate-300">
             Reset
           </button>
         </div>
@@ -199,7 +184,6 @@ export function AuditLogClient() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/30">
         <table className="w-full text-[12.5px]">
           <thead className="sticky top-0 bg-slate-900/80 backdrop-blur">
@@ -259,7 +243,7 @@ export function AuditLogClient() {
                     <td className="px-3 py-2">
                       <TargetLink type={e.targetType} id={e.targetId} />
                     </td>
-                    <td className="px-3 py-2 max-w-[300px] truncate text-[11.5px] text-slate-400">
+                    <td className="max-w-[300px] truncate px-3 py-2 text-[11.5px] text-slate-400">
                       {e.payload.reason ?? <span className="italic text-slate-600">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right">

@@ -1,9 +1,3 @@
-/**
- * SummarizeService — port từ apps/web/src/lib/ai/summarize.ts cho recording
- * pipeline. generateText (AI SDK) → LlmService.complete (REST, cùng provider
- * pick order); prompt/system GIỮ NGUYÊN VĂN. maxTokens truyền tường minh vì
- * LlmService default 1024 (flashcard JSON 10 thẻ cần dài hơn).
- */
 import { Injectable } from '@nestjs/common';
 
 import { LlmService } from '../../infra/ai/llm.service';
@@ -12,9 +6,7 @@ const CHUNK_WORD_LIMIT = 5_000;
 const SINGLE_SHOT_THRESHOLD = 8_000;
 
 export type FlashcardDraft = {
-  /** Mặt trước (câu hỏi/cloze). */
   front: string;
-  /** Mặt sau (đáp án/giải thích). */
   back: string;
 };
 
@@ -36,12 +28,10 @@ Quy tắc:
 - Không bịa fact ngoài transcript.
 - Giữ NGUYÊN tên riêng + công thức + số liệu.`;
 
-/** Word count thô — đủ chính xác cho phán đoán chunk strategy. */
 function approxWordCount(text: string): number {
   return text.trim().split(/\s+/).length;
 }
 
-/** Chia text thành chunks tối đa `maxWords` từ mỗi chunk. */
 function chunkByWords(text: string, maxWords: number): string[] {
   const words = text.split(/\s+/);
   const chunks: string[] = [];
@@ -55,10 +45,6 @@ function chunkByWords(text: string, maxWords: number): string[] {
 export class SummarizeService {
   constructor(private readonly llm: LlmService) {}
 
-  /**
-   * Summarize transcript buổi học — <8K từ 1 shot, ≥8K map-reduce
-   * (chunk 5K từ → partial 100 từ → gộp summarize lần 2).
-   */
   async summarizeTranscript(transcript: string): Promise<string> {
     const wordCount = approxWordCount(transcript);
 
@@ -69,7 +55,6 @@ export class SummarizeService {
       );
     }
 
-    // Map-reduce cho transcript dài
     const chunks = chunkByWords(transcript, CHUNK_WORD_LIMIT);
     const partials = await Promise.all(
       chunks.map((chunk, i) =>
@@ -88,12 +73,6 @@ export class SummarizeService {
     );
   }
 
-  /**
-   * Generate flashcards (front/back) từ transcript. Transcript > 6K từ →
-   * tóm tắt trước rồi gen từ tóm tắt (tránh context bloat).
-   *
-   * @returns Mảng FlashcardDraft — caller insert vào `flashcard` table.
-   */
   async generateFlashcardsFromTranscript(
     transcript: string,
     count = 10,
@@ -117,7 +96,6 @@ ${source}`,
       },
     );
 
-    // Parse với fallback (LLM đôi khi vẫn wrap code fence dù được dặn)
     const cleaned = text
       .trim()
       .replace(/^```json\s*/i, '')

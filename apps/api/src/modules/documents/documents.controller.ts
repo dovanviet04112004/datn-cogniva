@@ -1,15 +1,3 @@
-/**
- * /api/documents/* — port từ route Next (apps/web/src/app/api/documents/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- *
- * Upload: FileInterceptor memory storage, limits.fileSize 52MB để check thủ
- * công 50MB của route cũ vẫn chạy (message 400 giữ nguyên văn); status động
- * 200/207 qua passthrough res (Nest set default TRƯỚC handler nên res.status()
- * trong handler thắng).
- *
- * File proxy: route cũ trả lỗi PLAIN TEXT (không JSON) → handler tự set
- * status + trả string qua passthrough thay vì throw (filter sẽ bọc JSON).
- */
 import {
   BadRequestException,
   Body,
@@ -38,7 +26,7 @@ import { StorageService } from '../../infra/storage/storage.service';
 import { DocumentsService } from './documents.service';
 import { moveDocumentSchema, type MoveDocumentInput } from './dto/documents.dto';
 
-const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB — chặn upload PDF khổng lồ
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const ALLOWED_MIME = ['application/pdf'] as const;
 
 @ApiTags('documents')
@@ -49,23 +37,14 @@ export class DocumentsController {
     private readonly storage: StorageService,
   ) {}
 
-  /** GET /documents — list tài liệu của user (limit cứng 100, mới nhất trước). */
   @Get()
   list(@CurrentUser() user: AuthUser) {
     return this.documents.listDocuments(user.id);
   }
 
-  /**
-   * POST /documents/upload — multipart PDF, ingest ĐỒNG BỘ.
-   * Thứ tự check giữ y route cũ: rate-limit → multipart → file → size → mime
-   * → workspaceId (riêng multer parse multipart TRƯỚC handler — chấp nhận).
-   */
   @Post('upload')
   @HttpCode(200)
-  @UseInterceptors(
-    // KHÔNG truyền storage → multer default memory storage (file.buffer).
-    FileInterceptor('file', { limits: { fileSize: 52 * 1024 * 1024 } }),
-  )
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 52 * 1024 * 1024 } }))
   async upload(
     @CurrentUser() user: AuthUser,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -79,8 +58,6 @@ export class DocumentsController {
       throw new HttpException({ error: 'Too many uploads' }, 429);
     }
 
-    // Route cũ: request.formData() throw khi body không phải multipart → 400.
-    // Multer chỉ skip silent → tự check content-type để giữ message cũ.
     const contentType = req.headers['content-type'] ?? '';
     if (!contentType.includes('multipart/form-data')) {
       throw new BadRequestException({ error: 'Body không phải multipart/form-data' });
@@ -90,12 +67,8 @@ export class DocumentsController {
       throw new BadRequestException({ error: 'Field "file" thiếu hoặc không phải file' });
     }
 
-    // busboy (multer) decode filename theo latin1 → tên file tiếng Việt vỡ;
-    // Next formData() decode UTF-8 đúng — convert lại cho parity. Tên ASCII
-    // thuần đi qua conversion không đổi.
     const filename = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
-    // workspaceId BẮT BUỘC — user chọn workspace để upload doc vào ĐÚNG chỗ.
     let requestedWorkspaceId: string | null = null;
     const wsField = body?.workspaceId;
     if (typeof wsField === 'string' && wsField.trim().length > 0) {
@@ -135,17 +108,11 @@ export class DocumentsController {
     return this.documents.deleteDocument(user.id, id);
   }
 
-  /** GET /documents/:id/chunks — chunk list cho DocPreviewPanel (sort chunkIndex). */
   @Get(':id/chunks')
   chunks(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.documents.listChunks(user.id, id);
   }
 
-  /**
-   * GET /documents/:id/file — stream PDF gốc. Headers + body lỗi (plain text)
-   * giữ y route cũ; chỉ 401 từ guard là JSON {error} (route cũ trả text —
-   * không tái tạo được vì KHÔNG tự viết auth, xem notes).
-   */
   @Get(':id/file')
   async file(
     @CurrentUser() user: AuthUser,
@@ -174,8 +141,6 @@ export class DocumentsController {
 
     try {
       const buffer = await this.storage.get(doc.storage_key);
-      // Nội dung PDF BẤT BIẾN (storageKey = docId) → browser cache 24h +
-      // immutable; private vì doc per-user (y route cũ).
       res.setHeader('Cache-Control', 'private, max-age=86400, immutable');
       return new StreamableFile(buffer, {
         type: doc.mime_type,
@@ -189,7 +154,6 @@ export class DocumentsController {
     }
   }
 
-  /** POST /documents/:id/move — route cũ trả 200 (Nest POST mặc định 201 → ép lại). */
   @Post(':id/move')
   @HttpCode(200)
   move(

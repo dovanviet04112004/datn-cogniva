@@ -1,7 +1,3 @@
-/**
- * /api/notes/* — port từ route Next (apps/web/src/app/api/notes/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- */
 import {
   BadRequestException,
   Body,
@@ -37,7 +33,6 @@ import {
 export class NotesController {
   constructor(private readonly notes: NotesService) {}
 
-  /** GET /notes?limit=50&offset=0&workspaceId=X — parse query y route cũ (cap 200). */
   @Get()
   list(
     @CurrentUser() user: AuthUser,
@@ -50,11 +45,6 @@ export class NotesController {
     return this.notes.listNotes(user.id, { limit, offset, workspaceParam: workspaceParam ?? null });
   }
 
-  /**
-   * POST /notes/complete — AI inline completion (route cũ trả 200, không 201).
-   * Rate-limit chạy TRƯỚC validate body (đúng thứ tự route cũ: 429 ưu tiên hơn 400)
-   * nên parse zod thủ công thay vì qua pipe.
-   */
   @Post('complete')
   @HttpCode(200)
   async complete(
@@ -74,7 +64,6 @@ export class NotesController {
     return { completion: await this.notes.completeNote(parsed.data.prefix) };
   }
 
-  /** POST /notes — tạo note (201 mặc định của Nest = status route cũ). */
   @Post()
   create(
     @CurrentUser() user: AuthUser,

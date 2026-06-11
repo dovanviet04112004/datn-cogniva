@@ -70,6 +70,7 @@ pnpm --filter @cogniva/mobile start
 ```
 
 Sau khi `expo start`, bạn sẽ thấy QR code:
+
 - **iOS:** mở Camera app → scan QR → tap notification → Expo Go mở app
 - **Android:** mở Expo Go → "Scan QR code" → quét
 
@@ -80,6 +81,7 @@ Vì điện thoại + máy dev khác network, `localhost:3000` KHÔNG work. Có 
 **Option A — Same Wi-Fi:** Set `EXPO_PUBLIC_API_URL=http://YOUR_LAN_IP:3000` trong `.env.local`. LAN IP qua `ipconfig` (Windows) hoặc `ifconfig` (Mac/Linux).
 
 **Option B — ngrok tunnel:**
+
 ```bash
 npm install -g ngrok
 ngrok http 3000
@@ -114,11 +116,11 @@ eas submit --platform android   # cần google-service-account.json
 
 3 profiles trong `eas.json`:
 
-| Profile | Distribution | Channel | API URL |
-|---|---|---|---|
-| `development` | internal + dev client | development | `http://localhost:3000` |
-| `preview` | internal (APK / TF) | preview | `https://staging.cogniva.app` |
-| `production` | store | production | `https://cogniva.app` |
+| Profile       | Distribution          | Channel     | API URL                       |
+| ------------- | --------------------- | ----------- | ----------------------------- |
+| `development` | internal + dev client | development | `http://localhost:3000`       |
+| `preview`     | internal (APK / TF)   | preview     | `https://staging.cogniva.app` |
+| `production`  | store                 | production  | `https://cogniva.app`         |
 
 ## Deep linking
 
@@ -126,11 +128,11 @@ App scheme: `cogniva://` (đã wire ở `app.json`).
 
 Expo Router tự map URL path → route file:
 
-| Deep link | Route file |
-|---|---|
-| `cogniva://flashcards` | `app/(app)/flashcards.tsx` |
-| `cogniva://documents/{id}` | `app/(app)/documents/[id].tsx` |
-| `cogniva://rooms/{id}` | `app/(app)/rooms/{id}.tsx` (Stage 3) |
+| Deep link                  | Route file                           |
+| -------------------------- | ------------------------------------ |
+| `cogniva://flashcards`     | `app/(app)/flashcards.tsx`           |
+| `cogniva://documents/{id}` | `app/(app)/documents/[id].tsx`       |
+| `cogniva://rooms/{id}`     | `app/(app)/rooms/{id}.tsx` (Stage 3) |
 
 Test deep link trong dev:
 

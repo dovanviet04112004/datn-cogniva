@@ -1,10 +1,3 @@
-/**
- * Trace ID utilities — match format với apps/web/src/middleware.ts:
- *   cog-{16hex}-{8hex}
- *
- * Reuse upstream trace ID nếu request có (Sentry distributed tracing).
- * KHÔNG fragment trace giữa client → edge → origin.
- */
 export function generateTraceId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(12));
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');

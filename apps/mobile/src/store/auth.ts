@@ -1,24 +1,8 @@
-/**
- * Auth store — Zustand. Lưu user state in-memory + hydrate từ SecureStore.
- *
- * Token strategy (JWT stack NestJS — xem docs/plans/nestjs-migration.md §3):
- *   - Sign-in/sign-up trả CẶP token trong BODY: accessToken (JWT ES256, 15')
- *     + refreshToken (opaque 30d, rotation) → lưu SecureStore.
- *   - Mọi API gắn `Authorization: Bearer <accessToken>`; hết hạn thì
- *     lib/api.ts tự refresh + retry (xem fetchWithRefresh).
- *   - Header `set-auth-token` (session Better Auth cũ) KHÔNG dùng nữa —
- *     backend sắp gỡ dual-accept, token BA sẽ bị 401.
- */
 import { create } from 'zustand';
 import type { UserDTO } from '@cogniva/shared';
 
 import { api, setOnAuthLost } from '@/lib/api';
-import {
-  clearAllAuthStorage,
-  refreshStorage,
-  saveTokenPair,
-  userCache,
-} from '@/lib/storage';
+import { clearAllAuthStorage, refreshStorage, saveTokenPair, userCache } from '@/lib/storage';
 import { getCachedPushToken } from '@/lib/notifications';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -35,7 +19,6 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
-/** Rút message từ shape lỗi {error: string | zodFlatten} của API V2. */
 function errorMessage(body: unknown, fallback: string): string {
   const err = (body as { error?: unknown })?.error;
   if (typeof err === 'string') return err;
@@ -47,7 +30,6 @@ function errorMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
-/** POST auth endpoint — credentials omit (mobile không cookie, chỉ Bearer). */
 async function postAuth(path: string, body: unknown): Promise<Response> {
   return fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -60,7 +42,6 @@ async function postAuth(path: string, body: unknown): Promise<Response> {
   });
 }
 
-/** Xử lý response sign-in/sign-up: lưu cặp JWT (từ BODY) + user cache. */
 async function captureAuth(res: Response): Promise<UserDTO> {
   const data = (await res.json()) as {
     user: UserDTO;
@@ -69,7 +50,6 @@ async function captureAuth(res: Response): Promise<UserDTO> {
     twoFactorRequired?: boolean;
   };
   if (data.twoFactorRequired) {
-    // UI nhập TOTP trên mobile chưa có — user 2FA đăng nhập trên web trước.
     throw new Error('Tài khoản bật 2FA — vui lòng đăng nhập trên web.');
   }
   if (!data.accessToken || !data.refreshToken) {
@@ -90,8 +70,6 @@ export const useAuth = create<AuthState>((set) => ({
     set({ hydrating: true });
     const cached = await userCache.get<UserDTO>();
     if (cached) {
-      // Re-validate qua /api/auth/me — accessToken hết hạn thì fetchWithRefresh
-      // tự refresh+retry; refresh cũng fail → signed-out, bắt sign-in lại.
       const result = await api.auth.me();
       if (result.ok && result.data?.user) {
         set({ user: result.data.user, hydrating: false });
@@ -141,28 +119,19 @@ export const useAuth = create<AuthState>((set) => ({
 
   signOut: async () => {
     set({ busy: true });
-    // M7: unregister push token TRƯỚC khi sign-out — backend cần Bearer còn
-    // hợp lệ để verify ownership. Không có token cached → skip silent.
     try {
       const cachedToken = getCachedPushToken();
       if (cachedToken) {
         await api.account.unregisterPushToken(cachedToken);
       }
-    } catch {
-      // Ignore — token stale sẽ được cron dọn khi Expo trả DeviceNotRegistered.
-    }
+    } catch {}
     try {
-      // Gửi refreshToken trong body để server revoke đúng phiên này.
       const refreshToken = await refreshStorage.get();
       await api.auth.signOut(refreshToken ?? undefined);
-    } catch {
-      // Ignore — vẫn clear local state dù API fail.
-    }
+    } catch {}
     await clearAllAuthStorage();
     set({ user: null, busy: false });
   },
 }));
 
-// Refresh token bị server từ chối giữa chừng (revoked/reuse-detected) →
-// lib/api.ts đã clear storage, đẩy UI về signed-out ngay không đợi hydrate.
 setOnAuthLost(() => useAuth.setState({ user: null }));

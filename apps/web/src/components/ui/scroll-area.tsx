@@ -1,10 +1,3 @@
-/**
- * ScrollArea — wrap @radix-ui/react-scroll-area để có scrollbar tuỳ biến
- * thay vì scrollbar mặc định của browser (mỗi OS hiển thị khác nhau xấu).
- *
- * Mặc định orientation="vertical". Cần horizontal hoặc cả 2 thì truyền
- * thêm <ScrollBar orientation="horizontal" /> trước </ScrollAreaPrimitive.Root>.
- */
 'use client';
 
 import * as React from 'react';
@@ -21,7 +14,6 @@ const ScrollArea = React.forwardRef<
     className={cn('relative overflow-hidden', className)}
     {...props}
   >
-    {/* Viewport: phần thực sự cuộn — cần đặt class h-full w-full để nội dung kéo full */}
     <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
       {children}
     </ScrollAreaPrimitive.Viewport>
@@ -31,7 +23,6 @@ const ScrollArea = React.forwardRef<
 ));
 ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName;
 
-/** Scrollbar tuỳ biến (thumb có rounded, track ẩn). */
 const ScrollBar = React.forwardRef<
   React.ComponentRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
@@ -47,7 +38,7 @@ const ScrollBar = React.forwardRef<
     )}
     {...props}
   >
-    <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+    <ScrollAreaPrimitive.ScrollAreaThumb className="bg-border relative flex-1 rounded-full" />
   </ScrollAreaPrimitive.ScrollAreaScrollbar>
 ));
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName;

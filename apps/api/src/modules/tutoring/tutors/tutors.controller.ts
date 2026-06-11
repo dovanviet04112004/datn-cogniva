@@ -1,11 +1,3 @@
-/**
- * /api/tutors/* — port từ route Next (apps/web/src/app/api/tutors/**), CHỈ
- * các mutation của become-tutor wizard (Wave 7). Mọi route cần session
- * (guard mặc định lo 401 {error:'Unauthorized'}).
- *
- * Body KHÔNG qua pipe: route cũ check existing-profile/ownership TRƯỚC khi
- * parse body (pipe sẽ đảo thứ tự status) — service tự safeParse.
- */
 import {
   Body,
   Controller,
@@ -39,7 +31,6 @@ export class TutorsController {
     private readonly verifyQuiz: TutorVerifyQuizService,
   ) {}
 
-  /** POST /tutors — tạo draft profile; đã có → 200 {reused:true}, mới → 201. */
   @Post()
   async create(
     @CurrentUser() user: AuthUser,
@@ -51,7 +42,6 @@ export class TutorsController {
     return result.body;
   }
 
-  /** PUT /tutors/:id/availability — bulk replace lịch rảnh. */
   @Put(':id/availability')
   replaceAvailability(
     @CurrentUser() user: AuthUser,
@@ -61,23 +51,14 @@ export class TutorsController {
     return this.tutors.replaceAvailability(user.id, id, body);
   }
 
-  /** POST /tutors/:id/favorite — toggle favorite (route cũ trả 200). */
   @Post(':id/favorite')
   @HttpCode(200)
   toggleFavorite(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.tutors.toggleFavorite(user.id, id);
   }
 
-  /**
-   * POST /tutors/:id/kyc — upload KYC doc (201). Thứ tự check giữ y route cũ:
-   * rate-limit → 404/403 → multipart/file/docType/size/mime trong service.
-   * Multer limit 11MB > check 10MB thủ công để message 400 cũ vẫn chạy.
-   */
   @Post(':id/kyc')
-  @UseInterceptors(
-    // KHÔNG truyền storage → multer default memory storage (file.buffer).
-    FileInterceptor('file', { limits: { fileSize: 11 * 1024 * 1024 } }),
-  )
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 11 * 1024 * 1024 } }))
   async uploadKyc(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
@@ -100,24 +81,17 @@ export class TutorsController {
     });
   }
 
-  /** POST /tutors/:id/publish — DRAFT → PUBLISHED (route cũ trả 200). */
   @Post(':id/publish')
   @HttpCode(200)
   publish(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.tutors.publish(user.id, id);
   }
 
-  /** POST /tutors/:id/subjects — thêm môn dạy (201; dup → 409). */
   @Post(':id/subjects')
-  addSubject(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() body: unknown,
-  ) {
+  addSubject(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {
     return this.tutors.addSubject(user.id, id, body);
   }
 
-  /** POST /tutors/:id/subjects/:sid/verify-quiz — AI gen quiz verify môn (201). */
   @Post(':id/subjects/:sid/verify-quiz')
   async createVerifyQuiz(
     @CurrentUser() user: AuthUser,

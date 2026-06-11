@@ -1,6 +1,3 @@
-/**
- * /admin/conversations/[id] — full thread read-only.
- */
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';

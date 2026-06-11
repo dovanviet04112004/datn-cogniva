@@ -1,9 +1,3 @@
-/**
- * FavoritesTab — V4 T5 (2026-05-22).
- *
- * Client component fetch /api/tutoring/favorites + render grid TutorCard.
- * Empty state với CTA về tab Tutors.
- */
 'use client';
 
 import { Heart, Loader2, Search } from 'lucide-react';
@@ -44,7 +38,7 @@ export function FavoritesTab() {
 
   if (loading) {
     return (
-      <Card className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+      <Card className="text-muted-foreground flex items-center justify-center gap-2 p-12 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Đang tải…
       </Card>
@@ -59,12 +53,11 @@ export function FavoritesTab() {
         </span>
         <div>
           <p className="text-sm font-semibold">Chưa có gia sư yêu thích</p>
-          <p className="mt-1 max-w-[320px] text-[12px] text-muted-foreground">
-            Bấm ♥ trên card gia sư để lưu lại. Quay lại dễ dàng + nhận alert khi
-            tutor có pack giảm giá mới.
+          <p className="text-muted-foreground mt-1 max-w-[320px] text-[12px]">
+            Bấm ♥ trên card gia sư để lưu lại. Quay lại dễ dàng + nhận alert khi tutor có pack giảm
+            giá mới.
           </p>
         </div>
-        {/* Browse gia sư — primary qua <Button asChild> (tự có shadow-primary) */}
         <Button asChild>
           <Link href="/tutoring?tab=tutors">
             <Search className="h-3.5 w-3.5" />
@@ -91,7 +84,7 @@ export function FavoritesTab() {
           verificationStatus: f.verificationStatus,
           instantBookEnabled: f.instantBookEnabled,
           avgResponseMinutes: f.avgResponseMinutes,
-          subjects: [], // Favorites endpoint chưa join subjects — V4.1 add
+          subjects: [],
         };
         return <TutorCard key={f.tutorId} tutor={tutor} initialFavorited />;
       })}

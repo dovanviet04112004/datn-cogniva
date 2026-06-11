@@ -1,9 +1,3 @@
-/**
- * FavoriteButton — V4 T5 (2026-05-22).
- *
- * Heart toggle button — hiển thị trên tutor profile detail page.
- * (TutorCard có heart icon riêng inline.)
- */
 'use client';
 
 import * as React from 'react';

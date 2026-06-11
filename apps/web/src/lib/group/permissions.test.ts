@@ -1,11 +1,3 @@
-/**
- * Unit test cho permission matrix study group.
- *
- * Cover:
- *   - Role hierarchy (rank ordering)
- *   - Action allowed/denied đúng theo role
- *   - Edge cases: null role, action không định nghĩa, isMuted
- */
 import { describe, expect, it } from 'vitest';
 
 import { can, denyReason, isHigherRole, isMuted, ROLE_RANK } from './permissions';
@@ -47,7 +39,7 @@ describe('can()', () => {
     expect(can('MEMBER', 'message.send')).toBe(true);
     expect(can('MEMBER', 'message.react')).toBe(true);
     expect(can('MEMBER', 'voice.connect')).toBe(true);
-    expect(can('MEMBER', 'invite.create')).toBe(true); // member tự tạo invite riêng
+    expect(can('MEMBER', 'invite.create')).toBe(true);
     expect(can('MEMBER', 'message.delete-any')).toBe(false);
     expect(can('MEMBER', 'channel.create')).toBe(false);
     expect(can('MEMBER', 'member.mute')).toBe(false);

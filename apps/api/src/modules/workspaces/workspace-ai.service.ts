@@ -1,15 +1,3 @@
-/**
- * WorkspaceAiService — 2 output LLM của workspace: atom-guide (study guide
- * markdown 500-800 từ) + briefing (tóm tắt 200-300 từ). Port từ
- * apps/web/src/app/api/workspaces/[id]/{atom-guide,briefing} — PROMPT GIỮ
- * NGUYÊN VĂN, persistent cache 24h qua bảng workspace_cached_output (V6),
- * wire shape + message lỗi y route cũ (lỗi LLM/guardrail → 503 {error}).
- *
- * Khác route cũ: routedGenerateText (fallback chain) → LlmService 1 provider
- * (pick order y lib cũ). Guardrail check/record giữ pattern cũ; LlmService
- * không trả token usage nên ước lượng heuristic ~3 chars/token (provider
- * thực tế Groq free → cost 0, record() tự skip; chỉ lệch khi dùng Anthropic).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -19,11 +7,9 @@ import { CostGuardrailService, type Plan } from '../../infra/ai/cost-guardrail.s
 import { PrismaService } from '../../infra/database/prisma.service';
 import type { AuthUser } from '../../common/auth/session.types';
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_CHUNKS_TOTAL = 25;
 const CHUNKS_PER_DOC = 5;
-
-// ── System prompts — copy NGUYÊN VĂN từ route cũ ──────────────────────────
 
 const ATOM_GUIDE_SYSTEM_PROMPT = `Bạn là tutor giúp học sinh tổng kết kiến thức. Sinh study guide Markdown ngắn (500-800 từ) từ list atom kiến thức dưới đây.
 
@@ -62,7 +48,6 @@ export class WorkspaceAiService {
     private readonly guardrail: CostGuardrailService,
   ) {}
 
-  /** GET /workspaces/:id/atom-guide — markdown study guide từ top 20 atom. */
   async atomGuide(user: AuthUser, workspaceId: string, force: boolean) {
     const ws = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, user_id: user.id },
@@ -136,7 +121,14 @@ export class WorkspaceAiService {
     });
 
     const now = new Date();
-    await this.upsertCache(workspaceId, user.id, 'atom_guide', markdown, { atomCount: atoms.length }, now);
+    await this.upsertCache(
+      workspaceId,
+      user.id,
+      'atom_guide',
+      markdown,
+      { atomCount: atoms.length },
+      now,
+    );
 
     return {
       markdown,
@@ -146,7 +138,6 @@ export class WorkspaceAiService {
     };
   }
 
-  /** GET /workspaces/:id/briefing — executive summary từ chunk đầu mỗi doc. */
   async briefing(user: AuthUser, workspaceId: string, force: boolean) {
     const ws = await this.prisma.workspace.findFirst({
       where: { id: workspaceId, user_id: user.id },
@@ -182,9 +173,10 @@ export class WorkspaceAiService {
       };
     }
 
-    // 5 chunk/doc representative — chunkIndex ASC để lấy phần đầu document
     const docIds = docs.map((d) => d.id);
-    const chunks = await this.prisma.$queryRaw<Array<{ docId: string; content: string }>>(Prisma.sql`
+    const chunks = await this.prisma.$queryRaw<
+      Array<{ docId: string; content: string }>
+    >(Prisma.sql`
       SELECT document_id AS "docId", content
       FROM chunk
       WHERE document_id IN (${Prisma.join(docIds)})
@@ -220,7 +212,14 @@ export class WorkspaceAiService {
     });
 
     const now = new Date();
-    await this.upsertCache(workspaceId, user.id, 'briefing', markdown, { docCount: docs.length }, now);
+    await this.upsertCache(
+      workspaceId,
+      user.id,
+      'briefing',
+      markdown,
+      { docCount: docs.length },
+      now,
+    );
 
     return {
       markdown,
@@ -230,15 +229,12 @@ export class WorkspaceAiService {
     };
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
   private readCache(workspaceId: string, userId: string, kind: 'atom_guide' | 'briefing') {
     return this.prisma.workspace_cached_output
       .findFirst({ where: { workspace_id: workspaceId, user_id: userId, kind } })
       .then((row) => (row && Date.now() - row.generated_at.getTime() < CACHE_TTL_MS ? row : null));
   }
 
-  /** Upsert giữ row mới nhất per (ws × user × kind) — như ON CONFLICT UPDATE cũ. */
   private async upsertCache(
     workspaceId: string,
     userId: string,
@@ -262,7 +258,6 @@ export class WorkspaceAiService {
     });
   }
 
-  /** Concept IDs distinct của workspace (qua chunk_concept → chunk → document). */
   private async workspaceConceptIds(userId: string, workspaceId: string): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT DISTINCT cc.concept_id AS id
@@ -273,11 +268,6 @@ export class WorkspaceAiService {
     return rows.map((r) => r.id);
   }
 
-  /**
-   * Guardrail check → LLM → record, mọi lỗi (deny/provider) → 503
-   * {error: message} y catch route cũ (CostGuardrailError.message đi thẳng
-   * vào body).
-   */
   private async generateGuarded(args: {
     user: AuthUser;
     system: string;
@@ -287,13 +277,11 @@ export class WorkspaceAiService {
   }): Promise<string> {
     const plan = (args.user.plan ?? 'FREE') as Plan;
     try {
-      // Heuristic ước token ~3 chars/token + pricing theo provider pick —
-      // copy estimateInputTokens/PROVIDERS từ apps/web/src/lib/ai/router.ts
-      // (NGUỒN CHUẨN — đổi pricing thì sửa cả 2).
       const pricing = this.currentPricing();
       const tokensIn = Math.ceil((args.system.length + args.prompt.length) / 3);
       const estimatedCostUsd =
-        (tokensIn / 1_000_000) * pricing.inputPerM + (args.maxTokens / 1_000_000) * pricing.outputPerM;
+        (tokensIn / 1_000_000) * pricing.inputPerM +
+        (args.maxTokens / 1_000_000) * pricing.outputPerM;
 
       const guard = await this.guardrail.check({ userId: args.user.id, plan, estimatedCostUsd });
       if (!guard.allowed) throw new Error(guard.message);
@@ -324,8 +312,12 @@ export class WorkspaceAiService {
     }
   }
 
-  /** Pricing provider sẽ được LlmService pick (cùng order pickChatProvider). */
-  private currentPricing(): { provider: string; model: string; inputPerM: number; outputPerM: number } {
+  private currentPricing(): {
+    provider: string;
+    model: string;
+    inputPerM: number;
+    outputPerM: number;
+  } {
     const forced = process.env.LLM_PROVIDER;
     const pick =
       forced && ['anthropic', 'groq', 'google', 'openrouter'].includes(forced)
@@ -345,7 +337,12 @@ export class WorkspaceAiService {
       case 'google':
         return { provider: 'google', model: 'gemini-2.5-flash', inputPerM: 0, outputPerM: 0 };
       default:
-        return { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', inputPerM: 0, outputPerM: 0 };
+        return {
+          provider: 'openrouter',
+          model: 'openai/gpt-oss-20b:free',
+          inputPerM: 0,
+          outputPerM: 0,
+        };
     }
   }
 }

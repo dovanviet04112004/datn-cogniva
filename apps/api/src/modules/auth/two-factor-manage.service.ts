@@ -1,17 +1,3 @@
-/**
- * TwoFactorManageService — enable/verify/disable 2FA, thay flow Better Auth
- * twoFactor plugin (blocker cuối trước khi gỡ BA, Wave 7 chốt hạ).
- *
- * Format dữ liệu GIỮ TƯƠNG THÍCH Better Auth (TwoFactorService verify được
- * cả user enable từ thời BA lẫn user enable mới):
- *  - secret: chuỗi alphanum 32 ký tự, lưu DB mã hoá XChaCha20-Poly1305
- *    (TwoFactorService.encryptSecret).
- *  - backup_codes: JSON array 10 mã, lưu mã hoá cùng kiểu; dùng 1 lần
- *    (consume — ghi lại mảng đã bỏ mã dùng rồi).
- *  - totpURI: otpauth://totp — secret param = base32(utf8 bytes của secret).
- * Enable 2 bước: enable(password) tạo row verified=false → verify(code) mới
- * bật user.two_factor_enabled (quét QR sai thì không tự khoá account mình).
- */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 
@@ -30,7 +16,6 @@ function randomString(len: number): string {
   return out;
 }
 
-/** RFC 4648 base32 (không padding strip — Google Authenticator chấp nhận cả hai). */
 function base32Encode(input: string): string {
   const data = Buffer.from(input, 'utf8');
   let bits = 0;
@@ -82,7 +67,6 @@ export class TwoFactorManageService {
       this.twoFactor.encryptSecret(JSON.stringify(backupCodes)),
     ]);
 
-    // Enable lại khi đã có row (chưa verify hoặc đổi máy) → thay row cũ.
     await this.prisma.$transaction(async (tx) => {
       await tx.two_factor.deleteMany({ where: { user_id: user.id } });
       await tx.two_factor.create({
@@ -101,7 +85,6 @@ export class TwoFactorManageService {
     return { totpURI, backupCodes };
   }
 
-  /** Bước 2 enable: xác nhận mã từ app authenticator → bật cờ trên user. */
   async verifyEnable(userId: string, code: string): Promise<void> {
     const tf = await this.prisma.two_factor.findFirst({
       where: { user_id: userId },
@@ -127,10 +110,6 @@ export class TwoFactorManageService {
     ]);
   }
 
-  /**
-   * Backup code cho sign-in/2fa: so với mảng đã giải mã, đúng thì CONSUME
-   * (ghi lại mảng thiếu mã đó). Trả true nếu khớp.
-   */
   async consumeBackupCode(userId: string, code: string): Promise<boolean> {
     const tf = await this.prisma.two_factor.findFirst({
       where: { user_id: userId },

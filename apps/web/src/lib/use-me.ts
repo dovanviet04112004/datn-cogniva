@@ -1,11 +1,3 @@
-/**
- * useMe — user hiện tại phía client, thay useSession() của Better Auth.
- *
- * Đọc GET /api/auth/me (NestJS qua proxy same-origin, guard bằng cookie
- * cg_at). 401 = chưa đăng nhập → data null, KHÔNG phải error (caller chỉ
- * cần check null). staleTime 60s — đủ tươi cho avatar/name/email, tránh
- * refetch dồn dập khi nhiều component cùng mount.
- */
 'use client';
 
 import { useQuery } from '@tanstack/react-query';

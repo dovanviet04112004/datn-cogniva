@@ -1,18 +1,4 @@
-/**
- * /api/study-plan/* — port từ route Next (apps/web/src/app/api/study-plan/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- */
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -31,7 +17,6 @@ import {
 export class StudyPlanController {
   constructor(private readonly studyPlan: StudyPlanService) {}
 
-  /** GET /study-plan?status=&kind= — list theo filter, giá trị lạ bị bỏ qua. */
   @Get()
   async list(
     @CurrentUser() user: AuthUser,
@@ -45,14 +30,12 @@ export class StudyPlanController {
     return { items };
   }
 
-  /** GET /study-plan/today — materialize proposal hôm nay (idempotent). */
   @Get('today')
   async today(@CurrentUser() user: AuthUser) {
     const items = await this.studyPlan.materializeProposalForToday(user.id);
     return { items };
   }
 
-  /** POST /study-plan — tạo item manual (201 mặc định = status route cũ). */
   @Post()
   create(
     @CurrentUser() user: AuthUser,
@@ -75,7 +58,6 @@ export class StudyPlanController {
     return this.studyPlan.deleteItem(user.id, id);
   }
 
-  /** POST /study-plan/:id/skip — route cũ trả 200 (Nest POST mặc định 201 → ép lại). */
   @Post(':id/skip')
   @HttpCode(200)
   skip(@CurrentUser() user: AuthUser, @Param('id') id: string) {

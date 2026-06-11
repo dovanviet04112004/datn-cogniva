@@ -10,11 +10,6 @@ import { GroupsController } from './groups.controller';
 import { GroupAdminController } from './group-admin.controller';
 import { DmController } from './dm.controller';
 
-/**
- * GroupsModule — Wave 4 social: study group (Discord-style) + DM 1-1.
- * GroupsController khai báo TRƯỚC GroupAdminController để route static
- * (file/*, resource-search) match trước pattern ':id/...'.
- */
 @Module({
   imports: [NotificationsModule],
   controllers: [GroupsController, GroupAdminController, DmController],
@@ -25,7 +20,6 @@ import { DmController } from './dm.controller';
     GroupMembersService,
     DmService,
   ],
-  // PermissionsService exported cho module khác (rooms/realtime) check quyền group.
   exports: [PermissionsService],
 })
 export class GroupsModule {}

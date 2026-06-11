@@ -1,16 +1,3 @@
-/**
- * POST /api/ai/quick-gen — sinh đoạn text ngắn từ prompt cho inline AI command
- * (slash command `/ai <prompt>` trong Notes TipTap). Port từ
- * apps/web/src/app/api/ai/quick-gen/route.ts.
- *
- * KHÁC bản web (deviation có chủ đích): web dùng getChatModel() legacy bypass
- * router (không guardrail/circuit/cost record); bản Nest đi qua
- * routedGenerateText useCase 'ragChat' — pick order chain (anthropic sonnet →
- * groq llama-3.3-70b) trùng getChatModel nên model thực tế KHÔNG đổi, nhưng
- * giờ có đủ guardrail + circuit breaker + ai_usage_log. Router không expose
- * temperature → temp 0.4 cũ bị bỏ. Mọi lỗi AI (kể cả guardrail deny) → 502
- * {error:'AI lỗi: ...'} như catch-all cũ.
- */
 import { Body, Controller, HttpCode, HttpException, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -24,7 +11,6 @@ import type { Plan } from '../../infra/ai/cost-guardrail.service';
 
 const SCHEMA = z.object({
   prompt: z.string().min(2).max(2000),
-  /** Optional context — đoạn text user đang chỉnh sửa, AI tham khảo grounding. */
   context: z.string().max(8000).optional(),
 });
 
@@ -54,7 +40,6 @@ export class QuickGenController {
   ) {
     const userId = user.id;
 
-    // Rate-limit TRƯỚC body parse — giữ thứ tự route cũ (zod sau rate-limit).
     const rl = await checkLimit(`ai-quick-gen:${userId}`, 'aiGenerate');
     if (!rl.allowed) {
       res.setHeader('Retry-After', String(rl.retryAfter ?? 60));

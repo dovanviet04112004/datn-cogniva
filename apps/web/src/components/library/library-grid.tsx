@@ -1,6 +1,3 @@
-/**
- * LibraryGrid — server component fetch + render docs.
- */
 import Link from 'next/link';
 import { FileText, RotateCcw, Upload } from 'lucide-react';
 
@@ -38,24 +35,26 @@ function parsePageSize(raw: string | undefined): number {
 
 function parseStrArr(raw: string | undefined): string[] | undefined {
   if (!raw) return undefined;
-  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function parseIntArr(raw: string | undefined): number[] | undefined {
   if (!raw) return undefined;
-  return raw.split(',').map((s) => parseInt(s.trim(), 10)).filter(Number.isFinite);
+  return raw
+    .split(',')
+    .map((s) => parseInt(s.trim(), 10))
+    .filter(Number.isFinite);
 }
 
-function parseDifficulty(
-  raw: string | undefined,
-): Array<'easy' | 'medium' | 'hard'> | undefined {
+function parseDifficulty(raw: string | undefined): Array<'easy' | 'medium' | 'hard'> | undefined {
   if (!raw) return undefined;
   const tokens = raw
     .split(',')
     .map((s) => s.trim().toLowerCase())
-    .filter((s): s is 'easy' | 'medium' | 'hard' =>
-      s === 'easy' || s === 'medium' || s === 'hard',
-    );
+    .filter((s): s is 'easy' | 'medium' | 'hard' => s === 'easy' || s === 'medium' || s === 'hard');
   return tokens.length > 0 ? tokens : undefined;
 }
 
@@ -134,7 +133,6 @@ export async function LibraryGrid({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // University→Course filter labels — fetch tên để hiện chip (không phải uuid)
   let universityLabel: string | null = null;
   let courseLabel: string | null = null;
   if (sp.university) {
@@ -154,7 +152,6 @@ export async function LibraryGrid({
     courseLabel = c ? (c.code ? `${c.code} ${c.name}` : c.name) : null;
   }
 
-  // Active filter chips
   const activeFilters: ActiveFilterChip[] = [];
   if (sp.q) activeFilters.push({ key: 'q', label: `🔍 "${sp.q}"` });
   if (sp.university && universityLabel) {
@@ -192,12 +189,11 @@ export async function LibraryGrid({
   if (sp.difficulty) {
     const labels = sp.difficulty
       .split(',')
-      .map((d) => ({ easy: 'Dễ', medium: 'Vừa', hard: 'Khó' }[d.trim()] ?? d))
+      .map((d) => ({ easy: 'Dễ', medium: 'Vừa', hard: 'Khó' })[d.trim()] ?? d)
       .join(' / ');
     activeFilters.push({ key: 'difficulty', label: `📊 ${labels}` });
   }
 
-  // preservedParams cho Pagination
   const preservedParams: Record<string, string> = {};
   if (sp.q) preservedParams.q = sp.q;
   if (sp.subject) preservedParams.subject = sp.subject;
@@ -251,7 +247,6 @@ export async function LibraryGrid({
         />
       ) : (
         <>
-          {/* B2.7: max 4 cột (xl) thay vì 5 — card text dễ đọc hơn, không chật */}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {docs.map((d) => (
               <DocCard key={d.id} doc={d} />

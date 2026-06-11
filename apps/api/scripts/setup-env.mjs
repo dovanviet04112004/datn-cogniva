@@ -1,7 +1,3 @@
-/**
- * Sinh apps/api/.env từ apps/web/.env.local (DB = Neon) + keypair ES256.
- * Chạy lại bất kỳ lúc nào — ghi đè .env (idempotent). Không in secret.
- */
 import { generateKeyPairSync } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -9,8 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const webEnv = readFileSync(join(apiDir, '../web/.env.local'), 'utf8');
-// .env hiện có (nếu có) — để GIỮ keypair cũ, tránh invalidate JWT đang lưu hành
-// (gateway realtime verify cục bộ bằng public key này).
 const prevEnv = existsSync(join(apiDir, '.env')) ? readFileSync(join(apiDir, '.env'), 'utf8') : '';
 const getPrev = (key) => {
   const m = prevEnv.match(new RegExp(`^${key}="?(.*?)"?$`, 'm'));
@@ -35,8 +29,6 @@ const direct = new URL(pooled.toString());
 direct.hostname = direct.hostname.replace('-pooler', '');
 direct.searchParams.delete('pgbouncer');
 
-// Keypair ES256: tái dùng nếu .env đã có (chạy lại script không đá user đang
-// đăng nhập); chỉ sinh mới lần đầu.
 let privPem = getPrev('AUTH_JWT_PRIVATE_KEY');
 let pubPem = getPrev('AUTH_JWT_PUBLIC_KEY');
 if (!privPem || !pubPem) {
@@ -59,7 +51,6 @@ const lines = [
   `AUTH_JWT_PRIVATE_KEY="${privPem}"`,
   `AUTH_JWT_PUBLIC_KEY="${pubPem}"`,
 ];
-// Key optional — chỉ ghi khi web có cấu hình (OAuth, AI providers, APP_URL).
 const appUrl = get('NEXT_PUBLIC_APP_URL') ?? get('BETTER_AUTH_URL');
 if (appUrl) lines.push(`APP_URL="${appUrl}"`);
 for (const k of [
@@ -73,8 +64,6 @@ for (const k of [
   'VOYAGE_API_KEY',
   'COHERE_API_KEY',
   'CRON_SECRET',
-  // Wave 3: storage R2 + embedding provider — api phải CÙNG driver với web,
-  // không thì upload (Nest) ghi local mà file proxy/web đọc R2 và ngược lại.
   'STORAGE_DRIVER',
   'R2_ACCESS_KEY_ID',
   'R2_SECRET_ACCESS_KEY',
@@ -86,14 +75,11 @@ for (const k of [
   'EMBEDDING_PROVIDER',
   'UPLOADS_DIR',
   'LLM_PROVIDER',
-  // Wave 4: LiveKit (voice/rooms/recording) + JWT_SECRET (collab-token Hocuspocus HS256).
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',
   'NEXT_PUBLIC_LIVEKIT_URL',
   'JWT_SECRET',
   'NEXT_PUBLIC_HOCUSPOCUS_URL',
-  // Wave 6: payment provider (STUB/VNPay/MoMo) + escrow — api phải cùng config
-  // với web, không thì webhook verify/intent ký lệch secret giữa 2 backend.
   'PAYMENT_PROVIDER',
   'VNPAY_TMN_CODE',
   'VNPAY_HASH_SECRET',
@@ -108,7 +94,6 @@ for (const k of [
   'MOMO_RETURN_URL',
   'MOMO_IPN_URL',
   'TUTORING_ESCROW_HOURS',
-  // Wave 7: /api/health check realtime gateway.
   'NEXT_PUBLIC_REALTIME_URL',
 ]) {
   const v = get(k);

@@ -1,9 +1,3 @@
-/**
- * ApplicationsList — student xem list applications, accept/reject từng tutor.
- *
- * Click accept → cascade reject other pending + close request (server-side).
- * Click "Liên hệ" → tạo DM với tutor.
- */
 'use client';
 
 import * as React from 'react';
@@ -38,7 +32,6 @@ export function ApplicationsList({
   onChanged,
 }: {
   applications: Application[];
-  /** Gọi sau accept/reject thành công — để modal/list client tự refetch. */
   onChanged?: () => void;
 }) {
   const router = useRouter();
@@ -92,11 +85,10 @@ export function ApplicationsList({
 
   return (
     <section>
-      {/* Tiêu đề mục — số gia sư apply truyền qua prop count */}
       <SectionHeading count={applications.length}>Gia sư đã apply</SectionHeading>
 
       {applications.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-divider bg-surface-secondary/40 py-8 text-center text-sm text-muted-foreground">
+        <div className="border-divider bg-surface-secondary/40 text-muted-foreground rounded-2xl border border-dashed py-8 text-center text-sm">
           Chưa có gia sư nào apply. Đợi vài giờ — gia sư sẽ thấy yêu cầu mới.
         </div>
       ) : (
@@ -112,8 +104,8 @@ export function ApplicationsList({
               <li
                 key={a.id}
                 className={cn(
-                  'rounded-2xl bg-card p-5 shadow-soft',
-                  isAccepted && 'ring-1 ring-primary/30',
+                  'bg-card shadow-soft rounded-2xl p-5',
+                  isAccepted && 'ring-primary/30 ring-1',
                   isRejected && 'opacity-60',
                 )}
               >
@@ -131,54 +123,51 @@ export function ApplicationsList({
                         {a.tutorHeadline}
                       </Link>
                       {isAccepted && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                        <span className="bg-primary/15 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold">
                           <Check className="h-3 w-3" />
                           Đã chọn
                         </span>
                       )}
                       {isRejected && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        <span className="bg-muted/60 text-muted-foreground inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
                           Từ chối
                         </span>
                       )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-[11px]">
                       {rating !== null && a.tutorRatingCount > 0 && (
                         <span className="inline-flex items-center gap-1">
                           <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                          <span className="font-mono tabular-nums font-semibold text-foreground/80">
+                          <span className="text-foreground/80 font-mono font-semibold tabular-nums">
                             {rating.toFixed(1)}
                           </span>
-                          <span className="font-mono tabular-nums">
-                            ({a.tutorRatingCount})
-                          </span>
+                          <span className="font-mono tabular-nums">({a.tutorRatingCount})</span>
                         </span>
                       )}
                       <span>
-                        <span className="font-mono tabular-nums font-semibold text-foreground/80">
+                        <span className="text-foreground/80 font-mono font-semibold tabular-nums">
                           {a.tutorSessions}
                         </span>{' '}
                         buổi đã dạy
                       </span>
                       <span>
                         Đề xuất:{' '}
-                        <span className="font-mono tabular-nums font-semibold text-foreground/80">
+                        <span className="text-foreground/80 font-mono font-semibold tabular-nums">
                           {proposedK}K
                         </span>{' '}
                         vnd/giờ
                       </span>
                     </div>
 
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
+                    <p className="text-foreground/85 mt-3 whitespace-pre-wrap text-sm leading-relaxed">
                       {a.message}
                     </p>
 
-                    {/* Actions */}
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <Link
                         href={`/tutors/${a.tutorId}`}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
                       >
                         Xem profile
                         <ChevronRight className="h-3 w-3" />
@@ -186,14 +175,13 @@ export function ApplicationsList({
                       <button
                         type="button"
                         onClick={() => contactTutor(a.tutorUserId)}
-                        className="inline-flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors"
                       >
                         <MessageSquare className="h-3 w-3" />
                         Chat
                       </button>
                       {isPending && (
                         <div className="ml-auto flex gap-2">
-                          {/* Từ chối — giữ kiểu outline qua <Button variant="outline"> */}
                           <Button
                             type="button"
                             variant="outline"
@@ -204,7 +192,6 @@ export function ApplicationsList({
                             <X className="h-3 w-3" />
                             Từ chối
                           </Button>
-                          {/* Chấp nhận — primary qua <Button> mặc định (có shadow-primary) */}
                           <Button
                             type="button"
                             size="sm"

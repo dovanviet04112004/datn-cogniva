@@ -1,16 +1,3 @@
-/**
- * Anti-cheat detector hooks (Phase 19).
- *
- * Mỗi hook expose 1 mảng violation events. Component gọi
- * `useReportViolations(attemptId, events)` để batch POST lên server.
- *
- * Triết lý:
- *   - CLIENT-SIDE detection chỉ là phát hiện, KHÔNG chặn được hacker xác định
- *     (browser dev tools, modify code, hook event). Đó là OK — mục tiêu là
- *     deter + log, không phải bullet-proof.
- *   - Server cuối cùng quyết định flag attempt bằng cách aggregate violations
- *     + cheatRiskScore. Owner xem dashboard quyết định disqualify.
- */
 'use client';
 
 import * as React from 'react';
@@ -40,28 +27,16 @@ export interface ViolationEvent {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Fullscreen lock — request fullscreen on user gesture, log khi exit.
- *
- * `enter()` LUÔN cho phép gọi (cần user gesture từ button click — không
- * thể tự fire). Chỉ `fullscreenchange` listener gated theo `enabled` để
- * không log false-positive khi user thoát fullscreen ở giai đoạn waitroom.
- *
- * Lỗi cũ V1: `enter()` check `enabled` đầu hàm → nếu component gọi `enter()`
- * NGAY khi đang transition examStarted false→true → state chưa kịp update →
- * `enabled` còn false → return sớm → KHÔNG request fullscreen → button user
- * tưởng đã consent mà thực ra chưa vào fullscreen.
- */
 export function useFullscreenLock(enabled: boolean, onViolation: (v: ViolationEvent) => void) {
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
   const enter = React.useCallback(async () => {
     try {
       const el = document.documentElement;
-      // Fallback prefix safari (webkit)
       const req =
         el.requestFullscreen ??
-        (el as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+        (el as unknown as { webkitRequestFullscreen?: () => Promise<void> })
+          .webkitRequestFullscreen;
       if (!req) {
         onViolation({
           type: 'fullscreen_exit',
@@ -88,7 +63,7 @@ export function useFullscreenLock(enabled: boolean, onViolation: (v: ViolationEv
     const handler = () => {
       const fs = Boolean(
         document.fullscreenElement ??
-          (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement,
+        (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement,
       );
       setIsFullscreen(fs);
       if (!fs) {
@@ -110,14 +85,7 @@ export function useFullscreenLock(enabled: boolean, onViolation: (v: ViolationEv
   return { isFullscreen, enter };
 }
 
-/**
- * Tab switch detection qua visibilitychange. Cũng catch window blur (sang
- * app khác).
- */
-export function useTabSwitchDetection(
-  enabled: boolean,
-  onViolation: (v: ViolationEvent) => void,
-) {
+export function useTabSwitchDetection(enabled: boolean, onViolation: (v: ViolationEvent) => void) {
   React.useEffect(() => {
     if (!enabled) return;
     const onVis = () => {
@@ -147,13 +115,7 @@ export function useTabSwitchDetection(
   }, [enabled, onViolation]);
 }
 
-/**
- * Block copy/paste/cut + log. Cũng block context menu nếu `blockContextMenu`.
- */
-export function useCopyPasteBlock(
-  enabled: boolean,
-  onViolation: (v: ViolationEvent) => void,
-) {
+export function useCopyPasteBlock(enabled: boolean, onViolation: (v: ViolationEvent) => void) {
   React.useEffect(() => {
     if (!enabled) return;
     const handler = (e: ClipboardEvent) => {
@@ -176,10 +138,7 @@ export function useCopyPasteBlock(
   }, [enabled, onViolation]);
 }
 
-export function useContextMenuBlock(
-  enabled: boolean,
-  onViolation: (v: ViolationEvent) => void,
-) {
+export function useContextMenuBlock(enabled: boolean, onViolation: (v: ViolationEvent) => void) {
   React.useEffect(() => {
     if (!enabled) return;
     const handler = (e: MouseEvent) => {
@@ -195,36 +154,12 @@ export function useContextMenuBlock(
   }, [enabled, onViolation]);
 }
 
-/**
- * DevTools detection — multi-strategy.
- *
- * **Lưu ý quan trọng**: F12 / DevTools KHÔNG thể block hoàn toàn bằng JS.
- * Browser shortcut cấp OS, web page không có quyền cancel. Đây là feature
- * bảo vệ user — không có cách nào "lockdown" full browser bằng web app.
- *
- * Industry: high-stakes exam dùng dedicated Lockdown Browser app riêng.
- * Web app chỉ làm DETECT + LOG + FLAG.
- *
- * 3 strategy detect:
- *   1. Window size gap — DevTools sidebar/bottom widens chrome
- *   2. console.log getter trick — DevTools evaluate object → trigger getter
- *   3. debugger statement timing — DevTools pause execution, không có thì instant
- *
- * Strategy 1 alone false-positive với DPI zoom; combine 2+3 chính xác hơn.
- *
- * Bắt thêm keydown F12 / Ctrl+Shift+I / Ctrl+Shift+J / Ctrl+U / Cmd+Opt+I:
- * preventDefault để Firefox/Safari block, log nỗ lực ở mọi browser.
- */
-export function useDevtoolsDetect(
-  enabled: boolean,
-  onViolation: (v: ViolationEvent) => void,
-) {
+export function useDevtoolsDetect(enabled: boolean, onViolation: (v: ViolationEvent) => void) {
   React.useEffect(() => {
     if (!enabled) return;
     let alerted = false;
     let lastReason: string | null = null;
 
-    // Strategy 1: window size gap
     const sizeCheck = () => {
       const widthGap = window.outerWidth - window.innerWidth;
       const heightGap = window.outerHeight - window.innerHeight;
@@ -243,9 +178,6 @@ export function useDevtoolsDetect(
       }
     };
 
-    // Strategy 2: console getter trick
-    //   Khi DevTools mở, console.log(obj) sẽ evaluate `obj.id` để hiện
-    //   trong console panel → trigger getter → ta biết DevTools mở.
     const getterCheck = () => {
       let triggered = false;
       const probe: Record<string, unknown> = {};
@@ -255,11 +187,8 @@ export function useDevtoolsDetect(
           return 'devtools-probe';
         },
       });
-      // console.log probe sẽ NOT trigger getter nếu DevTools đóng.
-      // KHI mở → console panel evaluate → getter fires.
       // eslint-disable-next-line no-console
       console.log('%c', probe);
-      // Một số browser flush async — check sau microtask
       Promise.resolve().then(() => {
         if (triggered && !alerted) {
           alerted = true;
@@ -279,15 +208,15 @@ export function useDevtoolsDetect(
       getterCheck();
     }, 2000);
 
-    // Keydown intercept — preventDefault các shortcut DevTools.
-    // Firefox tôn trọng preventDefault → block thực sự. Chrome ignore ở
-    // browser level (security), nhưng ta vẫn log violation.
     const onKey = (e: KeyboardEvent) => {
       const key = e.key;
       const ctrl = e.ctrlKey || e.metaKey;
       const shift = e.shiftKey;
       const isF12 = key === 'F12';
-      const isInspect = ctrl && shift && (key === 'I' || key === 'i' || key === 'J' || key === 'j' || key === 'C' || key === 'c');
+      const isInspect =
+        ctrl &&
+        shift &&
+        (key === 'I' || key === 'i' || key === 'J' || key === 'j' || key === 'C' || key === 'c');
       const isViewSource = ctrl && (key === 'U' || key === 'u');
       if (isF12 || isInspect || isViewSource) {
         e.preventDefault();
@@ -314,12 +243,6 @@ export function useDevtoolsDetect(
   }, [enabled, onViolation]);
 }
 
-/**
- * Report violation lên server — batch + retry-on-fail (queue trong memory).
- *
- * Gọi từ component: `const report = useReportViolations(attemptId);` rồi
- * pass `report` làm `onViolation` cho các hook trên.
- */
 export function useReportViolations(attemptId: string | null) {
   const queueRef = React.useRef<ViolationEvent[]>([]);
   const flushingRef = React.useRef(false);
@@ -336,7 +259,6 @@ export function useReportViolations(attemptId: string | null) {
         body: JSON.stringify({ events: batch }),
       });
       if (!res.ok) {
-        // Failed — push back vào queue đầu để retry sau
         queueRef.current.unshift(...batch);
       }
     } catch {
@@ -349,13 +271,11 @@ export function useReportViolations(attemptId: string | null) {
   const report = React.useCallback(
     (v: ViolationEvent) => {
       queueRef.current.push(v);
-      // Debounce flush 1s
       window.setTimeout(flush, 1000);
     },
     [flush],
   );
 
-  // Flush on unmount để không mất event cuối
   React.useEffect(() => {
     return () => {
       void flush();

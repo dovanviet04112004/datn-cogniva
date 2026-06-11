@@ -1,15 +1,15 @@
-/**
- * CircuitsClient — list circuit breakers + manual reset.
- *
- * UX:
- *   - Auto-refresh mỗi 10s vì state thay đổi nhanh khi provider lỗi
- *   - Card per circuit: state, fail count, TTL countdown
- *   - Reset button mở ConfirmDialog yêu cầu reason
- */
 'use client';
 
 import * as React from 'react';
-import { AlertCircle, CheckCircle2, CircuitBoard, Clock, Loader2, RefreshCw, Zap } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  CircuitBoard,
+  Clock,
+  Loader2,
+  RefreshCw,
+  Zap,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
@@ -37,14 +37,14 @@ export function CircuitsClient({ adminRole }: { adminRole: AdminRole }) {
   const [resetActive, setResetActive] = React.useState<Circuit | null>(null);
   const [resetLoading, setResetLoading] = React.useState(false);
 
-  // Auto-refresh qua refetchInterval — React Query tự poll mỗi 10s, không cần
-  // setInterval thủ công.
-  const { data: circuits = [], isLoading: loading, refetch } = useQuery({
+  const {
+    data: circuits = [],
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.adminAiCircuits(),
     queryFn: () =>
-      apiGet<{ circuits: Circuit[] }>('/api/admin/ai/circuits').then(
-        (d) => d.circuits,
-      ),
+      apiGet<{ circuits: Circuit[] }>('/api/admin/ai/circuits').then((d) => d.circuits),
     refetchInterval: POLL_INTERVAL_MS,
   });
 
@@ -85,8 +85,8 @@ export function CircuitsClient({ adminRole }: { adminRole: AdminRole }) {
           </button>
         </div>
         <p className="text-sm text-slate-400">
-          State machine per (provider, model). Auto-refresh 10s. Circuit healthy
-          không có entry trong Redis → list trống = ✅ tất cả OK.
+          State machine per (provider, model). Auto-refresh 10s. Circuit healthy không có entry
+          trong Redis → list trống = ✅ tất cả OK.
         </p>
       </header>
 
@@ -97,12 +97,9 @@ export function CircuitsClient({ adminRole }: { adminRole: AdminRole }) {
       ) : circuits.length === 0 ? (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 text-center">
           <CheckCircle2 className="mx-auto h-6 w-6 text-emerald-400" />
-          <p className="mt-2 text-sm font-medium text-emerald-200">
-            Mọi circuit đang CLOSED
-          </p>
+          <p className="mt-2 text-sm font-medium text-emerald-200">Mọi circuit đang CLOSED</p>
           <p className="mt-1 text-[12px] text-slate-400">
-            Không có provider nào fail gần đây. Bảng này tự update khi có circuit
-            mở.
+            Không có provider nào fail gần đây. Bảng này tự update khi có circuit mở.
           </p>
         </div>
       ) : (
@@ -124,9 +121,9 @@ export function CircuitsClient({ adminRole }: { adminRole: AdminRole }) {
         title={`Force CLOSE circuit "${resetActive?.name}"?`}
         description={
           <span>
-            Circuit hiện đang <strong>{resetActive?.state}</strong>. Reset = đặt
-            CLOSED ngay, cho phép request đi qua provider. Chỉ dùng khi đã verify
-            provider phục hồi để tránh dồn request vào dịch vụ còn down.
+            Circuit hiện đang <strong>{resetActive?.state}</strong>. Reset = đặt CLOSED ngay, cho
+            phép request đi qua provider. Chỉ dùng khi đã verify provider phục hồi để tránh dồn
+            request vào dịch vụ còn down.
           </span>
         }
         confirmLabel="Reset CLOSED"

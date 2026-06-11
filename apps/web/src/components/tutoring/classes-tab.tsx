@@ -1,11 +1,3 @@
-/**
- * ClassesTab — V4 T4 (2026-05-22).
- *
- * Browse group classes (status OPEN). Filter subject/level qua searchParams.
- * Render grid card class.
- *
- * Spec: docs/plans/tutoring-v4.md §3 T4.
- */
 'use client';
 
 import Link from 'next/link';
@@ -59,14 +51,14 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
   const { data: items = [], isLoading: loading } = useQuery({
     queryKey: qk.tutoringClasses(sp.subject, sp.level),
     queryFn: () =>
-      apiGet<{ classes: ClassRow[] }>(
-        `/api/tutoring/classes?${params.toString()}`,
-      ).then((d) => d.classes ?? []),
+      apiGet<{ classes: ClassRow[] }>(`/api/tutoring/classes?${params.toString()}`).then(
+        (d) => d.classes ?? [],
+      ),
   });
 
   if (loading) {
     return (
-      <Card className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+      <Card className="text-muted-foreground flex items-center justify-center gap-2 p-12 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Đang tải lớp nhóm…
       </Card>
@@ -76,14 +68,14 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
   if (items.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-discovery-500/10 text-discovery-500">
+        <span className="bg-discovery-500/10 text-discovery-500 flex h-14 w-14 items-center justify-center rounded-full">
           <Users className="h-6 w-6" />
         </span>
         <div>
           <p className="text-sm font-semibold">Chưa có lớp nhóm mở</p>
-          <p className="mt-1 max-w-[320px] text-[12px] text-muted-foreground">
-            Lớp nhóm 1 tutor → 2-30 student với giá / người thấp hơn 1-1.
-            Quay lại sau hoặc browse gia sư riêng.
+          <p className="text-muted-foreground mt-1 max-w-[320px] text-[12px]">
+            Lớp nhóm 1 tutor → 2-30 student với giá / người thấp hơn 1-1. Quay lại sau hoặc browse
+            gia sư riêng.
           </p>
         </div>
       </Card>
@@ -100,13 +92,13 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
           <Link
             key={c.id}
             href={`/tutoring/classes/${c.id}`}
-            className="group/c flex flex-col gap-3 overflow-hidden rounded-2xl border border-divider bg-card p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:border-discovery-500/30 hover:shadow-elevated"
+            className="group/c border-divider bg-card shadow-soft hover:border-discovery-500/30 hover:shadow-elevated flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5"
           >
             <div className="flex items-start gap-2">
-              <span className="rounded-md bg-discovery-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-discovery-700 dark:text-discovery-300">
+              <span className="bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider">
                 Lớp nhóm
               </span>
-              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              <span className="bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-[11px] font-semibold">
                 {SCHEDULE_LABEL[c.scheduleType] ?? c.scheduleType}
               </span>
               <span
@@ -121,11 +113,9 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
               </span>
             </div>
 
-            <h3 className="line-clamp-2 text-[14px] font-semibold tracking-tight">
-              {c.title}
-            </h3>
+            <h3 className="line-clamp-2 text-[14px] font-semibold tracking-tight">{c.title}</h3>
 
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-[11px]">
               <span className="inline-flex items-center gap-1">
                 {subjectDef?.emoji} {subjectDef?.name ?? c.subjectSlug}
               </span>
@@ -137,14 +127,14 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
               </span>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+            <div className="text-muted-foreground inline-flex items-center gap-1.5 text-[11.5px]">
               <CalendarDays className="h-3 w-3" />
               <span>Bắt đầu {new Date(c.startDate).toLocaleDateString('vi-VN')}</span>
               <span className="opacity-50">·</span>
               <span className="truncate">{slotsPreview}</span>
             </div>
 
-            <div className="mt-auto flex items-end justify-between border-t border-divider pt-3">
+            <div className="border-divider mt-auto flex items-end justify-between border-t pt-3">
               <div className="flex items-center gap-2">
                 <Avatar className="h-7 w-7">
                   <AvatarImage src={c.tutorAvatarUrl ?? undefined} />
@@ -153,16 +143,14 @@ export function ClassesTab({ sp = {} }: { sp?: Sp }) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="truncate text-[11.5px] font-medium">
-                    {c.tutorName}
-                  </p>
+                  <p className="truncate text-[11.5px] font-medium">{c.tutorName}</p>
                 </div>
               </div>
               <div className="text-right">
                 <p className="font-mono text-sm font-semibold tabular-nums">
                   {(c.ratePerStudentVnd / 1000).toLocaleString('vi-VN')}k
                 </p>
-                <p className="text-[11px] text-muted-foreground">/người</p>
+                <p className="text-muted-foreground text-[11px]">/người</p>
               </div>
             </div>
           </Link>

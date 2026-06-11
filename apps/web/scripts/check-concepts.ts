@@ -1,4 +1,3 @@
-/** Quick check — đếm concepts + relations trong DB. */
 import { sql, db } from '@cogniva/db';
 
 (async () => {

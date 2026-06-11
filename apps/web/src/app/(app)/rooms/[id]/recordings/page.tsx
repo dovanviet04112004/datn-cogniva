@@ -1,9 +1,3 @@
-/**
- * /rooms/[id]/recordings — Lịch sử recording của 1 room.
- *
- * Server component: list rows recording + link sang [recId].
- * Quyền: member ACTIVE only (cùng pattern với replay page).
- */
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
@@ -52,7 +46,6 @@ export default async function RecordingsPage({ params }: Props) {
     .where(eq(room.id, roomId))
     .limit(1);
 
-  // List recording (cache-aside TTL 600s, dbReplica) — guard membership ở TRÊN đã chạy.
   const rows = await getRoomRecordings(roomId);
 
   return (
@@ -62,7 +55,7 @@ export default async function RecordingsPage({ params }: Props) {
     >
       <Link
         href={`/rooms/${roomId}`}
-        className="-mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground -mt-2 inline-flex items-center gap-1 text-xs"
       >
         <ArrowLeft className="h-3 w-3" />
         Quay lại phòng
@@ -84,21 +77,21 @@ export default async function RecordingsPage({ params }: Props) {
                   ? `/rooms/${roomId}`
                   : `/rooms/${roomId}/recordings/${r.id}`
               }
-              className="flex items-center gap-3 rounded-md border p-3 transition hover:bg-accent"
+              className="hover:bg-accent flex items-center gap-3 rounded-md border p-3 transition"
             >
-              <PlayCircle className="h-5 w-5 text-primary" />
+              <PlayCircle className="text-primary h-5 w-5" />
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   {new Date(r.startedAt).toLocaleString('vi-VN')}
                 </p>
                 {r.summary && (
-                  <p className="line-clamp-1 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground line-clamp-1 text-xs">
                     {r.summary.replace(/[#*]/g, '').slice(0, 120)}
                   </p>
                 )}
               </div>
               <div className="text-right">
-                <p className="text-xs font-mono">{fmtDuration(r.duration)}</p>
+                <p className="font-mono text-xs">{fmtDuration(r.duration)}</p>
                 <p
                   className={`text-[11px] uppercase ${
                     r.status === 'PROCESSED'

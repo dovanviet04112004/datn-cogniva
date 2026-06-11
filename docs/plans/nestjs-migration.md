@@ -2,6 +2,7 @@
 
 > **Quyết định 2026-06-10 (chốt bởi owner):** Viết lại backend thành **NestJS chuẩn**
 > theo đúng kiến trúc đích, với 4 chốt:
+>
 > 1. **Auth = JWT tự triển khai** (access 15 phút + refresh 30 ngày, payload
 >    `sub/email/role`) — thay Better Auth.
 > 2. **ORM = Prisma** — bỏ Drizzle. Schema sinh bằng `prisma db pull` từ Neon,
@@ -46,6 +47,7 @@ ghi ~30 routes / 21 bảng — stale ~9 lần so với thực tế, đã đính 
 đầu master.md).
 
 ### 1.1. Bề mặt API
+
 - **270 file `route.ts`** trong `apps/web/src/app/api/**`, gom thành **~40 domain**.
   Lớn nhất: admin (40), library (33), tutoring (31), channels (26), groups (26).
 - **Validation:** zod inline trong **132 file** (464 `z.object`) — chưa có shared
@@ -56,17 +58,19 @@ ghi ~30 routes / 21 bảng — stale ~9 lần so với thực tế, đã đính 
   `/api/realtime/auth` (consumer = apps/realtime, server-to-server).
 
 ### 1.2. Data layer
+
 - `packages/db/src/schema.ts` **3.990 dòng, ~95 bảng + 25 enum**, 59 migration SQL.
 - Postgres đặc thù đang dùng thật: **pgvector(1024) + HNSW `vector_cosine_ops`**
   (6 cột embedding), **GIN `to_tsvector`** (full-text), **partial unique index**
   (`quiz_response… WHERE attempt_id IS NULL`), **`pg_advisory_xact_lock`**
   (`lib/concepts/dedup.ts` — verified), jsonb, composite PK.
 - Query: ~808 chỗ `db.select/insert/update` (Drizzle), **78 `db.transaction`**,
-  ~20 raw `` sql`` ``. Driver `postgres.js` `prepare:false` (bắt buộc Neon pooler).
+  ~20 raw ` sql` ``. Driver `postgres.js` `prepare:false` (bắt buộc Neon pooler).
 - **DB runtime = Neon** (`apps/web/.env.local`), KHÔNG phải localhost (memory
   `reference_db_neon_vs_local_migrations`).
 
 ### 1.3. Auth hiện tại (Better Auth 1.6.10 — sẽ thay bằng JWT, §3)
+
 - Cookie `better-auth.session_token`; session Postgres + **Redis `ba:`** (5 phút,
   fail-open); 30 ngày sliding. Password hash **scrypt** (format Better Auth, lưu
   ở bảng `account` providerId=`credential`).
@@ -79,6 +83,7 @@ ghi ~30 routes / 21 bảng — stale ~9 lần so với thực tế, đã đính 
   apps/hocuspocus verify JWT (`JWT_SECRET`); mobile Bearer.
 
 ### 1.4. Hạ tầng nền
+
 - **BullMQ:** 3 queue (`recording` c=2 retry=2, `document` c=2 retry=3, `cron`
   serial attempts=1) + **11 cron**; worker = process 2 của apps/web.
 - **Redis:** `cached()` cache-aside, **26 key `ck.*`** + **17+ invalidator
@@ -90,6 +95,7 @@ ghi ~30 routes / 21 bảng — stale ~9 lần so với thực tế, đã đính 
 - **Storage R2**, **LiveKit** (token 2h, egress → Groq Whisper).
 
 ### 1.5. AI pipeline
+
 - `lib/ai/router.ts`: 7+ use case, chain anthropic→groq→gemini→openrouter, nhưng
   **thực tế 100% Groq free** (ANTHROPIC_API_KEY rỗng). Cost guardrail 3 lớp +
   circuit breaker Redis + `ai_usage_log` + semantic cache.
@@ -99,6 +105,7 @@ ghi ~30 routes / 21 bảng — stale ~9 lần so với thực tế, đã đính 
 - **`@mastra/core` = dep ma 0 import** — gỡ ở Wave 0.
 
 ### 1.6. Độ dính frontend ↔ backend
+
 - **33 pages/layouts + 33 components + ~60 lib server-only** import thẳng
   `@cogniva/db` (page gọi lib function, không gọi /api). Không dùng Server Actions.
 - `packages/shared` (RN-safe): fetch client, types, `qk.*`, zod — tái dùng nguyên.
@@ -138,19 +145,20 @@ Internet → Cloudflare → API Gateway (NestJS apps/gateway: JWT verify · rate
 
 ### 2.2. Lộ trình 3 giai đoạn — vì sao không nhảy thẳng microservices
 
-Chính tài liệu kiến trúc đích kết luận: *"đừng bắt đầu bằng microservices. Hãy làm
+Chính tài liệu kiến trúc đích kết luận: _"đừng bắt đầu bằng microservices. Hãy làm
 NestJS Monolith (Auth/User/Learning/AI/Search/Notification Module) rồi mới tách
-dần"* — và ràng buộc cứng của pivot là **không mất chức năng, hệ chạy liên tục**.
+dần"_ — và ràng buộc cứng của pivot là **không mất chức năng, hệ chạy liên tục**.
 Tách service khi code còn nằm trong Next route handlers là bất khả thi; phải
 NestJS-hoá + module-hoá trước thì ranh giới service mới tồn tại để cắt.
 
-| Giai đoạn | Nội dung | Kết quả bàn giao |
-|---|---|---|
+| Giai đoạn                           | Nội dung                                                                                                                                                                               | Kết quả bàn giao                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | **GĐ1 — NestJS hoá** (Wave 0–7, §7) | `apps/api` modular monolith: toàn bộ 270 route thành controllers/services/**repositories raw SQL**; **AuthModule JWT mới** thay Better Auth; worker BullMQ sang Nest; Swagger phủ 100% | Next = pure frontend; backend NestJS chuẩn chạy prod |
-| **GĐ2 — Qdrant + Kafka** (§8) | Vector store → Qdrant (6 collection); Kafka event bus thay fire-and-forget fanout (vẫn trong monolith — topics chuẩn bị sẵn ranh giới service) | Search chạy Qdrant; event-driven backbone hoạt động |
-| **GĐ3 — Tách microservices** (§9) | `apps/gateway` + tách dần service theo module boundary; database-per-service từng bước | Kiến trúc đích §2.1 |
+| **GĐ2 — Qdrant + Kafka** (§8)       | Vector store → Qdrant (6 collection); Kafka event bus thay fire-and-forget fanout (vẫn trong monolith — topics chuẩn bị sẵn ranh giới service)                                         | Search chạy Qdrant; event-driven backbone hoạt động  |
+| **GĐ3 — Tách microservices** (§9)   | `apps/gateway` + tách dần service theo module boundary; database-per-service từng bước                                                                                                 | Kiến trúc đích §2.1                                  |
 
 **Topology trong suốt GĐ1–2: reverse-proxy CÙNG ORIGIN** (strangler fig):
+
 - Dev: `next.config.mjs` `rewrites().beforeFiles` per-prefix → `http://localhost:4000`.
   `beforeFiles` thắng route file đang tồn tại → cutover an toàn, rollback = xoá 1 dòng.
 - Prod VPS: rule prefix ở Caddy/Nginx → `:4000`.
@@ -166,10 +174,10 @@ Thay Better Auth bằng **AuthModule NestJS tự triển khai** (`@nestjs/jwt` +
 
 ### 3.1. Token model
 
-| Token | TTL | Dạng | Lưu ở đâu |
-|---|---|---|---|
-| **Access token** | 15 phút | JWT ký **ES256 (asymmetric)** — payload `{ sub, email, role, plan, iss: 'cogniva', aud: 'cogniva-app' }` | Web: httpOnly cookie `cg_at` (SameSite=Lax). Mobile: SecureStore, gửi `Authorization: Bearer` |
-| **Refresh token** | 30 ngày, **rotation mỗi lần dùng** | Opaque random 256-bit; DB lưu **hash** (bảng `refresh_token`: id, user_id, token_hash, family_id, expires_at, revoked_at, ip, user_agent) | Web: httpOnly cookie `cg_rt` (path=/api/auth). Mobile: SecureStore |
+| Token             | TTL                                | Dạng                                                                                                                                      | Lưu ở đâu                                                                                     |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Access token**  | 15 phút                            | JWT ký **ES256 (asymmetric)** — payload `{ sub, email, role, plan, iss: 'cogniva', aud: 'cogniva-app' }`                                  | Web: httpOnly cookie `cg_at` (SameSite=Lax). Mobile: SecureStore, gửi `Authorization: Bearer` |
+| **Refresh token** | 30 ngày, **rotation mỗi lần dùng** | Opaque random 256-bit; DB lưu **hash** (bảng `refresh_token`: id, user_id, token_hash, family_id, expires_at, revoked_at, ip, user_agent) | Web: httpOnly cookie `cg_rt` (path=/api/auth). Mobile: SecureStore                            |
 
 - **Vì sao asymmetric (không HS256):** GĐ3 các service + gateway + apps/realtime +
   hocuspocus verify access token **cục bộ bằng public key** (JWKS endpoint
@@ -239,8 +247,9 @@ POST /api/auth/verify-email      # port logic hiện có (còn lại Wave 1)
 ## 4. Data layer Prisma (bỏ Drizzle)
 
 **Chốt:** bỏ Drizzle, chuyển **Prisma** (đúng yêu cầu gốc "chuẩn NestJS + Prisma
-+ Swagger" và tài liệu kiến trúc đích). NestJS + Prisma là cặp ecosystem chuẩn:
-`PrismaService` injectable, type-safe client sinh từ schema.
+
+- Swagger" và tài liệu kiến trúc đích). NestJS + Prisma là cặp ecosystem chuẩn:
+  `PrismaService` injectable, type-safe client sinh từ schema.
 
 ### 4.1. Khởi tạo schema từ DB thật (không viết tay 95 bảng)
 
@@ -267,7 +276,7 @@ POST /api/auth/verify-email      # port logic hiện có (còn lại Wave 1)
   từng cái trong file `apps/api/prisma/NOTES.md` để không bị `migrate dev` đời
   sau drop nhầm (kiểm diff trước khi apply).
 - Migration apply vào **Neon** (nhớ bài học `reference_db_neon_vs_local_migrations`)
-  + local docker để dev.
+  - local docker để dev.
 - Dòng migration Drizzle cũ (`packages/db/migrations/0000–0057`) đóng băng làm
   lịch sử; `packages/db` bị gỡ dần và xoá khi web không còn import (cuối GĐ1).
 
@@ -333,20 +342,20 @@ apps/api/
 
 ### 5.2. Convention bắt buộc
 
-| Hạng mục | Chuẩn |
-|---|---|
-| HTTP adapter | **Express** — AI SDK `pipeDataStreamToResponse(res)`, Multer, passport strategies |
-| Prefix/path | `setGlobalPrefix('api')`, **giữ NGUYÊN path hiện tại** — KHÔNG /v1 trong migration (đổi path = vỡ client; versioning để GĐ3 gateway) |
-| DTO/validation | **zod + `nestjs-zod`** (`createZodDto`) — tái dùng 132 file zod, tự sinh OpenAPI (`patchNestjsSwagger`). Cấm validate tay trong controller |
-| Error shape | Mọi lỗi qua `AppExceptionFilter`: `{ error: string \| FlattenedZodError }` + status hiện hành (400/401/403/404/409/423/429/503) — client không sửa 1 dòng |
-| Swagger | `@nestjs/swagger`: `addBearerAuth()` + `addCookieAuth('cg_at')`, `@ApiTags` theo module, UI `/api/docs` (non-prod hoặc sau RolesGuard) |
-| Config | `ConfigModule.forRoot({ validate })` — zod validate env lúc boot, kiểm **giá trị** không chỉ "có set" (bài học ANTHROPIC_API_KEY rỗng) |
-| Logging | `nestjs-pino` + traceId |
-| Health | `@nestjs/terminus` `/api/healthz` (DB + Redis + Qdrant/Kafka ở GĐ2) |
-| Lifecycle | `enableShutdownHooks()`; đóng BullMQ/Redis/postgres/Kafka producers khi SIGTERM |
-| Testing | unit (service) + integration (repository vào Postgres docker) + e2e supertest + golden snapshot (§10) |
-| Comments | **Tiếng Việt đầy đủ** — header + JSDoc + inline (chuẩn repo) |
-| Cache | Mọi write qua service PHẢI gọi đúng invalidator choke-point (chuẩn `feedback_conform_arch_standards`) |
+| Hạng mục       | Chuẩn                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP adapter   | **Express** — AI SDK `pipeDataStreamToResponse(res)`, Multer, passport strategies                                                                         |
+| Prefix/path    | `setGlobalPrefix('api')`, **giữ NGUYÊN path hiện tại** — KHÔNG /v1 trong migration (đổi path = vỡ client; versioning để GĐ3 gateway)                      |
+| DTO/validation | **zod + `nestjs-zod`** (`createZodDto`) — tái dùng 132 file zod, tự sinh OpenAPI (`patchNestjsSwagger`). Cấm validate tay trong controller                |
+| Error shape    | Mọi lỗi qua `AppExceptionFilter`: `{ error: string \| FlattenedZodError }` + status hiện hành (400/401/403/404/409/423/429/503) — client không sửa 1 dòng |
+| Swagger        | `@nestjs/swagger`: `addBearerAuth()` + `addCookieAuth('cg_at')`, `@ApiTags` theo module, UI `/api/docs` (non-prod hoặc sau RolesGuard)                    |
+| Config         | `ConfigModule.forRoot({ validate })` — zod validate env lúc boot, kiểm **giá trị** không chỉ "có set" (bài học ANTHROPIC_API_KEY rỗng)                    |
+| Logging        | `nestjs-pino` + traceId                                                                                                                                   |
+| Health         | `@nestjs/terminus` `/api/healthz` (DB + Redis + Qdrant/Kafka ở GĐ2)                                                                                       |
+| Lifecycle      | `enableShutdownHooks()`; đóng BullMQ/Redis/postgres/Kafka producers khi SIGTERM                                                                           |
+| Testing        | unit (service) + integration (repository vào Postgres docker) + e2e supertest + golden snapshot (§10)                                                     |
+| Comments       | **Tiếng Việt đầy đủ** — header + JSDoc + inline (chuẩn repo)                                                                                              |
+| Cache          | Mọi write qua service PHẢI gọi đúng invalidator choke-point (chuẩn `feedback_conform_arch_standards`)                                                     |
 
 ### 5.3. Hạ tầng dùng CHUNG Next ↔ Nest trong transition
 
@@ -365,31 +374,31 @@ import → 1 nguồn format duy nhất. (Wave 1; web chỉ đổi import.)
 Cột cuối = service đích GĐ3 (theo diagram kiến trúc): module boundary GĐ1 chính
 là đường cắt GĐ3.
 
-| Nest module (GĐ1) | Routes (số lượng) | Jobs kèm | Wave | Service GĐ3 |
-|---|---|---|---|---|
-| `AuthModule` | auth JWT mới (§3.2) — COPPA/parental-consent đã cắt | — | 1 ✅ core | **auth-service** |
-| `UsersModule` | profile (2), user/status (1), account (5) | process-gdpr-deletion | 2 | **user-service** |
-| `LearningModule` | atoms (2), mastery (4), notes (3), study-plan (4) | — | 2 | **learning-service** |
-| `GraphModule` | graph (3) | — | 2 | **knowledge-graph-service** |
-| `GamificationModule` | leaderboard (1), analytics (1) | reconcile-leaderboard | 2 | **analytics-service** |
-| `SearchModule` | search (1), chunks (1) | — | 2 | **search-service** |
-| `WorkspacesModule` | workspaces (10) | — | 3 | **workspace-service** |
-| `DocumentsModule` | documents (6: upload + file proxy) | document queue (extract-concepts) | 3 | **workspace-service** |
-| `FlashcardsModule` | flashcards (8) | flashcard-due-reminder | 3 | **learning-service** |
-| `QuizModule` | quiz (4), questions (1) | — | 3 | **learning-service** |
-| `ExamsModule` | exams (10), attempts (5) | — | 3 | **learning-service** |
-| `ConversationsModule` | conversations GET (3) | — | 3 | **ai-service** |
-| `GroupsModule` | groups (26), dm (2) | thread-archive-stale | 4 | **group-service** |
-| `ChannelsModule` | channels (26) | — | 4 | **group-service** |
-| `RoomsModule` | rooms (10) | recording queue | 4 | **group-service** |
-| `RealtimeAuthModule` | realtime/auth (1) | — | 4 | gateway/auth |
-| `NotificationsModule` | notifications (2), reports (1) | push Expo | 4 | **notification-service** |
-| `LibraryModule` | library (33) | 3 cron library | 5 | **workspace-service** (hoặc tách library-service) |
-| `TutoringModule` | tutoring (31) + tutors | 3 cron tutoring | 6 | **billing-service** + user-service |
-| `WalletModule` | wallet (2) | — | 6 | **billing-service** |
-| `WebhooksModule` | vnpay/momo/livekit (3) — `@Public()` + HMAC guard | — | 6 | **billing-service** |
-| `ChatModule` | chat streaming (3), ai/quick-gen (1), generate (3) | — | 7 | **ai-service** |
-| `AdminModule` | admin (40), debug (1) | — | 7 | gateway + per-service admin |
+| Nest module (GĐ1)     | Routes (số lượng)                                   | Jobs kèm                          | Wave      | Service GĐ3                                       |
+| --------------------- | --------------------------------------------------- | --------------------------------- | --------- | ------------------------------------------------- |
+| `AuthModule`          | auth JWT mới (§3.2) — COPPA/parental-consent đã cắt | —                                 | 1 ✅ core | **auth-service**                                  |
+| `UsersModule`         | profile (2), user/status (1), account (5)           | process-gdpr-deletion             | 2         | **user-service**                                  |
+| `LearningModule`      | atoms (2), mastery (4), notes (3), study-plan (4)   | —                                 | 2         | **learning-service**                              |
+| `GraphModule`         | graph (3)                                           | —                                 | 2         | **knowledge-graph-service**                       |
+| `GamificationModule`  | leaderboard (1), analytics (1)                      | reconcile-leaderboard             | 2         | **analytics-service**                             |
+| `SearchModule`        | search (1), chunks (1)                              | —                                 | 2         | **search-service**                                |
+| `WorkspacesModule`    | workspaces (10)                                     | —                                 | 3         | **workspace-service**                             |
+| `DocumentsModule`     | documents (6: upload + file proxy)                  | document queue (extract-concepts) | 3         | **workspace-service**                             |
+| `FlashcardsModule`    | flashcards (8)                                      | flashcard-due-reminder            | 3         | **learning-service**                              |
+| `QuizModule`          | quiz (4), questions (1)                             | —                                 | 3         | **learning-service**                              |
+| `ExamsModule`         | exams (10), attempts (5)                            | —                                 | 3         | **learning-service**                              |
+| `ConversationsModule` | conversations GET (3)                               | —                                 | 3         | **ai-service**                                    |
+| `GroupsModule`        | groups (26), dm (2)                                 | thread-archive-stale              | 4         | **group-service**                                 |
+| `ChannelsModule`      | channels (26)                                       | —                                 | 4         | **group-service**                                 |
+| `RoomsModule`         | rooms (10)                                          | recording queue                   | 4         | **group-service**                                 |
+| `RealtimeAuthModule`  | realtime/auth (1)                                   | —                                 | 4         | gateway/auth                                      |
+| `NotificationsModule` | notifications (2), reports (1)                      | push Expo                         | 4         | **notification-service**                          |
+| `LibraryModule`       | library (33)                                        | 3 cron library                    | 5         | **workspace-service** (hoặc tách library-service) |
+| `TutoringModule`      | tutoring (31) + tutors                              | 3 cron tutoring                   | 6         | **billing-service** + user-service                |
+| `WalletModule`        | wallet (2)                                          | —                                 | 6         | **billing-service**                               |
+| `WebhooksModule`      | vnpay/momo/livekit (3) — `@Public()` + HMAC guard   | —                                 | 6         | **billing-service**                               |
+| `ChatModule`          | chat streaming (3), ai/quick-gen (1), generate (3)  | —                                 | 7         | **ai-service**                                    |
+| `AdminModule`         | admin (40), debug (1)                               | —                                 | 7         | gateway + per-service admin                       |
 
 > Tổng ≈ 270 route + ~14 endpoint auth mới. Controller giữ path y hệt route cũ.
 > Service nhận logic move từ `apps/web/src/lib/<domain>` (**move-once**).
@@ -403,6 +412,7 @@ thúc bằng exit criteria §10.2. (Đổi ORM sang Prisma làm wave dài hơn ~
 so với phương án giữ Drizzle — đã tính vào estimate.)
 
 ### Wave 0 — Skeleton + spikes (4–6 ngày)
+
 1. Scaffold `apps/api` (§5.1) + turbo/pnpm wiring (`pnpm dev` thêm api:4000).
 2. `ConfigModule` env zod (CÙNG `DATABASE_URL` Neon + `REDIS_URL` như web —
    ghi rõ `.env.example`, đừng lặp lỗi localhost/Neon).
@@ -423,6 +433,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 8. Golden-snapshot harness (§10.1). Gỡ dep `@mastra/core`.
 
 ### Wave 1 — AuthModule JWT (1.5–2 tuần — wave hệ trọng nhất)
+
 - Toàn bộ §3: sign-up/in/refresh/out, scrypt-compat + argon2id rehash, rotation +
   reuse-detection, Google OAuth, 2FA TOTP, **forgot/reset password
   (feature mới)**, email verify, JWKS, guards đầy đủ, denylist Redis.
@@ -442,7 +453,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   (Bearer vẫn là session token BA qua header `set-auth-token` dual-issue →
   chạy được trên CẢ route cũ lẫn mới, không đổi gì thêm); rewrites EXACT
   paths (không nuốt path BA còn dùng: sign-in/email của admin page,
-  two-factor/*, get-session). Fix bug chữ ký: BA makeSignature = base64
+  two-factor/\*, get-session). Fix bug chữ ký: BA makeSignature = base64
   CHUẨN (btoa) chứ không base64url — issuer/verify đã sửa cả 2 chiều.
   **Còn lại Wave 1:** email Resend, admin sign-in page (vẫn BA, hoạt động
   bình thường), 2FA enable/disable (tạm ở legacy), denylist force-signout.
@@ -452,6 +463,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
 - Test nặng: unit token rotation/reuse, e2e 3 nhánh dual-accept, smoke mobile.
 
 ### Wave 2 — Pilot domain nhỏ (≈22 routes, 1–1.5 tuần)
+
 - `UsersModule`, `LearningModule`, `GraphModule`, `GamificationModule`,
   `SearchModule`, `HealthModule` — chứng minh chuỗi đầy đủ: controller → service
   → **Prisma (+ $queryRaw repository khi cần)** → cache/invalidate → snapshot →
@@ -467,7 +479,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   giữa 2 lần), response normalize giống từng byte, kể cả shape 400 zod;
   cutover rewrites + XÓA 5 route cũ, verify qua proxy (x-powered-by: Express).
   Ghi chú kỹ thuật: @cogniva/shared là ESM-source nên api (CJS) chỉ `import
-  type` được — const dùng chung đặt ở server-core; khi Wave 3 cần zod schema
+type` được — const dùng chung đặt ở server-core; khi Wave 3 cần zod schema
   shared thì quyết: shared build dual HOẶC api chuyển ESM.
   **WAVE 2 HOÀN TẤT 2026-06-10 ✅:** `LearningModule` (mastery 4 + atoms 2 +
   notes 5 + study-plan 5), `GraphModule` (3), `SearchModule` (2) port bằng
@@ -482,6 +494,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   cache Redis vẫn là tầng giảm tải chính).
 
 ### Wave 3 — Core học tập (≈51 routes, 2–2.5 tuần)
+
 - `WorkspacesModule`, `DocumentsModule` (Multer 50MB + ingest pipeline service +
   document processor), `FlashcardsModule` (ts-fsrs service), `QuizModule`
   (advisory lock + BKT giữ nguyên), `ExamsModule` + attempts, `ConversationsModule`
@@ -506,11 +519,11 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   vẫn enqueue ăn khớp processor Nest; web worker đã gỡ documentWorker). Cutover 7
   prefix + XÓA 46 file route cũ + lib chết (exam/grade, ai/grade-essay,
   flashcards/{fsrs,generate}, quiz/grade, library/outcome-tracker, jobs/
-  extract-document-concepts); lib còn caller GIỮ: ingest/* + concepts (admin
+  extract-document-concepts); lib còn caller GIỮ: ingest/\_ + concepts (admin
   reingest W7), storage (groups/KYC), quiz/generate (tutor verify-quiz W6),
   mastery/update (questions/grade), study-plan/propose (SSR page), flashcards/cloze
   (client component). main.ts nới body-parser 10mb (Express default 100kb < Next
-  không giới hạn). Env: setup-env passthrough thêm R2_*/STORAGE_DRIVER/EMBEDDING_*.
+  không giới hạn). Env: setup-env passthrough thêm R2\_\_/STORAGE*DRIVER/EMBEDDING*\*.
   Deviation chấp nhận (ghi trong proof + service comment): 401 file-proxy/image trả
   JSON thay text (AuthGuard chung); multipart hỏng/oversize 52MB+ ra message multer;
   float4 (cheatRiskScore) lệch tail digit do driver; ipAddress lấy từ XFF (chỉ có
@@ -518,6 +531,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   Wave 4 social/realtime.
 
 ### Wave 4 — Social/realtime (≈68 routes, 1.5–2 tuần)
+
 - `GroupsModule`, `ChannelsModule`, `RoomsModule` (+ recording processor +
   Whisper/ffmpeg service), `RealtimeAuthModule`, `NotificationsModule`.
 - apps/realtime: chuyển CONNECT sang **verify JWT cục bộ** (public key — bỏ
@@ -528,30 +542,31 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   agent port, 1.2M token). Nền mới: `PermissionsService` (engine quyền 3 lớp
   role/override port nguyên), `NotificationsService` (notify + push Expo gom từ
   2 chỗ inline), `infra/livekit` (@Global). Port 66 route HTTP: groups 23 + dm 3
-  + channels-core 17 + channels-voice 15 + rooms 13 + notifications/reports 3 +
-  realtime/auth 1 + catch-up questions/grade (QuizModule W3 sót); 2 cron
-  catch-up port (`flashcard-due-reminder`, `thread-archive-stale`) +
-  `RecordingProcessor` (queue `recording` giữ tên — webhook LiveKit web vẫn
-  produce; web worker chỉ còn cron, RoomsPipelineModule tách riêng cho worker
-  không kéo controllers). **GOLDEN DIFF 98/98** + **SOCKET SMOKE 7/7** (gateway
-  verify JWT cục bộ CHỨNG MINH bằng instance hố-đen-HTTP; fallback BA legacy
-  qua Nest dual-accept OK; authorize subscribe qua endpoint Nest). Access token
-  thêm claims name+picture (token cũ vẫn verify, fallback ''/null);
-  setup-env.mjs giờ GIỮ keypair cũ khi chạy lại. **5 route 0-caller BỎ không
-  port**: groups/:id/ping (thay bằng socket presence), channel
-  permission-overrides GET/PUT/DELETE (engine vẫn đọc DB), members/:userId/roles
-  GET/PUT (bulk — UI dùng PUT member). Whisper = REST Groq multipart (không dep
-  openai); collab-token HS256 as-is (Hocuspocus server ngoài repo — JWKS align
-  dời GĐ3); ai-message rooms phát ai:streaming 1 phát full-text (LlmService
-  non-stream, client tương thích — Wave 7 router stream lại); RAG room-tutor
-  tạm basic top-5 (advanced HyDE/rerank W7). Xóa web: 65 file route + libs chết
-  (effective-permissions, mention-notify, ai-reply, livekit, rooms/codes,
-  process-recording); giữ lib client/SSR/W6 còn dùng (permissions UI,
-  permission-keys, code, dm, search-query, inline-pipeline+media cho webhook,
-  notifications/notify cho tutoring). Nest giờ phục vụ ~166 route. Tiếp:
-  Wave 5 Library (33).
+  - channels-core 17 + channels-voice 15 + rooms 13 + notifications/reports 3 +
+    realtime/auth 1 + catch-up questions/grade (QuizModule W3 sót); 2 cron
+    catch-up port (`flashcard-due-reminder`, `thread-archive-stale`) +
+    `RecordingProcessor` (queue `recording` giữ tên — webhook LiveKit web vẫn
+    produce; web worker chỉ còn cron, RoomsPipelineModule tách riêng cho worker
+    không kéo controllers). **GOLDEN DIFF 98/98** + **SOCKET SMOKE 7/7** (gateway
+    verify JWT cục bộ CHỨNG MINH bằng instance hố-đen-HTTP; fallback BA legacy
+    qua Nest dual-accept OK; authorize subscribe qua endpoint Nest). Access token
+    thêm claims name+picture (token cũ vẫn verify, fallback ''/null);
+    setup-env.mjs giờ GIỮ keypair cũ khi chạy lại. **5 route 0-caller BỎ không
+    port**: groups/:id/ping (thay bằng socket presence), channel
+    permission-overrides GET/PUT/DELETE (engine vẫn đọc DB), members/:userId/roles
+    GET/PUT (bulk — UI dùng PUT member). Whisper = REST Groq multipart (không dep
+    openai); collab-token HS256 as-is (Hocuspocus server ngoài repo — JWKS align
+    dời GĐ3); ai-message rooms phát ai:streaming 1 phát full-text (LlmService
+    non-stream, client tương thích — Wave 7 router stream lại); RAG room-tutor
+    tạm basic top-5 (advanced HyDE/rerank W7). Xóa web: 65 file route + libs chết
+    (effective-permissions, mention-notify, ai-reply, livekit, rooms/codes,
+    process-recording); giữ lib client/SSR/W6 còn dùng (permissions UI,
+    permission-keys, code, dm, search-query, inline-pipeline+media cho webhook,
+    notifications/notify cho tutoring). Nest giờ phục vụ ~166 route. Tiếp:
+    Wave 5 Library (33).
 
 ### Wave 5 — Library (33 routes, 1–1.5 tuần)
+
 - `LibraryModule`: hybrid search (SQL pgvector + tsvector — sang GĐ2 đổi adapter
   Qdrant), R2 proxy, purchase/PRO gate (402), karma, annotation + 3 cron.
 - **WAVE 5 HOÀN TẤT 2026-06-10 ✅** (workflow 3 agent song song). 3 module
@@ -583,6 +598,7 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   Tiền (tutoring/wallet/webhooks — replay fixtures VNPay/Momo).
 
 ### Wave 6 — Tiền (≈37 routes, ~1.5 tuần — cẩn trọng nhất)
+
 - `TutoringModule`, `WalletModule`, `WebhooksModule`.
 - Trước cutover: **replay-test webhook bằng signed fixtures** (VNPay + Momo, GET
   lẫn POST), idempotency (double-delivery không double-credit). Escrow/payout
@@ -603,17 +619,17 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   export thêm từ LibrarySearchModule), WebhooksModule (4 — main.ts bật
   rawBody:true + json parser nhận application/webhook+json cho LiveKit
   WebhookReceiver; RecordingPipelineService provide riêng). 4 cron CUỐI port
-  sang cron-v2 (auto-complete '5 * * * *', recurring-rollout '30 2',
+  sang cron-v2 (auto-complete '5 \* \* \* _', recurring-rollout '30 2',
   gdpr-deletion '0 3', refresh-embeddings '0 3') → **web worker XÓA HẲN**
   (src/worker + src/jobs + script `worker` + dev:worker; scheduler mồ côi
   queue `cron` đã drain khỏi Redis; web giờ CHỈ produce queue `document` từ
   admin reingest tới W7). **GOLDEN DIFF 65/65 PASS** — twin-user cùng display
-  name (response chứa tên), tie-sort ledger TOPUP/CASHBACK cùng created_at,
+  name (response chứa tên), tie-sort ledger TOPUP/CASHBACK cùng created*at,
   **webhook replay fixtures ký THẬT**: VNPay GET+POST json+form-urlencoded
   (CAPTURED/already-CAPTURED double-delivery captured_at không đổi/sig sai
   400/thiếu field 400/orderCode lạ 404), MoMo (CAPTURED/idempotent/1006
   FAILED), LiveKit JWT sha256 (skipped/401), DB-assert provider_ref +
-  raw_response.ipn. 1 fix sau proof: ical api dùng APP_URL (NEXT_PUBLIC_* không
+  raw_response.ipn. 1 fix sau proof: ical api dùng APP_URL (NEXT_PUBLIC*_ không
   có trong api .env → URL event thiếu origin). **17 method 0-caller BỎ không
   port** (caller-analysis): blocked-time GET+POST, bookings/:id PATCH,
   reschedule, calendar tổng, classes POST + enroll, concierge/search, packs
@@ -621,13 +637,14 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   GET+PATCH+DELETE, favorite GET, kyc GET, subjects/:sid DELETE, verify-quiz
   GET+PATCH, tutors/me. Xóa web: 46 file route + 10 lib tutoring (giữ
   get-mine-tab cho SSR) + 4 job + 2 script stale (eval-concierge,
-  seed-tutoring-v2). setup-env passthrough thêm PAYMENT/VNPAY_*/MOMO_*/
+  seed-tutoring-v2). setup-env passthrough thêm PAYMENT/VNPAY*\*/MOMO*\*/
   TUTORING_ESCROW_HOURS (test secrets dev đã ghi .env.local). Deviation chấp
   nhận: id randomUUID ≠ cuid2, malformed-JSON 400 shape express, `details`
   P2002 text Prisma, intent returnUrl origin từ APP_URL. Nest ~236 route.
   Tiếp: Wave 7.
 
 ### Wave 7 — AI/streaming + Admin + chốt hạ (≈56 routes, 2 tuần)
+
 - `infra/ai` hoàn thiện (router DI, guardrail, circuit, semantic cache);
   `ChatModule` streaming (Spike B); migrate nốt `getChatModel()` legacy; giữ
   behavior **conversation auto-create trong POST /api/chat**.
@@ -636,20 +653,20 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   khỏi web (trang SSR còn lại chuyển gọi Nest server-to-server forward
   cookie/Bearer, hoặc client-fetch qua React Query có sẵn).
 - **WAVE 7 HOÀN TẤT 2026-06-11 ✅ — GĐ1 STRANGLER-FIG ĐÓNG.** (NỀN main-loop
-  + workflow 4 agent + 3 agent web/mobile). **GOLDEN DIFF 56/56** + **SMOKE
-  JWT-thuần 11/11**.
-  - **infra/ai đầy đủ**: CircuitBreakerService (Redis cb:* phân tán, port
+  - workflow 4 agent + 3 agent web/mobile). **GOLDEN DIFF 56/56** + **SMOKE
+    JWT-thuần 11/11**.
+  * **infra/ai đầy đủ**: CircuitBreakerService (Redis cb:_ phân tán, port
     ioredis), RouterService (chain provider AI SDK per-useCase + fallback +
     circuit + guardrail 3 lớp — lớp COPPA cắt), SemanticCacheService
-    (exact-hash aicache:*); HyDE/quick-gen hợp nhất qua router (getChatModel
+    (exact-hash aicache:_); HyDE/quick-gen hợp nhất qua router (getChatModel
     legacy chết). **ChatModule**: POST /api/chat stream AI SDK v4 Data Stream
-    Protocol từng byte (8: citations → 2: meta conversationId → f/0*/e/d qua
+    Protocol từng byte (8: citations → 2: meta conversationId → f/0\*/e/d qua
     pipeDataStreamToResponse; headers X-Vercel-AI-Data-Stream: v1), RAG
     advanced port (HyDE→vector+BM25→RRF k=60→Cohere rerank REST→MMR λ0.7
     top-5), conversation auto-create + persist USER/ASSISTANT + recordCost;
     Posthog/Langfuse bỏ (api không có — ghi ai_usage_log). chat/conversations
     ×2 + ai/quick-gen.
-  - **Admin 47 route** 2 module (Core: users/audit/search/impersonate
+  * **Admin 47 route** 2 module (Core: users/audit/search/impersonate
     HMAC-cookie/system/moderation/groups · Domain:
     documents/conversations/recordings/kyc/tutoring/ai): NỀN AdminGuard
     (@AdminRoles + DB re-check suspended + bootstrap ADMIN_EMAILS) +
@@ -660,10 +677,10 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
     (kèm queue.remove jobId chống dedup-drop bởi job completed cũ).
     **BUG-FIX #4**: GET admin/ai/circuits cũ LUÔN [] — IoRedisAdapter thiếu
     method scan, TypeError bị catch nuốt — bản Nest liệt kê đúng.
-  - **AccountModule** (delete GDPR 30d + export + usage + push-token) +
+  * **AccountModule** (delete GDPR 30d + export + usage + push-token) +
     /api/health tổng (bỏ dbReplica — api 1 client; cần env
     NEXT_PUBLIC_REALTIME_URL passthrough). debug/router-test 0-caller — bỏ.
-  - **CHỐT HẠ**: (1) 2FA enable/verify/disable endpoints Nest (format
+  * **CHỐT HẠ**: (1) 2FA enable/verify/disable endpoints Nest (format
     tương thích BA — XChaCha20 secret + backup codes 1-lần, sign-in/2fa
     nhận cả backup code) thay authClient.twoFactor. (2) Web: getServerSession
     shim verify cg_at cục bộ (jose JWKS), 42 RSC sed, middleware cg_at/cg_rt,
@@ -673,21 +690,34 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
     POST cookie-only). (3) XÓA: Better Auth toàn bộ (lib/auth + catch-all +
     secondary-storage + dep), COPPA cluster, 110 file web (51 route api còn
     lại + chuỗi lib AI/retrieval/chat/concepts/queue mồ côi + evals), spike
-    module, dual-accept + dual-issue api (LegacySession*Service xóa, guard
+    module, dual-accept + dual-issue api (LegacySession\*Service xóa, guard
     JWT-thuần). (4) **Mobile chuyển JWT**: bỏ set-auth-token header → cặp
     accessToken/refreshToken SecureStore + refresh-mutex retry-1-lần +
     realtime handshake getValidAccessToken (decode exp, refresh chủ động
     <30s). (5) Web package.json gỡ 10 dep (better-auth/bullmq/cohere-ai/
     langfuse/@ai-sdk server.../posthog-node/redis-emitter).
-  - **CÒN LẠI SAU GĐ1** (chuyển GĐ2): Drizzle GIỮ cho SSR read-only (~45 lib
-    + 33 page — đúng nguyên tắc write-path-first, MỌI write đã qua Nest; bulk
-    rewrite không golden-diff được); new-chat route còn
-    getOrCreateDefaultWorkspace Drizzle-write (cần endpoint Nest); email
-    Resend (W1); mobile 2FA UI; refresh grace-window (hardening); Hocuspocus
-    JWKS (GĐ3). Nest phục vụ 100% /api/** — apps/web/src/app/api KHÔNG còn
-    tồn tại.
+  * **CÒN LẠI SAU GĐ1** (chuyển GĐ2): Drizzle GIỮ cho SSR read-only (~45 lib
+    - 33 page — đúng nguyên tắc write-path-first, MỌI write đã qua Nest; bulk
+      rewrite không golden-diff được); new-chat route còn
+      getOrCreateDefaultWorkspace Drizzle-write (cần endpoint Nest); email
+      Resend (W1); mobile 2FA UI; refresh grace-window (hardening); Hocuspocus
+      JWKS (GĐ3). Nest phục vụ 100% /api/\*\* — apps/web/src/app/api KHÔNG còn
+      tồn tại.
+
+**DỌN SẠCH HẬU GĐ1 (2026-06-11) ✅:** toàn repo strip 100% comment (script AST,
+979 file — chính sách mới: KHÔNG comment, chỉ giữ directive eslint/@ts-\*);
+`modules/library` tách chuẩn submodule `content/ · search/ · annotations/ ·
+shared/` (llm.service), `subject-taxonomy` → `src/common/` (tutoring hết
+reach-in), `market.dto` → `dto/`; xóa 12 wave-proof scripts + `test/contract`
+(old routes không còn để diff); tsconfig api gỡ `baseUrl` (deprecation TS);
+web xóa 13 component 0-caller + dep `ioredis`/`@upstash/redis`; mobile gỡ 4 dep
+thừa + thêm eslint 9 (expo lint pass); edge gỡ script lint/test hỏng;
+`BETTER_AUTH_*` gỡ khỏi `.env.example`/`turbo.json`/`ci.yml`; repo prettier-clean
+(`format:check` green, `.prettierignore` chừa migrations). Verify: tái lập
+strip+format từ HEAD → 778 file byte-identical, typecheck 10/10, lint 3/3.
 
 **Nguyên tắc xuyên suốt GĐ1:**
+
 - **Move-once:** port domain = move lib server-only thành service+repository;
   route Next cũ **xoá sau 48h cutover xanh**. Cấm logic sống 2 nơi quá 1 wave.
 - **Write-path-first cho SSR:** trang read-only giữ direct-DB (Drizzle cũ) tới
@@ -725,15 +755,15 @@ so với phương án giữ Drizzle — đã tính vào estimate.)
   thêm impl **kafkajs**: producer (acks=all, idempotent) + consumer groups.
 - **Topics khởi điểm** (đặt theo ranh giới service GĐ3):
 
-| Topic | Producer | Consumers (GĐ2 = consumer trong cùng monolith) |
-|---|---|---|
-| `user.registered` | AuthModule | Notification (welcome/consent email), Analytics |
-| `document.uploaded` | DocumentsModule | Ingest (thay enqueue trực tiếp), Analytics |
-| `document.processed` | IngestModule | Notification, Search (index), KG (concepts) |
-| `quiz.attempted` / `flashcard.reviewed` | Learning | Analytics, Gamification (XP), KG (mastery/BKT) |
-| `booking.created` / `payment.captured` | Tutoring/Webhooks | Notification, Billing ledger, Analytics |
-| `group.message.created` | Channels | Notification (mention), Moderation |
-| `notification.send` | mọi module | NotificationsModule (Expo push/email) |
+| Topic                                   | Producer          | Consumers (GĐ2 = consumer trong cùng monolith)  |
+| --------------------------------------- | ----------------- | ----------------------------------------------- |
+| `user.registered`                       | AuthModule        | Notification (welcome/consent email), Analytics |
+| `document.uploaded`                     | DocumentsModule   | Ingest (thay enqueue trực tiếp), Analytics      |
+| `document.processed`                    | IngestModule      | Notification, Search (index), KG (concepts)     |
+| `quiz.attempted` / `flashcard.reviewed` | Learning          | Analytics, Gamification (XP), KG (mastery/BKT)  |
+| `booking.created` / `payment.captured`  | Tutoring/Webhooks | Notification, Billing ledger, Analytics         |
+| `group.message.created`                 | Channels          | Notification (mention), Moderation              |
+| `notification.send`                     | mọi module        | NotificationsModule (Expo push/email)           |
 
 - **Ranh giới Kafka vs BullMQ (cùng tồn tại — đúng tài liệu đích):** Kafka =
   **sự kiện** fan-out cho consumer khác domain (pub/sub, nhiều consumer);
@@ -760,7 +790,7 @@ liên lạc — việc tách trở thành "move thư mục module sang app mới
    key — không gọi auth lúc runtime).
 3. **notification-service** (consumer thuần Kafka — tách dễ nhất, rủi ro thấp).
 4. **ai-service** (chat/generation/router — tải nặng nhất, lợi scale rõ nhất)
-   + **search-service** (Qdrant + BM25).
+   - **search-service** (Qdrant + BM25).
 5. **learning / workspace / group / billing / user / analytics / knowledge-graph**
    — tách dần theo nhu cầu (deploy block? scale bottleneck?), không tách lấy được.
 
@@ -790,6 +820,7 @@ liên lạc — việc tách trở thành "move thư mục module sang app mới
 ## 10. Lưới an toàn
 
 ### 10.1. Golden contract snapshot (dựng ở Wave 0)
+
 - `apps/api/test/contract/capture.ts`: per domain, gọi danh sách route (session
   seed + fixtures) vào **backend hiện tại**, lưu `test/golden/<domain>/*.json`
   (body + status + headers chọn lọc, normalize timestamp/id).
@@ -799,6 +830,7 @@ liên lạc — việc tách trở thành "move thư mục module sang app mới
   chạy xuyên gateway.
 
 ### 10.2. Exit criteria MỖI wave
+
 1. ✅ Golden snapshot pass toàn bộ route của domain.
 2. ✅ typecheck + lint + unit/integration/e2e xanh.
 3. ✅ Mobile smoke (Bearer flow) ≥1 endpoint của domain.
@@ -809,6 +841,7 @@ liên lạc — việc tách trở thành "move thư mục module sang app mới
 8. ✅ Chú thích tiếng Việt đầy đủ.
 
 ### 10.3. Rollback
+
 - GĐ1: revert 1 proxy rule → traffic về Next (route cũ chỉ xoá sau 48h xanh).
 - Auth: dual-accept nghĩa là rollback = client quay lại endpoint cũ; Better Auth
   chỉ gỡ ở cuối GĐ1.
@@ -835,25 +868,26 @@ có gateway versioning).
 
 ## 12. Rủi ro xếp hạng
 
-| # | Rủi ro | Mitigation (đã nhúng vào plan) |
-|---|---|---|
-| 1 | **Auth JWT mới vỡ đăng nhập diện rộng** (scrypt-compat sai, OAuth/2FA/COPPA thiếu parity, mobile kẹt token cũ) | Wave 1 riêng + dual-accept 3 nhánh (token mới/JWT cũ/cookie session cũ), rehash progressive, parity checklist, Better Auth chỉ gỡ cuối GĐ1 |
-| 2 | **Prisma migration drift**: index đặc thù (HNSW/GIN/partial unique) chỉ sống trong SQL migration, `migrate dev` đời sau có thể drop nhầm; jsonb full-replace; advisory lock phải $queryRaw; introspect miss operator class | NOTES.md liệt kê index ngoài-schema + kiểm diff trước apply; $queryRaw tập trung repository; integration test vào Postgres docker; GĐ2 Qdrant gỡ hẳn cột vector |
-| 3 | Refresh rotation lỗi (race đa tab/thiết bị) → user bị logout vòng lặp | family_id + grace 30s cho token vừa rotate; e2e đa client |
-| 4 | 270 route không lưới test → silent breakage | Golden snapshot TRƯỚC khi port (§10.1) |
-| 5 | Logic sống 2 nơi diverge (FSRS/BKT) trong transition | Move-once + write-path-first + xoá route cũ 48h |
-| 6 | Streaming lệch byte AI SDK protocol → chat chết web+mobile | Spike B Wave 0; /api/chat ở lại Next tới Wave 7 nếu chưa chắc |
-| 7 | Webhook payment sai HMAC/idempotency = mất tiền thật | Wave riêng + replay signed fixtures |
-| 8 | Worker port vỡ idempotency (double push/mất transcript) | Giữ nguyên văn jobId/dedupe; port cùng wave domain; không double-run cron |
-| 9 | Cache drift Next↔Nest sống chung | `packages/server-core` dùng chung key+invalidator |
-| 10 | Qdrant recall lệch pgvector → RAG/search tệ đi âm thầm | Dual-write + recall-compare top-K trước cutover; rollback env |
-| 11 | Kafka vận hành trên VPS (RAM, disk, partition) quá sức 1 dev | Redpanda single-node + topics ít partition; Kafka chỉ nhận vai trò fan-out, job nặng vẫn BullMQ |
-| 12 | Đứt realtime/collab khi đổi cơ chế verify | JWT verify cục bộ bằng public key + dual-accept 1 wave + socket smoke |
-| 13 | Scope tổng (GĐ1≈9–11 tuần, GĐ2≈2–3, GĐ3≈3–4+) vượt thời gian đồ án | Mốc bàn giao hợp lệ ở CUỐI MỖI GIAI ĐOẠN; GĐ3 tách được từng service một, dừng ở đâu hệ vẫn chạy ở đó |
+| #   | Rủi ro                                                                                                                                                                                                                     | Mitigation (đã nhúng vào plan)                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Auth JWT mới vỡ đăng nhập diện rộng** (scrypt-compat sai, OAuth/2FA/COPPA thiếu parity, mobile kẹt token cũ)                                                                                                             | Wave 1 riêng + dual-accept 3 nhánh (token mới/JWT cũ/cookie session cũ), rehash progressive, parity checklist, Better Auth chỉ gỡ cuối GĐ1                      |
+| 2   | **Prisma migration drift**: index đặc thù (HNSW/GIN/partial unique) chỉ sống trong SQL migration, `migrate dev` đời sau có thể drop nhầm; jsonb full-replace; advisory lock phải $queryRaw; introspect miss operator class | NOTES.md liệt kê index ngoài-schema + kiểm diff trước apply; $queryRaw tập trung repository; integration test vào Postgres docker; GĐ2 Qdrant gỡ hẳn cột vector |
+| 3   | Refresh rotation lỗi (race đa tab/thiết bị) → user bị logout vòng lặp                                                                                                                                                      | family_id + grace 30s cho token vừa rotate; e2e đa client                                                                                                       |
+| 4   | 270 route không lưới test → silent breakage                                                                                                                                                                                | Golden snapshot TRƯỚC khi port (§10.1)                                                                                                                          |
+| 5   | Logic sống 2 nơi diverge (FSRS/BKT) trong transition                                                                                                                                                                       | Move-once + write-path-first + xoá route cũ 48h                                                                                                                 |
+| 6   | Streaming lệch byte AI SDK protocol → chat chết web+mobile                                                                                                                                                                 | Spike B Wave 0; /api/chat ở lại Next tới Wave 7 nếu chưa chắc                                                                                                   |
+| 7   | Webhook payment sai HMAC/idempotency = mất tiền thật                                                                                                                                                                       | Wave riêng + replay signed fixtures                                                                                                                             |
+| 8   | Worker port vỡ idempotency (double push/mất transcript)                                                                                                                                                                    | Giữ nguyên văn jobId/dedupe; port cùng wave domain; không double-run cron                                                                                       |
+| 9   | Cache drift Next↔Nest sống chung                                                                                                                                                                                           | `packages/server-core` dùng chung key+invalidator                                                                                                               |
+| 10  | Qdrant recall lệch pgvector → RAG/search tệ đi âm thầm                                                                                                                                                                     | Dual-write + recall-compare top-K trước cutover; rollback env                                                                                                   |
+| 11  | Kafka vận hành trên VPS (RAM, disk, partition) quá sức 1 dev                                                                                                                                                               | Redpanda single-node + topics ít partition; Kafka chỉ nhận vai trò fan-out, job nặng vẫn BullMQ                                                                 |
+| 12  | Đứt realtime/collab khi đổi cơ chế verify                                                                                                                                                                                  | JWT verify cục bộ bằng public key + dual-accept 1 wave + socket smoke                                                                                           |
+| 13  | Scope tổng (GĐ1≈9–11 tuần, GĐ2≈2–3, GĐ3≈3–4+) vượt thời gian đồ án                                                                                                                                                         | Mốc bàn giao hợp lệ ở CUỐI MỖI GIAI ĐOẠN; GĐ3 tách được từng service một, dừng ở đâu hệ vẫn chạy ở đó                                                           |
 
 ## 13. Dọn dẹp docs
 
 Cùng tiến trình (plan-in-sync — mỗi wave commit kèm):
+
 - `master.md`: §3.2 ORM → "Prisma (pivot từ Drizzle 2026-06-10)"; §3.6 → "JWT
   tự triển khai (access 15'/refresh 30d, JWKS)"; §4 → kiến trúc 3 giai đoạn; bỏ tRPC
   "planned"; Mastra → đã gỡ; Soketi → Socket.IO; số liệu API/bảng theo thực tế.

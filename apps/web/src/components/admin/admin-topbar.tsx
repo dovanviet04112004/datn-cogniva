@@ -1,14 +1,3 @@
-/**
- * AdminTopbar — h-12 glass top bar cho admin console.
- *
- * Bao gồm:
- *   - Title page (breadcrumb-like: "Admin / [section]")
- *   - Search ⌘K placeholder (Phase 6 wire endpoint /api/admin/search)
- *   - Admin avatar + role pill + sign-out
- *
- * KHÔNG dùng ThemeToggle / PomodoroWidget / StreakBadge của app — admin
- * không có XP/streak.
- */
 'use client';
 
 import * as React from 'react';
@@ -43,11 +32,10 @@ export function AdminTopbar({ admin }: { admin: AdminContext }) {
   return (
     <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-950/80 px-4 backdrop-blur">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-400">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400 animate-soft-pulse" />
+        <span className="animate-soft-pulse inline-block h-1.5 w-1.5 rounded-full bg-red-400" />
         Admin Console
       </div>
 
-      {/* Global ⌘K search — Phase 6 */}
       <AdminCommandPalette />
 
       <div className="ml-auto flex items-center gap-3">
@@ -82,13 +70,14 @@ export function AdminTopbar({ admin }: { admin: AdminContext }) {
             <DropdownMenuLabel>
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">{admin.name ?? 'Admin'}</span>
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  {admin.email}
-                </span>
+                <span className="text-muted-foreground text-[11px] font-normal">{admin.email}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut} className="gap-2.5 text-destructive focus:bg-destructive/10 focus:text-destructive">
+            <DropdownMenuItem
+              onClick={signOut}
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive gap-2.5"
+            >
               <LogOut className="h-4 w-4" />
               <span>Đăng xuất</span>
             </DropdownMenuItem>

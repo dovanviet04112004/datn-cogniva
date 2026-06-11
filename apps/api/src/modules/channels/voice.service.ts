@@ -1,12 +1,3 @@
-/**
- * VoiceService — voice presence + LiveKit token + stage (raise hand / promote
- * / demote) + Hocuspocus collab token cho VOICE/STAGE channel của study group.
- *
- * Port từ apps/web/src/app/api/channels/[id]/{voice/*,stage/*,collab-token}.
- * Voice state là DB mirror (LiveKit webhook không fire ở local dev) — client
- * tự gọi join/leave/state, server upsert + bắn realtime để sidebar inline
- * list cập nhật tức thì. Mọi event/payload GIỮ NGUYÊN tên kênh + shape.
- */
 import {
   BadRequestException,
   ForbiddenException,
@@ -23,7 +14,11 @@ import { PrismaService } from '../../infra/database/prisma.service';
 import { LivekitService } from '../../infra/livekit/livekit.service';
 import { PermissionsService, type GroupRole } from '../groups/permissions.service';
 import type { AuthUser } from '../../common/auth/session.types';
-import { collabTokenSchema, stageActionSchema, type VoiceStateInput } from './dto/channels-voice.dto';
+import {
+  collabTokenSchema,
+  stageActionSchema,
+  type VoiceStateInput,
+} from './dto/channels-voice.dto';
 
 const MOD_ROLES = ['OWNER', 'ADMIN', 'MODERATOR'];
 
@@ -35,13 +30,6 @@ export class VoiceService {
     private readonly permissions: PermissionsService,
   ) {}
 
-  /* ── Voice presence ────────────────────────────────────────────────── */
-
-  /**
-   * POST :id/voice/join — upsert voice_state khi client connect LiveKit
-   * (idempotent, user_id UNIQUE: 1 user chỉ active 1 voice cùng lúc).
-   * selfMuted=true mặc định: vào phòng mic TẮT, VoiceStateSync chỉnh lại sau.
-   */
   async joinVoice(user: AuthUser, channelId: string) {
     const channel = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -71,7 +59,6 @@ export class VoiceService {
       },
     });
 
-    // Payload ĐỦ data participant → client merge thẳng, khỏi refetch HTTP.
     void triggerEvent(`presence-voice-${channelId}`, 'voice:join', {
       userId: user.id,
       name: user.name ?? '',
@@ -86,7 +73,6 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /** POST :id/voice/leave — force-clear state (chống "ghost" khi webhook chậm). */
   async leaveVoice(userId: string, channelId: string) {
     await this.prisma.study_group_voice_state.deleteMany({
       where: { user_id: userId, channel_id: channelId },
@@ -97,10 +83,6 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /**
-   * POST :id/voice/state — sync mic/cam/screen (PATCH-like, chỉ update field
-   * có trong delta). UPSERT chấp nhận race với /voice/join.
-   */
   async syncVoiceState(userId: string, channelId: string, delta: VoiceStateInput) {
     if (Object.keys(delta).length === 0) {
       return { ok: true, noop: true };
@@ -125,7 +107,6 @@ export class VoiceService {
       update,
     });
 
-    // Broadcast chỉ field thay đổi để client merge
     void triggerEvent(`presence-voice-${channelId}`, 'voice:state-changed', {
       userId,
       ...delta,
@@ -134,11 +115,6 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /**
-   * POST :id/voice/token — gen LiveKit JWT. Auto-upgrade livekitRoomName cho
-   * channel cũ (tạo trước Phase 20). STAGE: audience canPublish=false, lần
-   * đầu join insert row AUDIENCE.
-   */
   async issueVoiceToken(user: AuthUser, channelId: string) {
     const channel = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -178,7 +154,6 @@ export class VoiceService {
     let stageRole: 'AUDIENCE' | 'SPEAKER' | null = null;
     if (channel.type === 'STAGE') {
       if (isMod) {
-        // Mod luôn được publish (host)
         canPublish = true;
         stageRole = 'SPEAKER';
       } else {
@@ -187,7 +162,6 @@ export class VoiceService {
           select: { role: true },
         });
         if (!existing) {
-          // Lần đầu join → insert AUDIENCE (skipDuplicates = onConflictDoNothing cũ)
           await this.prisma.study_group_stage_role.createMany({
             data: [{ channel_id: channel.id, user_id: user.id, role: 'AUDIENCE' }],
             skipDuplicates: true,
@@ -229,7 +203,6 @@ export class VoiceService {
     }
   }
 
-  /** GET :id/voice/participants — list user trong channel (DB mirror). */
   async listParticipants(userId: string, channelId: string) {
     const channel = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -262,9 +235,6 @@ export class VoiceService {
     };
   }
 
-  /* ── Stage ─────────────────────────────────────────────────────────── */
-
-  /** Channel phải là STAGE + user là member — null = 403 Forbidden (như loadCtx cũ). */
   private async loadStageCtx(channelId: string, userId: string) {
     const channel = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -278,7 +248,6 @@ export class VoiceService {
     return { channel, member };
   }
 
-  /** GET :id/stage — speakers + raised hands + role của chính mình. */
   async getStageState(user: AuthUser, channelId: string) {
     const ctx = await this.loadStageCtx(channelId, user.id);
     if (!ctx) throw new ForbiddenException({ error: 'Forbidden' });
@@ -321,10 +290,6 @@ export class VoiceService {
     };
   }
 
-  /**
-   * POST :id/stage — audience raise/lower hand. Body safeParse SAU check ctx
-   * (route cũ trả 403 trước 400 — giữ THỨ TỰ status).
-   */
   async raiseHand(user: AuthUser, channelId: string, raw: unknown) {
     const ctx = await this.loadStageCtx(channelId, user.id);
     if (!ctx) throw new ForbiddenException({ error: 'Forbidden' });
@@ -334,7 +299,6 @@ export class VoiceService {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
 
-    // MOD không cần raise hand — đã được publish sẵn.
     if (MOD_ROLES.includes(ctx.member.role)) {
       throw new BadRequestException({ error: 'Mod không cần raise hand' });
     }
@@ -355,11 +319,6 @@ export class VoiceService {
     return { ok: true, raised: parsed.data.action === 'raise' };
   }
 
-  /**
-   * POST :id/stage/promote/:userId — mod promote audience → speaker.
-   * LiveKit permission hot-update best-effort (user offline thì token join
-   * tới sẽ có canPublish).
-   */
   async promoteSpeaker(user: AuthUser, channelId: string, targetUserId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({ where: { id: channelId } });
     if (!ch || ch.type !== 'STAGE') {
@@ -374,7 +333,6 @@ export class VoiceService {
       throw new ForbiddenException({ error: 'Chỉ mod được promote' });
     }
 
-    // Chống promote user ngoài group
     const target = await this.prisma.study_group_member.findUnique({
       where: { group_id_user_id: { group_id: ch.group_id, user_id: targetUserId } },
       select: { id: true },
@@ -408,7 +366,6 @@ export class VoiceService {
           }),
         );
       } catch (err) {
-        // User chưa join hoặc đã rời — lần join tới token mới sẽ có canPublish
         console.warn('[stage/promote] LiveKit update fail (user offline?):', err);
       }
     }
@@ -421,10 +378,6 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /**
-   * POST :id/stage/demote/:userId — speaker → audience. Self-demote được
-   * phép (rời stage tự nguyện); canPublish=false auto-unpublish track.
-   */
   async demoteSpeaker(user: AuthUser, channelId: string, targetUserId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({ where: { id: channelId } });
     if (!ch || ch.type !== 'STAGE') {
@@ -480,16 +433,6 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /* ── Collab token (Hocuspocus) ─────────────────────────────────────── */
-
-  /**
-   * POST :id/collab-token — JWT HS256 ký bằng JWT_SECRET cho Hocuspocus,
-   * port AS-IS (KHÔNG đổi sang JWKS wave này — Hocuspocus verify cùng
-   * secret symmetric). channelId truyền vào field `roomId` để parser
-   * Hocuspocus match doc name `room:{channelId}:{kind}`.
-   *
-   * Body parse TRƯỚC check channel (giữ thứ tự status route cũ: 400 → 404).
-   */
   async issueCollabToken(userId: string, channelId: string, raw: unknown) {
     const parsed = collabTokenSchema.safeParse(raw);
     if (!parsed.success) {
@@ -521,8 +464,6 @@ export class VoiceService {
       throw new InternalServerErrorException({ error: 'NEXT_PUBLIC_HOCUSPOCUS_URL not set' });
     }
 
-    // Route cũ dùng jsonwebtoken — api dùng jose (đã cài) cùng output HS256
-    // chuẩn JWT (iat + exp 15m), Hocuspocus verify interop bình thường.
     const token = await new SignJWT({ userId, roomId: channelId, kind: parsed.data.kind })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setIssuedAt()

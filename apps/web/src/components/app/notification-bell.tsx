@@ -1,13 +1,3 @@
-/**
- * NotificationBell — bell icon trong topbar với badge unread count.
- *
- * UX:
- *   - Mount: fetch /api/notifications, set badge nếu unreadCount > 0
- *   - Realtime: nghe `notification:new` qua Socket.IO gateway (apps/realtime); polling refetch mỗi 60s làm fallback
- *   - Click → dropdown panel hiển thị 10 notification mới nhất
- *   - Click 1 item → mark single read + (Phase 2.2) deep link tới target
- *   - "Đánh dấu tất cả đã đọc" → POST /api/notifications/read { all: true }
- */
 'use client';
 
 import * as React from 'react';
@@ -62,11 +52,9 @@ export function NotificationBell({ userId }: { userId: string }) {
   const { openChat } = useChatDock();
   const [loading, setLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  // Mount-gate — tránh Radix useId mismatch React 19 + next-themes
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
-  // Notifications qua React Query — poll 60s (fallback nếu realtime rớt).
   const { data, refetch } = useQuery({
     queryKey: qk.notifications(),
     queryFn: () => apiGet<NotifResponse>('/api/notifications?limit=15'),
@@ -75,13 +63,11 @@ export function NotificationBell({ userId }: { userId: string }) {
   const notifs = data?.notifications ?? [];
   const unread = data?.unreadCount ?? 0;
 
-  // Realtime: nghe `notification:new` trên kênh riêng của user → refetch NGAY.
   const refresh = React.useCallback(() => {
     void refetch();
   }, [refetch]);
   useRealtimeEvent(`presence-user-${userId}`, 'notification:new', refresh);
 
-  // Refetch khi user mở dropdown — đảm bảo data tươi.
   React.useEffect(() => {
     if (open) void refetch();
   }, [open, refetch]);
@@ -89,7 +75,6 @@ export function NotificationBell({ userId }: { userId: string }) {
   const markAllRead = async () => {
     if (unread === 0) return;
     setLoading(true);
-    // Optimistic ghi vào cache + rollback nếu lỗi.
     const prev = qc.getQueryData<NotifResponse>(qk.notifications());
     qc.setQueryData<NotifResponse>(qk.notifications(), (old) =>
       old
@@ -112,7 +97,6 @@ export function NotificationBell({ userId }: { userId: string }) {
   };
 
   const markOneAndNavigate = (n: Notification) => {
-    // Mark read — optimistic + rollback (fire-and-forget, không chặn navigate)
     if (!n.readAt) {
       const prev = qc.getQueryData<NotifResponse>(qk.notifications());
       qc.setQueryData<NotifResponse>(qk.notifications(), (old) =>
@@ -130,13 +114,14 @@ export function NotificationBell({ userId }: { userId: string }) {
       });
     }
 
-    // Tin nhắn DM → mở cửa sổ chat nổi (không nhảy trang).
     if (n.type === 'dm-message') {
       const data = n.data ?? {};
       const threadId = typeof data.threadId === 'string' ? data.threadId : null;
-      const author = (data.author ?? null) as
-        | { id: string; name: string | null; image: string | null }
-        | null;
+      const author = (data.author ?? null) as {
+        id: string;
+        name: string | null;
+        image: string | null;
+      } | null;
       if (threadId && author) {
         setOpen(false);
         openChat({ threadId, peer: author });
@@ -144,7 +129,6 @@ export function NotificationBell({ userId }: { userId: string }) {
       }
     }
 
-    // Deep link theo type
     const href = deepLink(n);
     if (href) {
       setOpen(false);
@@ -154,7 +138,7 @@ export function NotificationBell({ userId }: { userId: string }) {
 
   if (!mounted) {
     return (
-      <div className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground">
+      <div className="text-muted-foreground relative inline-flex h-9 w-9 items-center justify-center rounded-md">
         <Bell className="h-4 w-4" />
       </div>
     );
@@ -163,12 +147,12 @@ export function NotificationBell({ userId }: { userId: string }) {
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="text-muted-foreground hover:bg-muted hover:text-foreground relative inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors"
         aria-label={`Thông báo${unread > 0 ? ` (${unread} chưa đọc)` : ''}`}
       >
         <Bell className="h-4 w-4" />
         {unread > 0 && (
-          <span className="absolute right-1 top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+          <span className="bg-destructive text-destructive-foreground absolute right-1 top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
@@ -180,7 +164,7 @@ export function NotificationBell({ userId }: { userId: string }) {
             <button
               onClick={markAllRead}
               disabled={loading}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors disabled:opacity-50"
             >
               {loading ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -195,17 +179,13 @@ export function NotificationBell({ userId }: { userId: string }) {
         <div className="max-h-[420px] overflow-y-auto">
           {notifs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <Inbox className="h-6 w-6 text-muted-foreground/50" />
-              <p className="text-xs text-muted-foreground">Chưa có thông báo</p>
+              <Inbox className="text-muted-foreground/50 h-6 w-6" />
+              <p className="text-muted-foreground text-xs">Chưa có thông báo</p>
             </div>
           ) : (
             <ul className="divide-y">
               {notifs.map((n) => (
-                <NotifItem
-                  key={n.id}
-                  n={n}
-                  onClick={() => markOneAndNavigate(n)}
-                />
+                <NotifItem key={n.id} n={n} onClick={() => markOneAndNavigate(n)} />
               ))}
             </ul>
           )}
@@ -215,13 +195,7 @@ export function NotificationBell({ userId }: { userId: string }) {
   );
 }
 
-function NotifItem({
-  n,
-  onClick,
-}: {
-  n: Notification;
-  onClick: () => void;
-}) {
+function NotifItem({ n, onClick }: { n: Notification; onClick: () => void }) {
   const unread = !n.readAt;
   const { Icon, iconCls } = iconFor(n.type);
   return (
@@ -230,7 +204,7 @@ function NotifItem({
         type="button"
         onClick={onClick}
         className={cn(
-          'flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-muted',
+          'hover:bg-muted flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors',
           unread && 'bg-blue-500/5',
         )}
       >
@@ -244,17 +218,11 @@ function NotifItem({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
-            <p className="truncate text-xs font-medium leading-tight">
-              {n.title}
-            </p>
-            {unread && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-            )}
+            <p className="truncate text-xs font-medium leading-tight">{n.title}</p>
+            {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />}
           </div>
-          <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
-            {n.body}
-          </p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground/70">
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px]">{n.body}</p>
+          <p className="text-muted-foreground/70 mt-1 font-mono text-[11px]">
             {formatRel(new Date(n.createdAt))}
           </p>
         </div>
@@ -322,11 +290,9 @@ function deepLink(n: Notification): string | null {
       return bookingId ? `/tutoring?tab=orders&booking=${bookingId}` : '/tutoring?tab=orders';
     }
     case 'admin-warn':
-      // Không có target page riêng — show profile để user xem strike count Phase 3+
       return '/profile';
     case 'group-mention': {
-      const channelId =
-        typeof data.channelId === 'string' ? data.channelId : null;
+      const channelId = typeof data.channelId === 'string' ? data.channelId : null;
       return groupId && channelId
         ? `/groups/${groupId}?channel=${channelId}`
         : groupId

@@ -1,13 +1,3 @@
-/**
- * Job `tutoring-refresh-embeddings` ('0 3 * * *' UTC = 10:00 VN daily) — V4 T1.
- * Port NGUYÊN semantics từ apps/web/src/jobs/tutoring-refresh-embeddings.ts:
- * tutor_profile PUBLISHED có bio_embedding NULL / stale > 14 ngày / bio đã
- * update sau lần embed cuối → re-embed "headline\nbio" qua EmbeddingService.
- * Cap 100/run để không spam embedding API — cron ngày sau quét tiếp.
- *
- * Idempotent: ghi bio_embedding_updated_at = now → row rớt khỏi tập candidate
- * lần sau. Lỗi 1 row chỉ log, không hỏng cả batch.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { logger } from '@cogniva/server-core';
@@ -26,7 +16,6 @@ export class TutoringRefreshEmbeddingsJob {
   ) {}
 
   async run(): Promise<{ refreshed: number }> {
-    // bio_embedding là Unsupported("vector") — filter/update phải qua raw SQL.
     const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000);
     const candidates = await this.prisma.$queryRaw<
       Array<{ id: string; headline: string; bio: string }>
@@ -47,7 +36,6 @@ export class TutoringRefreshEmbeddingsJob {
 
     if (candidates.length === 0) return { refreshed: 0 };
 
-    // Sequential — Voyage free tier rate-limit safe (giữ nguyên web).
     let refreshed = 0;
     for (const c of candidates) {
       try {

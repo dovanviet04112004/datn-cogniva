@@ -1,12 +1,3 @@
-/**
- * MemberSidebar — col 4 (240px) phải Discord-style.
- *
- * Render danh sách member group, group theo role (OWNER/ADMIN/MOD đỉnh,
- * MEMBER bên dưới). Hiển thị avatar + name + role badge.
- *
- * V1: chưa có presence realtime. lastSeenAt < 5 min = online (dot xanh).
- *     Render lazy — chỉ fetch khi sidebar visible.
- */
 'use client';
 
 import * as React from 'react';
@@ -45,7 +36,6 @@ import type { GroupRole } from '@/lib/group/permissions';
 
 import { usePresence } from './presence-context';
 
-/** Thứ hạng role — số nhỏ = quyền cao. Dùng để biết có quyền mod target không. */
 const ROLE_RANK: Record<GroupRole, number> = { OWNER: 0, ADMIN: 1, MODERATOR: 2, MEMBER: 3 };
 
 type Member = {
@@ -57,13 +47,11 @@ type Member = {
   mutedUntil: string | null;
   lastSeenAt: string | null;
   joinedAt: string;
-  // V2 G3 (2026-05-21): status fields from /api/groups/[id]/members
   status?: 'online' | 'idle' | 'dnd' | 'offline' | 'invisible';
   statusText?: string | null;
   statusEmoji?: string | null;
 };
 
-/** Map status → CSS bg-* class cho status dot. */
 const STATUS_DOT_CLASS: Record<NonNullable<Member['status']>, string> = {
   online: 'bg-emerald-500',
   idle: 'bg-amber-500',
@@ -72,7 +60,6 @@ const STATUS_DOT_CLASS: Record<NonNullable<Member['status']>, string> = {
   offline: 'bg-slate-400',
 };
 
-/** Map status → label tiếng Việt cho aria-label + tooltip. */
 const STATUS_LABEL: Record<NonNullable<Member['status']>, string> = {
   online: 'Đang hoạt động',
   idle: 'Vắng mặt',
@@ -95,7 +82,6 @@ const ROLE_COLOR = {
   MEMBER: 'text-muted-foreground',
 } as const;
 
-/** Online via realtime presence set — passed in. */
 function isOnline(member: Member, onlineSet: Set<string>): boolean {
   return onlineSet.has(member.userId);
 }
@@ -106,26 +92,19 @@ export function MemberSidebar({
   forceVisible = false,
 }: {
   groupId: string;
-  /** Role của user hiện tại — để hiện hành động mod (mute/kick) trong menu. */
   myRole?: GroupRole;
-  /** Khi true → bỏ class `hidden lg:flex` để render trong mobile drawer. */
   forceVisible?: boolean;
 }) {
   const qc = useQueryClient();
   const { online, statusMap, setInitialStatus } = usePresence();
 
-  // Danh sách member qua React Query — key dùng chung với search-dialog.
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.groupMembers(groupId),
     queryFn: () =>
-      apiGet<{ members: Member[] }>(`/api/groups/${groupId}/members`).then(
-        (d) => d.members ?? [],
-      ),
+      apiGet<{ members: Member[] }>(`/api/groups/${groupId}/members`).then((d) => d.members ?? []),
   });
   const members = data ?? [];
 
-  // V2 G3: feed initial status từ API vào presence context map khi data về
-  // (sau đó listener `status:change` realtime update tiếp).
   React.useEffect(() => {
     if (!data) return;
     setInitialStatus(
@@ -140,12 +119,10 @@ export function MemberSidebar({
     );
   }, [data, setInitialStatus]);
 
-  // Refetch sau mute/kick — invalidate cache (mọi nơi dùng key này tự cập nhật).
   const reloadMembers = React.useCallback(() => {
     void qc.invalidateQueries({ queryKey: qk.groupMembers(groupId) });
   }, [qc, groupId]);
 
-  // Sort: OWNER → ADMIN → MOD → MEMBER. Trong cùng role: online trước, alphabet.
   const sorted = React.useMemo(() => {
     const rank: Record<GroupRole, number> = { OWNER: 0, ADMIN: 1, MODERATOR: 2, MEMBER: 3 };
     return [...members].sort((a, b) => {
@@ -168,22 +145,12 @@ export function MemberSidebar({
   return (
     <aside
       className={cn(
-        // overflow-hidden: khi wrapper co width 220→0 (animate đóng), nội dung
-        // không tràn ra ngoài. Desktop show/hide do <aside> wrapper ở group-shell
-        // lo (animate width) nên ở đây chỉ cần 'flex'.
-        'h-full w-[220px] shrink-0 flex-col overflow-hidden border-l bg-muted/20',
+        'bg-muted/20 h-full w-[220px] shrink-0 flex-col overflow-hidden border-l',
         forceVisible ? 'flex w-full' : 'flex',
       )}
     >
-      {/* forceVisible = đang ở mobile drawer → chừa trái (pl-12) cho nút X đóng
-          (absolute left-2) khỏi đè lên chữ "Thành viên — N". */}
-      <div
-        className={cn(
-          'flex h-12 shrink-0 items-center border-b px-3',
-          forceVisible && 'pl-12',
-        )}
-      >
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className={cn('flex h-12 shrink-0 items-center border-b px-3', forceVisible && 'pl-12')}>
+        <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wider">
           Thành viên — {members.length}
         </span>
       </div>
@@ -198,7 +165,7 @@ export function MemberSidebar({
                 if (list.length === 0) return null;
                 return (
                   <div key={role} className="space-y-0.5">
-                    <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-muted-foreground px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider">
                       {role === 'OWNER' && 'Owner'}
                       {role === 'ADMIN' && 'Admin'}
                       {role === 'MODERATOR' && 'Moderator'}
@@ -222,17 +189,13 @@ export function MemberSidebar({
           )}
         </div>
       </ScrollArea>
-      <div className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">
-        <span className="font-medium text-foreground">{onlineCount}</span> online
+      <div className="text-muted-foreground border-t px-3 py-1.5 text-[10px]">
+        <span className="text-foreground font-medium">{onlineCount}</span> online
       </div>
     </aside>
   );
 }
 
-/**
- * MemberSkeleton — placeholder pulse cho lúc API GET /members chưa trả.
- * Hiển thị 6 row giả để fill ScrollArea, giảm layout shift khi data về.
- */
 function MemberSkeleton() {
   return (
     <div className="space-y-3">
@@ -270,9 +233,11 @@ function MemberRow({
   groupId: string;
   myRole?: GroupRole;
   online: boolean;
-  /** Realtime status info từ PresenceContext (override `member.status` từ initial fetch). */
-  statusInfo: { status: NonNullable<Member['status']>; statusText?: string | null; statusEmoji?: string | null } | null;
-  /** Gọi lại sau khi mute/kick để refetch danh sách. */
+  statusInfo: {
+    status: NonNullable<Member['status']>;
+    statusText?: string | null;
+    statusEmoji?: string | null;
+  } | null;
   onChanged: () => void;
 }) {
   const router = useRouter();
@@ -281,10 +246,6 @@ function MemberRow({
   const Icon = ROLE_ICON[member.role];
   const display = member.nickname ?? member.name ?? 'Anonymous';
 
-  // V2 G3: compute effective status:
-  //   - User offline (WS off): luôn xám
-  //   - User online + status='invisible': render như offline (xám)
-  //   - Else: dùng status user tự set (online/idle/dnd)
   const rawStatus = statusInfo?.status ?? member.status ?? 'online';
   const effectiveStatus: NonNullable<Member['status']> = !online
     ? 'offline'
@@ -295,11 +256,9 @@ function MemberRow({
   const customStatusEmoji = statusInfo?.statusEmoji ?? member.statusEmoji;
 
   const isSelf = member.userId === currentUserId;
-  // Có quyền mod target khi role mình CAO HƠN role target (và không phải mình).
   const canModerate = !!myRole && !isSelf && ROLE_RANK[myRole] < ROLE_RANK[member.role];
   const isMuted = !!member.mutedUntil && new Date(member.mutedUntil).getTime() > Date.now();
 
-  // Nhắn tin → mở cửa sổ chat nổi (chat dock), không nhảy trang.
   const openDmDock = async () => {
     try {
       const res = await fetch('/api/dm', {
@@ -327,9 +286,7 @@ function MemberRow({
     try {
       await navigator.clipboard?.writeText(display);
       toast.success('Đã sao chép tên');
-    } catch {
-      /* clipboard không khả dụng */
-    }
+    } catch {}
   };
 
   const toggleMute = async () => {
@@ -379,7 +336,7 @@ function MemberRow({
   };
 
   return (
-    <div className="group flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent/50">
+    <div className="hover:bg-accent/50 group flex items-center gap-2 rounded-md px-2 py-1">
       <button
         type="button"
         onClick={openDmDock}
@@ -388,15 +345,13 @@ function MemberRow({
       >
         <Avatar className="h-7 w-7">
           <AvatarImage src={member.image ?? undefined} />
-          <AvatarFallback className="text-[10px]">
-            {display[0]?.toUpperCase()}
-          </AvatarFallback>
+          <AvatarFallback className="text-[10px]">{display[0]?.toUpperCase()}</AvatarFallback>
         </Avatar>
         <span
           aria-label={STATUS_LABEL[effectiveStatus]}
           title={STATUS_LABEL[effectiveStatus]}
           className={cn(
-            'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background',
+            'border-background absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2',
             STATUS_DOT_CLASS[effectiveStatus],
           )}
         />
@@ -404,47 +359,47 @@ function MemberRow({
       <div className="min-w-0 flex-1">
         <span className="block truncate text-sm">{display}</span>
         {(customStatusText || customStatusEmoji) && effectiveStatus !== 'offline' && (
-          <span className="block truncate text-[10.5px] text-muted-foreground">
+          <span className="text-muted-foreground block truncate text-[10.5px]">
             {customStatusEmoji && <span className="mr-1">{customStatusEmoji}</span>}
             {customStatusText}
           </span>
         )}
       </div>
-      {Icon && (
-        <Icon className={cn('h-3.5 w-3.5 shrink-0', ROLE_COLOR[member.role])} />
-      )}
-      {/* Menu lựa chọn kiểu Discord — hiện nút "..." khi hover (hoặc luôn khi mở). */}
+      {Icon && <Icon className={cn('h-3.5 w-3.5 shrink-0', ROLE_COLOR[member.role])} />}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             aria-label="Tùy chọn thành viên"
             title="Tùy chọn"
-            className="hidden shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground group-hover:block data-[state=open]:block"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground hidden shrink-0 rounded p-1 transition-colors group-hover:block data-[state=open]:block"
           >
             <MoreVertical className="h-3.5 w-3.5" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem onClick={() => router.push(`/profile/${member.userId}`)} className="gap-2">
-            <UserRound className="h-4 w-4 text-muted-foreground" /> Xem hồ sơ
+          <DropdownMenuItem
+            onClick={() => router.push(`/profile/${member.userId}`)}
+            className="gap-2"
+          >
+            <UserRound className="text-muted-foreground h-4 w-4" /> Xem hồ sơ
           </DropdownMenuItem>
           {!isSelf && (
             <DropdownMenuItem onClick={openDmDock} className="gap-2">
-              <MessageSquare className="h-4 w-4 text-muted-foreground" /> Nhắn tin
+              <MessageSquare className="text-muted-foreground h-4 w-4" /> Nhắn tin
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={copyName} className="gap-2">
-            <Copy className="h-4 w-4 text-muted-foreground" /> Sao chép tên
+            <Copy className="text-muted-foreground h-4 w-4" /> Sao chép tên
           </DropdownMenuItem>
           {canModerate && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={toggleMute} className="gap-2">
                 {isMuted ? (
-                  <Volume2 className="h-4 w-4 text-muted-foreground" />
+                  <Volume2 className="text-muted-foreground h-4 w-4" />
                 ) : (
-                  <VolumeX className="h-4 w-4 text-muted-foreground" />
+                  <VolumeX className="text-muted-foreground h-4 w-4" />
                 )}
                 {isMuted ? 'Bỏ tắt tiếng' : 'Tắt tiếng (10 phút)'}
               </DropdownMenuItem>

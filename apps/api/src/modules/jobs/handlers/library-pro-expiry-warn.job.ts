@@ -1,19 +1,3 @@
-/**
- * Job `library-pro-expiry-warn` (09:00 UTC = 16:00 VN daily) — Phase 5.
- * Port NGUYÊN semantics từ apps/web/src/jobs/library-pro-expiry-warn.ts:
- *
- *   1. PRO có pro_until_at trong [NOW+2d, NOW+4d] → push "sắp hết hạn 3 ngày"
- *      upsell renewal.
- *   2. Dedupe: skip user đã có notification_log type 'pro-expiry-warn' status
- *      'sent' trong 7 ngày (cron chạy 3 ngày liên tiếp cùng window + retry
- *      cùng ngày đều không gửi trùng).
- *   3. Token qua NotificationsService.getPushTokens; send loop giữ TẠI ĐÂY
- *      (như flashcard-due-reminder) vì cần TICKET từng message để phân
- *      sent/failed per-user + gom token DeviceNotRegistered.
- *
- * Message type local — KHÔNG dùng ExpoPushMessage của NotificationsService vì
- * type đó khoá priority 'high'; job này gửi priority 'normal' y job cũ.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -58,7 +42,6 @@ export class LibraryProExpiryWarnJob {
     const lo = new Date(now.getTime() + WARN_WINDOW_DAYS_MIN * 86400_000);
     const hi = new Date(now.getTime() + WARN_WINDOW_DAYS_MAX * 86400_000);
 
-    // Step 1: candidates trong window
     const candidateRows = await this.prisma.user.findMany({
       where: { plan: 'PRO', pro_until_at: { not: null, gte: lo, lte: hi } },
       select: { id: true, name: true, pro_until_at: true },
@@ -77,7 +60,6 @@ export class LibraryProExpiryWarnJob {
       return { candidates: 0, sent: 0, deduped: 0 };
     }
 
-    // Step 2: dedupe — đã nhận warn trong 7 ngày?
     const userIds = candidates.map((c) => c.id);
     const cutoff = new Date(now.getTime() - DEDUPE_WINDOW_DAYS * 86400_000);
     const recent = await this.prisma.notification_log.findMany({
@@ -96,7 +78,6 @@ export class LibraryProExpiryWarnJob {
       return { candidates: candidates.length, sent: 0, deduped: candidates.length };
     }
 
-    // Step 3: tokens (enabled, 1 user nhiều device) — qua NotificationsService.
     const tokens = await this.notifications.getPushTokens(eligibleIds);
     const targets = tokens.map((t) => {
       const c = candidates.find((x) => x.id === t.userId);
@@ -115,7 +96,6 @@ export class LibraryProExpiryWarnJob {
       };
     }
 
-    // Step 4: gửi push — giữ ticket từng message.
     const messages: ExpoPushMessage[] = targets.map((t) => {
       const daysLeft = t.proUntilAt
         ? Math.max(1, Math.ceil((new Date(t.proUntilAt).getTime() - now.getTime()) / 86400_000))
@@ -184,12 +164,10 @@ export class LibraryProExpiryWarnJob {
       }
     }
 
-    // Step 5a: cleanup invalid tokens (idempotent — delete by token).
     if (invalidTokens.length > 0) {
       await this.prisma.push_token.deleteMany({ where: { token: { in: invalidTokens } } });
     }
 
-    // Step 5b: notification_log — 1 row/user, 'sent' nếu BẤT KỲ device ok.
     const byUser = new Map<string, { ok: boolean; err: string | null; daysLeft: number }>();
     for (const t of tickets) {
       const cur = byUser.get(t.userId) ?? { ok: false, err: null, daysLeft: 0 };
@@ -202,7 +180,6 @@ export class LibraryProExpiryWarnJob {
       byUser.set(t.userId, cur);
     }
     const rows = Array.from(byUser.entries()).map(([userId, info]) => ({
-      // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default).
       id: randomUUID(),
       user_id: userId,
       type: NOTIF_TYPE,

@@ -1,9 +1,3 @@
-/**
- * /api/conversations/* — port từ apps/web/src/app/api/conversations/**.
- * Tất cả route cần session (guard global lo 401 {error:'Unauthorized'}).
- * Route cũ [id]/route.ts CHỈ export DELETE (GET metadata là future) → không
- * port GET /conversations/:id.
- */
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -16,7 +10,6 @@ import { ConversationsService } from './conversations.service';
 export class ConversationsController {
   constructor(private readonly conversations: ConversationsService) {}
 
-  /** GET /conversations?workspaceId=X&limit=100 — parse y route cũ (cap 200). */
   @Get()
   list(
     @CurrentUser() user: AuthUser,

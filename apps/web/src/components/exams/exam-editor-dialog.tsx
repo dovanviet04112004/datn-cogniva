@@ -1,32 +1,8 @@
-/**
- * ExamEditorDialog — V8.21 (2026-05-20).
- *
- * Modal in-workspace edit/manage exam, thay vì navigate /exams/[id] full page.
- *
- * Scope MVP:
- *   - Header: title + status + meta (mode, count, maxScore, duration)
- *   - Questions list (read-only, có nút xoá)
- *   - Actions DRAFT: AddQuestionDialog, AiGenerateDialog (đã là Dialog
- *     riêng → Radix portal z-index stack đúng)
- *   - Publish (DRAFT → PUBLISHED), Delete exam
- *   - Link "Mở full page" backup cho proctor/advanced features
- *
- * KHÔNG bao gồm: ModeSwitcher, AntiCheatConfig, Proctor — link sang full
- * page `/exams/[id]` cho user cần.
- *
- * Reload data sau khi add/gen/delete question → onDone callback ở dialog
- * con bump `refresh` counter.
- */
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  CheckCircle,
-  Loader2,
-  ShieldAlert,
-  Trash2,
-} from 'lucide-react';
+import { CheckCircle, Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -84,25 +60,16 @@ type Props = {
   examId: string | null;
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  /** Callback sau khi exam thay đổi (publish/delete) — host refresh list. */
   onChanged?: () => void;
 };
 
-export function ExamEditorDialog({
-  examId,
-  open,
-  onOpenChange,
-  onChanged,
-}: Props) {
+export function ExamEditorDialog({ examId, open, onOpenChange, onChanged }: Props) {
   const router = useRouter();
-  // Hook confirm styled — hoist 1 lần, dùng cho cả xoá exam + xoá câu hỏi
   const confirm = useConfirm();
   const qc = useQueryClient();
   const [publishing, setPublishing] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
-  // Fetch exam + questions qua React Query; key qk.exam(id) dùng chung với
-  // trang /exams/[id]. Add/gen/delete/publish → invalidate thay refreshKey counter.
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.exam(examId ?? ''),
     queryFn: () =>
@@ -115,8 +82,7 @@ export function ExamEditorDialog({
   const questions = data?.questions ?? [];
   const isOwner = data?.isOwner ?? false;
 
-  const reload = () =>
-    qc.invalidateQueries({ queryKey: qk.exam(examId ?? '') });
+  const reload = () => qc.invalidateQueries({ queryKey: qk.exam(examId ?? '') });
 
   const publishExam = async () => {
     if (!exam || publishing) return;
@@ -183,7 +149,6 @@ export function ExamEditorDialog({
         'POST',
       );
       if (out.resumed) toast.info('Tiếp tục attempt đang dở');
-      // Take page là full screen riêng (timer + anti-cheat) — navigate khỏi modal
       router.push(`/exams/${exam.id}/take/${out.attempt.id}`);
       onOpenChange(false);
     } catch (err) {
@@ -198,38 +163,30 @@ export function ExamEditorDialog({
       <DialogContent className="flex h-[85vh] max-h-[800px] w-[90vw] max-w-3xl flex-col gap-0 overflow-hidden p-0">
         {loading && !exam ? (
           <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
           </div>
         ) : !exam ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">Exam không tải được.</p>
+            <p className="text-muted-foreground text-sm">Exam không tải được.</p>
           </div>
         ) : (
           <>
             <DialogHeader className="shrink-0 border-b px-5 py-3 pr-12 text-left">
               <DialogTitle className="text-base">{exam.title}</DialogTitle>
-              <DialogDescription className="sr-only">
-                Quản lý exam + câu hỏi.
-              </DialogDescription>
+              <DialogDescription className="sr-only">Quản lý exam + câu hỏi.</DialogDescription>
               {exam.description && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {exam.description}
-                </p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{exam.description}</p>
               )}
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
                 <span
                   className={cn(
                     'rounded px-1.5 py-0.5 font-semibold',
-                    isDraft
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-success/10 text-success',
+                    isDraft ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success',
                   )}
                 >
                   {exam.status}
                 </span>
-                <span className="rounded bg-muted px-1.5 py-0.5">
-                  {exam.mode}
-                </span>
+                <span className="bg-muted rounded px-1.5 py-0.5">{exam.mode}</span>
                 <span>{questions.length} câu</span>
                 <span>{exam.maxScore} điểm tối đa</span>
                 {exam.mode === 'TIMED' && exam.durationSeconds && (
@@ -238,24 +195,20 @@ export function ExamEditorDialog({
               </div>
             </DialogHeader>
 
-            {/* Body — questions list + actions */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <Card className="p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold">Câu hỏi</h2>
                   {isOwner && isDraft && (
                     <div className="flex flex-wrap gap-2">
-                      <AddQuestionDialog
-                        examId={exam.id}
-                        onDone={reload}
-                      />
+                      <AddQuestionDialog examId={exam.id} onDone={reload} />
                       <AiGenerateDialog examId={exam.id} onDone={reload} />
                     </div>
                   )}
                 </div>
 
                 {questions.length === 0 ? (
-                  <p className="text-center text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-center text-xs">
                     Chưa có câu hỏi. Bấm &quot;Thêm câu hỏi&quot; hoặc &quot;AI gen&quot; để tạo.
                   </p>
                 ) : (
@@ -263,17 +216,15 @@ export function ExamEditorDialog({
                     {questions.map((q, i) => (
                       <li
                         key={q.id}
-                        className="flex items-start gap-2 rounded-md border bg-card px-2.5 py-2 text-xs"
+                        className="bg-card flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs"
                       >
-                        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted font-mono text-[10px] text-muted-foreground">
+                        <span className="bg-muted text-muted-foreground mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded font-mono text-[10px]">
                           {i + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 leading-snug">
-                            {q.prompt}
-                          </p>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            <span className="rounded bg-muted px-1 py-0.5">
+                          <p className="line-clamp-2 leading-snug">{q.prompt}</p>
+                          <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-[11px]">
+                            <span className="bg-muted rounded px-1 py-0.5">
                               {TYPE_LABEL[q.type] ?? q.type}
                             </span>
                             <span>{q.points} điểm</span>
@@ -285,7 +236,7 @@ export function ExamEditorDialog({
                             onClick={() => deleteQuestion(q.id)}
                             aria-label="Xoá câu hỏi"
                             title="Xoá câu hỏi"
-                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -297,16 +248,11 @@ export function ExamEditorDialog({
               </Card>
             </div>
 
-            {/* Footer actions */}
-            <footer className="shrink-0 border-t bg-muted/20 px-5 py-3">
+            <footer className="bg-muted/20 shrink-0 border-t px-5 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-2">
                   {isOwner && isDraft && questions.length > 0 && (
-                    <Button
-                      onClick={publishExam}
-                      size="sm"
-                      disabled={publishing}
-                    >
+                    <Button onClick={publishExam} size="sm" disabled={publishing}>
                       {publishing ? (
                         <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                       ) : (
@@ -320,8 +266,6 @@ export function ExamEditorDialog({
                       Làm thử
                     </Button>
                   )}
-                  {/* V8.24: nút Proctor cho owner exam đã PUBLISHED — monitoring
-                      page riêng (full-screen admin view). */}
                   {isOwner && exam.status === 'PUBLISHED' && (
                     <Button
                       size="sm"

@@ -1,17 +1,3 @@
-/**
- * UploadDocumentDialog — dialog modal upload PDF VÀO 1 WORKSPACE CỤ THỂ.
- *
- * Luồng mới (chuẩn): tài liệu phải vào ĐÚNG workspace user chọn — KHÔNG còn
- * auto fallback "Default" hay auto-route theo nội dung.
- *   - `workspaceId` prop (vd Sources panel trong 1 workspace) → upload thẳng,
- *     KHÔNG hiện picker.
- *   - Không truyền (global: dashboard / documents / onboarding) → hiện PICKER
- *     để user chọn workspace (React Query, key chung `qk.workspaces()`). Chưa có
- *     workspace nào → nhắc tạo (CreateWorkspaceDialog inline).
- *
- * UX: drag-drop / click pick · 1 PDF / lần · auto-close sau khi xong · chặn close
- * khi đang upload. Dropzone bị khoá tới khi đã chọn workspace.
- */
 'use client';
 
 import * as React from 'react';
@@ -40,17 +26,10 @@ import { MAX_FILE_BYTES, useDocumentUpload } from './use-document-upload';
 type Workspace = { id: string; name: string };
 
 type Props = {
-  /** Override trigger button. */
   trigger?: React.ReactNode;
-  /** Optional controlled state (V5 workspace notebook gọi từ Sources panel). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** Optional callback sau khi upload xong (V5 dùng để refresh router). */
   onUploaded?: () => void;
-  /**
-   * Workspace đích CỐ ĐỊNH → upload thẳng vào đó, KHÔNG hiện picker. Bỏ trống
-   * (global) → hiện picker chọn workspace.
-   */
   workspaceId?: string;
 };
 
@@ -70,17 +49,13 @@ export function UploadDocumentDialog({
   };
   const { upload, isUploading } = useDocumentUpload();
 
-  // Picker workspace — CHỈ khi không scoped. React Query (key chung qk.workspaces),
-  // chỉ fetch khi dialog mở.
   const isScoped = workspaceId !== undefined;
   const { data: workspaces = [], isLoading: wsLoading } = useQuery({
     queryKey: qk.workspaces(),
-    queryFn: () =>
-      apiGet<{ workspaces: Workspace[] }>('/api/workspaces').then((d) => d.workspaces),
+    queryFn: () => apiGet<{ workspaces: Workspace[] }>('/api/workspaces').then((d) => d.workspaces),
     enabled: open && !isScoped,
   });
   const [selectedWsId, setSelectedWsId] = React.useState<string | null>(null);
-  // Auto-chọn workspace đầu khi list load (nếu user chưa chọn).
   React.useEffect(() => {
     if (!isScoped && workspaces.length > 0 && !selectedWsId) {
       setSelectedWsId(workspaces[0]!.id);
@@ -88,7 +63,7 @@ export function UploadDocumentDialog({
   }, [workspaces, selectedWsId, isScoped]);
 
   const effectiveWsId = isScoped ? workspaceId : selectedWsId;
-  const needsWorkspace = !effectiveWsId; // chưa chọn được workspace → khoá dropzone
+  const needsWorkspace = !effectiveWsId;
 
   const onDrop = React.useCallback(
     async (accepted: File[], rejected: FileRejection[]) => {
@@ -122,13 +97,11 @@ export function UploadDocumentDialog({
   return (
     <Dialog
       open={open}
-      // Ngăn close khi đang upload — tránh user spam Esc làm gián đoạn UX
       onOpenChange={(next) => {
         if (isUploading && !next) return;
         setOpen(next);
       }}
     >
-      {/* Controlled mode (V5): KHÔNG render trigger, parent tự mở qua state. */}
       {!isControlled && (
         <DialogTrigger asChild>
           {trigger ?? (
@@ -147,22 +120,20 @@ export function UploadDocumentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Picker workspace — chỉ ở chế độ global (không scoped). */}
         {!isScoped && (
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className="text-muted-foreground text-xs font-medium">
               Upload vào workspace
             </label>
             {wsLoading ? (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <Loader2 className="h-3 w-3 animate-spin" /> Đang tải workspace…
               </p>
             ) : workspaces.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-center">
-                <p className="mb-2 text-xs text-muted-foreground">
+              <div className="border-border bg-muted/30 rounded-lg border border-dashed p-3 text-center">
+                <p className="text-muted-foreground mb-2 text-xs">
                   Bạn chưa có workspace nào — tạo 1 cái để chứa tài liệu.
                 </p>
-                {/* CreateWorkspaceDialog tự bust qk.workspaces → picker tự refetch. */}
                 <CreateWorkspaceDialog />
               </div>
             ) : (
@@ -188,9 +159,9 @@ export function UploadDocumentDialog({
         >
           <input {...getInputProps()} />
           {isUploading ? (
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
           ) : (
-            <FileUp className="h-8 w-8 text-muted-foreground" />
+            <FileUp className="text-muted-foreground h-8 w-8" />
           )}
           <div className="space-y-0.5">
             <p className="text-sm font-medium">
@@ -202,9 +173,7 @@ export function UploadDocumentDialog({
                     ? 'Thả file vào đây'
                     : 'Kéo PDF vào hoặc bấm để chọn'}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Tối đa 50 MB · application/pdf
-            </p>
+            <p className="text-muted-foreground text-xs">Tối đa 50 MB · application/pdf</p>
           </div>
         </div>
       </DialogContent>

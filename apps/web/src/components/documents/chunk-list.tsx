@@ -1,20 +1,3 @@
-/**
- * ChunkList — danh sách chunks panel phải trong trang /documents/[id].
- *
- * Tương tác:
- *   - Click 1 chunk có `meta.page` → cập nhật `window.location.hash` thành
- *     `#page-N` để PdfViewer (panel trái) scroll tới đúng trang.
- *   - Nếu hash hiện tại đã trùng (vd click cùng chunk 2 lần), gọi
- *     `scrollIntoView` thủ công vì hashchange event sẽ không fire.
- *   - Highlight chunk vừa click bằng ring primary để user thấy rõ context.
- *   - Chunk không có metadata.page (vd file txt) → render disabled (cursor
- *     default + tooltip lý do).
- *
- * Vì sao client component:
- *   - Cần onClick handler và state highlight → phải 'use client'.
- *   - Data chunks đã được server fetch sẵn ở [id]/page.tsx và truyền xuống
- *     dạng props → không cần fetch lại ở client.
- */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -33,10 +16,6 @@ type Props = {
   chunks: ChunkItem[];
 };
 
-/**
- * Jump tới trang PDF: cập nhật hash (PdfViewer listen hashchange).
- * Trường hợp hash đã trùng, scroll thủ công vì event không fire.
- */
 function jumpToPage(page: number) {
   const target = `#page-${page}`;
   if (window.location.hash === target) {
@@ -52,7 +31,6 @@ function jumpToPage(page: number) {
 export function ChunkList({ chunks }: Props) {
   const [activeChunkId, setActiveChunkId] = useState<string | null>(null);
 
-  // Sync activeChunkId theo hash khi load lại (vd user reload với hash sẵn)
   useEffect(() => {
     const matchInitial = window.location.hash.match(/^#page-(\d+)$/);
     if (!matchInitial) return;
@@ -62,7 +40,7 @@ export function ChunkList({ chunks }: Props) {
   }, [chunks]);
 
   if (chunks.length === 0) {
-    return <p className="text-xs text-muted-foreground">Chưa có chunk nào.</p>;
+    return <p className="text-muted-foreground text-xs">Chưa có chunk nào.</p>;
   }
 
   return (
@@ -82,9 +60,9 @@ export function ChunkList({ chunks }: Props) {
             key={c.id}
             className={cn(
               'border-muted transition-all',
-              hasPage && 'cursor-pointer hover:border-primary/40 hover:bg-muted/40',
+              hasPage && 'hover:border-primary/40 hover:bg-muted/40 cursor-pointer',
               !hasPage && 'opacity-70',
-              isActive && 'border-primary ring-1 ring-primary/40 bg-primary/5',
+              isActive && 'border-primary ring-primary/40 bg-primary/5 ring-1',
             )}
           >
             <button
@@ -99,14 +77,14 @@ export function ChunkList({ chunks }: Props) {
               className="w-full text-left disabled:cursor-default"
             >
               <CardContent className="space-y-1 py-3 text-xs">
-                <div className="flex items-center justify-between text-muted-foreground">
+                <div className="text-muted-foreground flex items-center justify-between">
                   <span className="font-mono">#{meta.chunkIndex ?? i}</span>
                   <span>
                     {hasPage ? `trang ${meta.page} · ` : ''}
                     {c.tokens} tok
                   </span>
                 </div>
-                <p className="line-clamp-4 text-foreground/90">{c.content}</p>
+                <p className="text-foreground/90 line-clamp-4">{c.content}</p>
               </CardContent>
             </button>
           </Card>

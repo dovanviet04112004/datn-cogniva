@@ -1,15 +1,3 @@
-/**
- * MineTab — personal dashboard cho user trên /tutoring.
- *
- * Hiển thị:
- *   - Tutor profile (nếu đã đăng ký) — preview + edit link + applications đã gửi
- *   - CTA "Trở thành gia sư" nếu chưa có profile
- *   - My requests — list yêu cầu user đã post
- *   - CTA "Đăng yêu cầu" nếu chưa có
- *
- * Server component. Data lấy qua `getMineTab()` — đã gom 4 query + cache-aside
- * Redis (TTL 120s, invalidate qua `onTutoringMineChanged`). Component chỉ render.
- */
 import Link from 'next/link';
 import {
   Banknote,
@@ -26,12 +14,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-import {
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-  URGENCY_NAMES,
-} from '@cogniva/db';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@cogniva/db';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -75,26 +58,22 @@ const APP_STATUS_LABELS: Record<string, string> = {
 };
 
 export async function MineTab({ userId }: { userId: string }) {
-  // Toàn bộ data qua lib-fn cache-aside (4 query + re-hydrate Date) — xem get-mine-tab.ts.
-  const { myProfile, myRequests, upcomingBookings, myApplications } =
-    await getMineTab(userId);
+  const { myProfile, myRequests, upcomingBookings, myApplications } = await getMineTab(userId);
 
   return (
     <div className="space-y-10">
-      {/* ══ Tutor profile section ══════════════════════════ */}
       <section>
-        {/* Tiêu đề mục dùng SectionHeading chung */}
         <SectionHeading>Hồ sơ gia sư</SectionHeading>
 
         {myProfile ? (
           <Link
             href={`/tutors/${myProfile.id}`}
-            className="group/p flex items-center gap-4 rounded-2xl bg-card p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+            className="group/p bg-card shadow-soft hover:shadow-elevated flex items-center gap-4 rounded-2xl p-5 transition-all hover:-translate-y-0.5"
           >
-            <Avatar className="h-14 w-14 ring-2 ring-primary/15">
+            <Avatar className="ring-primary/15 h-14 w-14 ring-2">
               <AvatarImage src={myProfile.avatarUrl ?? undefined} />
               <AvatarFallback className="text-base font-semibold">
-                <GraduationCap className="h-6 w-6 text-primary" />
+                <GraduationCap className="text-primary h-6 w-6" />
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
@@ -103,17 +82,17 @@ export async function MineTab({ userId }: { userId: string }) {
                   {myProfile.headline}
                 </p>
                 {myProfile.verificationStatus === 'KYC_VERIFIED' && (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 fill-primary text-primary-foreground" />
+                  <CheckCircle2 className="fill-primary text-primary-foreground h-4 w-4 shrink-0" />
                 )}
               </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                 <span
                   className={cn(
                     'inline-flex items-center rounded-full px-2 py-0.5 font-semibold ring-1 ring-inset',
                     myProfile.status === 'PUBLISHED'
-                      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20'
+                      ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-400'
                       : myProfile.status === 'DRAFT'
-                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/20'
+                        ? 'bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400'
                         : 'bg-muted/60 text-muted-foreground ring-border',
                   )}
                 >
@@ -134,7 +113,7 @@ export async function MineTab({ userId }: { userId: string }) {
                 </span>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-xl border border-divider bg-surface px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors group-hover/p:bg-muted group-hover/p:text-foreground">
+            <span className="border-divider bg-surface text-muted-foreground group-hover/p:bg-muted group-hover/p:text-foreground inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors">
               <Pencil className="h-3.5 w-3.5" />
               Quản lý
             </span>
@@ -142,37 +121,32 @@ export async function MineTab({ userId }: { userId: string }) {
         ) : (
           <Link
             href="/tutors/become"
-            className="group/c flex items-center gap-4 rounded-2xl border border-dashed border-divider bg-card/40 p-5 transition-all hover:bg-card hover:shadow-soft"
+            className="group/c border-divider bg-card/40 hover:bg-card hover:shadow-soft flex items-center gap-4 rounded-2xl border border-dashed p-5 transition-all"
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="bg-primary/10 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
               <UserPlus className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold tracking-tight">
-                Trở thành gia sư
-              </p>
-              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                Setup profile 3 bước (Bio · Môn · Lịch) — học sinh sẽ tìm thấy
-                bạn ngay sau khi publish.
+              <p className="text-sm font-semibold tracking-tight">Trở thành gia sư</p>
+              <p className="text-muted-foreground mt-0.5 text-[11.5px]">
+                Setup profile 3 bước (Bio · Môn · Lịch) — học sinh sẽ tìm thấy bạn ngay sau khi
+                publish.
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50 transition-all group-hover/c:translate-x-0.5 group-hover/c:text-foreground" />
+            <ChevronRight className="text-muted-foreground/50 group-hover/c:text-foreground h-4 w-4 transition-all group-hover/c:translate-x-0.5" />
           </Link>
         )}
 
-        {/* Quick links: KYC + earnings (chỉ tutor) */}
         {myProfile && (
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Link
               href="/tutors/me/kyc"
-              className="group/k flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+              className="group/k bg-card shadow-soft hover:shadow-elevated flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:-translate-y-0.5"
             >
-              <ShieldCheck className="h-4 w-4 text-primary" />
+              <ShieldCheck className="text-primary h-4 w-4" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold tracking-tight">
-                  KYC danh tính
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-sm font-semibold tracking-tight">KYC danh tính</p>
+                <p className="text-muted-foreground truncate text-[11px]">
                   {myProfile.verificationStatus === 'KYC_VERIFIED'
                     ? 'Đã xác thực ✓'
                     : myProfile.verificationStatus === 'KYC_PENDING'
@@ -180,67 +154,60 @@ export async function MineTab({ userId }: { userId: string }) {
                       : 'Upload CCCD + bằng cấp'}
                 </p>
               </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover/k:text-foreground" />
+              <ChevronRight className="text-muted-foreground/40 group-hover/k:text-foreground h-3.5 w-3.5" />
             </Link>
             <a
               href="#earnings"
-              className="group/e flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+              className="group/e bg-card shadow-soft hover:shadow-elevated flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:-translate-y-0.5"
             >
-              <Banknote className="h-4 w-4 text-primary" />
+              <Banknote className="text-primary h-4 w-4" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold tracking-tight">
-                  Earnings & Payout
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-sm font-semibold tracking-tight">Earnings & Payout</p>
+                <p className="text-muted-foreground truncate text-[11px]">
                   Xem thu nhập + rút tiền
                 </p>
               </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover/e:text-foreground" />
+              <ChevronRight className="text-muted-foreground/40 group-hover/e:text-foreground h-3.5 w-3.5" />
             </a>
           </div>
         )}
       </section>
 
-      {/* ══ Đơn học — gom về tab "Đơn học" (tránh trùng list) ══ */}
       <section>
         <Link
           href="/tutoring?tab=orders"
-          className="group flex items-center gap-3 rounded-2xl border border-divider bg-card p-4 shadow-soft transition-colors hover:border-primary/30"
+          className="border-divider bg-card shadow-soft hover:border-primary/30 group flex items-center gap-3 rounded-2xl border p-4 transition-colors"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <span className="bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
             <Calendar className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold tracking-tight">Đơn học của bạn</p>
-            <p className="text-[12px] text-muted-foreground">
+            <p className="text-muted-foreground text-[12px]">
               {upcomingBookings.length > 0
                 ? `${upcomingBookings.length} buổi sắp tới · quản lý theo trạng thái`
                 : 'Xem & quản lý đơn theo trạng thái'}
             </p>
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5" />
+          <ChevronRight className="text-muted-foreground/40 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </section>
 
-      {/* ══ Earnings (chỉ tutor) ═════════════════════════ */}
       {myProfile && (
         <section id="earnings">
-          {/* Tiêu đề mục dùng SectionHeading chung */}
           <SectionHeading>Thu nhập & Rút tiền</SectionHeading>
           <EarningsCard />
         </section>
       )}
 
-      {/* ══ My applications (chỉ hiện nếu là tutor) ══════ */}
       {myProfile && (
         <section>
-          {/* Tiêu đề mục — count + action (link browse) đẩy về SectionHeading */}
           <SectionHeading
             count={myApplications.length}
             action={
               <Link
                 href="/tutoring?tab=requests"
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground text-xs transition-colors"
               >
                 Browse yêu cầu mới →
               </Link>
@@ -250,15 +217,15 @@ export async function MineTab({ userId }: { userId: string }) {
           </SectionHeading>
 
           {myApplications.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-divider bg-card/40 p-6 text-center">
-              <Sparkles className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
+            <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
+              <Sparkles className="text-muted-foreground/50 mx-auto mb-2 h-5 w-5" />
               <p className="text-sm font-medium">Chưa apply yêu cầu nào</p>
-              <p className="mx-auto mt-1 max-w-md text-[11.5px] text-muted-foreground">
+              <p className="text-muted-foreground mx-auto mt-1 max-w-md text-[11.5px]">
                 Browse các yêu cầu học đang mở — apply nhanh để học sinh chọn.
               </p>
               <Link
                 href="/tutoring?tab=requests"
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                className="text-primary mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
               >
                 Xem yêu cầu
                 <ChevronRight className="h-3 w-3" />
@@ -273,14 +240,14 @@ export async function MineTab({ userId }: { userId: string }) {
                   <li key={a.id}>
                     <Link
                       href={`/tutoring/requests/${a.requestId}`}
-                      className="group/a flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+                      className="group/a bg-card shadow-soft hover:shadow-elevated flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:-translate-y-0.5"
                     >
                       <span className="text-xl">{subjectDef?.emoji ?? '📚'}</span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold tracking-tight">
                           {a.requestTitle}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        <p className="text-muted-foreground mt-0.5 text-[11px]">
                           {subjectDef?.name ?? a.requestSubject} ·{' '}
                           {LEVEL_NAMES[a.requestLevel as keyof typeof LEVEL_NAMES]} ·{' '}
                           <span className="font-mono tabular-nums">{rateK}K/giờ</span>
@@ -294,10 +261,10 @@ export async function MineTab({ userId }: { userId: string }) {
                       >
                         {APP_STATUS_LABELS[a.status] ?? a.status}
                       </span>
-                      <span className="text-[11px] text-text-muted">
+                      <span className="text-text-muted text-[11px]">
                         <RelativeTime date={a.createdAt.toISOString()} />
                       </span>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-all group-hover/a:translate-x-0.5 group-hover/a:text-muted-foreground" />
+                      <ChevronRight className="text-muted-foreground/40 group-hover/a:text-muted-foreground h-3.5 w-3.5 transition-all group-hover/a:translate-x-0.5" />
                     </Link>
                   </li>
                 );
@@ -307,13 +274,10 @@ export async function MineTab({ userId }: { userId: string }) {
         </section>
       )}
 
-      {/* ══ My requests ══════════════════════════════════ */}
       <section>
-        {/* Tiêu đề mục — count + action (nút "Đăng yêu cầu") đẩy về SectionHeading */}
         <SectionHeading
           count={myRequests.length}
           action={
-            // Đăng yêu cầu — primary qua <Button asChild> (tự có shadow-primary)
             <Button asChild size="sm">
               <Link href="/tutoring/requests/new">
                 <Plus className="h-3 w-3" />
@@ -326,15 +290,15 @@ export async function MineTab({ userId }: { userId: string }) {
         </SectionHeading>
 
         {myRequests.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-divider bg-card/40 p-6 text-center">
-            <FilePlus className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
+          <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
+            <FilePlus className="text-muted-foreground/50 mx-auto mb-2 h-5 w-5" />
             <p className="text-sm font-medium">Chưa đăng yêu cầu nào</p>
-            <p className="mx-auto mt-1 max-w-md text-[11.5px] text-muted-foreground">
+            <p className="text-muted-foreground mx-auto mt-1 max-w-md text-[11.5px]">
               Mô tả nhu cầu học của bạn — gia sư sẽ apply ngược trong 24h.
             </p>
             <Link
               href="/tutoring/requests/new"
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+              className="text-primary mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
             >
               Đăng yêu cầu đầu tiên
               <ChevronRight className="h-3 w-3" />
@@ -349,14 +313,12 @@ export async function MineTab({ userId }: { userId: string }) {
                 <li key={r.id}>
                   <Link
                     href={`/tutoring/requests/${r.id}`}
-                    className="group/r flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+                    className="group/r bg-card shadow-soft hover:shadow-elevated flex items-center gap-3 rounded-xl px-4 py-3 transition-all hover:-translate-y-0.5"
                   >
                     <span className="text-xl">{subjectDef?.emoji ?? '📚'}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold tracking-tight">
-                        {r.title}
-                      </p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <p className="truncate text-sm font-semibold tracking-tight">{r.title}</p>
+                      <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
                         <span>
                           {subjectDef?.name ?? r.subjectSlug} ·{' '}
                           {LEVEL_NAMES[r.level as keyof typeof LEVEL_NAMES]}
@@ -366,9 +328,7 @@ export async function MineTab({ userId }: { userId: string }) {
                         {budgetK !== null && (
                           <>
                             <span>·</span>
-                            <span className="font-mono tabular-nums">
-                              ≤{budgetK}K
-                            </span>
+                            <span className="font-mono tabular-nums">≤{budgetK}K</span>
                           </>
                         )}
                       </div>
@@ -390,7 +350,7 @@ export async function MineTab({ userId }: { userId: string }) {
                     >
                       {REQUEST_STATUS_LABELS[r.status] ?? r.status}
                     </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-all group-hover/r:translate-x-0.5 group-hover/r:text-muted-foreground" />
+                    <ChevronRight className="text-muted-foreground/40 group-hover/r:text-muted-foreground h-3.5 w-3.5 transition-all group-hover/r:translate-x-0.5" />
                   </Link>
                 </li>
               );

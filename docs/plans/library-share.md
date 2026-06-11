@@ -152,51 +152,60 @@ AI:
 ## 🎁 Bonus Innovations (Phase 2-3)
 
 ### 7. **Knowledge Graph Navigation**
+
 Click subject "Toán THPT" → visualize atom graph dạng node-edge. Click atom → list docs cover atom đó (ranked by quality). User navigate **kiến thức**, không phải file.
 
 ### 8. **Live Annotation Layer** (Genius-style)
+
 Highlight đoạn PDF → annotation public/private. "Most highlighted" → top 5 đoạn quan trọng theo crowd. Comment threads inline.
 
 ### 9. **Audio Overview Podcast** (NotebookLM-style)
+
 Button "🎧 Nghe podcast 15p về doc này" → AI generate 2-voice TTS conversation về key concepts. Học khi đi tàu / lái xe.
 
 ### 10. **Auto-Stitched Workspace**
+
 Import 1 doc → AI suggest 3 doc bổ trợ (prerequisite + next-step + practice) → 1 click "Thêm hết" → workspace 4 doc + 60 flashcard + 3 quiz tự sinh.
 
 ### 11. **Cross-Language Live Translate**
+
 Doc gốc IELTS Cambridge tiếng Anh → button "VN preview" → AI translate inline.
 
 ### 12. **Doc Remixing + Karma Loop**
+
 User clone 3 doc + edit + bổ sung → "Save as Tổng hợp của tôi" → republish với attribution. Wiki-style knowledge compounding. Original creators được credit + karma.
 
 ### 13. **Difficulty + Prerequisite Chain**
+
 Doc metadata gồm `difficulty` + `prerequisite_atoms`. User mở doc khó → AI cảnh báo "Nên đọc Doc X trước". Đảm bảo learning order đúng.
 
 ### 14. **Live Study Room** (Phase 3+)
+
 Mở doc → tạo room → bạn bè join cùng đọc + chat realtime. Spaced repetition giải thích cho nhau.
 
 ### 15. **Mobile Voice Q&A**
+
 Mobile app: long-press doc → hỏi câu hỏi bằng voice → AI trả lời dựa trên content doc. Hands-free learning.
 
 ---
 
 ## So sánh với competition
 
-| Feature | Studocu | VnDoc | Course Hero | Scribd | NotebookLM | **Cogniva** |
-|---|---|---|---|---|---|---|
-| Browse/filter | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| AI goal-driven discovery | — | — | — | — | partial | **✓** |
-| Cross-doc semantic search | — | — | — | partial | — | **✓** |
-| Atom-level slicing | — | — | — | — | — | **✓** |
-| Reverse problem search | — | — | — | — | — | **✓** |
-| Outcome-verified quality | — | — | — | — | — | **✓** |
-| Time-budget study mode | — | — | — | — | — | **✓** |
-| Auto-stitched workspace | — | — | — | — | — | **✓** |
-| Audio podcast overview | — | — | — | partial | ✓ | **✓** |
-| Knowledge graph nav | — | — | — | — | — | **✓** |
-| Live annotation | — | — | partial | — | — | **✓ P3** |
-| Remix + karma loop | — | — | — | — | — | **✓ P3** |
-| Pricing | $39/mo | free + paid | $40/mo | $11/mo | free | **freemium** |
+| Feature                   | Studocu | VnDoc       | Course Hero | Scribd  | NotebookLM | **Cogniva**  |
+| ------------------------- | ------- | ----------- | ----------- | ------- | ---------- | ------------ |
+| Browse/filter             | ✓       | ✓           | ✓           | ✓       | —          | ✓            |
+| AI goal-driven discovery  | —       | —           | —           | —       | partial    | **✓**        |
+| Cross-doc semantic search | —       | —           | —           | partial | —          | **✓**        |
+| Atom-level slicing        | —       | —           | —           | —       | —          | **✓**        |
+| Reverse problem search    | —       | —           | —           | —       | —          | **✓**        |
+| Outcome-verified quality  | —       | —           | —           | —       | —          | **✓**        |
+| Time-budget study mode    | —       | —           | —           | —       | —          | **✓**        |
+| Auto-stitched workspace   | —       | —           | —           | —       | —          | **✓**        |
+| Audio podcast overview    | —       | —           | —           | partial | ✓          | **✓**        |
+| Knowledge graph nav       | —       | —           | —           | —       | —          | **✓**        |
+| Live annotation           | —       | —           | partial     | —       | —          | **✓ P3**     |
+| Remix + karma loop        | —       | —           | —           | —       | —          | **✓ P3**     |
+| Pricing                   | $39/mo  | free + paid | $40/mo      | $11/mo  | free       | **freemium** |
 
 → Cogniva **innovate trên 9 dimension** mà competition chưa có.
 
@@ -209,6 +218,7 @@ Mobile app: long-press doc → hỏi câu hỏi bằng voice → AI trả lời 
 **Innovation deployed**: Pillar #1 Goal + #2 Cross-doc search + #4 Reverse search
 
 Features:
+
 - [ ] Upload PDF (max 20MB) → R2 storage + presigned URL
 - [ ] Auto-extract: thumbnail trang 1 + page count + chunk + embed mọi chunk
 - [ ] Upload form metadata (title, desc, subject, level, grade, doc_type, language, tags, license)
@@ -230,6 +240,7 @@ Features:
 **Innovation deployed**: Pillar #3 Atom-slicing + #5 Outcome verified + #6 Time-budget + Bonus #10 Auto-stitch
 
 Features:
+
 - [ ] Auto atom extraction từ doc (LLM batch process — Anthropic / OpenRouter)
 - [ ] `library_doc_atom` table + atom-to-page mapping
 - [ ] Atom checkmark sync với workspace mastery state
@@ -251,6 +262,7 @@ Features:
 **Innovation deployed**: Bonus #7 Graph + #8 Annotation + #9 Audio + #11 Translate + #12 Remix + #13 Prerequisite
 
 Features:
+
 - [ ] Knowledge Graph visualizer (subject-level atom graph)
 - [ ] Click atom → docs cover atom (quality ranked)
 - [ ] Live annotation system — highlight + comment public/private
@@ -562,14 +574,14 @@ phân tách bằng prefix key. Hai con đường ghi:
    auto: có R2 creds dùng `r2`). Driver R2 ở `lib/storage/r2.ts` tái dùng helper
    `lib/r2-client.ts`. Recordings đi LiveKit Egress (S3) cũng server-side.
 
-| Prefix key | Nội dung | Đường ghi |
-|---|---|---|
-| `lib/{uid}/{docId}.*` | Library doc + `-thumb.jpg` | browser presigned + server thumb |
-| `{uid}/{docId}.pdf` | Workspace document | server (getStorage) |
-| `group-attachments/{uid}/...` | Đính kèm chat nhóm | server (getStorage) |
-| `flashcards/{uid}/...` | Ảnh flashcard | server (getStorage) |
-| `kyc/{id}/...` | Giấy tờ KYC tutor (nhạy cảm) | server (getStorage) |
-| `recordings/...` | MP4 phòng học | LiveKit Egress (S3) |
+| Prefix key                    | Nội dung                     | Đường ghi                        |
+| ----------------------------- | ---------------------------- | -------------------------------- |
+| `lib/{uid}/{docId}.*`         | Library doc + `-thumb.jpg`   | browser presigned + server thumb |
+| `{uid}/{docId}.pdf`           | Workspace document           | server (getStorage)              |
+| `group-attachments/{uid}/...` | Đính kèm chat nhóm           | server (getStorage)              |
+| `flashcards/{uid}/...`        | Ảnh flashcard                | server (getStorage)              |
+| `kyc/{id}/...`                | Giấy tờ KYC tutor (nhạy cảm) | server (getStorage)              |
+| `recordings/...`              | MP4 phòng học                | LiveKit Egress (S3)              |
 
 Migrate file local cũ → R2: `scripts/migrate-local-uploads-to-r2.ts` (idempotent).
 Roundtrip test driver: `scripts/verify-r2-storage.ts`.
@@ -623,6 +635,7 @@ LIMIT 20;
 ```
 
 Hybrid với FTS chunk-level cũng:
+
 ```
 SELECT doc.id, chunk.page_num, ts_rank(chunk.search_vec, query)
 FROM library_doc_chunk chunk
@@ -780,6 +793,7 @@ LLM Router gọi `useCase: 'classify'` extract structured goal → backend build
 ### Goal Mode (Pillar #1 trigger)
 
 User click "🎯 Mục tiêu của tôi" → wizard:
+
 ```
 ╔══════════════════════════════════════════════╗
 ║  🎯 Bạn muốn đạt điều gì?                     ║
@@ -876,12 +890,14 @@ Planner prompt mở rộng với rule + ví dụ cho 3 action mới.
 ## Storage + Cost Model
 
 ### R2 storage
+
 - 1 PDF avg 2MB
 - 10k docs = 20GB = **$0.30/tháng**
 - 100k docs = 200GB = **$3/tháng**
 - Egress within Cloudflare = $0
 
 ### LLM cost (chuyên cho library)
+
 - AI summary (200 từ): ~$0.0001/doc với Llama Free tier
 - Atom extraction (Phase 2): ~$0.001/doc với Claude Haiku/Sonnet
 - Embedding (chunks): ~$0.0005/doc (avg 50 chunks × $0.00001/chunk)
@@ -890,6 +906,7 @@ Planner prompt mở rộng với rule + ví dụ cho 3 action mới.
 **Total cost 10k docs**: ~ $15 one-time + $1/k library_search/month → negligible.
 
 ### Limits Phase 1
+
 - Max 20MB / file (block thesis dày)
 - Max 50 doc / user (anti-abuse free)
 - Max 5 upload / ngày user mới
@@ -900,6 +917,7 @@ Planner prompt mở rộng với rule + ví dụ cho 3 action mới.
 ## Moderation + Copyright (critical VN)
 
 ### Soft (Phase 1)
+
 - Upload form bắt tick xác nhận quyền + chọn license
 - Min metadata: title ≥ 10 char, desc ≥ 50 char
 - Report button → admin queue
@@ -907,24 +925,27 @@ Planner prompt mở rộng với rule + ví dụ cho 3 action mới.
 - Auto-hide docs rating < 2.5 sau 10+ review
 
 ### AI (Phase 2)
+
 - Fingerprint detect SGK NXB Giáo dục (curated hash database)
 - OCR text + topic analysis flag suspicious content
 - Duplicate detect: hash exact + content vector similarity > 0.92
 - LLM scan flag low-quality (keyword stuffing, off-topic)
 
 ### Hard (Phase 4)
+
 - DMCA-style takedown form
 - 3-strike ban repeat offender
 - Whitelist verified educator bypass pre-approval
 
 ### VN-specific policy
+
 - ❌ SGK NXB Giáo dục (sách giáo khoa chính)
 - ❌ Sách tham khảo có copyright (Hocmai, Vietjack, ...)
 - ✅ Đề cương / vở ghi tự soạn
 - ✅ Đề thi cũ ≥ 3 năm (de facto public)
 - ✅ Bài giảng trường tự upload
 - ✅ Luận văn ĐH (creator có quyền)
-- ⚠️  Đề thi mới ≤ 1 năm → admin review case-by-case
+- ⚠️ Đề thi mới ≤ 1 năm → admin review case-by-case
 
 ---
 
@@ -1018,6 +1039,7 @@ apps/web/scripts/
 ## Test Strategy
 
 ### Phase 1 fixtures
+
 ```json
 [
   { "goal": "ôn tích phân lớp 12 trong 1 tuần", "expect": { "type": "library_goal", "subject": "math", "grade": 12 } },
@@ -1029,6 +1051,7 @@ apps/web/scripts/
 ```
 
 ### Eval runner
+
 - Goal parser accuracy
 - Cross-doc search recall@10
 - Reverse search precision@5
@@ -1041,17 +1064,20 @@ CI integration: `pnpm eval:library` ≥ 85% accuracy threshold.
 ## Success Metrics (post-launch)
 
 ### Engagement
+
 - **Upload rate**: >50 doc/tuần đầu, >500/tháng sau Phase 2
 - **Search → import conversion**: ≥ 25%
 - **Workspace activate rate**: doc imported → user dùng ≥ 1 lần trong 7 ngày ≥ 60%
 - **Goal Mode usage**: ≥ 30% search session start qua Goal Mode (Pillar #1 adoption signal)
 
 ### Quality
+
 - **Cross-doc search satisfaction**: NPS ≥ 8 cho feature mới
 - **Atom-slicing time saved**: avg user read 30% pages vs 100% (3x efficiency)
 - **Outcome score correlation**: docs có outcome_verified badge → user thực sự cải thiện ≥ 1 điểm trong 4 tuần ≥ 80% cases
 
 ### Business
+
 - **Free → PRO conversion** (Phase 4): ≥ 5% MAU
 - **Creator retention**: creator publish > 3 doc → return publish trong 30 ngày ≥ 40%
 
@@ -1059,15 +1085,15 @@ CI integration: `pnpm eval:library` ≥ 85% accuracy threshold.
 
 ## Risks & Mitigations
 
-| Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| Library trống chicken-egg | High | High | Seed 50+ doc Phase 1 + incentive tutor publish (1 month PRO free khi publish 5 doc) |
-| Copyright vi phạm massive | Med | High | Strict license tick + AI fingerprint Phase 2 + DMCA flow |
-| Atom extraction inaccurate | Med | Med | Use Claude Sonnet (not Haiku) cho atom job + manual override creator |
-| Cross-doc search nhiều noise | Med | Med | RRF + quality reranking + min similarity threshold 0.7 |
-| Goal Mode LLM hallucinate plan | Med | High | Constrain output qua structured schema + sanity check atom coverage |
-| Storage cost spike | Low | Low | 20MB/file limit + hash dedup |
-| Outcome data sparse early | High | Med | Bootstrap với star rating Phase 1, switch sang outcome dần Phase 2 |
+| Risk                           | Probability | Impact | Mitigation                                                                          |
+| ------------------------------ | ----------- | ------ | ----------------------------------------------------------------------------------- |
+| Library trống chicken-egg      | High        | High   | Seed 50+ doc Phase 1 + incentive tutor publish (1 month PRO free khi publish 5 doc) |
+| Copyright vi phạm massive      | Med         | High   | Strict license tick + AI fingerprint Phase 2 + DMCA flow                            |
+| Atom extraction inaccurate     | Med         | Med    | Use Claude Sonnet (not Haiku) cho atom job + manual override creator                |
+| Cross-doc search nhiều noise   | Med         | Med    | RRF + quality reranking + min similarity threshold 0.7                              |
+| Goal Mode LLM hallucinate plan | Med         | High   | Constrain output qua structured schema + sanity check atom coverage                 |
+| Storage cost spike             | Low         | Low    | 20MB/file limit + hash dedup                                                        |
+| Outcome data sparse early      | High        | Med    | Bootstrap với star rating Phase 1, switch sang outcome dần Phase 2                  |
 
 ---
 
@@ -1090,19 +1116,20 @@ CI integration: `pnpm eval:library` ≥ 85% accuracy threshold.
 
 ## Estimate tổng thời gian
 
-| Phase | Time | Cost-impact features |
-|---|---|---|
-| Phase 1 — Core (Pillar #1+2+4) | 7-10 ngày | Goal Mode + Cross-doc + Reverse search |
-| Phase 2 — AI Intelligence (Pillar #3+5+6 + Auto-stitch) | 10-14 ngày | Atom slicing + Outcome + Time-budget |
-| Phase 3 — Social/Audio/Graph (Pillar #7-#13) | 14 ngày | Annotation + Audio + Graph + Remix |
-| Phase 4 — Monetization + Mobile | 14 ngày | PRO + Paid + Voice + Live room |
-| **Total** | **~7 tuần** | Library production-grade |
+| Phase                                                   | Time        | Cost-impact features                   |
+| ------------------------------------------------------- | ----------- | -------------------------------------- |
+| Phase 1 — Core (Pillar #1+2+4)                          | 7-10 ngày   | Goal Mode + Cross-doc + Reverse search |
+| Phase 2 — AI Intelligence (Pillar #3+5+6 + Auto-stitch) | 10-14 ngày  | Atom slicing + Outcome + Time-budget   |
+| Phase 3 — Social/Audio/Graph (Pillar #7-#13)            | 14 ngày     | Annotation + Audio + Graph + Remix     |
+| Phase 4 — Monetization + Mobile                         | 14 ngày     | PRO + Paid + Voice + Live room         |
+| **Total**                                               | **~7 tuần** | Library production-grade               |
 
 ---
 
 ## Khởi động Phase 1
 
 Sẵn sàng ship Phase 1 trong 7-10 ngày với 3 innovation pillar:
+
 - 🎯 Goal-driven discovery
 - 🔍 Cross-doc semantic search
 - 📷 Reverse problem search
@@ -1129,6 +1156,7 @@ Lúc đó library đã KHÁC competition rõ rệt, user sẽ "wow" ngay turn đ
 5 mảng ship lần lượt:
 
 ### Pillar #3 — Atom-Level Slicing
+
 - `apps/web/src/lib/library/atom-extractor.ts` — LLM job (Groq fallback OpenRouter, cost $0)
 - `apps/web/src/app/api/library/docs/[id]/atoms/route.ts` — GET (mastery overlay via concept embedding cosine ≥ 0.78) + POST (re-extract owner-only)
 - `apps/web/src/components/library/doc-atom-map.tsx` — atom map panel + Smart Reading toggle + time-saved %
@@ -1136,6 +1164,7 @@ Lúc đó library đã KHÁC competition rõ rệt, user sẽ "wow" ngay turn đ
 - Backfill 17 doc → 130 atoms (script `backfill-library-atoms.ts`)
 
 ### Pillar #5 — Outcome-Verified Quality
+
 - `apps/web/src/lib/library/quality-score.ts` — pure formula 5-factor weighted blend + recompute helpers
 - `apps/web/src/lib/library/outcome-tracker.ts` — recordExamOutcome / recordQuizOutcome (4-tuần attribution window)
 - Wire vào `api/attempts/[id]/submit/route.ts` (exam) + `api/quiz/[id]/attempt/route.ts` (quiz)
@@ -1144,18 +1173,21 @@ Lúc đó library đã KHÁC competition rõ rệt, user sẽ "wow" ngay turn đ
 - Quality Score widget trên detail page
 
 ### ~~Pillar #6 — Time-Budget Study Mode~~ (REMOVED 2026-05-27)
+
 - ❌ Gỡ sạch sau khi ship — user feedback: "thêm vào workspace học rồi cần cái này làm gì"
 - Lý do: Library là discovery + import; chỗ học là workspace. Time-Budget không thuộc library hub UX
 - Code đã xoá: `time-budget-planner.ts`, `time-budget-card.tsx`, `api/library/time-budget/route.ts`
 - Nếu cần tính năng Focus Mode/Pomodoro trong tương lai → mount trong workspace, không phải library
 
 ### Bonus #10 — Auto-Stitched Workspace
+
 - `apps/web/src/lib/library/related-docs.ts` — atom-overlap + role classification (prerequisite/next_step/practice)
 - `api/library/docs/[id]/related/route.ts` + `api/library/import-batch/route.ts` (max 10 docs/batch)
 - `components/library/related-docs-section.tsx` — 3-card section + bulk-import dialog (source + N related)
 - Wire vào detail page sau preview
 
 ### Duplicate Detection
+
 - `apps/web/src/lib/library/duplicate-detect.ts` — pgvector cosine, 2 thresholds (0.85 similar / 0.92 near-duplicate)
 - Auto-flag → `library_doc_report` row admin queue
 - `api/library/docs/[id]/duplicates/route.ts` + `components/library/duplicate-warning.tsx` (banner)
@@ -1171,40 +1203,47 @@ Lúc đó library đã KHÁC competition rõ rệt, user sẽ "wow" ngay turn đ
 7 features tuần tự ship hết — Library production-grade với social, discovery, multimedia.
 
 ### Bonus #13 — Difficulty + Prerequisite Chain
+
 - `difficulty-prereq.ts` heuristic compute + LLM prereq extract (Groq, $0)
 - `?difficulty=easy/medium/hard` filter trên hybrid search
 - `PrereqWarning` sidebar banner với cross-ref user mastery (✓/○ checkmarks)
 - Backfill 17 docs (9 medium / 4 hard / 4 easy)
 
 ### Bonus #11 — Cross-language Translate
+
 - `/api/library/docs/[id]/translate` POST endpoint (~$0.0001/req Groq)
 - `TranslateButton` + `TranslatableText` components — inline toggle gốc ↔ dịch
 - Wire AI tóm tắt + description
 
 ### Bonus #7 — Knowledge Graph Navigation
+
 - `/api/library/graph` co-occurrence edges (weight ≥ 2)
 - `/api/library/graph/atom-docs` top docs per atom
 - `LibraryGraphView` ReactFlow + Dagre LR layout (size+color encoded)
 - Page `/library/graph?subject=...` với subject tabs + side panel docs
 
 ### Tutor Endorsement
+
 - Migration 0047 `library_doc_endorsement` table
 - `/api/library/docs/[id]/endorse` GET/POST/DELETE (KYC verified tutor only)
 - `EndorseSection` UI với list endorsers + form
 - `educator_approved` badge auto-grant qua quality recompute
 
 ### Bonus #9 — Audio Podcast NotebookLM-style
+
 - `/api/library/docs/[id]/podcast` LLM generate 2-voice dialogue (Linh + Minh)
 - `PodcastPlayer` Web Speech API client TTS ($0 cost browser)
 - Controls: play/pause/skip/speed + transcript với role colors
 
 ### Bonus #8 — Live Annotation (page-level v1)
+
 - Migration 0048: `library_doc_annotation` + `library_doc_annotation_vote`
 - CRUD + helpful vote toggle (transaction-safe unique constraint)
 - `AnnotationsSection` grouped by page, public/private, vote count
 - Phase 4 sẽ thêm pixel-perfect text selection overlay PDF
 
 ### Bonus #12 — Doc Remix + Karma Loop
+
 - Migration 0049: `parent_remix_doc_ids` + `remix_count` columns + `library_creator_karma` + `library_karma_event` tables
 - `awardKarma()` helper (+1 import / +5 remix / +10 endorse / +20 high quality)
 - Hook karma vào import + endorse endpoints
@@ -1222,6 +1261,7 @@ Lúc đó library đã KHÁC competition rõ rệt, user sẽ "wow" ngay turn đ
 Hoàn thiện UX + thay placeholder bằng real content. 4 mảng done:
 
 ### 1. Real PDFs cho seed docs
+
 - `generate-real-pdfs-for-seeds.ts` script dùng `pdf-lib` tạo PDF từ chunks content
 - 17/17 PDFs upload R2 thành công (1.5-2.3KB/file, 2-4 pages)
 - R2 client fallback `R2_BUCKET_NAME` + `R2_PUBLIC_URL` env (shared bucket pattern)
@@ -1229,15 +1269,18 @@ Hoàn thiện UX + thay placeholder bằng real content. 4 mảng done:
 - Note: pdf-lib StandardFonts ASCII-only — diacritics tiếng Việt strip qua transliterate. Phase 5 sẽ embed font Roboto/Noto.
 
 ### 2. Karma Leaderboard `/library/karma`
+
 - API `/api/library/karma/leaderboard` (top 20 + 15 recent events)
 - Page với 4 stats cards (events by type) + leaderboard list (medal cho top 3) + activity feed sidebar + karma earning guide
 
 ### 3. Creator Dashboard `/library/me`
+
 - Server page show user's docs + aggregate stats (5 cards: karma + imports + downloads + remixes + endorses)
 - Doc list với badges + quality + import/download/remix counts mỗi card
 - Sidebar karma earn history (10 latest events) + link tới leaderboard
 
 ### 4. Saved Searches + Recently Viewed
+
 - Migration 0050: `library_saved_search` + `library_doc_view` tables
 - `/api/library/saved-searches` GET/POST + DELETE per id
 - View history upsert vào detail GET endpoint (1 row/user × doc, update viewed_at)
@@ -1289,6 +1332,7 @@ Hoàn thiện UX + thay placeholder bằng real content. 4 mảng done:
 - Library hub strip CTA dưới search bar (chỉ hiển thị FREE user, ẩn khi đang search active)
 
 Phase 4 còn lại (Phase 5+):
+
 - Mobile voice Q&A
 - Live study room realtime
 - Saved-search FTS query (`q` text matching trong cron)
@@ -1303,42 +1347,51 @@ Phase 4 còn lại (Phase 5+):
 Gói Polish + tiện ích + Voice Q&A. P5.4 Live study room SKIP vì project đã có `room` + `studyGroup` (Stage 2 M5/V2 G) — wiring riêng cho library sẽ defer thành integration phase sau.
 
 ### P5.1a — Saved-search FTS `q` query trong cron
+
 - [library-saved-search-notify.ts](apps/web/src/inngest/functions/library-saved-search-notify.ts) — khi `queryParams.q` có ≥2 ký tự, predicate `library_doc.search_vec @@ plainto_tsquery('simple', q)` (raw SQL — search_vec là generated column chưa map qua Drizzle schema)
 
 ### P5.1b — Pre-emptive PRO expiry warn cron
+
 - [library-pro-expiry-warn.ts](apps/web/src/inngest/functions/library-pro-expiry-warn.ts) cron `0 9 * * *` (16:00 VN)
 - Scan user PRO có `pro_until_at` trong [NOW+2d, NOW+4d] → push warn
 - Dedupe qua notification_log type='pro-expiry-warn' window 7 ngày
 
 ### P5.1c — Cancel PRO + refund pro-rated
+
 - [cancel-pro endpoint](apps/web/src/app/api/library/cancel-pro/route.ts) — tính prorate `(remainingDays/30 × 199K)`, cap theo tổng đã charge PRO_SUBSCRIPTION 90 ngày qua, refundToWallet + flip plan='FREE', set proUntilAt=NOW idempotent
 - UI [CancelProButton](apps/web/src/components/library/cancel-pro-button.tsx) — ConfirmDialog hiển thị refund estimate trước khi confirm
 
 ### P5.2a — Noto font cho pdfjs thumbnail
+
 - [generate-real-pdf-thumbnails.ts](apps/web/scripts/generate-real-pdf-thumbnails.ts) + [parsers.ts](apps/web/src/lib/library/parsers.ts) pass `docInitParams: { verbosity: 0, disableFontFace: true, useSystemFonts: false }` → tắt LiberationSans fallback warning noise (PDF đã embed Noto Sans qua pdf-lib trong Phase 4 Step 2)
 
 ### P5.2b — DOCX inline viewer qua Office Online iframe
+
 - [DocxPreview](apps/web/src/components/library/doc-preview-panel.tsx) — fetch presigned URL từ /download → embed `https://view.officeapps.live.com/op/embed.aspx?src=...` iframe 700px
 - Fallback nếu iframe error: thumb + nút "Mở DOCX trong tab mới"
 - Sandbox `allow-scripts allow-same-origin allow-popups allow-forms` để Office Online render được
 
 ### P5.3 — Mobile voice Q&A backend + web demo
+
 - [voice-search endpoint](apps/web/src/app/api/library/voice-search/route.ts) — multipart audio (max 25MB) → Groq/OpenAI Whisper (verbose_json, language vi default) → crossDocSearch top 5 chunk hits → JSON { transcript, language, hits, quota }
 - Rate limit 30 voice search/giờ/user qua notification_log audit table (type='library-voice-search-quota'). Phase 6 sẽ chuyển Redis.
-- Web demo [/library/voice](apps/web/src/app/(app)/library/voice/page.tsx) + [VoiceSearchClient](apps/web/src/components/library/voice-search-client.tsx) — MediaRecorder mic → Blob upload → hiển thị transcript + top hit cards
+- Web demo [/library/voice](<apps/web/src/app/(app)/library/voice/page.tsx>) + [VoiceSearchClient](apps/web/src/components/library/voice-search-client.tsx) — MediaRecorder mic → Blob upload → hiển thị transcript + top hit cards
 
 ### P5.4 Live study room — SKIP
+
 Existing `room` table ([schema.ts:1504](packages/db/src/schema.ts#L1504)) đã có LiveKit room name + features (video/chat/whiteboard/notes/aiTutor/recording) + members; `studyGroup` cũng có channels/invite. Live study room cho library sẽ là integration nhỏ (add `room.attachedLibraryDocId` cột + attach/detach endpoint + UI render PDF inline trong room view + LiveKit data channel broadcast scroll position). Defer khi user pull-request riêng.
 
 **Phase 5 metrics**: 6 file mới (3 endpoint, 2 cron, 1 web demo page + 1 UI client) + 2 file edit (parsers + docx viewer). Typecheck PASS. No new migration.
 
 Phase 6+ candidates:
+
 - LLM answer summary cho voice search (Groq Llama 3.3 70B với hits context)
 - Mobile native app integration (cùng endpoint, AVAudioRecorder iOS / MediaRecorder Android)
 - Redis sliding window rate limit
 - Live study room library doc integration (room.attachedLibraryDocId)
 
 Format-specific processing pipeline:
+
 - **PDF**: pdf.js text extract per page + sharp thumbnail (đã có pattern)
 - **DOCX**: mammoth.js convert → HTML/text → tách paragraph thành chunk + first-page PDF render cho thumbnail
 - **Image (PNG/JPG)**: GPT-4o vision OCR + extract text → single-chunk doc + image direct as thumbnail
@@ -1350,24 +1403,28 @@ Format-specific processing pipeline:
 Pivot taxonomy giống trang lớn (Studocu/CourseHero): **University → Course → Doc** thay vì subject phẳng. UGC tạo course tự do, university là coupling tuỳ chọn.
 
 ### Schema + data
+
 - Migration `0053_library_university_course.sql` — bảng `library_university` + `library_course`; thêm cột `library_doc.course_id / university_id / course_name_cache`; regenerate `search_vec` thêm `course_name_cache` (weight A).
 - Seed: 7 trường (HUST/VNU-UET/NEU/FTU/UMP/HLU/UIT) + 15 course; 34 doc nội dung học thuật THẬT (fixtures `real-doc-content.ts` + `university-docs.ts`), render qua `scripts/lib/pdf-render.ts` (cover + heading/đoạn/bullet/công thức/code). Thumbnail lấy **trang 2 (nội dung)** không phải trang bìa.
 
 ### Routing + API
+
 - Landing pages `/library/university/[id]` + `/library/course/[id]` (header + breadcrumb + LibraryGrid scoped).
 - API `/api/library/universities` + `/courses` (GET search + POST create-on-the-fly slug dedup); `course-picker.tsx` 2 combobox autocomplete + create. `docs/finalize` nhận `courseId` → resolve university_id/courseNameCache.
 - `hybrid-search-doc.ts` thêm filter `universityId`/`courseId` + project `courseNameCache`. DocCard hiện course chip (lucide `GraduationCap`, không emoji).
 
 ### Hub discovery vs grid mode (pattern trang lớn)
+
 - Trang `/library` mặc định = **discovery**: feed thuần carousel, giống Studocu/CourseHero home. **KHÔNG đổ full grid**, **KHÔNG hàng pill browse**.
 - Carousel ([hub-curated-sections.tsx](apps/web/src/components/library/hub-curated-sections.tsx)) refactor 2026-05-28. **Nguyên tắc: carousel chỉ dành cho curation mà sort KHÔNG cho được** (hành vi + cá nhân hoá). Còn: **Đọc tiếp** (RecentlyViewed, hành vi) · **Dành cho bạn** (content-based: gom môn từ lịch sử view+import → gợi ý doc cùng môn user chưa xem; chỉ hiện khi có signal; KHÔNG See-all). Cold-start (chưa signal / chưa login) → fallback **Phổ biến** (→`?sort=popular`) để feed không rỗng.
 - Gỡ row **"Outcome Verified" + "Top Quality"** (trùng nhau, See-all sai ngữ cảnh) và **"Thịnh hành"/"Mới nhất"** làm row mặc định (chỉ là cách sort — đã có trong dropdown sort của grid, không phải curation). i18n gỡ key `curated.verified/top_quality/newest`.
-- Browse theo trường/môn = **directory kiểu Studocu** (dropdown chật chội đã bỏ). Nút **"Khám phá"** header → [/library/universities](apps/web/src/app/(app)/library/universities/page.tsx): [BrowseDirectory](apps/web/src/components/library/browse-directory.tsx) (client) — search lọc real-time + grid card trường (avatar chữ cái màu + N môn · M tài liệu) + grid môn chung (`university_id IS NULL`).
-- Trang trường [/library/university/[id]](apps/web/src/app/(app)/library/university/[id]/page.tsx) nâng kiểu Studocu: breadcrumb (Thư viện / Khám phá / trường) + header + 2 cột [main: [UniversityCourseBrowser](apps/web/src/components/library/university-course-browser.tsx) — search môn + tab Phổ biến/A-Z (chỉ render letter thật có môn) + grid folder card] và [sidebar "Danh mục nội dung" — tổng doc + breakdown theo `doc_type`]. Học phần ĐH truy cập qua drill-down trường; click môn → trang môn.
+- Browse theo trường/môn = **directory kiểu Studocu** (dropdown chật chội đã bỏ). Nút **"Khám phá"** header → [/library/universities](<apps/web/src/app/(app)/library/universities/page.tsx>): [BrowseDirectory](apps/web/src/components/library/browse-directory.tsx) (client) — search lọc real-time + grid card trường (avatar chữ cái màu + N môn · M tài liệu) + grid môn chung (`university_id IS NULL`).
+- Trang trường [/library/university/[id]](<apps/web/src/app/(app)/library/university/[id]/page.tsx>) nâng kiểu Studocu: breadcrumb (Thư viện / Khám phá / trường) + header + 2 cột [main: [UniversityCourseBrowser](apps/web/src/components/library/university-course-browser.tsx) — search môn + tab Phổ biến/A-Z (chỉ render letter thật có môn) + grid folder card] và [sidebar "Danh mục nội dung" — tổng doc + breakdown theo `doc_type`]. Học phần ĐH truy cập qua drill-down trường; click môn → trang môn.
 - **Grid mode** (full danh sách + filter + phân trang) chỉ bật khi: search/lọc (`hasActiveSearch`), bấm "See all" carousel (`?sort=...`), hoặc click môn (→ trang môn). KHÔNG có CTA "browse all" lủng lẳng ở đáy — filter là toolbar gắn vào trang kết quả.
 - PRO banner gate theo `isDiscovery`.
 
 ### Search "chuẩn hiện đại" (doc-level grid) 2026-05-28
+
 - [hybrid-search-doc.ts](apps/web/src/lib/library/hybrid-search-doc.ts): grid search = **FTS có trọng số (title/course=A) xếp theo `ts_rank` DESC + relative floor** (giữ `rank ≥ max*0.02`, cắt đuôi nhiễu) + **diacritic-insensitive** (unaccent — gõ "giai tich" vẫn ra "Giải tích").
 - **Bỏ vector RRF** (bug cũ: `FULL OUTER JOIN` gộp mọi doc có embedding + vector ghi đè FTS → "giải tích" ra "Vợ chồng A Phủ", `total` luôn=34). **Quyết định data-driven**: backfill đủ 34/34 `title_embedding` rồi probe — voyage-3 gần như vô tín hiệu với content VN (distance dồn cục 0.63-0.73, "giải tích" xếp "Vợ chồng A Phủ" gần hơn "Giải tích 1"). Vector ở grid hại > lợi → loại. (Đừng re-add trừ khi đổi embedding model + verify lại.)
 - Migration `0054_library_search_unaccent.sql`: `CREATE EXTENSION unaccent` + wrapper `immutable_unaccent()` (IMMUTABLE, dict tường minh) → regen `search_vec` GENERATED bọc unaccent quanh mọi field. Query (grid + [saved-search cron](apps/web/src/inngest/functions/library-saved-search-notify.ts)) cũng `immutable_unaccent` để 2 phía khớp.
@@ -1375,6 +1432,7 @@ Pivot taxonomy giống trang lớn (Studocu/CourseHero): **University → Course
 - Verify: có dấu/không dấu/HOA cho cùng kết quả; query rác → 0 (không đổ toàn bộ). Semantic chunk-level vẫn ở luồng reverse/voice (content_vec riêng).
 
 ### Fix kèm theo (ingest + goal) 2026-05-28
+
 - **NUL byte → ingest fail**: [parsers.ts](apps/web/src/lib/library/parsers.ts) `parsePdf` strip control char `\p{Cc}` — pdfjs đôi khi trả 0x00 cho glyph lỗi → Postgres từ chối → chunk insert throw → `ingestLibraryDoc` throw → **upload thật kẹt PROCESSING**. Sửa rồi (dùng `\p{Cc}` thay control-char regex để tránh lint `no-control-regex`).
 - **Goal planning failed**: refactor FTS nối các mảnh `filterSql` dính liền không khoảng trắng → `tp.level = $3AND ...` → Postgres "trailing junk after parameter". Chỉ lộ khi search CÓ filter (goal mode / text+filter); search không filter thì các mảnh rỗng nên không lỗi. Fix: thêm newline giữa các mảnh trong [hybrid-search-doc.ts](apps/web/src/lib/library/hybrid-search-doc.ts).
 - **parseGoal luôn fallback**: LLM trả `null` cho field optional (grade/score/hoursPerWeek) → Zod `.optional()` từ chối null → catch → fallback generic (math). Fix [goal-planner.ts](apps/web/src/lib/library/goal-planner.ts): strip key null trước `GOAL_SCHEMA.parse` → goal parse đúng subject/level/deadline thật.
@@ -1382,6 +1440,7 @@ Pivot taxonomy giống trang lớn (Studocu/CourseHero): **University → Course
 - **Pending (cosmetic)**: `pdf-to-img@6.1.0` cần `pdfjs-dist ~5.6.205` nhưng app pin `^4.10.38` → API/Worker lệch → thumbnail rớt placeholder (doc vẫn publish + search). Fix dứt = nâng pdfjs-dist 4→5 + reinstall + verify render.
 
 ### Bulk content — thư viện lớn từ Wikipedia VN THẬT 2026-05-28
+
 - Mục tiêu: 1000-2000 doc đa dạng. Nguồn = **Wikipedia tiếng Việt (CC-BY-SA, có attribution)** — nội dung THẬT, hợp pháp, không scrape doc bản quyền (SGK/Studocu = vi phạm).
 - [scripts/lib/wiki.ts](apps/web/scripts/lib/wiki.ts): fetch article (extracts plaintext) + category members (recurse subcat 1 cấp) + retry/backoff rate-limit + `articleToBlocks` (heading/đoạn + block attribution).
 - [scripts/fixtures/wiki-sources.ts](apps/web/scripts/fixtures/wiki-sources.ts): ~33 nguồn = category/seed → university/course/subject/level. Mở rộng tự động qua category → đủ volume.
@@ -1390,6 +1449,7 @@ Pivot taxonomy giống trang lớn (Studocu/CourseHero): **University → Course
 - Validation: 46 doc (34→46), 46/46 thumbnail thật, search "dinh thuc"→"Định thức" OK. Full run ~2000 đang chạy nền.
 
 ### UI/UX polish pass 2026-05-28 (audit 3 agent → fix nhóm tác động rộng)
+
 - **Zero-state** (3000+ doc seed stats=0): detail page thay lưới "–/0/0" bằng 1 dòng "✨ Tài liệu mới · chưa có lượt tương tác" khi chưa có engagement; CuratedCard thêm badge "Mới" khi chưa có Q-score (đồng bộ DocCard); hub ẩn "lượt thêm" khi tổng=0.
 - **a11y**: mọi thumbnail card `alt=""`→`alt={title}`; focus-visible ring cho 5 component card (doc-card, hub-curated, recently-viewed, browse-directory, university-course-browser).
 - **i18n shared** (hiện trên MỌI list, bug khi đổi EN): [pagination.tsx](apps/web/src/components/tutoring/pagination.tsx) + [list-toolbar.tsx](apps/web/src/components/tutoring/list-toolbar.tsx) wire `useT()` (Sắp xếp/Lọc/Bỏ tất cả/Hiển thị/Mỗi trang/Tới trang/Trước/Sau); [library-grid.tsx](apps/web/src/components/library/library-grid.tsx) sort options + title + doctype filter chips dùng i18n. Thêm `common.*` keys (sort/filter/clear_all/showing/of/per_page/...).
@@ -1398,11 +1458,13 @@ Pivot taxonomy giống trang lớn (Studocu/CourseHero): **University → Course
 - i18n parity ver: mọi key xuất hiện đúng 2 lần (vi+en). Typecheck PASS.
 
 ### i18n
+
 - Full Library i18n (~540 key × vi+en) qua `useT()`/`getServerT()` đọc cookie `cogniva.locale`.
 
 ### Đã gỡ
+
 - **Atom Graph** — gỡ hoàn toàn (UX rối khi nhiều atom).
 
 ### Còn tồn (chưa fix)
-- **PDF tofu □**: ký hiệu toán `→ ∫ √ ≤ ≥ ≈ ≠ ⟺ ∞` render thành ô vuông vì NotoSans-Regular.ttf thiếu glyph (xác nhận qua `scripts/probe-font.ts`). Hướng fix: sanitize content sang ASCII (`→`→`->`, `≤`→`<=`, `√`→`sqrt`…) hoặc embed font có math (DejaVu) rồi regenerate PDF + thumbnail.
 
+- **PDF tofu □**: ký hiệu toán `→ ∫ √ ≤ ≥ ≈ ≠ ⟺ ∞` render thành ô vuông vì NotoSans-Regular.ttf thiếu glyph (xác nhận qua `scripts/probe-font.ts`). Hướng fix: sanitize content sang ASCII (`→`→`->`, `≤`→`<=`, `√`→`sqrt`…) hoặc embed font có math (DejaVu) rồi regenerate PDF + thumbnail.

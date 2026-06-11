@@ -1,12 +1,3 @@
-/**
- * /admin/sign-in/two-factor — bước 2 của sign-in khi user bật 2FA.
- *
- * Flow JWT mới: sign-in trả {twoFactorRequired, challengeToken} → trang
- * sign-in lưu token vào sessionStorage (TWO_FACTOR_CHALLENGE_KEY) rồi điều
- * hướng tới đây. POST /api/auth/sign-in/2fa nhận CẢ code TOTP 6 số lẫn
- * backup code (xxxxx-xxxxx) qua cùng 1 endpoint — mode toggle chỉ đổi UI.
- * Không có challengeToken (vào thẳng URL / token đã dùng) → về sign-in.
- */
 'use client';
 
 import * as React from 'react';
@@ -26,7 +17,6 @@ export default function TwoFactorChallengePage() {
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
-  // Không có challenge (refresh trang, vào thẳng URL) → quay về sign-in.
   React.useEffect(() => {
     if (!sessionStorage.getItem(TWO_FACTOR_CHALLENGE_KEY)) {
       toast.error('Phiên xác minh hết hạn — đăng nhập lại.');
@@ -51,7 +41,6 @@ export default function TwoFactorChallengePage() {
     }
     setLoading(true);
     try {
-      // 1 endpoint duy nhất — server tự nhận diện TOTP 6 số vs backup code.
       const result = await signInTwoFactor(challengeToken, code.trim());
       if (!result.ok) throw new Error(result.error);
       sessionStorage.removeItem(TWO_FACTOR_CHALLENGE_KEY);
@@ -71,9 +60,7 @@ export default function TwoFactorChallengePage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-inset ring-emerald-500/30">
             <ShieldCheck className="h-5 w-5 text-emerald-400" />
           </div>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-100">
-            Xác minh 2 bước
-          </h1>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-100">Xác minh 2 bước</h1>
           <p className="text-center text-[12px] text-slate-400">
             Nhập code 6 chữ số từ app TOTP để tiếp tục.
           </p>
@@ -90,9 +77,7 @@ export default function TwoFactorChallengePage() {
             maxLength={mode === 'totp' ? 6 : 11}
             value={code}
             onChange={(e) =>
-              setCode(
-                mode === 'totp' ? e.target.value.replace(/\D/g, '') : e.target.value,
-              )
+              setCode(mode === 'totp' ? e.target.value.replace(/\D/g, '') : e.target.value)
             }
             placeholder={mode === 'totp' ? '123456' : 'xxxxx-xxxxx'}
             autoFocus

@@ -1,37 +1,15 @@
-/**
- * concierge-faq — port nguyên văn từ apps/web/src/lib/tutoring/concierge-faq.ts.
- *
- * Knowledge base FAQ cho AI Concierge — câu hỏi platform-level (KHÔNG về 1
- * tutor cụ thể) mà student / tutor thường hỏi. Planner match user query với
- * 1 trong các FAQ này → trả answer deterministic kèm relevant CTA.
- *
- * Lý do hardcode + không gọi LLM generate:
- *   1. Câu trả lời chính xác về policy Cogniva (refund, KYC, commission, ...)
- *      KHÔNG được phép hallucinate
- *   2. Deterministic + nhanh + free
- *   3. Update policy = edit file này, không cần retrain model
- *
- * Match strategy: keyword overlap + audience filter (student/tutor/both).
- */
-
 export type FaqAudience = 'student' | 'tutor' | 'both';
 
 export type FaqEntry = {
   id: string;
-  /** Audience phù hợp — backend filter theo role planner detect. */
   audience: FaqAudience;
-  /** Câu hỏi standard form (hiển thị trong bubble). */
   question: string;
-  /** Answer markdown ngắn (< 200 từ). */
   answer: string;
-  /** Keywords để match user query (lowercase, prefix-friendly). */
   keywords: string[];
-  /** Suggested follow-up CTA — link hoặc reply. */
   cta?: { label: string; href: string };
 };
 
 export const FAQ_ENTRIES: FaqEntry[] = [
-  // ─── Student-side FAQs ─────────────────────────────────────────────
   {
     id: 'trial-session',
     audience: 'student',
@@ -56,15 +34,7 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     question: 'Huỷ buổi có được hoàn tiền không?',
     answer:
       'Huỷ trước 24h: hoàn 100% vào ví. Huỷ 6-24h: hoàn 50%. Huỷ < 6h hoặc no-show: không hoàn (tutor đã chuẩn bị). Tutor huỷ: bạn được hoàn 100% + 10% credit bonus cho lần sau.',
-    keywords: [
-      'huỷ',
-      'huy',
-      'hoàn tiền',
-      'refund',
-      'trả lại tiền',
-      'cancel',
-      'cancellation',
-    ],
+    keywords: ['huỷ', 'huy', 'hoàn tiền', 'refund', 'trả lại tiền', 'cancel', 'cancellation'],
   },
   {
     id: 'payment-methods',
@@ -102,7 +72,6 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     keywords: ['giá', 'price', 'bao nhiêu', 'trung bình', 'average', 'mức giá', 'phí'],
   },
 
-  // ─── Tutor-side FAQs ───────────────────────────────────────────────
   {
     id: 'tutor-commission',
     audience: 'tutor',
@@ -135,7 +104,16 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     question: 'Cách tăng visibility / nhận nhiều lead hơn?',
     answer:
       '1) Hoàn KYC ✓. 2) Bật "Đặt ngay" + "Buổi thử". 3) Phản hồi < 30 phút (ranking boost). 4) Headline cụ thể (môn + level + USP). 5) Bio nên có chi tiết: số năm, % học sinh đỗ, phương pháp. 6) Trả lời request tutor browse trong 1h đầu.',
-    keywords: ['visibility', 'lead', 'tăng đơn', 'nhiều khách', 'ranking', 'top', 'thấy nhiều', 'tăng học sinh'],
+    keywords: [
+      'visibility',
+      'lead',
+      'tăng đơn',
+      'nhiều khách',
+      'ranking',
+      'top',
+      'thấy nhiều',
+      'tăng học sinh',
+    ],
   },
   {
     id: 'tutor-instant-book',
@@ -154,7 +132,6 @@ export const FAQ_ENTRIES: FaqEntry[] = [
     keywords: ['huỷ buổi', 'cancel', 'phạt', 'penalty', 'không dạy được'],
   },
 
-  // ─── Cross-audience (both) ─────────────────────────────────────────
   {
     id: 'support-contact',
     audience: 'both',
@@ -173,12 +150,6 @@ export const FAQ_ENTRIES: FaqEntry[] = [
   },
 ];
 
-/**
- * Match user query với FAQ entries.
- * Strategy: keyword overlap score + audience filter.
- *
- * @returns Best FAQ entry hoặc null nếu không có match đủ tốt
- */
 export function matchFaq(
   query: string,
   audience: 'student' | 'tutor',
@@ -195,12 +166,10 @@ export function matchFaq(
     let score = 0;
     for (const kw of entry.keywords) {
       const kwLower = kw.toLowerCase();
-      // Full keyword match in query
       if (q.includes(kwLower)) {
         score += kwLower.length >= 5 ? 3 : 2;
         continue;
       }
-      // Token overlap (less weight)
       for (const t of tokens) {
         if (kwLower.includes(t) || t.includes(kwLower)) {
           score += 1;

@@ -1,15 +1,3 @@
-/**
- * Domain types share giữa web + mobile.
- *
- * NGUYÊN TẮC: types ở đây là API DTO (request/response), KHÔNG phải DB row.
- * DB row types ở @cogniva/db chỉ web import (mobile không direct DB).
- *
- * Mobile dùng API client (`@cogniva/shared/api`) gọi REST endpoint → nhận DTO
- * → render. KHÔNG có pgvector, KHÔNG có Drizzle InferSelectModel ở đây.
- */
-
-// ── Search (command palette web + mobile) ──────────────────────────
-/** 1 kết quả global search — contract của GET /api/search. */
 export type SearchResult = {
   type: 'document' | 'concept' | 'flashcard' | 'quiz' | 'note';
   id: string;
@@ -18,7 +6,6 @@ export type SearchResult = {
   href: string;
 };
 
-// ── User & session ─────────────────────────────────────────────────
 export interface UserDTO {
   id: string;
   email: string;
@@ -27,22 +14,20 @@ export interface UserDTO {
   plan: 'FREE' | 'PRO' | 'TEAM' | 'ENTERPRISE';
   emailVerified: boolean;
   parentalConsentStatus: 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
-  createdAt: string; // ISO
+  createdAt: string;
 }
 
-// ── Document (match real backend shape) ────────────────────────────
 export interface DocumentDTO {
   id: string;
   filename: string;
   mimeType: string;
-  size: number;       // bytes
+  size: number;
   pageCount: number | null;
   status: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED';
   createdAt: string;
-  chunks: number;     // số chunk đã ingest (tự backend join chunk_count)
+  chunks: number;
 }
 
-// ── Flashcard (match real backend $inferSelect shape) ──────────────
 export interface FlashcardDTO {
   id: string;
   userId: string;
@@ -50,7 +35,7 @@ export interface FlashcardDTO {
   sourceChunkId: string | null;
   front: string;
   back: string;
-  due: string; // ISO
+  due: string;
   state: 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
   cardType: 'BASIC' | 'CLOZE' | 'IMAGE_OCCLUSION';
   stability: number;
@@ -69,17 +54,15 @@ export interface ReviewDTO {
   scheduledDays: number;
 }
 
-// ── Note ───────────────────────────────────────────────────────────
 export interface NoteDTO {
   id: string;
   title: string;
   content: string;
   workspaceId?: string | null;
-  createdAt?: string; // ISO
-  updatedAt?: string; // ISO
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// ── Public profile (Wave 2) ────────────────────────────────────────
 export interface AchievementMetaDTO {
   id: string;
   label: string;
@@ -104,7 +87,6 @@ export interface PublicProfileDTO {
   achievementMeta: AchievementMetaDTO[];
 }
 
-// ── Graph concept detail (Wave 2) ──────────────────────────────────
 export interface ConceptDetailDTO {
   concept: {
     id: string;
@@ -122,7 +104,6 @@ export interface ConceptDetailDTO {
   }>;
 }
 
-// ── Quiz attempt (Wave 3) ──────────────────────────────────────────
 export interface QuizQuestionDTO {
   id: string;
   type: 'MCQ' | 'TRUE_FALSE' | 'SHORT';
@@ -136,8 +117,6 @@ export interface QuizAttemptDTO {
   questions: QuizQuestionDTO[];
 }
 
-// ── Workspace manage (quản trị flashcard + câu hỏi) ─────────────────
-// Khớp /api/workspaces/[id]/manage. "done" = đã làm/đã ôn.
 export interface ManageFlashcardDTO {
   id: string;
   front: string;
@@ -147,7 +126,6 @@ export interface ManageFlashcardDTO {
   due: string | null;
   lastReview: string | null;
   atomName: string | null;
-  /** Đã ôn (lastReview != null). */
   done: boolean;
 }
 
@@ -157,9 +135,7 @@ export interface ManageQuestionDTO {
   type: 'MCQ' | 'TRUE_FALSE' | 'SHORT' | 'ESSAY' | 'FILL_BLANK';
   quizTitle: string | null;
   atomName: string | null;
-  /** Đã làm (có quiz_response của user). */
   done: boolean;
-  /** Đúng/sai lần gần nhất (null nếu chưa làm). */
   lastCorrect: boolean | null;
   answeredAt: string | null;
 }
@@ -169,17 +145,15 @@ export interface WorkspaceManageDTO {
   questions: ManageQuestionDTO[];
 }
 
-// ── Mastery ────────────────────────────────────────────────────────
 export interface MasteryDTO {
   userId: string;
   conceptId: string;
   conceptName: string;
-  level: number; // 0..1
+  level: number;
   reviewCount: number;
   lastReviewAt: string | null;
 }
 
-// ── Chat ───────────────────────────────────────────────────────────
 export interface ChatMessageDTO {
   id: string;
   conversationId: string;
@@ -193,24 +167,19 @@ export interface ChatMessageDTO {
   createdAt: string;
 }
 
-// ── Usage / quota ──────────────────────────────────────────────────
-// Khớp với /api/account/usage backend (apps/web/src/app/api/account/usage/route.ts).
 export interface UsageDTO {
   plan: UserDTO['plan'];
-  spentUsd: number;       // đã dùng hôm nay
-  quotaUsd: number;       // quota daily
+  spentUsd: number;
+  quotaUsd: number;
   remainingUsd: number;
-  resetAt: string;        // ISO 00:00 UTC kế tiếp
-  spentPct: number;       // 0..100
+  resetAt: string;
+  spentPct: number;
 }
 
-// ── API envelope ───────────────────────────────────────────────────
 export interface ApiError {
   code: string;
   message: string;
   detail?: Record<string, unknown>;
 }
 
-export type ApiResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: ApiError };
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };

@@ -1,9 +1,3 @@
-/**
- * AddQuestionDialog — modal thêm câu hỏi manual cho exam.
- *
- * Phase 16 hỗ trợ 4 type qua dialog: MCQ_SINGLE, MCQ_MULTI, TRUE_FALSE, SHORT.
- * Type khác (ORDERING, MATCHING, ESSAY) wire sau khi UI quá phức tạp 1 modal.
- */
 'use client';
 
 import * as React from 'react';
@@ -131,8 +125,7 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
   };
 
   const addOption = () => setOptions((opts) => [...opts, '']);
-  const removeOption = (i: number) =>
-    setOptions((opts) => opts.filter((_, j) => j !== i));
+  const removeOption = (i: number) => setOptions((opts) => opts.filter((_, j) => j !== i));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -178,7 +171,7 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
               onChange={(e) => setPrompt(e.target.value)}
               rows={3}
               required
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="border-input focus-visible:ring-ring flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1"
             />
           </div>
 
@@ -190,11 +183,7 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
                   <input
                     type={type === 'MCQ_SINGLE' ? 'radio' : 'checkbox'}
                     name="correct"
-                    checked={
-                      type === 'MCQ_SINGLE'
-                        ? correctSingle === i
-                        : correctMulti.has(i)
-                    }
+                    checked={type === 'MCQ_SINGLE' ? correctSingle === i : correctMulti.has(i)}
                     onChange={() => {
                       if (type === 'MCQ_SINGLE') setCorrectSingle(i);
                       else
@@ -215,7 +204,7 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
                     <button
                       type="button"
                       onClick={() => removeOption(i)}
-                      className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded p-1"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -301,7 +290,7 @@ export function AddQuestionDialog({ examId, onDone }: Props) {
               value={explanation}
               onChange={(e) => setExplanation(e.target.value)}
               rows={2}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
+              className="border-input flex w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-sm"
             />
           </div>
 

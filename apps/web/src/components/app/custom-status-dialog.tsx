@@ -1,16 +1,3 @@
-/**
- * CustomStatusDialog — V2 G3.7 (2026-05-21).
- *
- * Modal đặt custom status text + emoji + auto-clear timer.
- *
- * Spec: docs/plans/study-group-v2.md §G3.
- *
- * Layout:
- *   - Input emoji (single char) + status text (max 128 chars)
- *   - Preset quick-status row (4 templates): "Đang học", "Đang họp", "Bận", "Đi vắng"
- *   - Dropdown expiry: 30min / 1h / 4h / hôm nay / 1 tuần / không xoá
- *   - Footer: Lưu + Xoá status
- */
 'use client';
 
 import * as React from 'react';
@@ -64,13 +51,10 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
   const [clearing, setClearing] = React.useState(false);
   const [emojiOpen, setEmojiOpen] = React.useState(false);
 
-  // Hydrate từ server khi mở (key dùng chung với UserMenu).
   const { data: statusData } = useQuery({
     queryKey: qk.userStatus(),
     queryFn: () =>
-      apiGet<{ statusText?: string | null; statusEmoji?: string | null }>(
-        '/api/user/status',
-      ),
+      apiGet<{ statusText?: string | null; statusEmoji?: string | null }>('/api/user/status'),
     enabled: open,
   });
   React.useEffect(() => {
@@ -124,7 +108,6 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Emoji + text input row */}
           <div className="space-y-1.5">
             <Label htmlFor="cstatus-text">Bạn đang làm gì?</Label>
             <div className="relative flex items-center gap-2">
@@ -133,7 +116,7 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
                 onClick={() => setEmojiOpen((s) => !s)}
                 aria-label="Chọn emoji"
                 title="Chọn emoji"
-                className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-md border bg-background text-lg transition-colors hover:bg-muted"
+                className="bg-background hover:bg-muted inline-flex h-9 w-10 shrink-0 items-center justify-center rounded-md border text-lg transition-colors"
               >
                 {emoji || '🙂'}
               </button>
@@ -159,9 +142,8 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
             </div>
           </div>
 
-          {/* Preset row */}
           <div className="space-y-1.5">
-            <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               Mẫu nhanh
             </Label>
             <div className="grid grid-cols-2 gap-1.5">
@@ -173,7 +155,7 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
                     setEmoji(p.emoji);
                     setText(p.text);
                   }}
-                  className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted"
+                  className="bg-card hover:bg-muted flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-xs transition-colors"
                 >
                   <span className="text-base">{p.emoji}</span>
                   <span className="truncate">{p.text}</span>
@@ -182,11 +164,8 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
             </div>
           </div>
 
-          {/* Expiry dropdown */}
           <div className="space-y-1.5">
             <Label htmlFor="cstatus-expiry">Tự xoá sau</Label>
-            {/* ComboSelect: value-type number|null → string ở UI, parse lại khi onChange.
-                Lưu ý: '' là option THẬT ("Không tự xoá" = sec null), không phải placeholder. */}
             <ComboSelect
               id="cstatus-expiry"
               value={expiresInSec === null ? '' : String(expiresInSec)}
@@ -205,7 +184,7 @@ export function CustomStatusDialog({ open, onOpenChange }: Props) {
             variant="outline"
             onClick={clear}
             disabled={clearing || saving}
-            className="mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive mr-auto"
           >
             {clearing ? (
               <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />

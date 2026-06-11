@@ -1,19 +1,8 @@
-/**
- * GroupsListClient — list study groups cross-user với filter status.
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  Ban,
-  BookOpen,
-  ChevronRight,
-  Globe2,
-  Loader2,
-  Search,
-  X,
-} from 'lucide-react';
+import { Ban, BookOpen, ChevronRight, Globe2, Loader2, Search, X } from 'lucide-react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 import { apiGet } from '@cogniva/shared/api';
@@ -75,10 +64,7 @@ export function GroupsListClient() {
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const rows = React.useMemo(
-    () => data?.pages.flatMap((p) => p.groups) ?? [],
-    [data],
-  );
+  const rows = React.useMemo(() => data?.pages.flatMap((p) => p.groups) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -212,9 +198,7 @@ function GroupRow({ g }: { g: Row }) {
           </Avatar>
           <div className="min-w-0">
             <p className="truncate text-[13px] font-medium leading-tight">{g.name}</p>
-            <p className="truncate text-[10.5px] text-slate-500">
-              {g.description ?? '—'}
-            </p>
+            <p className="truncate text-[10.5px] text-slate-500">{g.description ?? '—'}</p>
           </div>
         </Link>
       </td>

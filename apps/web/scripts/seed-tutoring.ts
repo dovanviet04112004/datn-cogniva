@@ -1,17 +1,3 @@
-/**
- * Seed Tutoring Marketplace demo data — DEV ONLY.
- *
- * Tạo 5 tutor PUBLISHED + 3 student request OPEN với data đa dạng để test
- * browse / filter / apply UI. Idempotent — chạy nhiều lần không gây trùng
- * (sử dụng email "*@seed.cogniva.local" để identify + upsert).
- *
- * Usage:
- *   cd apps/web
- *   pnpm exec tsx --env-file=.env.local scripts/seed-tutoring.ts
- *
- * Reset (xoá hết seed data):
- *   pnpm exec tsx --env-file=.env.local scripts/seed-tutoring.ts --reset
- */
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, like } from 'drizzle-orm';
 import {
@@ -184,7 +170,8 @@ const REQUESTS: RequestSeed[] = [
     name: 'Hoàng Văn Bách',
     image: 'https://api.dicebear.com/9.x/avataaars/svg?seed=hoang-bach',
     title: 'Cần gia sư Toán 12 luyện thi đại học khối A — đang yếu Tích phân + Hình OXYZ',
-    description: 'Em đang học lớp 12 trường công ở Hà Nội, mục tiêu đậu Bách Khoa khoa Kỹ thuật ô tô. Toán hiện tại được khoảng 6.5-7 trong các bài kiểm tra. Đặc biệt yếu phần Tích phân ứng dụng và Hình giải tích OXYZ — làm bài rất chậm và hay sai dấu. Mong gia sư có kinh nghiệm luyện đề THPT, dạy mẹo nhanh cho trắc nghiệm. Thời gian rảnh tối thứ 3, 5, 7. Học online được.',
+    description:
+      'Em đang học lớp 12 trường công ở Hà Nội, mục tiêu đậu Bách Khoa khoa Kỹ thuật ô tô. Toán hiện tại được khoảng 6.5-7 trong các bài kiểm tra. Đặc biệt yếu phần Tích phân ứng dụng và Hình giải tích OXYZ — làm bài rất chậm và hay sai dấu. Mong gia sư có kinh nghiệm luyện đề THPT, dạy mẹo nhanh cho trắc nghiệm. Thời gian rảnh tối thứ 3, 5, 7. Học online được.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     budgetK: 300,
@@ -196,7 +183,8 @@ const REQUESTS: RequestSeed[] = [
     name: 'Trịnh Linh Đan',
     image: 'https://api.dicebear.com/9.x/avataaars/svg?seed=linh-dan',
     title: 'Tìm gia sư IELTS 1-1, target 7.0 trong 4 tháng — đang ở band 5.5',
-    description: 'Mình đi làm marketing 3 năm, IELTS hiện tại 5.5 (Reading 6, Listening 6, Writing 5, Speaking 5). Cần đẩy lên 7.0 cho hồ sơ du học Úc 9/2026. Khó khăn lớn nhất ở Writing task 2 (toàn 5.5) và Speaking part 2-3 (hay bị ấp úng). Mong gia sư có band 8.0+, có thể chấm essay chi tiết và mock speaking interview ít nhất 1 lần/tuần. Có thể đầu tư 6-8 triệu/tháng.',
+    description:
+      'Mình đi làm marketing 3 năm, IELTS hiện tại 5.5 (Reading 6, Listening 6, Writing 5, Speaking 5). Cần đẩy lên 7.0 cho hồ sơ du học Úc 9/2026. Khó khăn lớn nhất ở Writing task 2 (toàn 5.5) và Speaking part 2-3 (hay bị ấp úng). Mong gia sư có band 8.0+, có thể chấm essay chi tiết và mock speaking interview ít nhất 1 lần/tuần. Có thể đầu tư 6-8 triệu/tháng.',
     subjectSlug: 'english-ielts',
     level: 'ADULT',
     budgetK: 500,
@@ -208,7 +196,8 @@ const REQUESTS: RequestSeed[] = [
     name: 'Đỗ Quang Huy',
     image: 'https://api.dicebear.com/9.x/avataaars/svg?seed=quang-huy',
     title: 'Sinh viên năm 2 BK cần gia sư Cấu trúc dữ liệu — chuẩn bị thi cuối kỳ',
-    description: 'Em đang học DSA tại BK, cuối kỳ còn 6 tuần. Đã hiểu cơ bản (stack, queue, linked list, tree) nhưng đến phần Graph, Dynamic Programming là không làm được. Muốn tìm anh chị có kinh nghiệm ACM/ICPC hoặc đã đi làm CNTT để dạy cách tư duy + làm bài tập trên HackerRank. Học online OK, có thể buổi 1.5-2h, 2 buổi/tuần.',
+    description:
+      'Em đang học DSA tại BK, cuối kỳ còn 6 tuần. Đã hiểu cơ bản (stack, queue, linked list, tree) nhưng đến phần Graph, Dynamic Programming là không làm được. Muốn tìm anh chị có kinh nghiệm ACM/ICPC hoặc đã đi làm CNTT để dạy cách tư duy + làm bài tập trên HackerRank. Học online OK, có thể buổi 1.5-2h, 2 buổi/tuần.',
     subjectSlug: 'cs-algorithms',
     level: 'UNIVERSITY',
     budgetK: 400,
@@ -220,7 +209,8 @@ const REQUESTS: RequestSeed[] = [
     name: 'Nguyễn Hồng Hạnh',
     image: 'https://api.dicebear.com/9.x/avataaars/svg?seed=hong-hanh',
     title: 'Gia sư Hoá lớp 9 cho con — chuẩn bị thi vào lớp 10 chuyên',
-    description: 'Con mình đang học lớp 9, có nguyện vọng thi vào chuyên Hoá KHTN. Hiện tại điểm Hoá trên lớp tầm 8.5-9 nhưng đề thi chuyên đòi hỏi tư duy cao hơn nhiều. Muốn tìm gia sư có kinh nghiệm luyện đội tuyển hoặc thi chuyên, dạy nâng cao tại nhà ở khu vực Cầu Giấy. Lịch học: 2 buổi tối/tuần, 2h/buổi.',
+    description:
+      'Con mình đang học lớp 9, có nguyện vọng thi vào chuyên Hoá KHTN. Hiện tại điểm Hoá trên lớp tầm 8.5-9 nhưng đề thi chuyên đòi hỏi tư duy cao hơn nhiều. Muốn tìm gia sư có kinh nghiệm luyện đội tuyển hoặc thi chuyên, dạy nâng cao tại nhà ở khu vực Cầu Giấy. Lịch học: 2 buổi tối/tuần, 2h/buổi.',
     subjectSlug: 'chemistry',
     level: 'SECONDARY',
     budgetK: 250,
@@ -241,8 +231,6 @@ async function reset() {
   }
   const ids = seedUsers.map((u) => u.id);
 
-  // tutor_application FK → tutor_profile + tutor_request → cascade xoá khi
-  // xoá profile/request, nhưng để chắc chắn ta clear theo tutor profile ids
   const seedProfiles = await db
     .select({ id: tutorProfile.id })
     .from(tutorProfile)
@@ -255,13 +243,11 @@ async function reset() {
     await db.delete(tutorProfile).where(inArray(tutorProfile.id, pIds));
   }
   await db.delete(tutorRequest).where(inArray(tutorRequest.studentId, ids));
-  // Xoá user cuối (FK constraint cascade sẽ clear session/account)
   await db.delete(user).where(inArray(user.id, ids));
   console.log(`  ✓ Xoá ${seedUsers.length} user + dữ liệu liên quan`);
 }
 
 async function ensureUser(email: string, name: string, image: string | null): Promise<string> {
-  // Upsert user theo email
   const [existing] = await db
     .select({ id: user.id })
     .from(user)
@@ -287,7 +273,6 @@ async function seedTutors() {
   for (const t of TUTORS) {
     const userId = await ensureUser(t.email, t.name, t.image);
 
-    // Upsert tutor_profile theo userId (unique)
     const [existing] = await db
       .select({ id: tutorProfile.id })
       .from(tutorProfile)
@@ -313,7 +298,6 @@ async function seedTutors() {
           updatedAt: new Date(),
         })
         .where(eq(tutorProfile.id, profileId));
-      // Wipe existing subjects + availability để insert lại
       await db.delete(tutorSubject).where(eq(tutorSubject.tutorId, profileId));
       await db.delete(tutorAvailability).where(eq(tutorAvailability.tutorId, profileId));
     } else {
@@ -337,7 +321,6 @@ async function seedTutors() {
       profileId = inserted[0].id;
     }
 
-    // Subjects
     await db.insert(tutorSubject).values(
       t.subjects.map((s) => ({
         tutorId: profileId,
@@ -348,7 +331,6 @@ async function seedTutors() {
       })),
     );
 
-    // Availability
     await db.insert(tutorAvailability).values(
       t.availability.map((a) => ({
         tutorId: profileId,
@@ -368,9 +350,6 @@ async function seedRequests() {
   for (const r of REQUESTS) {
     const userId = await ensureUser(r.email, r.name, r.image);
 
-    // Idempotent: mỗi seed user chỉ post 1 request → xoá toàn bộ request
-    // cũ của user này (cascade xoá luôn applications) rồi insert mới.
-    // Đơn giản + đảm bảo data luôn fresh.
     await db.delete(tutorRequest).where(eq(tutorRequest.studentId, userId));
 
     const expiresAt = new Date();

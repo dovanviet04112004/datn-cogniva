@@ -1,6 +1,3 @@
-/**
- * /admin/tutoring/bookings/[id] — booking detail + actions.
- */
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';

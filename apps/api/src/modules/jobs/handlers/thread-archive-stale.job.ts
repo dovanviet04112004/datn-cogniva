@@ -1,14 +1,3 @@
-/**
- * Job `thread-archive-stale` (02:00 UTC = 09:00 VN daily) — archive thread root
- * idle > 7 ngày. Port từ apps/web/src/jobs/thread-archive-stale.ts (V2 G6.3).
- *
- * Web có COALESCE(thread_last_at, created_at) NHƯNG kèm điều kiện
- * thread_last_at IS NOT NULL → COALESCE không bao giờ rơi nhánh fallback;
- * rút gọn còn `thread_last_at < cutoff` (so sánh NULL = false tự loại NULL) —
- * row set CHẠM y hệt. Idempotent: chỉ UPDATE row archived_at IS NULL.
- *
- * Unarchive vẫn handled inline ở POST /messages/[id]/thread (route web).
- */
 import { Injectable } from '@nestjs/common';
 import { logger } from '@cogniva/server-core';
 

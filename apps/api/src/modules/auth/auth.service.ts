@@ -1,12 +1,3 @@
-/**
- * AuthService — nghiệp vụ auth JWT mới (plan §3): đăng ký/đăng nhập email+
- * password (hash tương thích Better Auth — xem PasswordService), phát cặp
- * access (15') + refresh (30d rotation), forgot/reset password.
- *
- * Còn lại trong Wave 1 (chưa ở file này): Google OAuth, 2FA TOTP — user có
- * two_factor_enabled tạm bị chặn ở flow mới (403) và vẫn đăng nhập qua
- * Better Auth cũ (dual-stack, không mất chức năng).
- */
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import {
@@ -70,14 +61,28 @@ export class AuthService {
     plan: string;
     admin_role: string | null;
   }): AuthUser {
-    return { id: u.id, email: u.email, name: u.name, image: u.image, plan: u.plan, adminRole: u.admin_role };
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      image: u.image,
+      plan: u.plan,
+      adminRole: u.admin_role,
+    };
   }
 
-  /** Phát cặp access + refresh token. Public vì OAuth callback cũng dùng. */
-  async issueTokens(user: AuthUser, meta: RequestMeta, opts?: { familyId?: string }): Promise<AuthTokens> {
+  async issueTokens(
+    user: AuthUser,
+    meta: RequestMeta,
+    opts?: { familyId?: string },
+  ): Promise<AuthTokens> {
     const [accessToken, refresh] = await Promise.all([
       this.tokens.signAccessToken(user),
-      this.refreshTokens.issue(user.id, { familyId: opts?.familyId, ip: meta.ip, userAgent: meta.userAgent }),
+      this.refreshTokens.issue(user.id, {
+        familyId: opts?.familyId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+      }),
     ]);
     return {
       user,
@@ -87,17 +92,26 @@ export class AuthService {
     };
   }
 
-  async signUp(input: { email: string; password: string; name?: string }, meta: RequestMeta): Promise<AuthTokens> {
-    const existing = await this.prisma.user.findUnique({ where: { email: input.email }, select: { id: true } });
+  async signUp(
+    input: { email: string; password: string; name?: string },
+    meta: RequestMeta,
+  ): Promise<AuthTokens> {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: input.email },
+      select: { id: true },
+    });
     if (existing) throw new ConflictException({ error: 'Email đã được đăng ký' });
 
     const hash = await this.passwords.hash(input.password);
     const userId = randomUUID();
     const user = await this.prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { id: userId, email: input.email, name: input.name ?? input.email.split('@')[0] ?? null },
+        data: {
+          id: userId,
+          email: input.email,
+          name: input.name ?? input.email.split('@')[0] ?? null,
+        },
       });
-      // account schema theo Better Auth: credential → account_id = userId.
       await tx.account.create({
         data: {
           id: randomUUID(),
@@ -113,7 +127,10 @@ export class AuthService {
     return this.issueTokens(this.toAuthUser(user), meta);
   }
 
-  async signIn(input: { email: string; password: string }, meta: RequestMeta): Promise<AuthTokens | TwoFactorChallenge> {
+  async signIn(
+    input: { email: string; password: string },
+    meta: RequestMeta,
+  ): Promise<AuthTokens | TwoFactorChallenge> {
     const user = await this.prisma.user.findUnique({ where: { email: input.email } });
     const account = user
       ? await this.prisma.account.findFirst({
@@ -121,7 +138,6 @@ export class AuthService {
           select: { password: true },
         })
       : null;
-    // Verify cả khi user không tồn tại (hash giả) → chống timing user-enumeration.
     const ok = await this.passwords.verify(
       account?.password ?? 'deadbeef:deadbeef',
       input.password,
@@ -133,14 +149,20 @@ export class AuthService {
       throw new ForbiddenException({ error: 'Tài khoản đã bị tạm khoá' });
     }
     if (user.two_factor_enabled) {
-      // Bước 2: client gửi challengeToken + mã TOTP vào /auth/sign-in/2fa.
-      return { twoFactorRequired: true, challengeToken: await this.tokens.signChallengeToken(user.id) };
+      return {
+        twoFactorRequired: true,
+        challengeToken: await this.tokens.signChallengeToken(user.id),
+      };
     }
 
     return this.issueTokens(this.toAuthUser(user), meta);
   }
 
-  async signInTwoFactor(challengeToken: string, code: string, meta: RequestMeta): Promise<AuthTokens> {
+  async signInTwoFactor(
+    challengeToken: string,
+    code: string,
+    meta: RequestMeta,
+  ): Promise<AuthTokens> {
     const userId = await this.tokens.verifyChallengeToken(challengeToken);
     if (!userId) throw new UnauthorizedException({ error: 'Phiên 2FA hết hạn — đăng nhập lại' });
 
@@ -152,7 +174,6 @@ export class AuthService {
 
     const secret = await this.twoFactor.decryptSecret(tf.secret);
     if (!this.twoFactor.verifyTotp(code, secret)) {
-      // Fallback backup code (1 lần) — thay authClient.twoFactor.verifyBackupCode cũ.
       const usedBackup = await this.twoFactorManage.consumeBackupCode(userId, code);
       if (!usedBackup) throw new UnauthorizedException({ error: 'Mã 2FA không đúng' });
     }
@@ -186,11 +207,6 @@ export class AuthService {
     return this.toAuthUser(user);
   }
 
-  /**
-   * Forgot password — luôn trả OK (không lộ email tồn tại hay không).
-   * Email service (Resend) wire ở wave sau — hiện log link ra console dev;
-   * non-production trả devToken để test e2e.
-   */
   async forgotPassword(email: string): Promise<{ devToken?: string }> {
     const user = await this.prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (!user) return {};
@@ -209,13 +225,14 @@ export class AuthService {
     return this.config.get('NODE_ENV') === 'production' ? {} : { devToken: raw };
   }
 
-  /** Reset password — token one-time 1h; xong revoke MỌI refresh token của user. */
   async resetPassword(rawToken: string, newPassword: string): Promise<void> {
     const row = await this.prisma.password_reset_token.findUnique({
       where: { token_hash: sha256(rawToken) },
     });
     if (!row || row.used_at || row.expires_at <= new Date()) {
-      throw new UnauthorizedException({ error: 'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn' });
+      throw new UnauthorizedException({
+        error: 'Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn',
+      });
     }
 
     const hash = await this.passwords.hash(newPassword);
@@ -229,9 +246,11 @@ export class AuthService {
         select: { id: true },
       });
       if (account) {
-        await tx.account.update({ where: { id: account.id }, data: { password: hash, updated_at: new Date() } });
+        await tx.account.update({
+          where: { id: account.id },
+          data: { password: hash, updated_at: new Date() },
+        });
       } else {
-        // User OAuth-only đặt mật khẩu lần đầu → tạo credential account.
         await tx.account.create({
           data: {
             id: randomUUID(),

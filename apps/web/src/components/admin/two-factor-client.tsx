@@ -1,29 +1,8 @@
-/**
- * TwoFactorClient — enroll/disable TOTP cho admin account.
- *
- * Flow enroll (JWT stack mới — NestJS /api/auth/2fa/*):
- *   1. Nhập password admin → POST /api/auth/2fa/enable → totpURI + backupCodes
- *   2. Hiện QR + secret + backup codes
- *   3. User scan QR + nhập code 6 chữ số → POST /api/auth/2fa/verify → done
- *
- * Flow disable:
- *   1. Nhập password → POST /api/auth/2fa/disable → cleared
- *
- * Phase 6 V1 dùng QR external service (api.qrserver.com) — Phase 6.1 wire
- * `qrcode` package server-side để self-hosted.
- */
 'use client';
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  CheckCircle2,
-  Copy,
-  Loader2,
-  Lock,
-  ShieldAlert,
-  ShieldCheck,
-} from 'lucide-react';
+import { CheckCircle2, Copy, Loader2, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { twoFactorEnable, twoFactorVerify, twoFactorDisable } from '@/lib/auth-api';
@@ -120,18 +99,15 @@ export function TwoFactorClient({ enabled }: Props) {
           2FA TOTP
         </h1>
         <p className="text-sm text-slate-400">
-          Bật 2FA tăng bảo mật tài khoản admin. App TOTP (Google Authenticator,
-          Authy, 1Password) sẽ sinh code 6 chữ số mỗi 30s.
+          Bật 2FA tăng bảo mật tài khoản admin. App TOTP (Google Authenticator, Authy, 1Password) sẽ
+          sinh code 6 chữ số mỗi 30s.
         </p>
       </header>
 
-      {/* Status card */}
       <section
         className={cn(
           'rounded-xl border p-5',
-          enabled
-            ? 'border-emerald-500/30 bg-emerald-500/5'
-            : 'border-amber-500/30 bg-amber-500/5',
+          enabled ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5',
         )}
       >
         <div className="flex items-center gap-2">
@@ -158,7 +134,6 @@ export function TwoFactorClient({ enabled }: Props) {
         </p>
       </section>
 
-      {/* Enroll flow */}
       {!enabled && step === 'idle' && (
         <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/30 p-5">
           <h2 className="text-sm font-semibold tracking-tight">Bật 2FA</h2>
@@ -191,11 +166,8 @@ export function TwoFactorClient({ enabled }: Props) {
 
       {!enabled && step === 'verifying' && totpUri && (
         <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/30 p-5">
-          <h2 className="text-sm font-semibold tracking-tight">
-            Bước 1: Scan QR vào app TOTP
-          </h2>
+          <h2 className="text-sm font-semibold tracking-tight">Bước 1: Scan QR vào app TOTP</h2>
           <div className="flex flex-col items-center gap-3">
-            {/* QR via external service — Phase 6.1 self-host bằng `qrcode` pkg */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(totpUri)}`}
@@ -289,14 +261,11 @@ export function TwoFactorClient({ enabled }: Props) {
         <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/30 p-5">
           <h2 className="text-sm font-semibold tracking-tight">Tắt 2FA</h2>
           <p className="text-[12px] text-slate-400">
-            Cần password để xác minh. Sau khi tắt, sign-in chỉ cần password — bảo mật
-            giảm.
+            Cần password để xác minh. Sau khi tắt, sign-in chỉ cần password — bảo mật giảm.
           </p>
           <div className="flex items-end gap-2">
             <div>
-              <label className="block text-[11px] font-medium text-slate-300">
-                Password
-              </label>
+              <label className="block text-[11px] font-medium text-slate-300">Password</label>
               <input
                 type="password"
                 value={password}

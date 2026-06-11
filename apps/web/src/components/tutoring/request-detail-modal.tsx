@@ -1,11 +1,3 @@
-/**
- * RequestDetailModal — xem chi tiết yêu cầu học trong modal lớn giữa màn hình.
- *
- * Mở overlay căn giữa (đồng bộ với BookingDetailModal) thay vì nhảy trang.
- * Tái dùng các client component sẵn có: ApplyForm (tutor apply), ApplicationsList
- * (owner accept/reject), CloseRequestButton, AiMatches. Fetch GET
- * /api/tutoring/requests/[id] khi mở; refetch sau khi accept/reject.
- */
 'use client';
 
 import * as React from 'react';
@@ -15,12 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
-import {
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-  URGENCY_NAMES,
-} from '@cogniva/db/taxonomy';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@cogniva/db/taxonomy';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -60,7 +47,12 @@ type AppRow = {
 };
 type Resp =
   | { request: Req; isOwner: true; applications: AppRow[] }
-  | { request: Req; isOwner: false; isTutor: boolean; myApplication: { id: string; status: string } | null };
+  | {
+      request: Req;
+      isOwner: false;
+      isTutor: boolean;
+      myApplication: { id: string; status: string } | null;
+    };
 
 const URGENCY_COLORS: Record<string, string> = {
   ASAP: 'bg-red-500/10 text-red-700 dark:text-red-400 ring-red-500/20',
@@ -78,7 +70,6 @@ export function RequestDetailModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  // GET chi tiết yêu cầu qua React Query — chỉ fetch khi modal mở + có id.
   const {
     data,
     isLoading: loading,
@@ -98,21 +89,22 @@ export function RequestDetailModal({
       <DialogContent className="flex h-auto max-h-[88vh] w-[94vw] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl p-0">
         <DialogTitle className="sr-only">Chi tiết yêu cầu học</DialogTitle>
 
-        <div className="flex shrink-0 items-center border-b border-divider px-5 py-3.5 pr-14">
+        <div className="border-divider flex shrink-0 items-center border-b px-5 py-3.5 pr-14">
           <h2 className="text-sm font-semibold tracking-tight">Chi tiết yêu cầu</h2>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {loading && !req ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-sm text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-20 text-sm">
               <Loader2 className="h-4 w-4 animate-spin" />
               Đang tải…
             </div>
           ) : !req || !data ? (
-            <p className="py-20 text-center text-sm text-muted-foreground">Không tải được yêu cầu.</p>
+            <p className="text-muted-foreground py-20 text-center text-sm">
+              Không tải được yêu cầu.
+            </p>
           ) : (
             <div className="mx-auto max-w-xl space-y-5">
-              {/* Header yêu cầu */}
               <div className="flex items-start gap-3">
                 <Avatar className="h-11 w-11 shrink-0">
                   <AvatarImage src={req.studentImage ?? undefined} />
@@ -136,11 +128,11 @@ export function RequestDetailModal({
                 </span>
               </div>
 
-              <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-foreground/85">
+              <p className="text-foreground/85 whitespace-pre-wrap text-[13px] leading-relaxed">
                 {req.description}
               </p>
 
-              <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/30 p-3.5 text-[13px] sm:grid-cols-4">
+              <div className="bg-muted/30 grid grid-cols-2 gap-3 rounded-xl p-3.5 text-[13px] sm:grid-cols-4">
                 <Meta label="Môn">
                   {subj?.emoji ?? '📚'} {subj?.name ?? req.subjectSlug}
                 </Meta>
@@ -159,13 +151,12 @@ export function RequestDetailModal({
 
               {req.status !== 'OPEN' && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground">
+                  <span className="bg-muted/60 text-muted-foreground inline-flex items-center rounded-full px-3 py-1 text-xs">
                     Trạng thái: <span className="ml-1 font-semibold">{req.status}</span>
                   </span>
                 </div>
               )}
 
-              {/* ── Owner: quản lý ── */}
               {data.isOwner ? (
                 <div className="space-y-5">
                   {req.status !== 'CLOSED' && <CloseRequestButton requestId={req.id} />}
@@ -180,11 +171,11 @@ export function RequestDetailModal({
                   />
                 </div>
               ) : data.myApplication ? (
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center">
+                <div className="border-primary/20 bg-primary/5 rounded-2xl border p-4 text-center">
                   <p className="text-sm font-semibold tracking-tight">Bạn đã ứng tuyển</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-xs">
                     Trạng thái:{' '}
-                    <span className="font-semibold text-foreground/80">
+                    <span className="text-foreground/80 font-semibold">
                       {data.myApplication.status}
                     </span>{' '}
                     — đợi học viên phản hồi.
@@ -193,12 +184,11 @@ export function RequestDetailModal({
               ) : data.isTutor && req.status === 'OPEN' ? (
                 <ApplyForm requestId={req.id} suggestedRate={req.budgetVnd ?? 200000} />
               ) : req.status === 'OPEN' ? (
-                <div className="rounded-2xl border border-dashed border-divider bg-surface-secondary/40 p-5 text-center">
+                <div className="border-divider bg-surface-secondary/40 rounded-2xl border border-dashed p-5 text-center">
                   <p className="text-sm font-semibold tracking-tight">Muốn nhận yêu cầu này?</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-xs">
                     Trở thành gia sư để ứng tuyển.
                   </p>
-                  {/* Trở thành gia sư — primary qua <Button asChild> */}
                   <Button asChild className="mt-3">
                     <Link href="/tutors/become">Trở thành gia sư</Link>
                   </Button>
@@ -215,7 +205,7 @@ export function RequestDetailModal({
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <p className="text-muted-foreground text-[10px] font-semibold uppercase tracking-[0.12em]">
         {label}
       </p>
       <p className="mt-0.5 text-[13px] font-medium">{children}</p>

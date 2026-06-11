@@ -1,11 +1,3 @@
-/**
- * ChannelView — wrapper render theo channel type.
- *
- * - TEXT/ANNOUNCEMENT → TextChannel (message list + composer)
- * - VOICE             → VoiceChannel (LiveKit room render)
- * - STAGE             → StageChannel (audience + speakers + raise hand)
- * - FORUM             → ForumChannel (post cards + tag filter + thread view)
- */
 'use client';
 
 import type { StudyGroupChannel } from '@cogniva/db';

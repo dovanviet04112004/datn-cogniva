@@ -1,26 +1,12 @@
-/**
- * QuizGradeService — chấm điểm từng câu, port từ apps/web/src/lib/quiz/grade.ts.
- *
- * Quy ước score ∈ [0, 1]:
- *   - MCQ / TRUE_FALSE: binary 1.0 / 0.0.
- *   - SHORT: LLM so sánh userAnswer ↔ correctAnswer → 0..1 (LLM hiểu paraphrase,
- *     cosine similarity fail khi user diễn đạt khác từ ngữ).
- *
- * Failure mode giữ nguyên lib cũ: LLM lỗi/JSON invalid → score 0 + feedback
- * "Không chấm được, hãy thử lại."; userAnswer rỗng → score 0 không gọi LLM.
- */
 import { Injectable } from '@nestjs/common';
 
 import { LlmService } from '../../infra/ai/llm.service';
 
-/** Kết quả chấm 1 câu. */
 export type GradeResult = {
-  score: number; // 0..1
-  /** Feedback ngắn cho user — gồm correctness + gợi ý nếu sai. */
+  score: number;
   feedback: string;
 };
 
-// Prompt copy NGUYÊN VĂN từ lib/quiz/grade.ts.
 const SHORT_GRADE_INSTRUCTION = `Bạn là giáo viên chấm bài. So sánh câu trả lời của học sinh với đáp án mẫu, cho điểm 0.0 → 1.0 theo độ chính xác và độ đầy đủ.
 
 QUY TẮC:
@@ -40,7 +26,6 @@ CÂU HỎI: {{PROMPT}}
 
 CÂU TRẢ LỜI CỦA HỌC SINH: {{USER}}`;
 
-/** Tách JSON object đầu tiên (bỏ markdown fence). */
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```(?:json)?\s*/i, '')
@@ -55,7 +40,6 @@ function extractJson(text: string): unknown {
 export class QuizGradeService {
   constructor(private readonly llm: LlmService) {}
 
-  /** Chấm MCQ: index của user khớp index correctAnswer. */
   gradeMcq(userAnswer: number, correctAnswer: number): GradeResult {
     const correct = userAnswer === correctAnswer;
     return {
@@ -64,7 +48,6 @@ export class QuizGradeService {
     };
   }
 
-  /** Chấm TRUE/FALSE: boolean khớp. */
   gradeTrueFalse(userAnswer: boolean, correctAnswer: boolean): GradeResult {
     const correct = userAnswer === correctAnswer;
     return {
@@ -73,8 +56,11 @@ export class QuizGradeService {
     };
   }
 
-  /** Chấm câu SHORT bằng LLM — temperature 0.2 / maxTokens 200 như lib cũ. */
-  async gradeShort(prompt: string, correctAnswer: string, userAnswer: string): Promise<GradeResult> {
+  async gradeShort(
+    prompt: string,
+    correctAnswer: string,
+    userAnswer: string,
+  ): Promise<GradeResult> {
     if (!userAnswer.trim()) {
       return { score: 0, feedback: 'Chưa trả lời.' };
     }

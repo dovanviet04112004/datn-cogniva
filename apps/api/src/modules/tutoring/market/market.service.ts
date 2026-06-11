@@ -1,26 +1,10 @@
-/**
- * TutoringMarketService — port từ apps/web/src/app/api/tutoring/
- * {classes,packs/[id]/purchase,promo/redeem,favorites}/route.ts.
- *
- * TIỀN đi qua WalletService (PaymentsModule) — purchase/redeem giữ NGUYÊN
- * thứ tự "charge/credit trước, ghi row sau" của bản cũ (không gộp transaction
- * — đổi atomicity là đổi hành vi, để cutover sau).
- */
 import { randomUUID } from 'node:crypto';
-import {
-  BadRequestException,
-  HttpException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../infra/database/prisma.service';
-import {
-  InsufficientBalanceError,
-  WalletService,
-} from '../../payments/wallet.service';
-import type { PackPurchaseInput, PromoRedeemInput } from './market.dto';
+import { InsufficientBalanceError, WalletService } from '../../payments/wallet.service';
+import type { PackPurchaseInput, PromoRedeemInput } from './dto/market.dto';
 
 const PACK_EXPIRES_DAYS = 90;
 const WALLET_CREDIT_EXPIRY_DAYS = 60;
@@ -32,13 +16,11 @@ export class TutoringMarketService {
     private readonly wallet: WalletService,
   ) {}
 
-  /** GET /tutoring/classes — browse class OPEN, startDate >= from (date-only). */
   async listClasses(query: { subject?: string; level?: string; from?: string }) {
     const from = query.from ? new Date(query.from) : new Date();
 
     const where: Prisma.tutoring_classWhereInput = {
       status: 'OPEN',
-      // Route cũ so cột date với string YYYY-MM-DD — tương đương date UTC-midnight.
       start_date: { gte: new Date(from.toISOString().slice(0, 10)) },
     };
     if (query.subject) where.subject_slug = query.subject;
@@ -89,7 +71,6 @@ export class TutoringMarketService {
         totalSessions: c.total_sessions,
         scheduleType: c.schedule_type,
         scheduleSlots: c.schedule_slots,
-        // Drizzle date() trả string YYYY-MM-DD — Prisma trả Date, cắt lại cho khớp.
         startDate: c.start_date.toISOString().slice(0, 10),
         status: c.status,
         tutorHeadline: c.tutor_profile.headline,
@@ -99,7 +80,6 @@ export class TutoringMarketService {
     };
   }
 
-  /** POST /tutoring/packs/:id/purchase — charge ví kỳ đầu rồi tạo purchase row. */
   async purchasePack(userId: string, packId: string, body: PackPurchaseInput) {
     const pack = await this.prisma.tutoring_pack.findUnique({ where: { id: packId } });
     if (!pack || pack.status !== 'ACTIVE') {
@@ -107,9 +87,7 @@ export class TutoringMarketService {
     }
 
     const totalPeriods = body.installmentPeriods;
-    const periodAmount = totalPeriods
-      ? Math.ceil(pack.total_vnd / totalPeriods)
-      : pack.total_vnd;
+    const periodAmount = totalPeriods ? Math.ceil(pack.total_vnd / totalPeriods) : pack.total_vnd;
 
     let chargeResult: Awaited<ReturnType<WalletService['chargeWallet']>>;
     try {
@@ -172,7 +150,6 @@ export class TutoringMarketService {
     };
   }
 
-  /** POST /tutoring/promo/redeem — WALLET_CREDIT cộng ví ngay, còn lại trả info. */
   async redeemPromo(userId: string, body: PromoRedeemInput) {
     const code = body.code.trim().toUpperCase();
 
@@ -200,9 +177,7 @@ export class TutoringMarketService {
     }
 
     if (promo.type === 'WALLET_CREDIT') {
-      const expires = new Date(
-        Date.now() + WALLET_CREDIT_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
-      );
+      const expires = new Date(Date.now() + WALLET_CREDIT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
       await this.wallet.applyPromoCredit({
         userId,
         amountVnd: promo.value,
@@ -229,7 +204,6 @@ export class TutoringMarketService {
       };
     }
 
-    // PERCENTAGE / FIXED_VND — persist redemption pending (amount=0), FE apply lúc checkout.
     await this.prisma.promo_code_redemption.createMany({
       data: [{ promo_code: code, user_id: userId, amount_vnd: 0 }],
       skipDuplicates: true,
@@ -246,7 +220,6 @@ export class TutoringMarketService {
     };
   }
 
-  /** GET /tutoring/favorites — ≤50 tutor đã favorite, mới nhất trước. */
   async listFavorites(userId: string) {
     const rows = await this.prisma.tutor_favorite.findMany({
       where: { user_id: userId },
@@ -280,11 +253,8 @@ export class TutoringMarketService {
         hourlyRateVnd: r.tutor_profile.hourly_rate_vnd,
         modality: r.tutor_profile.modality,
         avatarUrl: r.tutor_profile.avatar_url,
-        // numeric(3,2) — giữ string "4.50" như Drizzle trả pg text.
         ratingAvg:
-          r.tutor_profile.rating_avg === null
-            ? null
-            : r.tutor_profile.rating_avg.toFixed(2),
+          r.tutor_profile.rating_avg === null ? null : r.tutor_profile.rating_avg.toFixed(2),
         ratingCount: r.tutor_profile.rating_count,
         sessionsCompleted: r.tutor_profile.sessions_completed,
         verificationStatus: r.tutor_profile.verification_status,

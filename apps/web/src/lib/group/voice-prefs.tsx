@@ -1,16 +1,3 @@
-/**
- * voice-prefs — V2 G5.2 (2026-05-21).
- *
- * Lưu user voice preferences trong localStorage:
- *   - mode    : 'voice' (VAD, default) | 'ptt' (push-to-talk) | 'open' (always-open)
- *   - pttKey  : phím giữ để nói (default 'Space')
- *   - deafen  : sticky preference (off khi rời voice)
- *
- * Context provider mount trong VoiceChannel để các sub-component (control
- * bar, settings dialog) cùng đọc/ghi 1 source.
- *
- * Spec: docs/plans/study-group-v2.md §G5.
- */
 'use client';
 
 import * as React from 'react';
@@ -37,7 +24,6 @@ type Ctx = {
 
 const VoicePrefsContext = React.createContext<Ctx | null>(null);
 
-/** Đọc prefs từ localStorage, fallback DEFAULTS. */
 function readPrefs(): VoicePrefs {
   if (typeof window === 'undefined') return DEFAULTS;
   try {
@@ -46,9 +32,10 @@ function readPrefs(): VoicePrefs {
     const parsed = JSON.parse(raw) as Partial<VoicePrefs>;
     return {
       mode: parsed.mode === 'ptt' || parsed.mode === 'open' ? parsed.mode : 'voice',
-      pttKey: typeof parsed.pttKey === 'string' && parsed.pttKey.length > 0
-        ? parsed.pttKey
-        : DEFAULTS.pttKey,
+      pttKey:
+        typeof parsed.pttKey === 'string' && parsed.pttKey.length > 0
+          ? parsed.pttKey
+          : DEFAULTS.pttKey,
     };
   } catch {
     return DEFAULTS;
@@ -58,15 +45,12 @@ function readPrefs(): VoicePrefs {
 function writePrefs(p: VoicePrefs) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
-  } catch {
-    /* localStorage không khả dụng */
-  }
+  } catch {}
 }
 
 export function VoicePrefsProvider({ children }: { children: React.ReactNode }) {
   const [prefs, setPrefs] = React.useState<VoicePrefs>(DEFAULTS);
 
-  // Hydrate sau mount để tránh SSR mismatch
   React.useEffect(() => {
     setPrefs(readPrefs());
   }, []);
@@ -87,14 +71,9 @@ export function VoicePrefsProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
 
-  const value = React.useMemo(
-    () => ({ prefs, setMode, setPttKey }),
-    [prefs, setMode, setPttKey],
-  );
+  const value = React.useMemo(() => ({ prefs, setMode, setPttKey }), [prefs, setMode, setPttKey]);
 
-  return (
-    <VoicePrefsContext.Provider value={value}>{children}</VoicePrefsContext.Provider>
-  );
+  return <VoicePrefsContext.Provider value={value}>{children}</VoicePrefsContext.Provider>;
 }
 
 export function useVoicePrefs(): Ctx {
@@ -103,12 +82,9 @@ export function useVoicePrefs(): Ctx {
   return ctx;
 }
 
-/** Hiển thị label thân thiện cho phím PTT (Space, KeyV, AltLeft, …). */
 export function formatPttKey(key: string): string {
   if (key === 'Space') return 'Space';
-  if (key.startsWith('Key')) return key.slice(3); // KeyV → V
-  if (key.startsWith('Digit')) return key.slice(5); // Digit1 → 1
-  return key
-    .replace('Left', ' ←')
-    .replace('Right', ' →');
+  if (key.startsWith('Key')) return key.slice(3);
+  if (key.startsWith('Digit')) return key.slice(5);
+  return key.replace('Left', ' ←').replace('Right', ' →');
 }

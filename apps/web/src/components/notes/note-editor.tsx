@@ -1,17 +1,3 @@
-/**
- * NoteEditor — TipTap rich editor + autosave + AI inline completion (Tab).
- *
- * Tính năng:
- *   - StarterKit (bold/italic/heading 1-3/bullet/ordered/code/blockquote/HR)
- *   - Placeholder khi rỗng
- *   - Autosave: debounce 1.2s sau mỗi change → PATCH /api/notes/[id]
- *   - AI complete: Tab khi cursor cuối paragraph → fetch /complete → insert
- *
- * Trade-off:
- *   - Plain text Tab → insert tab thường. Đè Tab để gọi AI khi paragraph
- *     không rỗng + cursor cuối → trade-off chấp nhận cho Phase 7 v1.
- *   - Không stream completion (delay ~1-3s); Phase 8 SSE.
- */
 'use client';
 
 import * as React from 'react';
@@ -29,11 +15,7 @@ type Props = {
   initialContent: string;
 };
 
-/** Debounce hook đơn giản — gọi cb sau khoảng tĩnh `delay` ms. */
-function useDebouncedCallback<T extends (...args: never[]) => void>(
-  cb: T,
-  delay: number,
-) {
+function useDebouncedCallback<T extends (...args: never[]) => void>(cb: T, delay: number) {
   const timer = React.useRef<NodeJS.Timeout | null>(null);
   const cbRef = React.useRef(cb);
   React.useEffect(() => {
@@ -83,8 +65,7 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[300px]',
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[300px]',
       },
     },
     onUpdate: ({ editor }) => {
@@ -92,10 +73,8 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
     },
   });
 
-  // AI complete khi user bấm Tab cuối paragraph
   const handleComplete = React.useCallback(async () => {
     if (!editor || completing) return;
-    // Lấy ~500 ký tự text gần cursor
     const { from } = editor.state.selection;
     const before = editor.state.doc.textBetween(0, from, '\n');
     if (before.trim().length < 20) {
@@ -114,8 +93,11 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
       if (!completion) {
         toast.message('AI không gợi ý được, thử thêm context');
       } else {
-        // Chèn 1 space + completion ngay tại cursor (giữ format hiện tại)
-        editor.chain().focus().insertContent(' ' + completion).run();
+        editor
+          .chain()
+          .focus()
+          .insertContent(' ' + completion)
+          .run();
       }
     } catch (err) {
       toast.error('Lỗi AI: ' + (err as Error).message);
@@ -124,7 +106,6 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
     }
   }, [editor, completing]);
 
-  // Đè Tab → gọi handleComplete (chỉ khi editor focus)
   React.useEffect(() => {
     if (!editor) return;
     const handler = (e: KeyboardEvent) => {
@@ -151,13 +132,10 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
           className="flex-1 border-0 bg-transparent text-2xl font-semibold focus:outline-none focus:ring-0"
         />
         {savedAt && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             Đã lưu lúc {savedAt.toLocaleTimeString('vi-VN')}
           </span>
         )}
-        {/* Nút gợi ý AI: dùng <Button variant="outline" size="sm"> thay vì
-            class inline rời (theo design system §9.1). Giữ nguyên handler,
-            disabled khi đang chạy + aria-label. */}
         <Button
           type="button"
           variant="outline"
@@ -166,15 +144,11 @@ export function NoteEditor({ noteId, initialTitle, initialContent }: Props) {
           disabled={completing}
           aria-label="AI gợi ý"
         >
-          {completing ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <Sparkles />
-          )}
+          {completing ? <Loader2 className="animate-spin" /> : <Sparkles />}
           AI (Tab)
         </Button>
       </div>
-      <div className="rounded-lg border bg-card p-4">
+      <div className="bg-card rounded-lg border p-4">
         <EditorContent editor={editor} />
       </div>
     </div>

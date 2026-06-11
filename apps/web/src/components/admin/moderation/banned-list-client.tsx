@@ -1,9 +1,3 @@
-/**
- * BannedListClient — list users + groups đang bị suspend, hai tab.
- *
- * Quick action: unsuspend (reuse endpoint /api/admin/users/[id]/unsuspend hoặc
- * /api/admin/groups/[id]/unsuspend). Lý do bắt buộc 10..500 chars.
- */
 'use client';
 
 import * as React from 'react';
@@ -56,9 +50,11 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
   const [q, setQ] = React.useState('');
   const [debouncedQ, setDebouncedQ] = React.useState('');
 
-  const [active, setActive] = React.useState<
-    { type: 'user' | 'group'; id: string; name: string } | null
-  >(null);
+  const [active, setActive] = React.useState<{
+    type: 'user' | 'group';
+    id: string;
+    name: string;
+  } | null>(null);
   const [actionLoading, setActionLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -66,7 +62,11 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
     return () => clearTimeout(t);
   }, [q]);
 
-  const { data, isLoading: loading, refetch } = useQuery({
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.adminBanned(debouncedQ),
     queryFn: () => {
       const params = new URLSearchParams();
@@ -116,7 +116,6 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
         </p>
       </header>
 
-      {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-800">
         <TabBtn
           active={tab === 'users'}
@@ -132,7 +131,6 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
         />
       </div>
 
-      {/* Search */}
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
         <input
@@ -151,7 +149,6 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
         )}
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="py-12 text-center text-slate-500">
           <Loader2 className="mx-auto h-5 w-5 animate-spin" />
@@ -160,9 +157,7 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
         <UsersTable
           users={users}
           canMutate={canMutate}
-          onUnsuspend={(u) =>
-            setActive({ type: 'user', id: u.id, name: u.name ?? u.email })
-          }
+          onUnsuspend={(u) => setActive({ type: 'user', id: u.id, name: u.name ?? u.email })}
         />
       ) : (
         <GroupsTable
@@ -176,20 +171,18 @@ export function BannedListClient({ adminRole }: { adminRole: AdminRole }) {
         open={!!active}
         onOpenChange={(o) => !o && setActive(null)}
         title={
-          active
-            ? `Khôi phục ${active.type === 'user' ? 'user' : 'group'} "${active.name}"?`
-            : ''
+          active ? `Khôi phục ${active.type === 'user' ? 'user' : 'group'} "${active.name}"?` : ''
         }
         description={
           active?.type === 'user' ? (
             <span>
-              User sẽ có thể sign-in lại bình thường. Mọi data của họ được giữ nguyên.
-              Audit log sẽ ghi action này kèm lý do.
+              User sẽ có thể sign-in lại bình thường. Mọi data của họ được giữ nguyên. Audit log sẽ
+              ghi action này kèm lý do.
             </span>
           ) : (
             <span>
-              Group sẽ hoạt động lại bình thường. Member có thể chat. Mọi data của
-              group được giữ nguyên.
+              Group sẽ hoạt động lại bình thường. Member có thể chat. Mọi data của group được giữ
+              nguyên.
             </span>
           )
         }
@@ -258,9 +251,7 @@ function UsersTable({
                           </span>
                         )}
                       </p>
-                      <p className="truncate font-mono text-[10.5px] text-slate-500">
-                        {u.email}
-                      </p>
+                      <p className="truncate font-mono text-[10.5px] text-slate-500">{u.email}</p>
                     </div>
                   </Link>
                 </td>
@@ -343,9 +334,7 @@ function GroupsTable({
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium leading-tight">
-                        {g.name}
-                      </p>
+                      <p className="truncate text-[13px] font-medium leading-tight">{g.name}</p>
                       <p className="truncate font-mono text-[10.5px] text-slate-500">
                         {g.id.slice(0, 12)}
                       </p>

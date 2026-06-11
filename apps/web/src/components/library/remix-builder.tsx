@@ -1,12 +1,3 @@
-/**
- * RemixBuilder — Bonus #12 Doc Remix UI client (Phase 3, 2026-05-27).
- *
- * 2-pane:
- *   Left: list user's docs (imports + own uploads) với checkbox chọn 2-5
- *   Right: form metadata (title/desc/subject/level) + submit
- *
- * Sau submit → redirect /library/[newDocId] xem kết quả.
- */
 'use client';
 
 import * as React from 'react';
@@ -37,18 +28,16 @@ type AvailableDoc = {
   qualityScore: number | null;
 };
 
-export function RemixBuilder({
-  availableDocs,
-}: {
-  availableDocs: AvailableDoc[];
-}) {
+export function RemixBuilder({ availableDocs }: { availableDocs: AvailableDoc[] }) {
   const t = useT();
   const router = useRouter();
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [subjectSlug, setSubjectSlug] = React.useState('math');
-  const [level, setLevel] = React.useState<'PRIMARY' | 'SECONDARY' | 'HIGH_SCHOOL' | 'UNIVERSITY' | 'ADULT'>('HIGH_SCHOOL');
+  const [level, setLevel] = React.useState<
+    'PRIMARY' | 'SECONDARY' | 'HIGH_SCHOOL' | 'UNIVERSITY' | 'ADULT'
+  >('HIGH_SCHOOL');
   const [grade, setGrade] = React.useState<number | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -67,7 +56,6 @@ export function RemixBuilder({
     });
   };
 
-  // Auto-suggest subject từ doc đầu tiên được chọn
   React.useEffect(() => {
     if (selectedIds.size > 0) {
       const first = availableDocs.find((d) => selectedIds.has(d.id));
@@ -75,7 +63,6 @@ export function RemixBuilder({
     }
   }, [selectedIds, availableDocs]);
 
-  // Auto-suggest title từ selected docs
   React.useEffect(() => {
     if (selectedIds.size > 0 && !title) {
       const selected = availableDocs.filter((d) => selectedIds.has(d.id));
@@ -118,8 +105,8 @@ export function RemixBuilder({
 
   if (availableDocs.length === 0) {
     return (
-      <div className="rounded-xl border border-divider bg-card p-8 text-center">
-        <p className="text-[13px] text-muted-foreground">
+      <div className="border-divider bg-card rounded-xl border p-8 text-center">
+        <p className="text-muted-foreground text-[13px]">
           {t('library.remix.empty_prefix')}{' '}
           <Link href="/library" className="text-primary hover:underline">
             {t('library.remix.empty_link')}
@@ -132,9 +119,8 @@ export function RemixBuilder({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-      {/* Left: doc picker */}
       <section>
-        <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-muted-foreground mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
           {t('library.remix.pick_source').replace('{count}', String(selectedIds.size))}
           {selectedIds.size >= 2 && (
             <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
@@ -160,22 +146,24 @@ export function RemixBuilder({
                     type="checkbox"
                     checked={selected}
                     onChange={() => toggleSelect(d.id)}
-                    className="mt-1 h-3.5 w-3.5 accent-discovery-600"
+                    className="accent-discovery-600 mt-1 h-3.5 w-3.5"
                   />
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-[12.5px] font-semibold leading-snug">
                       {d.title}
                     </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10.5px] text-muted-foreground">
+                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[10.5px]">
                       <span>
                         {subj?.emoji} {subj?.name}
                       </span>
                       <span>·</span>
-                      <span className="rounded bg-muted px-1 py-0">
+                      <span className="bg-muted rounded px-1 py-0">
                         {t(`library.doctype.${d.docType}`)}
                       </span>
                       <span>·</span>
-                      <span>{t('library.remix.pages').replace('{count}', String(d.pageCount ?? '–'))}</span>
+                      <span>
+                        {t('library.remix.pages').replace('{count}', String(d.pageCount ?? '–'))}
+                      </span>
                       {d.qualityScore != null && d.qualityScore > 0 && (
                         <>
                           <span>·</span>
@@ -193,9 +181,8 @@ export function RemixBuilder({
         </ul>
       </section>
 
-      {/* Right: form */}
-      <aside className="sticky top-20 flex flex-col gap-3 self-start rounded-xl border border-divider bg-card p-4">
-        <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <aside className="border-divider bg-card sticky top-20 flex flex-col gap-3 self-start rounded-xl border p-4">
+        <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
           <Package className="h-3 w-3" />
           {t('library.remix.metadata')}
         </p>
@@ -208,7 +195,7 @@ export function RemixBuilder({
             onChange={(e) => setTitle(e.target.value)}
             maxLength={200}
             placeholder={t('library.remix.title_placeholder')}
-            className="w-full rounded-md border border-divider bg-background px-2 py-1.5 text-[12.5px]"
+            className="border-divider bg-background w-full rounded-md border px-2 py-1.5 text-[12.5px]"
           />
         </div>
 
@@ -227,7 +214,6 @@ export function RemixBuilder({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold">{t('library.remix.subject_label')}</label>
-            {/* Thay <select> native bằng ComboSelect (gõ-để-lọc môn taxonomy) */}
             <ComboSelect
               value={subjectSlug}
               onChange={(v) => setSubjectSlug(v)}
@@ -237,7 +223,6 @@ export function RemixBuilder({
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold">{t('library.remix.level_label')}</label>
-            {/* Thay <select> native bằng ComboSelect (enum cấp học) */}
             <ComboSelect
               value={level}
               onChange={(v) => setLevel(v as typeof level)}
@@ -255,28 +240,22 @@ export function RemixBuilder({
               min={1}
               max={12}
               value={grade ?? ''}
-              onChange={(e) =>
-                setGrade(e.target.value ? Number(e.target.value) : null)
-              }
-              className="w-full rounded-md border border-divider bg-background px-2 py-1.5 text-[12px]"
+              onChange={(e) => setGrade(e.target.value ? Number(e.target.value) : null)}
+              className="border-divider bg-background w-full rounded-md border px-2 py-1.5 text-[12px]"
             />
           </div>
         ) : null}
 
-        {/* Selected sources preview */}
         {selectedIds.size > 0 && (
-          <div className="rounded-lg border border-divider/60 bg-muted/30 p-2">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="border-divider/60 bg-muted/30 rounded-lg border p-2">
+            <p className="text-muted-foreground mb-1 text-[10px] font-semibold uppercase tracking-wider">
               {t('library.remix.sources').replace('{count}', String(selectedIds.size))}
             </p>
             <ul className="space-y-0.5">
               {availableDocs
                 .filter((d) => selectedIds.has(d.id))
                 .map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center gap-1 text-[11px]"
-                  >
+                  <li key={d.id} className="flex items-center gap-1 text-[11px]">
                     <span className="truncate">{d.title}</span>
                     <button
                       type="button"

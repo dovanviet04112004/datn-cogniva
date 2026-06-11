@@ -1,15 +1,3 @@
-/**
- * ConceptNode — custom React Flow node cho concept.
- *
- * Visual:
- *   - Border + bg theo domain (math=blue, cs=purple, biology=green, …)
- *   - Mastery overlay: ring color theo BKT score (Phase 6 sẽ wire data thật;
- *     Phase 4 stub gray).
- *   - Click → page parent gọi onClick(id) qua React Flow `onNodeClick`.
- *
- * Phải dùng React.memo (qua Handle) — React Flow re-render nodes nhiều lần
- * khi viewport thay đổi.
- */
 'use client';
 
 import * as React from 'react';
@@ -21,22 +9,11 @@ export type ConceptNodeData = {
   name: string;
   description: string | null;
   domain: string;
-  /** Mastery 0..1 — undefined cho concept chưa được luyện (mặc định Phase 4). */
   mastery: number | undefined;
-  /**
-   * Render mờ + grayscale khi search/filter/select không match. Tính ở
-   * GraphCanvas qua useMemo theo searchQuery / activeDomain / selectedId.
-   */
   dim?: boolean;
-  /** Highlight ring đặc biệt khi node là neighbor trực tiếp của selectedId. */
   neighbor?: boolean;
 };
 
-/**
- * Map domain → tailwind class cho border/bg. Text dùng `text-foreground` để
- * theme-aware (đen trên light, trắng trên dark) — KHÔNG hardcode text-xxx-100
- * vì sẽ vô hình trên light mode.
- */
 const DOMAIN_STYLES: Record<string, string> = {
   math: 'border-blue-500/60 bg-blue-500/15',
   cs: 'border-purple-500/60 bg-purple-500/15',
@@ -49,7 +26,6 @@ const DOMAIN_STYLES: Record<string, string> = {
   general: 'border-slate-500/60 bg-slate-500/15',
 };
 
-/** Mastery → ring color (cao = xanh, thấp = đỏ, undefined = mờ). */
 function masteryRing(mastery: number | undefined): string {
   if (mastery === undefined) return 'ring-1 ring-slate-700/40';
   if (mastery >= 0.7) return 'ring-2 ring-green-400/80';
@@ -64,37 +40,31 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
   return (
     <div
       className={cn(
-        // Geometry — rounded-xl premium, soft border thay vì border-2 cứng
         'group/node relative rounded-xl border px-3.5 py-2.5 backdrop-blur-md',
-        'min-w-[148px] max-w-[210px] cursor-pointer text-foreground',
-        // Layered surface (subtle bg + border domain-tinted)
+        'text-foreground min-w-[148px] max-w-[210px] cursor-pointer',
         'bg-surface/70 shadow-soft',
-        // Motion: lift + glow on hover
-        'transition-all duration-base ease-expo-out',
-        'hover:-translate-y-0.5 hover:shadow-elevated',
+        'duration-base ease-expo-out transition-all',
+        'hover:shadow-elevated hover:-translate-y-0.5',
         domainStyle,
         masteryRing(d.mastery),
-        selected && 'shadow-glow ring-offset-2 ring-offset-background',
-        // Dim/neighbor highlight states — controlled bởi GraphCanvas
+        selected && 'shadow-glow ring-offset-background ring-offset-2',
         d.dim && 'opacity-25 saturate-50',
-        d.neighbor && 'ring-2 ring-primary/60 ring-offset-1 ring-offset-background',
+        d.neighbor && 'ring-primary/60 ring-offset-background ring-2 ring-offset-1',
       )}
     >
-      {/* Ambient glow halo — chỉ hover/selected mới hiện, blur-md primary */}
       <div
         aria-hidden
         className={cn(
-          'pointer-events-none absolute -inset-1 rounded-xl bg-primary/10 opacity-0 blur-md transition-opacity duration-base',
+          'bg-primary/10 duration-base pointer-events-none absolute -inset-1 rounded-xl opacity-0 blur-md transition-opacity',
           'group-hover/node:opacity-100',
           selected && 'opacity-60',
         )}
       />
 
-      {/* Handles ẩn — chỉ làm anchor cho edges, không hiện chấm */}
-      <Handle type="target" position={Position.Top} className="!bg-transparent !border-0" />
+      <Handle type="target" position={Position.Top} className="!border-0 !bg-transparent" />
 
       <div className="relative space-y-0.5">
-        <div className="text-sm font-semibold leading-tight tracking-tight text-foreground">
+        <div className="text-foreground text-sm font-semibold leading-tight tracking-tight">
           {d.name}
         </div>
         <div className="flex items-center gap-1.5">
@@ -107,13 +77,13 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
               d.mastery === undefined && 'bg-muted-foreground/40',
             )}
           />
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="text-muted-foreground text-[10px] font-medium uppercase tracking-[0.14em]">
             {d.domain}
           </div>
         </div>
       </div>
 
-      <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0" />
+      <Handle type="source" position={Position.Bottom} className="!border-0 !bg-transparent" />
     </div>
   );
 }

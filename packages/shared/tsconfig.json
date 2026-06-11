@@ -1,5 +1,3 @@
-// tsconfig cho @cogniva/shared — pure TS lib, không emit (Next.js + Metro tự bundle).
-// Bật strict + isolatedModules để cả web (Next 15) lẫn mobile (Expo 52, Hermes) đều consume được.
 {
   "extends": "@cogniva/tsconfig/base.json",
   "compilerOptions": {

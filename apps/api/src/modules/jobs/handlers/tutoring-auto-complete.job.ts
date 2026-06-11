@@ -1,25 +1,9 @@
-/**
- * Job `tutoring-auto-complete` ('5 * * * *' UTC — mỗi giờ) — Phase 21 V2.
- * Port NGUYÊN semantics từ apps/web/src/jobs/tutoring-auto-complete.ts:
- * booking CONFIRMED/IN_PROGRESS có end_at quá hạn (grace 1h sau end_at —
- * tránh complete buổi còn đang diễn ra) → COMPLETED batch 500; cùng tx set
- * escrow_release_at = now + TUTORING_ESCROW_HOURS (env, default 168h) cho
- * payment CAPTURED chưa có escrow → tutor mới payout được. Sau đó recompute
- * stats per tutor.
- *
- * Idempotent: chạy lại trong cùng giờ thấy 0 booking pending; escrow chỉ set
- * WHERE escrow_release_at IS NULL nên không reset mốc đã có.
- *
- * LƯU Ý: recompute rating ở đây KHÔNG filter hidden_at trên tutor_review
- * (khác refreshTutorStats của route) — GIỮ NGUYÊN khác biệt của bản cron cũ.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { logger } from '@cogniva/server-core';
 
 import { PrismaService } from '../../../infra/database/prisma.service';
 
-/** Grace 1h sau endAt — tránh complete buổi còn đang diễn ra do delay user. */
 const GRACE_MS = 60 * 60 * 1000;
 
 @Injectable()
@@ -67,8 +51,6 @@ export class TutoringAutoCompleteJob {
       });
     });
 
-    // Subquery tương quan như bản Drizzle cũ — Prisma client không express
-    // được nên giữ raw UPDATE per tutor.
     for (const tutorId of tutorIds) {
       await this.prisma.$executeRaw(Prisma.sql`
         UPDATE tutor_profile SET

@@ -1,4 +1,3 @@
-/** /api/leaderboard (public) + /api/analytics — port từ route Next (Wave 2). */
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 

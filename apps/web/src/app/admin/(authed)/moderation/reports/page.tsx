@@ -1,6 +1,3 @@
-/**
- * /admin/moderation/reports — queue content reports.
- */
 import { requireAdmin } from '@/lib/admin/guard';
 import { ReportsListClient } from '@/components/admin/moderation/reports-list-client';
 

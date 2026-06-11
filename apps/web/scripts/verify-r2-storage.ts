@@ -1,11 +1,3 @@
-/**
- * verify-r2-storage — kiểm R2Storage driver chạy đúng hợp đồng Storage.
- *
- * Roundtrip: put → exists(true) → get(so khớp byte) → delete → exists(false).
- * Thêm: đọc lại 1 file đã migrate để chắc app serve được file cũ từ R2.
- *
- * Chạy: cd apps/web && pnpm exec tsx --env-file=.env.local scripts/verify-r2-storage.ts [migratedKey]
- */
 import { R2Storage } from '../src/lib/storage/r2';
 
 async function main() {

@@ -1,9 +1,3 @@
-/**
- * RoomsService — port từ apps/web/src/app/api/rooms/{route,join,[id]/{route,
- * token,collab-token,moderate}}.ts. Wire-shape giữ nguyên route cũ: key order
- * theo Drizzle (room.mappers), message lỗi tiếng Việt nguyên văn, cache
- * key/TTL + invalidator (onRoomChanged) y từng call.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -42,24 +36,17 @@ export class RoomsService {
     private readonly livekit: LivekitService,
   ) {}
 
-  /** Membership của user trong room (mọi status) — dùng chung cho các check quyền. */
   findMembership(roomId: string, userId: string) {
     return this.prisma.room_member.findUnique({
       where: { room_id_user_id: { room_id: roomId, user_id: userId } },
     });
   }
 
-  /** Member ACTIVE? — guard chat/recordings (route cũ query where status='ACTIVE'). */
   async isActiveMember(roomId: string, userId: string): Promise<boolean> {
     const m = await this.findMembership(roomId, userId);
     return m?.status === 'ACTIVE';
   }
 
-  /**
-   * GET /rooms — cache-aside TTL 60s (key ck.roomsList y route cũ), invalidate
-   * qua onRoomChanged tại create/join/delete/moderate. Route cũ count member
-   * bằng subquery ::int — ở đây groupBy ACTIVE trên union id (cùng kết quả).
-   */
   async listRooms(uid: string) {
     const { mine, joined } = await cached(ck.roomsList(uid), 60, async () => {
       const mineRows = await this.prisma.room.findMany({
@@ -114,7 +101,6 @@ export class RoomsService {
     return { mine, joined };
   }
 
-  /** POST /rooms — tạo room + owner member (tx), retry 3 lần nếu joinCode collision. */
   async createRoom(uid: string, input: CreateRoomInput) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -144,7 +130,6 @@ export class RoomsService {
           return created;
         });
 
-        // livekitRoomName = room.id (convention) — set sau insert vì cần id
         await this.prisma.room.update({
           where: { id: result.id },
           data: { livekit_room_name: result.id },
@@ -154,8 +139,6 @@ export class RoomsService {
 
         return { room: { ...toRoomDto(result), livekitRoomName: result.id } };
       } catch (err) {
-        // Route cũ match message '23505'+'join_code' của postgres.js; Prisma báo
-        // unique violation qua P2002 (meta.target chứa join_code) — cùng retry.
         if (
           err instanceof Prisma.PrismaClientKnownRequestError &&
           err.code === 'P2002' &&
@@ -170,7 +153,6 @@ export class RoomsService {
     throw new InternalServerErrorException({ error: 'Không tạo được joinCode unique' });
   }
 
-  /** GET /rooms/:id — PRIVATE + không phải member → 404 (anti-enumeration). */
   async getRoom(uid: string, id: string) {
     const target = await this.prisma.room.findUnique({ where: { id } });
     if (!target) throw new NotFoundException({ error: 'Not found' });
@@ -200,14 +182,12 @@ export class RoomsService {
     return {
       room: {
         ...toRoomDto(target),
-        // undefined → JSON.stringify drop key, y route cũ khi không có quyền xem
         members: canSeeMembers ? members : undefined,
         myRole: myMembership?.role ?? (isOwner ? 'OWNER' : null),
       },
     };
   }
 
-  /** DELETE /rooms/:id — chỉ owner; cascade member/message/recording theo FK. */
   async deleteRoom(uid: string, id: string) {
     const target = await this.prisma.room.findUnique({ where: { id } });
     if (!target) throw new NotFoundException({ error: 'Not found' });
@@ -219,7 +199,6 @@ export class RoomsService {
     return { ok: true };
   }
 
-  /** POST /rooms/join — join qua 6-char code. Parse body trong service (400 'Invalid body'). */
   async joinByCode(uid: string, raw: unknown) {
     const parsed = joinRoomSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: 'Invalid body' });
@@ -256,10 +235,6 @@ export class RoomsService {
     return { roomId: target.id };
   }
 
-  /**
-   * POST /rooms/:id/token — issue LiveKit JWT. Capacity check fail-open
-   * (LiveKit unreachable → vẫn cho join, y route cũ).
-   */
   async issueToken(user: AuthUser, roomId: string, input: RoomTokenInput) {
     const target = await this.prisma.room.findUnique({ where: { id: roomId } });
     if (!target) throw new NotFoundException({ error: 'Not found' });
@@ -292,8 +267,6 @@ export class RoomsService {
     const myRole = existing?.role ?? (isOwner ? 'OWNER' : 'MEMBER');
     const isMod = myRole === 'OWNER' || myRole === 'MODERATOR';
 
-    // Capacity check NGOÀI try-throw: route cũ chỉ swallow lỗi LiveKit call,
-    // còn 403 "đủ người" vẫn trả bình thường.
     let active: number | null = null;
     try {
       active = await this.livekit.getActiveParticipantCount(target.livekit_room_name ?? roomId);
@@ -330,11 +303,6 @@ export class RoomsService {
     };
   }
 
-  /**
-   * POST /rooms/:id/collab-token — JWT HS256 ký bằng JWT_SECRET cho Hocuspocus,
-   * port AS-IS như channels (route cũ dùng jsonwebtoken — api dùng jose, cùng
-   * output HS256 chuẩn iat + exp 15m, Hocuspocus verify interop bình thường).
-   */
   async issueCollabToken(userId: string, roomId: string, raw: unknown) {
     const parsed = collabTokenSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: 'Invalid body' });
@@ -365,11 +333,6 @@ export class RoomsService {
     return { token, url };
   }
 
-  /**
-   * POST /rooms/:id/moderate — mod actions. Permissions:
-   * OWNER tất cả; MODERATOR trừ LOCK/PROMOTE/DEMOTE; MEMBER 403.
-   * Action fail → 500 {error: message} y route cũ.
-   */
   async moderate(uid: string, roomId: string, input: ModerateInput) {
     const callerMember = await this.findMembership(roomId, uid);
     const isOwner = callerMember?.role === 'OWNER';
@@ -389,7 +352,6 @@ export class RoomsService {
       switch (input.action) {
         case 'KICK': {
           const { targetUserId } = input;
-          // 1. Disconnect khỏi LiveKit — participant có thể chưa join → bỏ qua
           try {
             await this.livekit.getRoomService().removeParticipant(lkRoom, targetUserId);
           } catch (err) {
@@ -400,7 +362,7 @@ export class RoomsService {
             data: { status: 'KICKED' },
           });
           await triggerEvent(`presence-user-${targetUserId}`, 'room:kicked', { roomId });
-          await onRoomChanged(targetUserId); // KICKED → room biến khỏi joined-list của target
+          await onRoomChanged(targetUserId);
           break;
         }
 
@@ -409,7 +371,7 @@ export class RoomsService {
           try {
             const participants = await this.livekit.getRoomService().listParticipants(lkRoom);
             const p = participants.find((x) => x.identity === targetUserId);
-            const audioTrack = p?.tracks.find((t) => t.source === 1 /* MICROPHONE */);
+            const audioTrack = p?.tracks.find((t) => t.source === 1);
             if (audioTrack) {
               await this.livekit
                 .getRoomService()
@@ -423,14 +385,15 @@ export class RoomsService {
 
         case 'UNMUTE_REQUEST': {
           const { targetUserId } = input;
-          // Chỉ gửi tín hiệu — LiveKit không force unmute được (privacy)
           await triggerEvent(`presence-user-${targetUserId}`, 'room:unmute-request', { roomId });
           break;
         }
 
         case 'LOCK': {
           const { locked } = input;
-          await this.livekit.getRoomService().updateRoomMetadata(lkRoom, JSON.stringify({ locked }));
+          await this.livekit
+            .getRoomService()
+            .updateRoomMetadata(lkRoom, JSON.stringify({ locked }));
           await triggerEvent(`presence-room-${roomId}`, 'room:lock-changed', { locked });
           break;
         }
@@ -442,7 +405,7 @@ export class RoomsService {
             data: { status: 'ACTIVE', joined_at: new Date() },
           });
           await triggerEvent(`presence-user-${targetUserId}`, 'room:approved', { roomId });
-          await onRoomChanged(targetUserId); // PENDING→ACTIVE → room vào joined-list của target
+          await onRoomChanged(targetUserId);
           break;
         }
 
@@ -453,7 +416,7 @@ export class RoomsService {
             data: { status: 'BANNED' },
           });
           await triggerEvent(`presence-user-${targetUserId}`, 'room:rejected', { roomId });
-          await onRoomChanged(targetUserId); // BANNED → room biến khỏi joined-list của target
+          await onRoomChanged(targetUserId);
           break;
         }
 

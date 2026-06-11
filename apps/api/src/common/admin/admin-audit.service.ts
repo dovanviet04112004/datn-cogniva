@@ -1,8 +1,3 @@
-/**
- * AdminAuditService — port withAudit từ apps/web/src/lib/admin/audit.ts.
- * Ghi admin_audit_log SAU khi mutation thành công (fn throw → không ghi);
- * payload jsonb {before, after, reason, metadata} giữ shape cũ.
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';

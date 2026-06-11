@@ -1,15 +1,3 @@
-/**
- * ThreadPanel — slide-in panel bên phải khi user mở thread của 1 message.
- *
- * Layout:
- *   - Header: "Thread" + tên channel + nút X đóng
- *   - Original message (root) on top
- *   - List replies (asc by createdAt)
- *   - Composer ở dưới — submit POST /thread endpoint
- *
- * Realtime: subscribe `thread:new-reply` qua channel hiện tại, filter theo
- * threadRootId === root.id để append.
- */
 'use client';
 
 import * as React from 'react';
@@ -34,10 +22,6 @@ type Props = {
   channelId: string;
   rootMessageId: string;
   onClose: () => void;
-  /**
-   * V2 G5.4: nếu mount từ ForumChannel → cung cấp context để hiện nút
-   * solution-mark. Text channel không truyền → không có nút.
-   */
   forumContext?: {
     currentUserId: string;
     myRole: GroupRole;
@@ -50,13 +34,14 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
   const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
-  // Thread (root + replies) qua React Query — realtime ghi thẳng vào cache.
-  const { data: threadData, isLoading: loading, error } = useQuery({
+  const {
+    data: threadData,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: qk.thread(channelId, rootMessageId),
     queryFn: () =>
-      apiGet<ThreadData>(
-        `/api/channels/${channelId}/messages/${rootMessageId}/thread`,
-      ),
+      apiGet<ThreadData>(`/api/channels/${channelId}/messages/${rootMessageId}/thread`),
   });
   const root = threadData?.root ?? null;
   const replies = threadData?.replies ?? [];
@@ -72,14 +57,12 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
     }
   }, [replies.length]);
 
-  // Realtime — thread:new-reply (filter theo threadRootId) → append vào cache.
   const onReply = React.useCallback(
     (data: { id: string; threadRootId: string } & Partial<Message>) => {
       if (data.threadRootId !== rootMessageId) return;
       qc.setQueryData<ThreadData>(qk.thread(channelId, rootMessageId), (old) => {
         if (!old) return old;
         if (old.replies.some((x) => x.id === data.id)) return old;
-        // Cast — server payload mỏng hơn full Message, fill defaults
         const m: Message = {
           id: data.id,
           channelId,
@@ -104,7 +87,6 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
   );
   useRealtimeEvent(`private-channel-${channelId}`, 'thread:new-reply', onReply);
 
-  // V2 G5.4: solution change — update isSolution flag trong cache
   const onSolution = React.useCallback(
     (data: { messageId: string; threadRootId: string; isSolution: boolean }) => {
       if (data.threadRootId !== rootMessageId) return;
@@ -114,7 +96,6 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
               ...old,
               replies: old.replies.map((r) => ({
                 ...r,
-                // Khi mark true cho 1 reply: clear flag của reply khác cùng thread
                 isSolution:
                   r.id === data.messageId
                     ? data.isSolution
@@ -130,9 +111,7 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
   );
   useRealtimeEvent(`private-channel-${channelId}`, 'forum:solution', onSolution);
 
-  // V2 G5.4: ai được phép mark solution? Post author HOẶC mod+.
-  const isPostAuthor =
-    !!forumContext && root?.authorId === forumContext.currentUserId;
+  const isPostAuthor = !!forumContext && root?.authorId === forumContext.currentUserId;
   const canMarkSolution =
     !!forumContext && (isPostAuthor || can(forumContext.myRole, 'message.delete-any'));
 
@@ -140,7 +119,6 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
     async (msg: Message) => {
       const next = !msg.isSolution;
       const key = qk.thread(channelId, rootMessageId);
-      // Optimistic UI: ghi thẳng cache, broadcast sẽ sync sau
       qc.setQueryData<ThreadData>(key, (old) =>
         old
           ? {
@@ -153,14 +131,11 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
           : old,
       );
       try {
-        await apiSend(
-          `/api/channels/${channelId}/messages/${msg.id}/solution`,
-          'POST',
-          { mark: next },
-        );
+        await apiSend(`/api/channels/${channelId}/messages/${msg.id}/solution`, 'POST', {
+          mark: next,
+        });
       } catch (err) {
         toast.error('Đánh dấu solution lỗi: ' + (err as Error).message);
-        // Rollback: refetch từ server
         void qc.invalidateQueries({ queryKey: key });
       }
     },
@@ -172,11 +147,9 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
     if (!text || sending) return;
     setSending(true);
     try {
-      await apiSend(
-        `/api/channels/${channelId}/messages/${rootMessageId}/thread`,
-        'POST',
-        { content: text },
-      );
+      await apiSend(`/api/channels/${channelId}/messages/${rootMessageId}/thread`, 'POST', {
+        content: text,
+      });
       setContent('');
     } catch (err) {
       toast.error((err as Error).message);
@@ -186,13 +159,13 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
   };
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l bg-card shadow-xl sm:w-[400px]">
+    <aside className="bg-card fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l shadow-xl sm:w-[400px]">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
         <span className="text-sm font-semibold">Thread</span>
         <button
           onClick={onClose}
           aria-label="Đóng thread"
-          className="ml-auto rounded p-1.5 hover:bg-accent"
+          className="hover:bg-accent ml-auto rounded p-1.5"
         >
           <X className="h-4 w-4" />
         </button>
@@ -202,21 +175,21 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
         <ScrollArea ref={scrollRef} className="h-full">
           <div className="space-y-3 px-3 py-3">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <div className="text-muted-foreground flex items-center justify-center gap-2 py-10 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Đang tải...
               </div>
             ) : !root ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
+              <p className="text-muted-foreground py-10 text-center text-sm">
                 Message gốc không tồn tại
               </p>
             ) : (
               <>
                 <ThreadMessage msg={root} highlight />
-                <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <span className="h-px flex-1 bg-border" />
+                <div className="text-muted-foreground flex items-center gap-2 text-[10px] uppercase tracking-wider">
+                  <span className="bg-border h-px flex-1" />
                   {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
-                  <span className="h-px flex-1 bg-border" />
+                  <span className="bg-border h-px flex-1" />
                 </div>
                 {replies.map((m) => (
                   <ThreadMessage
@@ -232,16 +205,15 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
         </ScrollArea>
       </div>
 
-      <div className="shrink-0 border-t bg-background p-3">
-        <div className="flex items-end gap-2 rounded-md border bg-card px-3 py-2">
+      <div className="bg-background shrink-0 border-t p-3">
+        <div className="bg-card flex items-end gap-2 rounded-md border px-3 py-2">
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 const isTouch =
-                  typeof window !== 'undefined' &&
-                  window.matchMedia('(pointer: coarse)').matches;
+                  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
                 if (!isTouch) {
                   e.preventDefault();
                   send();
@@ -250,7 +222,7 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
             }}
             placeholder="Trả lời trong thread..."
             rows={1}
-            className="flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
+            className="placeholder:text-muted-foreground flex-1 resize-none bg-transparent text-base outline-none sm:text-sm"
           />
           <Button
             onClick={send}
@@ -284,7 +256,6 @@ function ThreadMessage({
         'group relative rounded-md',
         highlight && 'bg-amber-500/5 p-2',
         !highlight && 'p-1',
-        // V2 G5.4: highlight reply được mark là solution
         msg.isSolution && 'border border-emerald-500/40 bg-emerald-500/5 p-2',
       )}
     >
@@ -304,7 +275,7 @@ function ThreadMessage({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-semibold">{msg.authorName ?? 'Anonymous'}</span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-muted-foreground text-[10px]">
               {new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -320,11 +291,7 @@ function ThreadMessage({
                     ? 'bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300'
                     : 'opacity-0 hover:bg-emerald-500/15 hover:text-emerald-700 group-hover:opacity-100 dark:hover:text-emerald-300',
                 )}
-                title={
-                  msg.isSolution
-                    ? 'Bỏ đánh dấu giải pháp'
-                    : 'Đánh dấu là giải pháp'
-                }
+                title={msg.isSolution ? 'Bỏ đánh dấu giải pháp' : 'Đánh dấu là giải pháp'}
               >
                 <Check className="h-3 w-3" />
                 {msg.isSolution ? 'Đã giải đáp' : 'Mark solution'}
@@ -332,7 +299,7 @@ function ThreadMessage({
             )}
           </div>
           {msg.deletedAt ? (
-            <p className="text-xs italic text-muted-foreground">Tin nhắn đã bị xoá</p>
+            <p className="text-muted-foreground text-xs italic">Tin nhắn đã bị xoá</p>
           ) : (
             <>
               {msg.content && (
@@ -355,7 +322,7 @@ function ThreadMessage({
                         href={a.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded bg-muted px-2 py-1 text-xs underline"
+                        className="bg-muted rounded px-2 py-1 text-xs underline"
                       >
                         {a.name}
                       </a>

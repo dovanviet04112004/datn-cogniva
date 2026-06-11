@@ -1,20 +1,7 @@
-/**
- * ChannelHeaderActions — Pin list popover + Search popover ở góc phải header.
- *
- * Render bên trong TextChannel header, sau slow mode badge.
- */
 'use client';
 
 import * as React from 'react';
-import {
-  AtSign,
-  Bell,
-  BellOff,
-  Check,
-  Pin,
-  Search,
-  Loader2,
-} from 'lucide-react';
+import { AtSign, Bell, BellOff, Check, Pin, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -28,11 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { SearchDialog } from './search-dialog';
 
@@ -54,7 +37,6 @@ export function ChannelHeaderActions({
 }) {
   const [searchOpen, setSearchOpen] = React.useState(false);
 
-  // Cmd/Ctrl+K shortcut mở search dialog từ bất kỳ đâu trong channel
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -72,24 +54,20 @@ export function ChannelHeaderActions({
       <PinPopover channelId={channelId} />
       <button
         onClick={() => setSearchOpen(true)}
-        className="rounded p-1.5 hover:bg-accent"
+        className="hover:bg-accent rounded p-1.5"
         title="Tìm tin nhắn (Ctrl+K)"
         aria-label="Search"
       >
-        <Search className="h-4 w-4 text-muted-foreground" />
+        <Search className="text-muted-foreground h-4 w-4" />
       </button>
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} groupId={groupId} />
     </span>
   );
 }
 
-/** V2 G4: 3-state notification per channel — all / mentions / none. */
 type NotifSetting = 'all' | 'mentions' | 'none';
 
-const NOTIF_META: Record<
-  NotifSetting,
-  { label: string; desc: string; icon: typeof Bell }
-> = {
+const NOTIF_META: Record<NotifSetting, { label: string; desc: string; icon: typeof Bell }> = {
   all: {
     label: 'Tất cả tin nhắn',
     desc: 'Push cho mọi tin nhắn mới',
@@ -110,13 +88,12 @@ const NOTIF_META: Record<
 function NotificationSettingMenu({ channelId }: { channelId: string }) {
   const qc = useQueryClient();
 
-  // Setting thông báo channel qua React Query (mount fetch).
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.channelNotificationSetting(channelId),
     queryFn: () =>
-      apiGet<{ setting?: NotifSetting }>(
-        `/api/channels/${channelId}/notification-setting`,
-      ).then((d) => d.setting ?? 'all'),
+      apiGet<{ setting?: NotifSetting }>(`/api/channels/${channelId}/notification-setting`).then(
+        (d) => d.setting ?? 'all',
+      ),
   });
   const setting: NotifSetting = data ?? 'all';
 
@@ -124,7 +101,7 @@ function NotificationSettingMenu({ channelId }: { channelId: string }) {
     if (next === setting) return;
     const key = qk.channelNotificationSetting(channelId);
     const prev = qc.getQueryData<NotifSetting>(key);
-    qc.setQueryData<NotifSetting>(key, next); // optimistic
+    qc.setQueryData<NotifSetting>(key, next);
     try {
       await apiSend(`/api/channels/${channelId}/notification-setting`, 'PUT', {
         setting: next,
@@ -145,17 +122,17 @@ function NotificationSettingMenu({ channelId }: { channelId: string }) {
           type="button"
           disabled={loading}
           className={cn(
-            'rounded p-1.5 transition-colors hover:bg-accent disabled:opacity-50',
+            'hover:bg-accent rounded p-1.5 transition-colors disabled:opacity-50',
             setting !== 'all' && 'text-primary',
           )}
           title={NOTIF_META[setting].label}
           aria-label="Cài đặt thông báo channel"
         >
-          <ActiveIcon className="h-4 w-4 text-muted-foreground" />
+          <ActiveIcon className="text-muted-foreground h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <DropdownMenuLabel className="text-muted-foreground text-[10.5px] font-semibold uppercase tracking-wider">
           Thông báo channel
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -169,18 +146,12 @@ function NotificationSettingMenu({ channelId }: { channelId: string }) {
               onClick={() => setServer(s)}
               className="flex items-start gap-2"
             >
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <Icon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[12.5px] font-medium leading-tight">
-                  {m.label}
-                </p>
-                <p className="mt-0.5 text-[10.5px] text-muted-foreground">
-                  {m.desc}
-                </p>
+                <p className="text-[12.5px] font-medium leading-tight">{m.label}</p>
+                <p className="text-muted-foreground mt-0.5 text-[10.5px]">{m.desc}</p>
               </div>
-              {active && (
-                <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
-              )}
+              {active && <Check className="text-primary mt-1 h-3.5 w-3.5 shrink-0" />}
             </DropdownMenuItem>
           );
         })}
@@ -192,7 +163,6 @@ function NotificationSettingMenu({ channelId }: { channelId: string }) {
 function PinPopover({ channelId }: { channelId: string }) {
   const [open, setOpen] = React.useState(false);
 
-  // Pinned messages qua React Query — lazy fetch khi mở popover.
   const {
     data: items = [],
     isLoading: loading,
@@ -214,25 +184,25 @@ function PinPopover({ channelId }: { channelId: string }) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="rounded p-1.5 hover:bg-accent"
+          className="hover:bg-accent rounded p-1.5"
           title="Pinned messages"
           aria-label="Pinned"
         >
-          <Pin className="h-4 w-4 text-muted-foreground" />
+          <Pin className="text-muted-foreground h-4 w-4" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[360px] p-0">
-        <div className="border-b px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="text-muted-foreground border-b px-3 py-2 text-xs font-semibold uppercase tracking-wider">
           Pinned messages
         </div>
         <div className="max-h-[400px] overflow-auto">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 p-6 text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 p-6 text-xs">
               <Loader2 className="h-3 w-3 animate-spin" />
               Đang tải...
             </div>
           ) : items.length === 0 ? (
-            <div className="p-6 text-center text-xs text-muted-foreground">
+            <div className="text-muted-foreground p-6 text-center text-xs">
               Chưa có tin nào được pin.
               <br />
               Pin tin nhắn quan trọng để member dễ tìm.
@@ -241,7 +211,7 @@ function PinPopover({ channelId }: { channelId: string }) {
             <ul className="divide-y">
               {items.map((m) => (
                 <li key={m.id} className="px-3 py-2">
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-muted-foreground text-[10px]">
                     <span className="font-medium">{m.authorName ?? 'Anonymous'}</span> ·{' '}
                     {new Date(m.createdAt).toLocaleDateString('vi-VN')}
                   </div>
@@ -255,4 +225,3 @@ function PinPopover({ channelId }: { channelId: string }) {
     </Popover>
   );
 }
-

@@ -1,8 +1,3 @@
-/**
- * /api/admin/system/** — flags + maintenance (SUPER_ADMIN cho mutation vì ảnh
- * hưởng toàn user) + jobs status. DELETE flags nhận name/reason qua QUERY
- * params (không body) — quirk route cũ, validate thủ công y nguyên.
- */
 import {
   BadRequestException,
   Body,

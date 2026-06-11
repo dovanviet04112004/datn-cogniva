@@ -1,15 +1,3 @@
-/**
- * RecordingPipelineService — port từ apps/web/src/jobs/process-recording.ts
- * (BullMQ path, dùng bởi RecordingProcessor) + apps/web/src/lib/recording/
- * inline-pipeline.ts (inline path — webhook LiveKit CÒN Ở WEB tới W6, port
- * sẵn cho cutover).
- *
- * Resilience + idempotency (whole-job retry attempts=2 từ producer):
- *   - Early-return nếu status='PROCESSED' (không tốn Whisper + không dup flashcard).
- *   - Checkpoint transcript ngay sau Whisper → retry bỏ qua download+Whisper.
- *   - Persist PROCESSED + flashcards ATOMIC trong 1 transaction.
- *   - Whisper fail → FAILED nhưng giữ video; chapter/flashcard fail → bỏ qua.
- */
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,10 +5,7 @@ import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
-import {
-  onDashboardChanged,
-  onRoomRecordingsChanged,
-} from '@cogniva/server-core/cache/invalidate';
+import { onDashboardChanged, onRoomRecordingsChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 import { EmbeddingService } from '../../infra/ai/embedding.service';
@@ -29,10 +14,6 @@ import { WhisperService } from './media/whisper.service';
 import { detectChapters, type Chapter } from './media/chapters';
 import { SummarizeService, type FlashcardDraft } from './summarize.service';
 
-/**
- * Payload job queue `recording` — NGUỒN CHUẨN ở apps/web/src/queue/jobs.ts
- * (RecordingJob, webhook web còn produce tới W6) — đổi thì sửa cả 2.
- */
 export type RecordingJob = {
   recordingId: string;
   fileUrl: string;
@@ -48,7 +29,6 @@ export type InlinePipelineOpts = {
   recordingId: string;
   fileUrl: string;
   channelId: string;
-  /** Duration từ LiveKit egress info — fallback nếu Whisper không trả. */
   durationHint?: number;
 };
 
@@ -71,11 +51,9 @@ export class RecordingPipelineService {
     private readonly summarize: SummarizeService,
   ) {}
 
-  /** BullMQ job `process` — pipeline đầy đủ (ffmpeg tách audio + flashcards). */
   async processRecording(data: RecordingJob) {
     const { recordingId, fileUrl, roomId, channelId } = data;
 
-    // Checkpoint: đọc state hiện tại của recording.
     const existing = await this.prisma.recording.findUnique({
       where: { id: recordingId },
       select: { status: true, transcript: true, chapters: true, duration_seconds: true },
@@ -85,14 +63,12 @@ export class RecordingPipelineService {
       this.logger.warn(`[process-recording] recording không tồn tại, skip ${recordingId}`);
       return { recordingId, skipped: 'not-found' };
     }
-    // Đã xử lý xong ở lần chạy trước (retry sau khi persist) → KHÔNG làm lại.
     if (existing.status === 'PROCESSED') {
       this.logger.log(`[process-recording] đã PROCESSED, skip (idempotent) ${recordingId}`);
       return { recordingId, skipped: 'already-processed' };
     }
 
     const tmpPaths: string[] = [];
-    // True sau khi đã commit PROCESSED (+ flashcards) → catch KHÔNG revert FAILED.
     let persisted = false;
 
     try {
@@ -103,7 +79,6 @@ export class RecordingPipelineService {
         ? (existing.chapters as unknown as Chapter[])
         : [];
 
-      // ── 1-2. Download + extract audio + Whisper — CHỈ khi chưa có transcript ──
       if (!transcriptText.trim()) {
         const audioPath = await this.ffmpeg.extractAudio(fileUrl);
         this.logger.log(`[process-recording] audio extracted: ${audioPath}`);
@@ -111,7 +86,6 @@ export class RecordingPipelineService {
 
         duration = await this.ffmpeg.getMediaDuration(audioPath);
 
-        // Update sớm: status=PROCESSING + duration để user thấy progress
         await this.prisma.recording.updateMany({
           where: { id: recordingId },
           data: { status: 'PROCESSING', duration_seconds: Math.round(duration) },
@@ -126,8 +100,6 @@ export class RecordingPipelineService {
         transcriptText = transcribeResult?.text ?? '';
         const segments = transcribeResult?.segments ?? [];
 
-        // Checkpoint: persist transcript NGAY sau Whisper → retry bỏ qua bước đắt này.
-        // updateMany: Drizzle update là no-op nếu row biến mất (không throw P2025).
         if (transcriptText.trim()) {
           await this.prisma.recording.updateMany({
             where: { id: recordingId },
@@ -135,7 +107,6 @@ export class RecordingPipelineService {
           });
         }
 
-        // Detect chapters cần segments (chỉ có ở lần Whisper này).
         if (segments.length > 0) {
           try {
             chapters = await detectChapters(segments, {
@@ -152,7 +123,6 @@ export class RecordingPipelineService {
         );
       }
 
-      // ── 3. Summarize (skip nếu transcript rỗng) ──
       if (transcriptText.trim()) {
         try {
           summary = await this.summarize.summarizeTranscript(transcriptText);
@@ -162,7 +132,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── 5. Generate flashcards ──
       let flashcardDrafts: FlashcardDraft[] = [];
       if (transcriptText.trim()) {
         try {
@@ -176,13 +145,11 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── 6. Persist — ATOMIC: status=PROCESSED ⟺ flashcards (1 transaction) ──
       const rec = await this.prisma.recording.findUnique({
         where: { id: recordingId },
         select: { id: true },
       });
       if (rec) {
-        // Owner để gắn flashcard (chỉ room recording — channel nhiều owner, skip).
         let flashcardOwnerId: string | null = null;
         if (flashcardDrafts.length > 0 && roomId) {
           const owner = await this.prisma.room.findUnique({
@@ -221,14 +188,12 @@ export class RecordingPipelineService {
         ]);
         persisted = true;
 
-        // Cache invalidation (fail-open) — ngoài transaction.
         if (roomId) await onRoomRecordingsChanged(roomId);
         if (flashcardOwnerId) await onDashboardChanged(flashcardOwnerId);
       } else {
         this.logger.warn(`[process-recording] recording ${recordingId} biến mất, abort persist`);
       }
 
-      // ── 6b. Voice channel: post system message vào log channel ──
       let logChannelId: string | null = null;
       let voiceChannelName = '';
       if (channelId) {
@@ -239,7 +204,6 @@ export class RecordingPipelineService {
         if (voiceCh) {
           voiceChannelName = voiceCh.name;
 
-          // 1. Try group.recordingLogChannelId
           const grp = await this.prisma.study_group.findUnique({
             where: { id: voiceCh.group_id },
             select: { recording_log_channel_id: true },
@@ -252,7 +216,6 @@ export class RecordingPipelineService {
             if (conf) logChannelId = conf.id;
           }
 
-          // 2. Fallback: TEXT channel đầu tiên theo position
           if (!logChannelId) {
             const firstText = await this.prisma.study_group_channel.findFirst({
               where: { group_id: voiceCh.group_id, type: 'TEXT' },
@@ -312,7 +275,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── 7. Notify ──
       const payload = {
         recordingId,
         summary,
@@ -346,8 +308,6 @@ export class RecordingPipelineService {
       this.logger.error(
         `process-recording.pipeline-fail: ${err instanceof Error ? err.message : String(err)}`,
       );
-      // Mark FAILED — user vẫn xem được video. KHÔNG revert nếu đã PROCESSED
-      // (lỗi ở bước sau persist) — để retry early-return, tránh dup.
       if (!persisted) {
         await this.prisma.recording.updateMany({
           where: { id: recordingId },
@@ -360,12 +320,6 @@ export class RecordingPipelineService {
     }
   }
 
-  /**
-   * Inline pipeline (voice channel) — KHÔNG ffmpeg: gửi MP4 thẳng Whisper,
-   * duration từ Whisper hoặc durationHint. Không retry tự động, không
-   * checkpoint — fail giữa chừng caller gọi lại tay. Caller hiện tại là
-   * webhook LiveKit ở web (tới W6 mới chuyển producer sang api).
-   */
   async runRecordingPipeline(opts: InlinePipelineOpts): Promise<InlinePipelineResult> {
     const { recordingId, fileUrl, channelId, durationHint } = opts;
     let tmpPath: string | null = null;
@@ -373,18 +327,15 @@ export class RecordingPipelineService {
     try {
       this.logger.log(`[inline-pipeline] START ${recordingId} channel=${channelId}`);
 
-      // ── 1. Mark PROCESSING ─────────────────────────
       await this.prisma.recording.updateMany({
         where: { id: recordingId },
         data: { status: 'PROCESSING' },
       });
 
-      // ── 2. Download MP4 ────────────────────────────
       const dl = await this.downloadToTmp(fileUrl);
       tmpPath = dl.path;
       this.logger.log(`[inline-pipeline] downloaded ${dl.sizeBytes} bytes`);
 
-      // ── 3. Transcribe (Whisper hỗ trợ MP4 native — không cần ffmpeg) ──
       let transcriptText = '';
       let segments: Array<{ start: number; end: number; text: string }> = [];
       let durationSec = durationHint ?? 0;
@@ -401,7 +352,6 @@ export class RecordingPipelineService {
         this.logger.warn('[inline-pipeline] Whisper KHÔNG cấu hình — bỏ qua transcribe');
       }
 
-      // ── 4. Summarize ───────────────────────────────
       let summary: string | null = null;
       if (transcriptText.trim()) {
         try {
@@ -413,7 +363,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── 5. Detect chapters (chỉ khi có segments) ──
       let chapters: Chapter[] = [];
       if (segments.length > 0) {
         try {
@@ -427,7 +376,6 @@ export class RecordingPipelineService {
         }
       }
 
-      // ── 6. Persist ─────────────────────────────────
       await this.prisma.recording.updateMany({
         where: { id: recordingId },
         data: {
@@ -435,14 +383,12 @@ export class RecordingPipelineService {
           summary: summary || null,
           chapters:
             chapters.length > 0 ? (chapters as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
-          // undefined → bỏ qua cột, giữ duration cũ (y Drizzle set undefined)
           duration_seconds: durationSec > 0 ? Math.round(durationSec) : undefined,
           status: 'PROCESSED',
           ended_at: new Date(),
         },
       });
 
-      // ── 7. Resolve log channel + post message ──────
       const voiceCh = await this.prisma.study_group_channel.findUnique({
         where: { id: channelId },
         select: { group_id: true, name: true },
@@ -520,7 +466,6 @@ export class RecordingPipelineService {
         this.logger.warn('[inline-pipeline] không tìm thấy log channel — bỏ qua post message');
       }
 
-      // ── 8. Notify replay UI ────────────────────────
       await triggerEvent(`presence-voice-${channelId}`, 'recording:processed', {
         recordingId,
         summary,
@@ -554,7 +499,6 @@ export class RecordingPipelineService {
     }
   }
 
-  /** Download URL về tmp file — y downloadToTmp của inline-pipeline cũ. */
   private async downloadToTmp(url: string): Promise<{ path: string; sizeBytes: number }> {
     const res = await fetch(url);
     if (!res.ok) {

@@ -1,24 +1,3 @@
-/**
- * ChatPanel — sidebar chat realtime trong room.
- *
- * Initial load: GET /api/rooms/{id}/chat → 50 message gần nhất.
- * Subscribe `presence-room-{id}` qua Socket.IO → bind:
- *   - `chat:message`   : tin nhắn mới (text/AI placeholder/system)
- *   - `ai:streaming`   : delta từng token cho AI message (Phase 15)
- *   - `ai:complete`    : AI generation xong → lock final content
- *   - `ai:error`       : AI generation fail → đánh dấu message error
- *
- * Gửi:
- *   - Text thường: POST /api/rooms/{id}/chat
- *   - `@AI <câu hỏi>` ở đầu message: POST /api/rooms/{id}/ai-message
- *     Server insert AI placeholder + stream delta → client nhận qua Socket.IO.
- *
- * UX:
- *   - Auto-scroll xuống cuối khi có message mới (trừ khi user đã scroll lên).
- *   - Bubble AI có badge "AI Tutor" + caret nhấp nháy khi đang stream.
- *   - Enter để gửi, Shift+Enter xuống dòng.
- *   - Hint UI: "Gõ @AI để hỏi gia sư AI" hiển thị khi input rỗng.
- */
 'use client';
 
 import * as React from 'react';
@@ -31,7 +10,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** Trạng thái stream cho AI message — Phase 15. */
 type AiStatus = 'streaming' | 'complete' | 'error';
 
 type Msg = {
@@ -42,7 +20,6 @@ type Msg = {
   content: string;
   type: 'TEXT' | 'FILE' | 'AI' | 'SYSTEM';
   createdAt: string | Date;
-  /** Chỉ có ở type='AI' — track stream state để UI biết khi nào ngừng caret. */
   aiStatus?: AiStatus;
 };
 
@@ -51,7 +28,6 @@ type Props = {
   currentUserId: string;
 };
 
-/** Regex match `@AI` (case-insensitive) ở đầu string (sau optional whitespace). */
 const AI_PREFIX = /^\s*@ai\b\s*/i;
 
 export function ChatPanel({ roomId, currentUserId }: Props) {
@@ -61,7 +37,6 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef(true);
 
-  // Initial load
   React.useEffect(() => {
     fetch(`/api/rooms/${roomId}/chat`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -69,15 +44,11 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
       .catch((err) => console.error('[chat] load fail:', err));
   }, [roomId]);
 
-  // Realtime — chat:message + ai:streaming/complete/error trên presence-room.
-  // (ref-count subscribe trong useRealtimeEvent: nhiều component cùng channel chỉ sub 1 lần.)
   const channel = `presence-room-${roomId}`;
 
   useRealtimeEvent<Msg>(channel, 'chat:message', (data) => {
     setMessages((prev) => {
-      // Trùng ID (server echo) → bỏ qua
       if (prev.some((m) => m.id === data.id)) return prev;
-      // AI message vừa đẻ ra → mark streaming
       return [...prev, data.type === 'AI' ? { ...data, aiStatus: 'streaming' as const } : data];
     });
   });
@@ -107,16 +78,12 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
     toast.error(`AI lỗi: ${data.error}`);
   });
 
-  // Auto-scroll xuống cuối khi có message mới (nếu user đang ở dưới).
-  // Cần phụ thuộc cả content của AI message (đang grow theo stream) để scroll
-  // theo từng token thay vì chỉ khi count thay đổi.
   React.useEffect(() => {
     if (isAtBottomRef.current && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Track xem user có ở bottom không (để quyết định auto-scroll)
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -127,7 +94,6 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
     const content = input.trim();
     if (!content || sending) return;
 
-    // Detect `@AI ...` prefix → route sang AI endpoint
     const aiMatch = content.match(AI_PREFIX);
     const isAiQuery = !!aiMatch;
     const aiQuery = isAiQuery ? content.replace(AI_PREFIX, '').trim() : '';
@@ -140,9 +106,7 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
     setSending(true);
     try {
       if (isAiQuery) {
-        // 1. Trước hết gửi câu hỏi của user vào chat thường (để mọi người thấy)
         await apiSend(`/api/rooms/${roomId}/chat`, 'POST', { content });
-        // 2. Trigger AI — response stream qua Socket.IO, không cần await full
         await apiSend(`/api/rooms/${roomId}/ai-message`, 'POST', {
           message: aiQuery,
         });
@@ -168,16 +132,11 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Message list */}
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-3"
-      >
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto p-3">
         {messages.length === 0 ? (
-          <p className="py-8 text-center text-xs text-muted-foreground">
+          <p className="text-muted-foreground py-8 text-center text-xs">
             Chưa có tin nhắn. Hãy nói câu chào đầu tiên! <br />
-            Gõ <code className="rounded bg-muted px-1">@AI &lt;câu hỏi&gt;</code> để hỏi gia sư AI.
+            Gõ <code className="bg-muted rounded px-1">@AI &lt;câu hỏi&gt;</code> để hỏi gia sư AI.
           </p>
         ) : (
           messages.map((m) => (
@@ -186,7 +145,6 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
         )}
       </div>
 
-      {/* Input */}
       <div className="border-t p-2">
         <div className="flex gap-2">
           <textarea
@@ -197,7 +155,7 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
             rows={2}
             maxLength={2000}
             disabled={sending}
-            className="flex-1 resize-none rounded-md border bg-background px-2 py-1.5 text-sm"
+            className="bg-background flex-1 resize-none rounded-md border px-2 py-1.5 text-sm"
           />
           <Button
             onClick={send}
@@ -211,7 +169,7 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
           </Button>
         </div>
         {willTriggerAI && (
-          <p className="mt-1 text-[11px] text-primary">
+          <p className="text-primary mt-1 text-[11px]">
             <Sparkles className="mr-0.5 inline h-3 w-3" />
             Sẽ gọi AI Tutor — cả phòng sẽ thấy câu trả lời stream realtime.
           </p>
@@ -238,16 +196,17 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
           isError ? 'border-destructive bg-destructive/5' : 'bg-primary/5',
         )}
       >
-        <p className="flex items-center gap-1 text-[11px] font-medium uppercase text-primary">
+        <p className="text-primary flex items-center gap-1 text-[11px] font-medium uppercase">
           <Sparkles className="h-3 w-3" />
           AI Tutor · {time}
-          {isStreaming && <span className="ml-1 text-muted-foreground">đang trả lời...</span>}
-          {isError && <span className="ml-1 text-destructive">lỗi</span>}
+          {isStreaming && <span className="text-muted-foreground ml-1">đang trả lời...</span>}
+          {isError && <span className="text-destructive ml-1">lỗi</span>}
         </p>
         <p className="mt-0.5 whitespace-pre-wrap text-sm">
           {message.content || (isStreaming ? '...' : '[empty]')}
-          {/* Caret nhấp nháy ở cuối khi đang stream */}
-          {isStreaming && <span className="ml-0.5 inline-block h-3 w-1 animate-pulse bg-primary align-middle" />}
+          {isStreaming && (
+            <span className="bg-primary ml-0.5 inline-block h-3 w-1 animate-pulse align-middle" />
+          )}
         </p>
       </div>
     );
@@ -255,7 +214,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
 
   if (message.type === 'SYSTEM') {
     return (
-      <p className="text-center text-[11px] italic text-muted-foreground">{message.content}</p>
+      <p className="text-muted-foreground text-center text-[11px] italic">{message.content}</p>
     );
   }
 
@@ -266,7 +225,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
         <AvatarFallback className="text-[10px]">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>
       </Avatar>
       <div className={cn('flex max-w-[80%] flex-col', isOwn && 'items-end')}>
-        <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
+        <div className="text-muted-foreground flex items-baseline gap-2 text-[11px]">
           <span className="font-medium">{isOwn ? 'Bạn' : name}</span>
           <span>{time}</span>
         </div>

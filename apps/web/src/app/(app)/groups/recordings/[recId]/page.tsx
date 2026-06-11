@@ -1,25 +1,7 @@
-/**
- * /groups/recordings/[recId] — Replay page cho 1 voice channel recording.
- *
- * Server component:
- *   1. Auth + verify user là member của studyGroup chứa channel (chống IDOR).
- *   2. Load recording row + channel name + group meta.
- *   3. Render ReplayClient (reuse từ rooms — UI giống hệt).
- *
- * URL pattern: /groups/recordings/{id} — chỉ cần recordingId, không cần
- * channelId trong path vì PK đủ unique. System message AI Tutor trong channel
- * link đến route này (xem process-recording.ts).
- */
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
-import {
-  db,
-  recording,
-  studyGroup,
-  studyGroupChannel,
-  studyGroupMember,
-} from '@cogniva/db';
+import { db, recording, studyGroup, studyGroupChannel, studyGroupMember } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
 import { ReplayClient } from '@/components/rooms/replay-client';
@@ -34,14 +16,9 @@ export default async function GroupRecordingReplayPage({ params }: Props) {
   if (!session) redirect('/sign-in');
   const { recId } = await params;
 
-  const [rec] = await db
-    .select()
-    .from(recording)
-    .where(eq(recording.id, recId))
-    .limit(1);
+  const [rec] = await db.select().from(recording).where(eq(recording.id, recId)).limit(1);
   if (!rec || !rec.studyGroupChannelId) notFound();
 
-  // Verify member của group chứa channel
   const [ch] = await db
     .select({ groupId: studyGroupChannel.groupId, name: studyGroupChannel.name })
     .from(studyGroupChannel)
@@ -53,10 +30,7 @@ export default async function GroupRecordingReplayPage({ params }: Props) {
     .select({ id: studyGroupMember.id, role: studyGroupMember.role })
     .from(studyGroupMember)
     .where(
-      and(
-        eq(studyGroupMember.groupId, ch.groupId),
-        eq(studyGroupMember.userId, session.user.id),
-      ),
+      and(eq(studyGroupMember.groupId, ch.groupId), eq(studyGroupMember.userId, session.user.id)),
     )
     .limit(1);
   if (!member) notFound();
@@ -68,7 +42,6 @@ export default async function GroupRecordingReplayPage({ params }: Props) {
     .where(eq(studyGroup.id, ch.groupId))
     .limit(1);
 
-  // Recording chưa kết thúc → quay lại channel
   if (rec.status === 'RECORDING') {
     redirect(`/groups/${ch.groupId}?channel=${rec.studyGroupChannelId}`);
   }

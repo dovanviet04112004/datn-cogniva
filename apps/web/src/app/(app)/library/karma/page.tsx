@@ -1,10 +1,3 @@
-/**
- * /library/karma — Phase 4 karma leaderboard page (2026-05-27).
- *
- * 2 sections:
- *   1. Top 20 contributors theo karma points (medal cho top 3)
- *   2. Recent karma events activity feed (15 latest)
- */
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -21,14 +14,11 @@ import {
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-// SectionHeading dùng chung toàn app — thay khối tiêu đề mục gradient cũ.
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
 import { getServerT } from '@/lib/i18n/server';
 import { getKarmaBoard } from '@/lib/library/get-karma-board';
 
-// Route bị (app)/layout ép dynamic; data công khai cache ở tầng DATA qua
-// unstable_cache trong getKarmaBoard (revalidate 5 phút).
 export const dynamic = 'force-dynamic';
 
 const EVENT_META: Record<
@@ -69,13 +59,12 @@ export default async function KarmaLeaderboardPage() {
     <PageShell size="wide">
       <Link
         href="/library"
-        className="mb-3 inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-[12px]"
       >
         <ArrowLeft className="h-3 w-3" />
         {t('library.back')}
       </Link>
 
-      {/* Hero CHUNG — chip Crown cũ → eyebrowIcon, title/subtitle giữ nguyên. */}
       <PageHero
         eyebrow="Karma"
         eyebrowIcon={Crown}
@@ -84,17 +73,13 @@ export default async function KarmaLeaderboardPage() {
         className="mb-6"
       />
 
-      {/* Stats summary */}
       {totalsByType.length > 0 && (
         <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           {totalsByType.map((row) => {
             const meta = EVENT_META[row.eventType] ?? EVENT_META.doc_imported!;
             const Icon = meta.icon;
             return (
-              <div
-                key={row.eventType}
-                className="rounded-xl border border-divider bg-card p-3"
-              >
+              <div key={row.eventType} className="border-divider bg-card rounded-xl border p-3">
                 <div className={cn('mb-1 flex items-center gap-1.5', meta.color)}>
                   <Icon className="h-3.5 w-3.5" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider">
@@ -104,7 +89,7 @@ export default async function KarmaLeaderboardPage() {
                 <p className="text-xl font-bold tabular-nums">
                   {row.total.toLocaleString('vi-VN')}
                 </p>
-                <p className="text-[10.5px] text-muted-foreground">
+                <p className="text-muted-foreground text-[10.5px]">
                   +{row.totalPoints} {t('library.karma.pts_total')}
                 </p>
               </div>
@@ -114,9 +99,7 @@ export default async function KarmaLeaderboardPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        {/* Leaderboard */}
         <section>
-          {/* Tiêu đề mục bảng xếp hạng + count — SectionHeading chung. */}
           <SectionHeading count={leaderboard.length}>
             <span className="inline-flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
@@ -124,8 +107,8 @@ export default async function KarmaLeaderboardPage() {
             </span>
           </SectionHeading>
           {leaderboard.length === 0 ? (
-            <div className="rounded-xl border border-divider bg-card p-8 text-center">
-              <p className="text-[12.5px] text-muted-foreground">
+            <div className="border-divider bg-card rounded-xl border p-8 text-center">
+              <p className="text-muted-foreground text-[12.5px]">
                 {t('library.karma.empty_leaderboard')}
               </p>
             </div>
@@ -138,7 +121,7 @@ export default async function KarmaLeaderboardPage() {
                   <li
                     key={l.userId}
                     className={cn(
-                      'flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors',
+                      'bg-card flex items-center gap-3 rounded-xl border p-3 transition-colors',
                       isTop3
                         ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/5 to-transparent'
                         : 'border-divider',
@@ -160,16 +143,14 @@ export default async function KarmaLeaderboardPage() {
                     </div>
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={l.image ?? undefined} />
-                      <AvatarFallback>
-                        {(l.name ?? '?')[0]?.toUpperCase()}
-                      </AvatarFallback>
+                      <AvatarFallback>{(l.name ?? '?')[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-semibold">
                         {l.name ?? t('library.karma.anonymous')}
                       </p>
                       {l.lastEventAt && (
-                        <p className="text-[10.5px] text-muted-foreground">
+                        <p className="text-muted-foreground text-[10.5px]">
                           {t('library.karma.last_earn')}{' '}
                           {new Date(l.lastEventAt).toLocaleDateString('vi-VN')}
                         </p>
@@ -179,7 +160,7 @@ export default async function KarmaLeaderboardPage() {
                       <p className="text-lg font-bold tabular-nums">
                         {l.points.toLocaleString('vi-VN')}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{t('library.karma.pts')}</p>
+                      <p className="text-muted-foreground text-[10px]">{t('library.karma.pts')}</p>
                     </div>
                   </li>
                 );
@@ -188,17 +169,15 @@ export default async function KarmaLeaderboardPage() {
           )}
         </section>
 
-        {/* Recent activity */}
         <aside>
-          {/* Tiêu đề mục hoạt động gần đây — SectionHeading chung. */}
           <SectionHeading>
             <span className="inline-flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <Sparkles className="text-primary h-3.5 w-3.5" />
               {t('library.karma.recent_activity')}
             </span>
           </SectionHeading>
           {recentEvents.length === 0 ? (
-            <p className="rounded-xl border border-divider bg-card p-4 text-center text-[12px] text-muted-foreground">
+            <p className="border-divider bg-card text-muted-foreground rounded-xl border p-4 text-center text-[12px]">
               {t('library.karma.no_events')}
             </p>
           ) : (
@@ -206,10 +185,7 @@ export default async function KarmaLeaderboardPage() {
               {recentEvents.map((e) => {
                 const meta = EVENT_META[e.eventType] ?? EVENT_META.doc_imported!;
                 return (
-                  <li
-                    key={e.id}
-                    className="rounded-lg border border-divider bg-card p-2.5"
-                  >
+                  <li key={e.id} className="border-divider bg-card rounded-lg border p-2.5">
                     <div className="flex items-start gap-2">
                       <Avatar className="h-6 w-6">
                         <AvatarImage src={e.userImage ?? undefined} />
@@ -228,12 +204,12 @@ export default async function KarmaLeaderboardPage() {
                         {e.docId && e.docTitle && (
                           <Link
                             href={`/library/${e.docId}`}
-                            className="line-clamp-1 text-[10.5px] text-muted-foreground hover:text-foreground"
+                            className="text-muted-foreground hover:text-foreground line-clamp-1 text-[10.5px]"
                           >
                             → {e.docTitle}
                           </Link>
                         )}
-                        <p className="text-[9.5px] text-muted-foreground/70">
+                        <p className="text-muted-foreground/70 text-[9.5px]">
                           {new Date(e.createdAt).toLocaleString('vi-VN')}
                         </p>
                       </div>
@@ -255,9 +231,8 @@ export default async function KarmaLeaderboardPage() {
         </aside>
       </div>
 
-      {/* Karma earning guide */}
-      <section className="mt-8 rounded-2xl border border-divider bg-muted/30 p-4">
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <section className="border-divider bg-muted/30 mt-8 rounded-2xl border p-4">
+        <p className="text-muted-foreground mb-2 text-[11px] font-semibold uppercase tracking-wider">
           {t('library.karma.how_to_earn')}
         </p>
         <ul className="grid gap-2 text-[12px] sm:grid-cols-2">
@@ -268,7 +243,7 @@ export default async function KarmaLeaderboardPage() {
             {t('library.karma.earn_import')}
           </li>
           <li className="flex items-center gap-2">
-            <span className="rounded-full bg-discovery-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-discovery-700 dark:text-discovery-300">
+            <span className="bg-discovery-500/15 text-discovery-700 dark:text-discovery-300 rounded-full px-1.5 py-0.5 font-mono text-[10px] font-semibold">
               +5
             </span>
             {t('library.karma.earn_remix')}

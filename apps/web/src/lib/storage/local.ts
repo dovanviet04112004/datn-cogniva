@@ -1,16 +1,3 @@
-/**
- * Local filesystem storage — implementation đơn giản cho dev.
- *
- * Lưu file dưới `<UPLOADS_DIR>/<key>` — UPLOADS_DIR mặc định là
- * `<cwd>/uploads` (tức là apps/web/uploads/ khi dev qua next dev).
- *
- * Lưu ý:
- *  - Tự tạo thư mục con nếu chưa có (key có thể chứa '/').
- *  - KHÔNG cho phép key chứa '..' để tránh path traversal — schema sinh
- *    key dạng "userId/docId.ext" đều an toàn nhưng vẫn check defensive.
- *  - Production phải swap sang R2 (file local biến mất khi serverless
- *    instance restart, không share giữa nhiều worker).
- */
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -40,7 +27,6 @@ export class LocalStorage implements Storage {
     try {
       await fs.unlink(safeJoin(key));
     } catch (err) {
-      // Bỏ qua "không tồn tại" — đồng nhất với behavior của object storage
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     }
   }

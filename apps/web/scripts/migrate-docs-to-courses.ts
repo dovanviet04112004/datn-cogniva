@@ -1,27 +1,8 @@
-/**
- * Migrate docs → University/Course model (migration 0053 follow-up, 2026-05-27).
- *
- * One-time + idempotent:
- *   1. Seed ~10 trường đại học VN lớn (pool autocomplete cho upload).
- *   2. Với mỗi doc PUBLISHED chưa có course_id: derive tên course từ
- *      SUBJECT_BY_SLUG[subject].name + grade (K-12) hoặc subject name (ADULT/UNI),
- *      upsert course general (university=null), set doc.course_id +
- *      course_name_cache, recompute course.doc_count.
- *
- * Usage:
- *   pnpm exec tsx --env-file=.env.local scripts/migrate-docs-to-courses.ts
- */
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
-import {
-  db,
-  libraryCourse,
-  libraryDoc,
-  libraryUniversity,
-} from '@cogniva/db';
+import { db, libraryCourse, libraryDoc, libraryUniversity } from '@cogniva/db';
 import { SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
-// Trường VN lớn — seed pool cho autocomplete (chưa cần doc).
 const SEED_UNIVERSITIES: Array<{ slug: string; name: string; shortName: string }> = [
   { slug: 'hust', name: 'Đại học Bách Khoa Hà Nội', shortName: 'HUST' },
   { slug: 'vnu-uet', name: 'Trường ĐH Công nghệ - ĐHQGHN', shortName: 'VNU-UET' },
@@ -35,8 +16,10 @@ const SEED_UNIVERSITIES: Array<{ slug: string; name: string; shortName: string }
   { slug: 'hlu', name: 'Đại học Luật Hà Nội', shortName: 'HLU' },
 ];
 
-/** Tạo course name + slug từ subject + grade. */
-function deriveCourse(subjectSlug: string, grade: number | null): {
+function deriveCourse(
+  subjectSlug: string,
+  grade: number | null,
+): {
   name: string;
   slug: string;
 } {
@@ -53,7 +36,6 @@ function deriveCourse(subjectSlug: string, grade: number | null): {
 }
 
 async function main() {
-  // 1. Seed universities (idempotent)
   for (const u of SEED_UNIVERSITIES) {
     await db
       .insert(libraryUniversity)
@@ -62,7 +44,6 @@ async function main() {
   }
   console.log(`✅ Seeded ${SEED_UNIVERSITIES.length} universities`);
 
-  // 2. Docs chưa có course
   const docs = await db
     .select({
       id: libraryDoc.id,
@@ -75,7 +56,6 @@ async function main() {
 
   console.log(`Found ${docs.length} docs cần gán course`);
 
-  // Cache course theo slug để không query lặp
   const courseBySlug = new Map<string, string>();
 
   for (const doc of docs) {
@@ -83,7 +63,6 @@ async function main() {
 
     let courseId = courseBySlug.get(slug);
     if (!courseId) {
-      // Upsert course general (university=null). Unique (coalesce(uni,''), slug).
       const [existing] = await db
         .select({ id: libraryCourse.id })
         .from(libraryCourse)
@@ -107,7 +86,6 @@ async function main() {
       .where(eq(libraryDoc.id, doc.id));
   }
 
-  // 3. Recompute doc_count mỗi course
   await db.execute(sql`
     UPDATE library_course c
     SET doc_count = (

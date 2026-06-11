@@ -1,8 +1,3 @@
-/**
- * Helpers chung cho route admin — giữ NGUYÊN semantics parse của route cũ:
- * limit clamp 1..100 (NaN → default 50), cursor/date không hợp lệ thì BỎ QUA
- * (không 400) — golden diff phụ thuộc hành vi này.
- */
 export const MAX_LIMIT = 100;
 
 export function parseLimit(raw: string | undefined, fallback = 50): number {
@@ -16,5 +11,4 @@ export function parseDateParam(raw: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export const isoOrNull = (d: Date | null | undefined): string | null =>
-  d?.toISOString() ?? null;
+export const isoOrNull = (d: Date | null | undefined): string | null => d?.toISOString() ?? null;

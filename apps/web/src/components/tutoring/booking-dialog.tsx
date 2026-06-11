@@ -1,15 +1,3 @@
-/**
- * BookingDialog — student book buổi học từ availability matrix tutor.
- *
- * Flow:
- *   1. Render danh sách subject của tutor → user pick (auto-select nếu chỉ 1).
- *   2. Render 7 ngày tới (vertical list) — mỗi ngày hiển thị slot khả dụng
- *      parse từ tutor_availability theo day_of_week. Slot có thể dài (2-3h)
- *      → user pick start + duration (60/90/120 phút).
- *   3. Optional message ngắn tới tutor.
- *   4. POST /api/tutoring/bookings.
- *   5. Redirect /tutoring/bookings/[id].
- */
 'use client';
 
 import * as React from 'react';
@@ -26,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 export type AvailabilitySlot = {
   dayOfWeek: number;
-  startTime: string; // HH:MM
+  startTime: string;
   endTime: string;
 };
 
@@ -65,10 +53,6 @@ function buildLocalDate(date: Date, hm: string): Date {
   return d;
 }
 
-/**
- * Generate 7-day window starting tomorrow (booking phải trước ≥1h, đơn giản
- * dùng tomorrow để không phải tính giờ phức tạp).
- */
 function next7Days(): Date[] {
   const days: Date[] = [];
   const start = new Date();
@@ -82,15 +66,7 @@ function next7Days(): Date[] {
   return days;
 }
 
-/**
- * Tìm các start time hợp lệ trong 1 ngày — slot phải chứa được duration phút.
- * Trả về list HH:MM cho user chọn (mặc định step 30 phút).
- */
-function validStarts(
-  slots: AvailabilitySlot[],
-  dayOfWeek: number,
-  durationMin: number,
-): string[] {
+function validStarts(slots: AvailabilitySlot[], dayOfWeek: number, durationMin: number): string[] {
   const daySlots = slots.filter((s) => s.dayOfWeek === dayOfWeek);
   const starts: string[] = [];
   for (const s of daySlots) {
@@ -121,25 +97,19 @@ export function BookingDialog({
   hourlyRateVnd: number;
   subjects: TutorSubjectMini[];
   availability: AvailabilitySlot[];
-  /** V4 T2: tutor opt-in instant book → status = CONFIRMED ngay. */
   instantBookEnabled?: boolean;
-  /** V4 T2: student chưa từng book trial với tutor này. */
   trialEligible?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
-  const [subjectId, setSubjectId] = React.useState(
-    subjects.length === 1 ? subjects[0]!.id : '',
-  );
+  const [subjectId, setSubjectId] = React.useState(subjects.length === 1 ? subjects[0]!.id : '');
   const days = React.useMemo(next7Days, []);
   const [dayIdx, setDayIdx] = React.useState(0);
-  /** V4 T2: trial 30 phút → duration auto 30, lock change. */
   const [isTrial, setIsTrial] = React.useState(false);
   const [durationMin, setDurationMin] = React.useState<(typeof DURATIONS)[number]>(60);
 
-  // Trial bật → force duration = 30, disable picker
   React.useEffect(() => {
     if (isTrial) setDurationMin(30);
     else if (durationMin === 30) setDurationMin(60);
@@ -156,7 +126,6 @@ export function BookingDialog({
   );
 
   React.useEffect(() => {
-    // Reset start khi đổi day/duration
     setStartTime(null);
   }, [dayIdx, durationMin]);
 
@@ -188,9 +157,7 @@ export function BookingDialog({
       });
       if (!res.ok) {
         const e = (await res.json().catch(() => null)) as { error?: unknown } | null;
-        throw new Error(
-          typeof e?.error === 'string' ? e.error : 'Booking thất bại',
-        );
+        throw new Error(typeof e?.error === 'string' ? e.error : 'Booking thất bại');
       }
       const data = (await res.json()) as {
         booking: { id: string };
@@ -214,15 +181,14 @@ export function BookingDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <Calendar className="h-4 w-4 text-primary" />
+            <Calendar className="text-primary h-4 w-4" />
             Đặt buổi học với {tutorName}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* V4 T2: Instant book + trial highlight banner */}
           {(instantBookEnabled || trialEligible) && (
-            <div className="flex flex-wrap gap-2 rounded-xl border border-discovery-500/20 bg-discovery-500/5 px-3 py-2 text-[11.5px] text-discovery-700 dark:text-discovery-300">
+            <div className="border-discovery-500/20 bg-discovery-500/5 text-discovery-700 dark:text-discovery-300 flex flex-wrap gap-2 rounded-xl border px-3 py-2 text-[11.5px]">
               {instantBookEnabled && (
                 <span className="inline-flex items-center gap-1">
                   <Zap className="h-3 w-3" />
@@ -241,27 +207,25 @@ export function BookingDialog({
             </div>
           )}
 
-          {/* V4 T2: Trial toggle (chỉ hiện nếu eligible) */}
           {trialEligible && (
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-divider bg-card px-3 py-2.5 transition-colors hover:border-discovery-500/40">
+            <label className="border-divider bg-card hover:border-discovery-500/40 flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors">
               <input
                 type="checkbox"
                 checked={isTrial}
                 onChange={(e) => setIsTrial(e.target.checked)}
-                className="h-4 w-4 accent-discovery-500"
+                className="accent-discovery-500 h-4 w-4"
               />
               <div className="flex-1">
                 <p className="text-[13px] font-medium">Đặt trial 30 phút (-50%)</p>
-                <p className="text-[10.5px] text-muted-foreground">
+                <p className="text-muted-foreground text-[10.5px]">
                   Trải nghiệm lần đầu — sau đó đặt buổi học chính thức nếu phù hợp.
                 </p>
               </div>
             </label>
           )}
 
-          {/* Subject */}
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="text-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Môn học
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -277,7 +241,7 @@ export function BookingDialog({
                     className={cn(
                       'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all',
                       active
-                        ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                        ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                         : 'bg-muted/40 text-muted-foreground hover:bg-muted',
                     )}
                   >
@@ -290,9 +254,8 @@ export function BookingDialog({
             </div>
           </div>
 
-          {/* Day picker */}
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="text-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Ngày
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -312,20 +275,21 @@ export function BookingDialog({
                         ? 'bg-primary text-primary-foreground shadow-soft'
                         : hasSlot
                           ? 'bg-muted/40 text-muted-foreground hover:bg-muted'
-                          : 'cursor-not-allowed bg-muted/20 text-muted-foreground/40',
+                          : 'bg-muted/20 text-muted-foreground/40 cursor-not-allowed',
                     )}
                   >
                     <span className="opacity-80">{DAY_NAMES[dayN]?.slice(0, 4)}</span>
-                    <span className="font-mono text-sm tabular-nums">{d.getDate()}/{d.getMonth() + 1}</span>
+                    <span className="font-mono text-sm tabular-nums">
+                      {d.getDate()}/{d.getMonth() + 1}
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Duration — disabled khi isTrial (lock 30 phút) */}
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="text-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Độ dài
             </p>
             <div className="flex gap-1.5">
@@ -341,9 +305,9 @@ export function BookingDialog({
                     className={cn(
                       'flex-1 rounded-xl px-3 py-2 text-xs font-medium transition-all',
                       active
-                        ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30'
+                        ? 'bg-primary/10 text-primary ring-primary/30 ring-1 ring-inset'
                         : disabled
-                          ? 'cursor-not-allowed bg-muted/20 text-muted-foreground/40'
+                          ? 'bg-muted/20 text-muted-foreground/40 cursor-not-allowed'
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted',
                     )}
                   >
@@ -354,13 +318,12 @@ export function BookingDialog({
             </div>
           </div>
 
-          {/* Time slots */}
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="text-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Giờ bắt đầu
             </p>
             {starts.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-divider bg-card/40 px-4 py-3 text-xs text-muted-foreground">
+              <p className="border-divider bg-card/40 text-muted-foreground rounded-xl border border-dashed px-4 py-3 text-xs">
                 Không có slot {durationMin} phút trong ngày này — đổi ngày hoặc rút ngắn buổi.
               </p>
             ) : (
@@ -373,7 +336,7 @@ export function BookingDialog({
                       type="button"
                       onClick={() => setStartTime(t)}
                       className={cn(
-                        'rounded-lg px-2 py-1.5 text-xs font-mono tabular-nums transition-all',
+                        'rounded-lg px-2 py-1.5 font-mono text-xs tabular-nums transition-all',
                         active
                           ? 'bg-primary text-primary-foreground shadow-soft'
                           : 'bg-muted/40 text-muted-foreground hover:bg-muted',
@@ -387,9 +350,8 @@ export function BookingDialog({
             )}
           </div>
 
-          {/* Message */}
           <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="text-text-muted mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Lời nhắn cho gia sư (tuỳ chọn)
             </p>
             <textarea
@@ -398,28 +360,28 @@ export function BookingDialog({
               rows={2}
               maxLength={500}
               placeholder="VD: Em đang yếu phần Tích phân, mong cô luyện đề trắc nghiệm."
-              className="block w-full rounded-xl border border-input bg-surface px-3 py-2 text-sm shadow-soft transition-all focus-visible:border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/15 focus-visible:outline-none"
+              className="border-input bg-surface shadow-soft focus-visible:border-primary/40 focus-visible:ring-primary/15 block w-full rounded-xl border px-3 py-2 text-sm transition-all focus-visible:outline-none focus-visible:ring-4"
             />
-            <p className="mt-0.5 text-[10.5px] text-text-muted">
-              {message.length}/500
-            </p>
+            <p className="text-text-muted mt-0.5 text-[10.5px]">{message.length}/500</p>
           </div>
 
-          {/* Summary */}
           {startTime && subjectDef && (
-            <div className="rounded-xl bg-primary/5 p-3 text-sm ring-1 ring-primary/15">
+            <div className="bg-primary/5 ring-primary/15 rounded-xl p-3 text-sm ring-1">
               <p className="font-semibold">
                 {subjectDef.emoji} {subjectDef.name}
                 {isTrial && (
-                  <span className="ml-2 rounded-full bg-discovery-500/15 px-2 py-0.5 text-[10px] font-semibold text-discovery-700 dark:text-discovery-300">
+                  <span className="bg-discovery-500/15 text-discovery-700 dark:text-discovery-300 ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold">
                     TRIAL -50%
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-xs">
                 <Clock className="mr-1 inline h-3 w-3" />
-                {DAY_NAMES[selectedDay.getDay()]} {selectedDay.getDate()}/{selectedDay.getMonth() + 1} ·{' '}
-                <span className="font-mono">{startTime} - {addMinutes(startTime, durationMin)}</span>
+                {DAY_NAMES[selectedDay.getDay()]} {selectedDay.getDate()}/
+                {selectedDay.getMonth() + 1} ·{' '}
+                <span className="font-mono">
+                  {startTime} - {addMinutes(startTime, durationMin)}
+                </span>
               </p>
               <p className="mt-1 text-xs">
                 Tổng:{' '}
@@ -427,12 +389,12 @@ export function BookingDialog({
                   {totalVnd.toLocaleString('vi-VN')}đ
                 </span>
                 {isTrial && (
-                  <span className="ml-2 text-muted-foreground line-through">
+                  <span className="text-muted-foreground ml-2 line-through">
                     {baseTotal.toLocaleString('vi-VN')}đ
                   </span>
                 )}
               </p>
-              <p className="mt-1 text-[10.5px] text-muted-foreground">
+              <p className="text-muted-foreground mt-1 text-[10.5px]">
                 {instantBookEnabled
                   ? '⚡ Đặt ngay — gia sư xác nhận tức thì'
                   : 'Gia sư sẽ confirm trong vòng 24 giờ'}

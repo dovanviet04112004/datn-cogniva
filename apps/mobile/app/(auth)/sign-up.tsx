@@ -1,7 +1,3 @@
-/**
- * Sign-up screen — email + password (+ tên tuỳ chọn). COPPA đã cắt khỏi scope
- * 2026-06-10 (không còn DOB/parent email) — gọi API auth V2 (NestJS).
- */
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -49,10 +45,7 @@ export default function SignUpScreen() {
         name: name.trim() || undefined,
       });
     } catch (err) {
-      Alert.alert(
-        'Đăng ký thất bại',
-        err instanceof Error ? err.message : 'Có lỗi xảy ra.',
-      );
+      Alert.alert('Đăng ký thất bại', err instanceof Error ? err.message : 'Có lỗi xảy ra.');
     }
   };
 

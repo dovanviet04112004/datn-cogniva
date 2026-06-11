@@ -1,15 +1,3 @@
-/**
- * PremiumPurchaseButton — Phase 4 Step 5 (2026-05-27).
- *
- * CTA mua doc premium. Hiển thị giá VND + state loading + toast feedback.
- *
- * Flow:
- *   1. Click → POST /api/library/docs/{id}/purchase
- *   2. 200 + ok=true → toast success + router.refresh() để re-render preview
- *      với access mới (server-side check sẽ pass)
- *   3. 402 → "ví không đủ" + link tới /wallet
- *   4. 409/400/error → toast error
- */
 'use client';
 
 import * as React from 'react';
@@ -65,7 +53,9 @@ export function PremiumPurchaseButton({
       } else if (data.already) {
         toast.info(t('library.purchase.already'));
       } else {
-        toast.success(`${t('library.purchase.success_prefix')} ${priceVnd.toLocaleString('vi-VN')}đ`);
+        toast.success(
+          `${t('library.purchase.success_prefix')} ${priceVnd.toLocaleString('vi-VN')}đ`,
+        );
       }
       router.refresh();
     } catch (err) {
@@ -90,7 +80,7 @@ export function PremiumPurchaseButton({
         onClick={buy}
         disabled={loading}
         size="lg"
-        className="bg-discovery-600 text-white hover:bg-discovery-700"
+        className="bg-discovery-600 hover:bg-discovery-700 text-white"
       >
         {loading ? (
           <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
@@ -99,9 +89,9 @@ export function PremiumPurchaseButton({
         )}
         {t('library.purchase.buy_now')} {priceVnd.toLocaleString('vi-VN')}đ
       </Button>
-      <p className="text-center text-[10.5px] text-muted-foreground">
-        <Lock className="inline-block h-2.5 w-2.5" /> {t('library.purchase.creator_gets')} {creatorSharePct}% · {t('library.purchase.cogniva_keeps')} {100 - creatorSharePct}%
-        ·{' '}
+      <p className="text-muted-foreground text-center text-[10.5px]">
+        <Lock className="inline-block h-2.5 w-2.5" /> {t('library.purchase.creator_gets')}{' '}
+        {creatorSharePct}% · {t('library.purchase.cogniva_keeps')} {100 - creatorSharePct}% ·{' '}
         <Link href="/wallet" className="font-semibold underline">
           {t('library.purchase.wallet_balance')}
         </Link>
@@ -110,10 +100,6 @@ export function PremiumPurchaseButton({
   );
 }
 
-/**
- * PremiumLockedPreview — placeholder hiện thay cho DocPreviewPanel khi doc
- * premium chưa được mua. Hiển thị blur thumbnail + giá + nút mua.
- */
 export function PremiumLockedPreview({
   docId,
   priceVnd,
@@ -129,8 +115,7 @@ export function PremiumLockedPreview({
 }) {
   const t = useT();
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-discovery-500/30 bg-card shadow-md">
-      {/* Blurred thumb backdrop */}
+    <div className="border-discovery-500/30 bg-card relative overflow-hidden rounded-2xl border shadow-md">
       <div className="relative h-[560px] w-full overflow-hidden">
         {thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -140,26 +125,21 @@ export function PremiumLockedPreview({
             className="h-full w-full scale-110 object-cover blur-md brightness-50"
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-discovery-600/30 via-fuchsia-600/20 to-purple-700/30" />
+          <div className="from-discovery-600/30 h-full w-full bg-gradient-to-br via-fuchsia-600/20 to-purple-700/30" />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
       </div>
 
-      {/* Foreground CTA */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="rounded-full bg-discovery-500/20 p-3 ring-4 ring-discovery-500/10">
-          <Lock className="h-7 w-7 text-discovery-300" />
+        <div className="bg-discovery-500/20 ring-discovery-500/10 rounded-full p-3 ring-4">
+          <Lock className="text-discovery-300 h-7 w-7" />
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-discovery-300">
+          <p className="text-discovery-300 text-[11px] font-semibold uppercase tracking-wider">
             {t('library.purchase.premium_doc')}
           </p>
-          <p className="mt-1 max-w-sm text-[16px] font-semibold text-white">
-            {title}
-          </p>
-          <p className="mt-2 text-[12px] text-white/70">
-            {t('library.purchase.buy_once')}
-          </p>
+          <p className="mt-1 max-w-sm text-[16px] font-semibold text-white">{title}</p>
+          <p className="mt-2 text-[12px] text-white/70">{t('library.purchase.buy_once')}</p>
         </div>
         <PremiumPurchaseButton
           docId={docId}
@@ -168,7 +148,7 @@ export function PremiumLockedPreview({
         />
         <p className="max-w-sm text-[10.5px] text-white/60">
           {t('library.purchase.or')}{' '}
-          <Link href="/library/pro" className="font-semibold text-discovery-300 underline">
+          <Link href="/library/pro" className="text-discovery-300 font-semibold underline">
             {t('library.purchase.upgrade_pro')}
           </Link>{' '}
           {t('library.purchase.upgrade_pro_suffix')}

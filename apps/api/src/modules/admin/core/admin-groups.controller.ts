@@ -1,18 +1,4 @@
-/**
- * /api/admin/groups/** — list/detail/suspend/unsuspend/delete/recordings.
- * LƯU Ý: hard delete là POST :id/delete (không phải DELETE method) — giữ
- * nguyên mapping route cũ. Delete chỉ SUPER_ADMIN; suspend/unsuspend thêm ADMIN.
- */
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import {

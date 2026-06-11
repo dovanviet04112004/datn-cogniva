@@ -1,12 +1,3 @@
-/**
- * AdminGuard + @AdminRoles — port từ apps/web/src/lib/admin/guard.ts
- * (requireAdminRole). Chạy SAU AuthGuard global (req.user đã có): đọc
- * user.admin_role + suspended_at từ DB mỗi request (defense-in-depth — role
- * trong JWT có thể stale 15'), admin bị suspend mất quyền. Bootstrap: email
- * nằm trong env ADMIN_EMAILS (csv, fallback owner) → SUPER_ADMIN dù column
- * NULL. Semantics lỗi giữ y route cũ: không phải admin → 401
- * {error:'Unauthorized'}; role không đủ → 403 {error:'Forbidden', requiredRoles}.
- */
 import {
   CanActivate,
   ExecutionContext,
@@ -32,13 +23,10 @@ export type AdminContext = {
 };
 
 const ROLES_KEY = 'adminRoles';
-/** Giới hạn role được phép — không gắn = mọi admin role qua được. */
 export const AdminRoles = (...roles: AdminRole[]) => SetMetadata(ROLES_KEY, roles);
 
-/** Lấy AdminContext do AdminGuard gắn: `@AdminCtx() ctx: AdminContext`. */
 export const AdminCtx = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): AdminContext =>
-    ctx.switchToHttp().getRequest().adminCtx,
+  (_data: unknown, ctx: ExecutionContext): AdminContext => ctx.switchToHttp().getRequest().adminCtx,
 );
 
 const ADMIN_EMAIL_FALLBACK = ['dovanviet04112004@gmail.com'];
@@ -46,7 +34,10 @@ const ADMIN_EMAIL_FALLBACK = ['dovanviet04112004@gmail.com'];
 function parseAdminEmails(): string[] {
   const raw = process.env.ADMIN_EMAILS;
   if (raw && raw.length > 0) {
-    return raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    return raw
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
   }
   return ADMIN_EMAIL_FALLBACK;
 }
@@ -74,8 +65,8 @@ export class AdminGuard implements CanActivate {
     });
     if (!row || row.suspended_at) throw new UnauthorizedException({ error: 'Unauthorized' });
 
-    const role = (row.admin_role
-      ?? (isAdminEmail(row.email) ? 'SUPER_ADMIN' : null)) as AdminRole | null;
+    const role = (row.admin_role ??
+      (isAdminEmail(row.email) ? 'SUPER_ADMIN' : null)) as AdminRole | null;
     if (!role) throw new UnauthorizedException({ error: 'Unauthorized' });
 
     const allowed = this.reflector.getAllAndOverride<AdminRole[] | undefined>(ROLES_KEY, [

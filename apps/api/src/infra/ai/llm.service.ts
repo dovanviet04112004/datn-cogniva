@@ -1,29 +1,15 @@
-/**
- * LlmService — gọi LLM 1 lượt (non-stream) dùng chung cho apps/api.
- *
- * Port từ NotesService.pickChatProvider + generateCompletion (gốc là
- * apps/web/src/lib/ai/models.ts), NÂNG thành tham số hóa system /
- * temperature / maxTokens để các module AI (quiz gen, flashcard gen, chat
- * title...) dùng chung 1 chỗ. apps/api KHÔNG cài @ai-sdk/* providers →
- * REST trực tiếp; provider pick order + model default mỗi provider GIỮ
- * NGUYÊN theo lib cũ.
- */
 import { Injectable } from '@nestjs/common';
 
 type ChatProvider = 'anthropic' | 'groq' | 'google' | 'openrouter';
 
 export interface LlmCompleteOptions {
-  /** System message — Anthropic là field riêng, 3 provider kia là message role system. */
   system?: string;
-  /** Default 0.6 (khớp generateText cũ). */
   temperature?: number;
-  /** Default 1024 — caller cần output dài (quiz/flashcard gen) PHẢI truyền lớn hơn. */
   maxTokens?: number;
 }
 
 @Injectable()
 export class LlmService {
-  /** Sinh 1 completion text. Throw nếu không có provider key hoặc provider trả lỗi HTTP. */
   async complete(prompt: string, opts: LlmCompleteOptions = {}): Promise<string> {
     const provider = this.pickChatProvider();
     const temperature = opts.temperature ?? 0.6;
@@ -50,7 +36,6 @@ export class LlmService {
       return json.content?.[0]?.text ?? '';
     }
 
-    // 3 provider còn lại đều OpenAI-compatible chat/completions.
     const cfg: Record<
       Exclude<ChatProvider, 'anthropic'>,
       { url: string; key: string; model: string; headers: Record<string, string> }
@@ -85,7 +70,11 @@ export class LlmService {
 
     const res = await fetch(c.url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${c.key}`, ...c.headers },
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${c.key}`,
+        ...c.headers,
+      },
       body: JSON.stringify({ model: c.model, messages, temperature, max_tokens: maxTokens }),
     });
     if (!res.ok) throw new Error(`${provider} ${res.status}`);
@@ -93,7 +82,6 @@ export class LlmService {
     return json.choices?.[0]?.message?.content ?? '';
   }
 
-  /** Provider pick order copy từ lib/ai/models.ts pickChatProvider() — LLM_PROVIDER force trước. */
   private pickChatProvider(): ChatProvider {
     const forced = process.env.LLM_PROVIDER as ChatProvider | undefined;
     if (forced && ['anthropic', 'openrouter', 'groq', 'google'].includes(forced)) return forced;

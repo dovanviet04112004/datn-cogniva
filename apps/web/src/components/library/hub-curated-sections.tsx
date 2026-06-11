@@ -1,32 +1,12 @@
-/**
- * HubCuratedSections — Phase 4 (2026-05-27, refactor 2026-05-28).
- *
- * Server component render carousel trên library hub. Carousel CHỈ dành cho
- * curation thật mà sort không cho được (giống home trang lớn):
- *   - ✨ Dành cho bạn — cá nhân hoá theo môn của lịch sử view/import, loại doc
- *     đã xem; chỉ hiện khi user có signal. (Không See-all — feed cá nhân.)
- *   - Cold-start (chưa có signal / chưa đăng nhập) → fallback 📈 Phổ biến để
- *     feed không rỗng; See-all → ?sort=popular.
- *
- * Render qua DocCarousel dùng đúng DocCard → card GIỐNG HỆT grid + cuộn ngang.
- * Ẩn khi user đang search (có active filter) — focus search UX không bị nhiễu.
- */
 import Link from 'next/link';
 import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { Sparkles, TrendingUp } from 'lucide-react';
 
-import {
-  db,
-  libraryDoc,
-  libraryDocImport,
-  libraryDocView,
-  user as userTable,
-} from '@cogniva/db';
+import { db, libraryDoc, libraryDocImport, libraryDocView, user as userTable } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 import { docCardColumns, toDocCardData } from '@/lib/library/doc-card-data';
-// SectionHeading dùng chung toàn app — thay khối tiêu đề mục gradient cũ.
 import { SectionHeading } from '@/components/ui/section-heading';
 import type { DocCardData } from './doc-card';
 
@@ -41,9 +21,6 @@ async function fetchCurated(
   ];
   if (whereExtra) conds.push(whereExtra);
 
-  // Tie-break theo id ở cuối: các cột sort (qualityScore/importCount/viewCount)
-  // nhiều giá trị trùng (0) → thiếu tie-break sẽ trả order không xác định, gây
-  // hydration mismatch giữa SSR HTML và RSC flight.
   const orderArr = Array.isArray(orderBySql) ? orderBySql : [orderBySql];
 
   const rows = await db
@@ -57,19 +34,13 @@ async function fetchCurated(
   return rows.map(toDocCardData);
 }
 
-export async function HubCuratedSections({
-  hasActiveSearch,
-}: {
-  hasActiveSearch: boolean;
-}) {
-  if (hasActiveSearch) return null; // ẩn khi user đang search
+export async function HubCuratedSections({ hasActiveSearch }: { hasActiveSearch: boolean }) {
+  if (hasActiveSearch) return null;
 
   const t = await getServerT();
   const session = await getServerSession();
   const userId = session?.user.id ?? null;
 
-  // "Dành cho bạn" — content-based: gom môn từ lịch sử view + import của user,
-  // gợi ý doc chất lượng cao cùng môn mà user CHƯA xem. Chỉ khi có signal.
   let forYou: DocCardData[] = [];
   if (userId) {
     const [viewed, imported] = await Promise.all([
@@ -106,7 +77,6 @@ export async function HubCuratedSections({
     }
   }
 
-  // Section: "Dành cho bạn" (cá nhân hoá) hoặc cold-start fallback "Phổ biến".
   const sections: Array<{
     label: string;
     icon: typeof Sparkles;
@@ -124,7 +94,6 @@ export async function HubCuratedSections({
       href: null,
     });
   } else {
-    // Cold-start fallback: Phổ biến (import×2 + view). See-all → ?sort=popular.
     const popular = await fetchCurated([
       desc(
         sql`COALESCE(${libraryDoc.workspaceImportCount}, 0) * 2 + COALESCE(${libraryDoc.viewCount}, 0)`,
@@ -147,14 +116,13 @@ export async function HubCuratedSections({
         const Icon = sec.icon;
         return (
           <section key={sec.label}>
-            {/* Tiêu đề mục curated + count + link "Xem tất cả" (slot action). */}
             <SectionHeading
               count={sec.docs.length}
               action={
                 sec.href ? (
                   <Link
                     href={sec.href}
-                    className="text-[11px] font-medium text-muted-foreground hover:text-primary"
+                    className="text-muted-foreground hover:text-primary text-[11px] font-medium"
                   >
                     {t('library.curated.see_all')}
                   </Link>

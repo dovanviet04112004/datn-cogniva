@@ -1,0 +1,104 @@
+import { Injectable } from '@nestjs/common';
+
+import { PrismaService } from '../../../infra/database/prisma.service';
+
+export type AccessResult =
+  | { allowed: true; reason: 'free' | 'owner' | 'pro' | 'purchased' }
+  | { allowed: false; reason: 'not_found' | 'unauthenticated' | 'premium_unpurchased' };
+
+export type DocAccessInfo = {
+  doc: {
+    id: string;
+    uploaderId: string;
+    isPremium: boolean;
+    priceVnd: number | null;
+    status: string;
+  };
+  access: AccessResult;
+  isProActive: boolean;
+};
+
+@Injectable()
+export class LibraryAccessService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async checkDocAccess(docId: string, userId: string | null): Promise<DocAccessInfo | null> {
+    const row = await this.prisma.library_doc.findUnique({
+      where: { id: docId },
+      select: {
+        id: true,
+        uploader_id: true,
+        is_premium: true,
+        price_vnd: true,
+        status: true,
+      },
+    });
+    if (!row) return null;
+
+    const doc = {
+      id: row.id,
+      uploaderId: row.uploader_id,
+      isPremium: row.is_premium ?? false,
+      priceVnd: row.price_vnd,
+      status: row.status ?? 'PROCESSING',
+    };
+
+    if (!doc.isPremium) {
+      if (doc.status === 'PUBLISHED') {
+        return { doc, access: { allowed: true, reason: 'free' }, isProActive: false };
+      }
+      if (userId && userId === doc.uploaderId) {
+        return { doc, access: { allowed: true, reason: 'owner' }, isProActive: false };
+      }
+      return {
+        doc,
+        access: { allowed: false, reason: 'premium_unpurchased' },
+        isProActive: false,
+      };
+    }
+
+    if (!userId) {
+      return { doc, access: { allowed: false, reason: 'unauthenticated' }, isProActive: false };
+    }
+
+    if (userId === doc.uploaderId) {
+      return { doc, access: { allowed: true, reason: 'owner' }, isProActive: false };
+    }
+
+    const proRow = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, pro_until_at: true },
+    });
+    const isProActive =
+      proRow?.plan === 'PRO' && (proRow.pro_until_at === null || proRow.pro_until_at > new Date());
+
+    if (isProActive) {
+      return { doc, access: { allowed: true, reason: 'pro' }, isProActive: true };
+    }
+
+    const purchase = await this.prisma.library_doc_purchase.findFirst({
+      where: { doc_id: docId, buyer_id: userId },
+      select: { id: true },
+    });
+    if (purchase) {
+      return { doc, access: { allowed: true, reason: 'purchased' }, isProActive: false };
+    }
+
+    return {
+      doc,
+      access: { allowed: false, reason: 'premium_unpurchased' },
+      isProActive: false,
+    };
+  }
+
+  async isUserPro(userId: string): Promise<boolean> {
+    const row = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, pro_until_at: true },
+    });
+    if (!row) return false;
+    if (row.plan !== 'PRO') return false;
+    if (row.pro_until_at && row.pro_until_at < new Date()) return false;
+    return true;
+  }
+}

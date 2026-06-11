@@ -1,16 +1,3 @@
-/**
- * AccountService — port từ apps/web/src/app/api/account/** (delete/export/
- * usage/push-token). GIỮ NGUYÊN wire shape + status code + message:
- *
- * - delete: GDPR Art. 17 — tạo deletion_request grace 30 ngày, status enum
- *   PENDING/CANCELLED giữ y cũ vì cron `process-gdpr-deletion` (đã port W6)
- *   đọc thẳng bảng + claim CAS theo status.
- * - export: GDPR Art. 20 — dump JSON 13 bảng. Row trả CAMELCASE khớp key
- *   Drizzle cũ (riêng recording: duration/fileSize là tên key Drizzle KHÁC
- *   camel(column) — override thủ công).
- * - usage: đọc Redis cost-guardrail (không query DB).
- * - push-token: upsert Expo token theo token UNIQUE (check-then-write y cũ).
- */
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -26,7 +13,6 @@ import {
 
 const GRACE_DAYS = 30;
 
-/** Context request cho audit — bản Nest của extractRequestContext (web). */
 export type RequestContext = {
   ipAddress: string | null;
   userAgent: string | null;
@@ -43,7 +29,6 @@ type AuditEvent = {
   metadata?: Record<string, unknown>;
 } & Partial<RequestContext>;
 
-/** snake_case (Prisma) → camelCase khớp key row Drizzle mà client cũ nhận. */
 function camelizeRow(
   row: Record<string, unknown>,
   overrides: Record<string, string> = {},
@@ -62,7 +47,6 @@ export class AccountService {
     private readonly costGuardrail: CostGuardrailService,
   ) {}
 
-  /** INSERT audit_log fail-open — y semantics writeAudit web (warn, không throw). */
   private async writeAudit(e: AuditEvent): Promise<void> {
     try {
       await this.prisma.audit_log.create({
@@ -75,7 +59,6 @@ export class AccountService {
           resource_type: e.resourceType ?? null,
           resource_id: e.resourceId ?? null,
           ip_address: e.ipAddress ?? null,
-          // Trim UA tránh oversized rows (web cũng slice 500)
           user_agent: e.userAgent ? e.userAgent.slice(0, 500) : null,
           trace_id: e.traceId ?? null,
           metadata: (e.metadata as Prisma.InputJsonValue | undefined) ?? Prisma.DbNull,
@@ -91,15 +74,9 @@ export class AccountService {
     }
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /account/delete — tạo deletion request (30-day grace)
-  // ──────────────────────────────────────────────────────────
-
   async requestDelete(userId: string, raw: unknown, ctx: RequestContext) {
     const parsed = deleteAccountSchema.safeParse(raw);
     if (!parsed.success) {
-      // Audit cả khi validate fail (result=denied) — y route cũ, vì vậy KHÔNG
-      // dùng ZodValidationPipe ở controller cho route này.
       await this.writeAudit({
         action: 'gdpr.delete.requested',
         result: 'denied',
@@ -160,13 +137,9 @@ export class AccountService {
       requestId: created.id,
       scheduledFor: scheduledFor.toISOString(),
       graceDays: GRACE_DAYS,
-      cancelUrl: '/api/account/delete', // DELETE method để undo
+      cancelUrl: '/api/account/delete',
     };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // DELETE /account/delete — cancel pending deletion (undo)
-  // ──────────────────────────────────────────────────────────
 
   async cancelDelete(userId: string, ctx: RequestContext) {
     const existing = await this.prisma.deletion_request.findFirst({
@@ -193,10 +166,6 @@ export class AccountService {
     return { ok: true, cancelledAt: new Date().toISOString() };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /account/delete — status cho banner UI
-  // ──────────────────────────────────────────────────────────
-
   async deletionStatus(userId: string) {
     const pending = await this.prisma.deletion_request.findFirst({
       where: { user_id: userId, status: 'PENDING' },
@@ -216,10 +185,6 @@ export class AccountService {
       canCancel: daysRemaining > 0,
     };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST /account/export — GDPR data dump (controller lo headers + audit deny)
-  // ──────────────────────────────────────────────────────────
 
   async export(userId: string, ctx: RequestContext) {
     await this.writeAudit({
@@ -250,21 +215,17 @@ export class AccountService {
       this.prisma.workspace.findMany({ where: { user_id: userId } }),
       this.prisma.document.findMany({ where: { user_id: userId } }),
       this.prisma.conversation.findMany({ where: { user_id: userId } }),
-      // Messages — qua relation conversation (web innerJoin rồi unwrap)
       this.prisma.message.findMany({ where: { conversation: { user_id: userId } } }),
       this.prisma.flashcard.findMany({ where: { user_id: userId } }),
-      // Reviews — review không có userId trực tiếp, đi qua flashcard
       this.prisma.review.findMany({ where: { flashcard: { user_id: userId } } }),
       this.prisma.mastery.findMany({ where: { user_id: userId } }),
       this.prisma.study_session.findMany({ where: { user_id: userId } }),
       this.prisma.room.findMany({ where: { owner_id: userId } }),
       this.prisma.room_member.findMany({ where: { user_id: userId } }),
       this.prisma.room_message.findMany({ where: { user_id: userId } }),
-      // Recordings — chỉ room user owns (member khác → request riêng, y cũ)
       this.prisma.recording.findMany({ where: { room: { is: { owner_id: userId } } } }),
     ]);
 
-    // Strip sensitive fields trước khi xuất (KHÔNG export emailVerified, internal flags)
     const userPublic = userRow
       ? {
           id: userRow.id,
@@ -281,7 +242,6 @@ export class AccountService {
       schemaVersion: '1.0',
       user: userPublic,
       workspaces: workspaces.map((r) => camelizeRow(r)),
-      // storage_key giữ để user reference, file binary KHÔNG include (Stage 2)
       documents: documents.map((r) => camelizeRow(r)),
       conversations: conversations.map((r) => camelizeRow(r)),
       messages: messages.map((r) => camelizeRow(r)),
@@ -292,7 +252,6 @@ export class AccountService {
       rooms: rooms.map((r) => camelizeRow(r)),
       roomMembers: roomMembers.map((r) => camelizeRow(r)),
       roomMessages: roomMessages.map((r) => camelizeRow(r)),
-      // Key Drizzle cũ của recording KHÁC camel(column) ở 2 cột này
       recordings: recordings.map((r) =>
         camelizeRow(r, { duration_seconds: 'duration', file_size_bytes: 'fileSize' }),
       ),
@@ -317,7 +276,6 @@ export class AccountService {
     return payload;
   }
 
-  /** Audit khi export bị rate-limit deny — web ghi cả nhánh denied. */
   async auditExportDenied(userId: string, retryAfter: number | undefined, ctx: RequestContext) {
     await this.writeAudit({
       action: 'gdpr.export.requested',
@@ -327,10 +285,6 @@ export class AccountService {
       ...ctx,
     });
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /account/usage — AI usage daily (Redis, không DB)
-  // ──────────────────────────────────────────────────────────
 
   async usage(userId: string, planRaw: string | null | undefined) {
     const plan = (planRaw ?? 'FREE') as Plan;
@@ -346,15 +300,9 @@ export class AccountService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /account/push-token — upsert Expo push token
-  // ──────────────────────────────────────────────────────────
-
   async registerPushToken(userId: string, input: RegisterPushTokenInput, ctx: RequestContext) {
     const { token, platform, deviceId } = input;
 
-    // Check-then-write y route cũ: token UNIQUE — đã tồn tại (kể cả thuộc user
-    // khác → device transferred) thì update userId + bump lastSeenAt.
     const existing = await this.prisma.push_token.findUnique({
       where: { token },
       select: { id: true, user_id: true },
@@ -399,12 +347,7 @@ export class AccountService {
     return { ok: true, action };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // DELETE /account/push-token — unregister 1 token (sign-out 1 device)
-  // ──────────────────────────────────────────────────────────
-
   async unregisterPushToken(userId: string, input: DeletePushTokenInput, ctx: RequestContext) {
-    // Scope theo userId — tránh user A xoá token user B dù đoán đúng token
     const result = await this.prisma.push_token.deleteMany({
       where: { token: input.token, user_id: userId },
     });

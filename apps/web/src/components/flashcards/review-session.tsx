@@ -1,18 +1,3 @@
-/**
- * ReviewSession — UI ôn flashcards với keyboard 1-4 + mouse.
- *
- * Flow:
- *   1. Fetch /api/flashcards/queue → array cards
- *   2. Hiển thị card.front → user click "Hiện đáp án" hoặc bấm Space
- *   3. Reveal back → 4 button rating Again/Hard/Good/Easy (1/2/3/4)
- *   4. Submit POST /api/flashcards/[id]/review → next card
- *   5. Khi hết queue → màn hình tổng kết (số reviewed, % retention session)
- *
- * Render card theo cardType:
- *   - BASIC: text front + back
- *   - CLOZE: ClozeRenderer với revealed bool
- *   - IMAGE_OCCLUSION: ImageOcclusionViewer
- */
 'use client';
 
 import * as React from 'react';
@@ -40,50 +25,46 @@ type Flashcard = {
 
 type Props = {
   initial?: Flashcard[];
-  /**
-   * V5 (atom-centric): scope review queue theo workspace. Khi pass,
-   * /api/flashcards/queue?workspaceId=X chỉ trả thẻ due của workspace.
-   */
   workspaceId?: string;
 };
 
-// Rating colors — theme-aware (semantic Tailwind colors thay vì hardcode
-// text-xxx-200 vô hình trên light mode). Hover state có shadow-glow accent.
 const RATINGS = [
   {
     rating: 1,
     label: 'Lại',
     short: 'Again',
     key: '1',
-    className: 'border-red-500/30 bg-red-500/10 hover:border-red-500/50 hover:bg-red-500/15 text-red-600 dark:text-red-400',
+    className:
+      'border-red-500/30 bg-red-500/10 hover:border-red-500/50 hover:bg-red-500/15 text-red-600 dark:text-red-400',
   },
   {
     rating: 2,
     label: 'Khó',
     short: 'Hard',
     key: '2',
-    className: 'border-orange-500/30 bg-orange-500/10 hover:border-orange-500/50 hover:bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    className:
+      'border-orange-500/30 bg-orange-500/10 hover:border-orange-500/50 hover:bg-orange-500/15 text-orange-600 dark:text-orange-400',
   },
   {
     rating: 3,
     label: 'Tốt',
     short: 'Good',
     key: '3',
-    className: 'border-green-500/30 bg-green-500/10 hover:border-green-500/50 hover:bg-green-500/15 text-green-600 dark:text-green-400',
+    className:
+      'border-green-500/30 bg-green-500/10 hover:border-green-500/50 hover:bg-green-500/15 text-green-600 dark:text-green-400',
   },
   {
     rating: 4,
     label: 'Dễ',
     short: 'Easy',
     key: '4',
-    className: 'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    className:
+      'border-blue-500/30 bg-blue-500/10 hover:border-blue-500/50 hover:bg-blue-500/15 text-blue-600 dark:text-blue-400',
   },
 ];
 
 export function ReviewSession({ initial, workspaceId }: Props) {
   const router = useRouter();
-  // React Query: queue do server cấp; có `initial` (SSR-seed) thì dùng luôn, không
-  // fetch. Sau khi load, idx tiến cục bộ qua queue (queue read-only trong phiên).
   const { data: fetchedQueue, isLoading } = useQuery({
     queryKey: qk.flashcardQueue(workspaceId),
     queryFn: () =>
@@ -101,7 +82,6 @@ export function ReviewSession({ initial, workspaceId }: Props) {
   const [startTime, setStartTime] = React.useState(Date.now());
   const [stats, setStats] = React.useState({ done: 0, good: 0 });
 
-  // Reset timer khi card đổi
   React.useEffect(() => {
     setStartTime(Date.now());
     setRevealed(false);
@@ -127,7 +107,6 @@ export function ReviewSession({ initial, workspaceId }: Props) {
     [current, submitting, startTime],
   );
 
-  // Keyboard shortcuts: Space = reveal, 1-4 = rating
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!current || submitting) return;
@@ -144,53 +123,45 @@ export function ReviewSession({ initial, workspaceId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
+      <div className="text-muted-foreground flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
   }
 
   if (!current) {
-    // Sau review xong → quay lại nơi user đến (workspace tab nếu vào từ workspace).
-    // Fallback /workspaces nếu không có history (user vào /flashcards/review trực tiếp).
     return <SessionDone stats={stats} onReturn={() => router.back()} />;
   }
 
-  // Progress bar percentage
   const progress = queue.length > 0 ? ((idx + 1) / queue.length) * 100 : 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      {/* Progress — thin bar + counters with mono typography */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-mono tabular-nums font-semibold text-foreground/80">
-            {idx + 1}{' '}
-            <span className="font-normal text-text-muted">/ {queue.length}</span>
+          <span className="text-foreground/80 font-mono font-semibold tabular-nums">
+            {idx + 1} <span className="text-text-muted font-normal">/ {queue.length}</span>
           </span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.14em]">
             {current.state}
           </span>
         </div>
-        <div className="relative h-1 overflow-hidden rounded-full bg-muted">
+        <div className="bg-muted relative h-1 overflow-hidden rounded-full">
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-primary-hover transition-all duration-base ease-expo-out"
+            className="from-primary to-primary-hover duration-base ease-expo-out absolute inset-y-0 left-0 rounded-full bg-gradient-to-r transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
       </div>
 
-      {/* Card — premium soft container, depth via shadow + ring */}
-      <Card className="overflow-hidden rounded-2xl border-divider bg-card shadow-soft transition-shadow duration-base hover:shadow-elevated">
-        {/* Front */}
+      <Card className="border-divider bg-card shadow-soft duration-base hover:shadow-elevated overflow-hidden rounded-2xl transition-shadow">
         <div className="px-7 py-8">
           <CardFront card={current} revealed={revealed} />
         </div>
 
-        {/* Back — reveal animation: fade-in-up */}
         {revealed && (
-          <div className="border-t border-divider bg-surface-secondary/50 px-7 py-7 animate-fade-in-up">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+          <div className="border-divider bg-surface-secondary/50 animate-fade-in-up border-t px-7 py-7">
+            <p className="text-primary mb-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
               Đáp án
             </p>
             <CardBack card={current} />
@@ -198,15 +169,14 @@ export function ReviewSession({ initial, workspaceId }: Props) {
         )}
       </Card>
 
-      {/* Actions */}
       {!revealed ? (
         <Button
           onClick={() => setRevealed(true)}
-          className="w-full shadow-soft hover:shadow-glow"
+          className="shadow-soft hover:shadow-glow w-full"
           size="lg"
         >
           Hiện đáp án
-          <kbd className="ml-2 rounded bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[10px] tracking-tight">
+          <kbd className="bg-primary-foreground/15 ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] tracking-tight">
             Space
           </kbd>
         </Button>
@@ -217,13 +187,13 @@ export function ReviewSession({ initial, workspaceId }: Props) {
               key={r.rating}
               onClick={() => submitRating(r.rating)}
               disabled={submitting}
-              className={`group/rate flex flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-3 transition-all duration-base ease-expo-out hover:-translate-y-0.5 active:scale-95 disabled:pointer-events-none disabled:opacity-50 ${r.className}`}
+              className={`group/rate duration-base ease-expo-out flex flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-3 transition-all hover:-translate-y-0.5 active:scale-95 disabled:pointer-events-none disabled:opacity-50 ${r.className}`}
             >
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">
                 {r.short}
               </span>
               <span className="text-base font-semibold tracking-tight">{r.label}</span>
-              <kbd className="mt-0.5 rounded bg-foreground/5 px-1.5 py-0.5 font-mono text-[10px] opacity-60">
+              <kbd className="bg-foreground/5 mt-0.5 rounded px-1.5 py-0.5 font-mono text-[10px] opacity-60">
                 {r.key}
               </kbd>
             </button>
@@ -240,7 +210,6 @@ function CardFront({ card, revealed }: { card: Flashcard; revealed: boolean }) {
   }
   if (card.cardType === 'IMAGE_OCCLUSION') {
     const masks = parseMasks(card.back);
-    // front field lưu URL ảnh dạng "/api/flashcards/image/..."
     return <ImageOcclusionViewer imageUrl={card.front} masks={masks} revealed={revealed} />;
   }
   return <p className="whitespace-pre-wrap text-lg leading-relaxed">{card.front}</p>;
@@ -248,16 +217,15 @@ function CardFront({ card, revealed }: { card: Flashcard; revealed: boolean }) {
 
 function CardBack({ card }: { card: Flashcard }) {
   if (card.cardType === 'CLOZE') {
-    // Cloze back tự sinh — chỉ note "Đã hiện đáp án phía trên"
     return (
-      <p className="text-sm italic text-muted-foreground">
+      <p className="text-muted-foreground text-sm italic">
         Đáp án được tô sáng trong câu phía trên.
       </p>
     );
   }
   if (card.cardType === 'IMAGE_OCCLUSION') {
     return (
-      <p className="text-sm italic text-muted-foreground">
+      <p className="text-muted-foreground text-sm italic">
         Vùng cần học đã được hiển thị trong ảnh.
       </p>
     );
@@ -265,7 +233,6 @@ function CardBack({ card }: { card: Flashcard }) {
   return <p className="whitespace-pre-wrap text-base leading-relaxed">{card.back}</p>;
 }
 
-/** Parse IMAGE_OCCLUSION back field — kỳ vọng JSON masks. */
 function parseMasks(raw: string): Mask[] {
   try {
     const parsed = JSON.parse(raw);
@@ -276,7 +243,13 @@ function parseMasks(raw: string): Mask[] {
   }
 }
 
-function SessionDone({ stats, onReturn }: { stats: { done: number; good: number }; onReturn: () => void }) {
+function SessionDone({
+  stats,
+  onReturn,
+}: {
+  stats: { done: number; good: number };
+  onReturn: () => void;
+}) {
   const rate = stats.done > 0 ? Math.round((stats.good / stats.done) * 100) : 0;
   return (
     <div className="mx-auto max-w-md space-y-4 py-12 text-center">

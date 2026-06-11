@@ -1,9 +1,3 @@
-/**
- * RequestCardOpener — bọc card yêu cầu (markup từ server) thành nút mở
- * RequestDetailModal, thay vì <Link> nhảy trang.
- *
- * Giữ markup card ở RequestsTab (server) — chỉ truyền vào children + className.
- */
 'use client';
 
 import * as React from 'react';
@@ -25,11 +19,7 @@ export function RequestCardOpener({
       <button type="button" onClick={() => setOpen(true)} className={className}>
         {children}
       </button>
-      <RequestDetailModal
-        requestId={open ? requestId : null}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      <RequestDetailModal requestId={open ? requestId : null} open={open} onOpenChange={setOpen} />
     </>
   );
 }

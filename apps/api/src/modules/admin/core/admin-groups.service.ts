@@ -1,9 +1,3 @@
-/**
- * AdminGroupsService — port /api/admin/groups/** (list/detail/suspend/
- * unsuspend/delete/recordings). Delete là HARD delete dựa FK CASCADE
- * (channels/messages/members/invites/recordings) — file R2 KHÔNG xoá ở đây
- * (cleanup job nightly lo). Notify member luôn fire-and-forget y route cũ.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
@@ -21,7 +15,6 @@ export class AdminGroupsService {
     private readonly notify: AdminNotifyService,
   ) {}
 
-  // ── GET /admin/groups ────────────────────────────────────────────
   async listGroups(query: { q?: string; status?: string; cursor?: string; limit?: string }) {
     const q = query.q?.trim() ?? '';
     const limit = parseLimit(query.limit);
@@ -57,9 +50,7 @@ export class AdminGroupsService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
     let total: number | null = null;
     if (conditions.length === 0) total = await this.prisma.study_group.count();
@@ -85,7 +76,6 @@ export class AdminGroupsService {
     };
   }
 
-  // ── GET /admin/groups/:id ────────────────────────────────────────
   async getGroup(id: string) {
     const row = await this.prisma.study_group.findUnique({
       where: { id },
@@ -107,8 +97,6 @@ export class AdminGroupsService {
     });
     if (!row) throw new NotFoundException({ error: 'Group not found' });
 
-    // Member sort theo role priority (OWNER first) — CASE chỉ có ở SQL,
-    // Prisma orderBy không hỗ trợ nên dùng $queryRaw.
     const members = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -182,7 +170,6 @@ export class AdminGroupsService {
     };
   }
 
-  // ── POST /admin/groups/:id/suspend ───────────────────────────────
   async suspendGroup(ctx: AdminContext, id: string, reason: string) {
     const result = await this.audit.withAudit(
       ctx,
@@ -234,7 +221,6 @@ export class AdminGroupsService {
     return { ok: true };
   }
 
-  // ── POST /admin/groups/:id/unsuspend ─────────────────────────────
   async unsuspendGroup(ctx: AdminContext, id: string, reason: string) {
     const result = await this.audit.withAudit(
       ctx,
@@ -289,10 +275,7 @@ export class AdminGroupsService {
     return { ok: true };
   }
 
-  // ── POST /admin/groups/:id/delete ────────────────────────────────
   async deleteGroup(ctx: AdminContext, id: string, reason: string) {
-    // Member list SELECT TRƯỚC delete — sau delete FK CASCADE xoá hết,
-    // không query được nữa (snapshot cho notify).
     const memberIds = await this.prisma.study_group_member.findMany({
       where: { group_id: id },
       select: { user_id: true },
@@ -309,7 +292,6 @@ export class AdminGroupsService {
         });
         if (!before) throw new Error('Group not found');
 
-        // FK CASCADE lo channels/messages/members/invites/recordings.
         await this.prisma.study_group.deleteMany({ where: { id } });
 
         return {
@@ -335,10 +317,8 @@ export class AdminGroupsService {
     return result;
   }
 
-  // ── GET /admin/groups/:id/recordings ─────────────────────────────
   async listRecordings(id: string) {
     const rows = await this.prisma.recording.findMany({
-      // Relation filter = inner join semantics: chỉ recording thuộc channel của group.
       where: { study_group_channel: { group_id: id } },
       select: {
         id: true,

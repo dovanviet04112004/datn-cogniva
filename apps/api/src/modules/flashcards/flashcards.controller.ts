@@ -1,9 +1,3 @@
-/**
- * /api/flashcards/* — port từ route Next (apps/web/src/app/api/flashcards/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- * Route tĩnh (queue/stats/generate/upload-image/image) khai TRƯỚC ':id' để
- * Express không nuốt nhầm vào param.
- */
 import {
   BadRequestException,
   Body,
@@ -42,7 +36,6 @@ import {
 export class FlashcardsController {
   constructor(private readonly flashcards: FlashcardsService) {}
 
-  /** GET /flashcards?state=&workspaceId=&limit=50&offset=0 — parse y route cũ (cap 200). */
   @Get()
   list(
     @CurrentUser() user: AuthUser,
@@ -61,7 +54,6 @@ export class FlashcardsController {
     });
   }
 
-  /** GET /flashcards/queue?limit=20&workspaceId= — daily review queue (cap 100). */
   @Get('queue')
   queue(
     @CurrentUser() user: AuthUser,
@@ -72,13 +64,11 @@ export class FlashcardsController {
     return this.flashcards.queue(user.id, limit, workspaceId ?? null);
   }
 
-  /** GET /flashcards/stats — số liệu tổng quan cho dashboard. */
   @Get('stats')
   stats(@CurrentUser() user: AuthUser) {
     return this.flashcards.stats(user.id);
   }
 
-  /** POST /flashcards — tạo card thủ công (201 mặc định của Nest = status route cũ). */
   @Post()
   create(
     @CurrentUser() user: AuthUser,
@@ -87,11 +77,6 @@ export class FlashcardsController {
     return this.flashcards.create(user.id, body);
   }
 
-  /**
-   * POST /flashcards/generate — AI sinh cards (route cũ trả 200, không 201).
-   * Rate-limit chạy TRƯỚC validate body (429 ưu tiên hơn 400 như route cũ)
-   * nên parse zod thủ công thay vì qua pipe.
-   */
   @Post('generate')
   @HttpCode(200)
   async generate(
@@ -116,7 +101,6 @@ export class FlashcardsController {
     return this.flashcards.generate(user.id, plan, parsed.data);
   }
 
-  /** POST /flashcards/upload-image — multipart field "file" (route cũ trả 200). */
   @Post('upload-image')
   @HttpCode(200)
   @UseInterceptors(FileInterceptor('file'))
@@ -124,13 +108,6 @@ export class FlashcardsController {
     return this.flashcards.uploadImage(user.id, file);
   }
 
-  /**
-   * GET /flashcards/image/*key — stream ảnh card từ storage. Catch-all giữ '/'
-   * trong storage key; Express 5 trả wildcard param dạng mảng segment → join
-   * lại rồi decode (double-decode vô hại — key đã sanitize không chứa '%').
-   * Chỉ check session, KHÔNG verify ownership (ảnh public-ish trong scope user
-   * đã login — như route cũ). 404 trả text thuần y Response cũ.
-   */
   @Get('image/*key')
   async image(@Param('key') keyParam: string | string[], @Res() res: Response) {
     const segments = Array.isArray(keyParam) ? keyParam : [keyParam];
@@ -138,7 +115,6 @@ export class FlashcardsController {
 
     try {
       const buffer = await this.flashcards.readImage(storageKey);
-      // Inferred MIME từ extension — đủ cho 3 type cho phép upload.
       const ext = storageKey.split('.').pop()?.toLowerCase();
       const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
       res
@@ -165,7 +141,6 @@ export class FlashcardsController {
     return this.flashcards.remove(user.id, id);
   }
 
-  /** POST /flashcards/:id/review — submit rating 1-4 (route cũ trả 200). */
   @Post(':id/review')
   @HttpCode(200)
   review(

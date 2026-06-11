@@ -1,13 +1,3 @@
-/**
- * Zod schemas ExamsModule — copy NGUYÊN VĂN từ route Next cũ
- * (apps/web/src/app/api/exams/** + /api/attempts/**) để body 400
- * `{ error: flatten() }` byte-identical.
- *
- * LƯU Ý thứ tự validate: nhiều route cũ parse body SAU các check
- * 404/403/409 (vd PUT /exams/[id]) — những schema đó được service tự
- * safeParse thay vì đi qua ZodValidationPipe (pipe chạy trước handler
- * sẽ đảo thứ tự status code).
- */
 import { z } from 'zod';
 
 export const createExamSchema = z.object({
@@ -30,7 +20,6 @@ export const updateExamSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   mode: z.enum(['PRACTICE', 'TIMED']).optional(),
   durationSeconds: z.number().int().positive().nullable().optional(),
-  /** ISO timestamp — đồng loạt start time (TIMED proctored exam). NULL = student tự bấm. */
   startsAt: z.string().datetime().nullable().optional(),
   endsAt: z.string().datetime().nullable().optional(),
   passingScore: z.number().min(0).max(1).nullable().optional(),
@@ -39,17 +28,18 @@ export const updateExamSchema = z.object({
   allowReview: z.boolean().optional(),
   maxAttempts: z.number().int().min(1).max(10).optional(),
   showResults: z.enum(['IMMEDIATE', 'AFTER_SUBMIT', 'AFTER_ALL_DONE']).optional(),
-  /** Phase 19 — anti-cheat config jsonb. */
-  antiCheat: z.object({
-    requireFullscreen: z.boolean().optional(),
-    blockTabSwitch: z.boolean().optional(),
-    blockCopyPaste: z.boolean().optional(),
-    blockContextMenu: z.boolean().optional(),
-    detectDevtools: z.boolean().optional(),
-    requireWebcam: z.boolean().optional(),
-    requireMic: z.boolean().optional(),
-    aiProctor: z.boolean().optional(),
-  }).optional(),
+  antiCheat: z
+    .object({
+      requireFullscreen: z.boolean().optional(),
+      blockTabSwitch: z.boolean().optional(),
+      blockCopyPaste: z.boolean().optional(),
+      blockContextMenu: z.boolean().optional(),
+      detectDevtools: z.boolean().optional(),
+      requireWebcam: z.boolean().optional(),
+      requireMic: z.boolean().optional(),
+      aiProctor: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 export const joinExamSchema = z.object({ code: z.string().min(4).max(12) });
@@ -89,11 +79,7 @@ export const createQuestionSchema = z.object({
       }),
     )
     .optional(),
-  options: z.union([
-    z.array(z.string()),
-    z.record(z.string(), z.string()),
-    z.null(),
-  ]).optional(),
+  options: z.union([z.array(z.string()), z.record(z.string(), z.string()), z.null()]).optional(),
   correctAnswer: z.unknown().optional(),
   acceptableAnswers: z.array(z.string()).optional(),
   rubric: z.unknown().optional(),

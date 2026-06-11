@@ -1,8 +1,3 @@
-/**
- * ReportsService — user report nội dung vi phạm. Port từ
- * apps/web/src/app/api/reports/route.ts — GIỮ NGUYÊN wire shape + THỨ TỰ check:
- * self-target 400 → target tồn tại 404 → dedupe 24h 409 → tạo 201.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -21,7 +16,6 @@ export class ReportsService {
   async createReport(reporterId: string, input: CreateReportInput) {
     const { targetType, targetId, reason } = input;
 
-    // Self-target protection
     if (targetType === 'user' && targetId === reporterId) {
       throw new BadRequestException({ error: 'Không thể report chính mình' });
     }
@@ -31,7 +25,6 @@ export class ReportsService {
       throw new NotFoundException({ error: `Target ${targetType}:${targetId} không tồn tại` });
     }
 
-    // Dedupe: 1 reporter chỉ report 1 (targetType, targetId) trong 24h — chặn spam.
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const duplicate = await this.prisma.content_report.findFirst({
       where: {
@@ -51,7 +44,6 @@ export class ReportsService {
 
     const created = await this.prisma.content_report.create({
       data: {
-        // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default).
         id: randomUUID(),
         reporter_id: reporterId,
         target_type: targetType,
@@ -65,10 +57,6 @@ export class ReportsService {
     return { id: created.id, status: 'PENDING' };
   }
 
-  /**
-   * Check target tồn tại — tránh garbage report. Route cũ cast 1 lookup chung
-   * qua Drizzle; Prisma delegate khác type nhau nên switch tường minh 6 nhánh.
-   */
   private async targetExists(type: ReportTargetType, id: string): Promise<boolean> {
     const sel = { where: { id }, select: { id: true as const } };
     switch (type) {

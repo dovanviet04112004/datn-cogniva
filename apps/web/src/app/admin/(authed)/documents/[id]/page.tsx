@@ -1,9 +1,3 @@
-/**
- * /admin/documents/[id] — chi tiết 1 document.
- *
- * Pattern giống /admin/users/[id]: SSR fetch qua chính API admin với cookie
- * forward, render shell + client component cho actions.
- */
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';

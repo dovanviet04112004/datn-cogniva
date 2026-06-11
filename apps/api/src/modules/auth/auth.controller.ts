@@ -1,9 +1,3 @@
-/**
- * AuthController — /api/auth/* của hệ JWT mới. Web nhận token qua httpOnly
- * cookie (cg_at 15' path=/, cg_rt 30d path=/api/auth) + DUAL-ISSUE cookie
- * session Better Auth (SSR cũ vẫn nhận user — gỡ cuối GĐ1); mobile nhận qua
- * body (SecureStore + Bearer). Sign-in 2 bước khi user bật 2FA.
- */
 import {
   Body,
   Controller,
@@ -92,7 +86,6 @@ export class AuthController {
       ?.slice(name.length + 1);
   }
 
-  /** Body cho cả web (cookie) lẫn mobile (token trong body). */
   private toBody(t: AuthTokens | TwoFactorChallenge) {
     if ('twoFactorRequired' in t) return t;
     return { user: t.user, accessToken: t.accessToken, refreshToken: t.refreshToken };
@@ -152,8 +145,6 @@ export class AuthController {
     @Ip() ip: string,
   ) {
     const raw = body.refreshToken ?? this.readCookie(req, REFRESH_COOKIE);
-    // 401 chứ KHÔNG 200 {error} — silent-refresh của trang sign-in dựa vào
-    // status để biết có phiên hay không (200 giả từng gây loop redirect).
     if (!raw) throw new UnauthorizedException({ error: 'Thiếu refresh token' });
     const t = await this.auth.refresh(raw, { ip, userAgent: req.headers['user-agent'] });
     this.setCookies(res, t);
@@ -179,8 +170,6 @@ export class AuthController {
   async me(@CurrentUser() user: AuthUser) {
     return { user: await this.auth.me(user.id) };
   }
-
-  // ── 2FA enable/verify/disable — thay authClient.twoFactor.* (Better Auth) ──
 
   @HttpCode(200)
   @Post('2fa/enable')
@@ -211,7 +200,6 @@ export class AuthController {
     return { ok: true };
   }
 
-  /** Public keys (RFC 7517) — realtime/hocuspocus/gateway verify cục bộ. */
   @Public()
   @Get('jwks')
   jwks() {
@@ -221,7 +209,9 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @Post('forgot-password')
-  async forgotPassword(@Body(new ZodValidationPipe(forgotPasswordSchema)) body: ForgotPasswordInput) {
+  async forgotPassword(
+    @Body(new ZodValidationPipe(forgotPasswordSchema)) body: ForgotPasswordInput,
+  ) {
     const { devToken } = await this.auth.forgotPassword(body.email);
     return { ok: true, ...(devToken ? { devToken } : {}) };
   }
@@ -234,14 +224,12 @@ export class AuthController {
     return { ok: true };
   }
 
-  // ── Google OAuth (authorization-code, state chống CSRF qua cookie) ──
-
   @Public()
   @Get('google')
   googleRedirect(@Query('redirect') redirect: string | undefined, @Res() res: Response) {
     const state = randomBytes(16).toString('base64url');
-    // Chỉ cho redirect nội bộ ('/x' — không '//evil.com') để tránh open-redirect.
-    const safeRedirect = redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
+    const safeRedirect =
+      redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard';
     res.cookie(OAUTH_STATE_COOKIE, JSON.stringify({ state, redirect: safeRedirect }), {
       httpOnly: true,
       secure: PROD(),
@@ -267,14 +255,23 @@ export class AuthController {
 
     let redirect = '/dashboard';
     try {
-      const parsed = stored ? (JSON.parse(decodeURIComponent(stored)) as { state: string; redirect: string }) : null;
+      const parsed = stored
+        ? (JSON.parse(decodeURIComponent(stored)) as { state: string; redirect: string })
+        : null;
       if (!code || !state || !parsed || parsed.state !== state) throw new Error('state mismatch');
       redirect = parsed.redirect;
 
       const profile = await this.google.exchangeCode(code);
       const user = await this.google.upsertUser(profile);
       const t = await this.auth.issueTokens(
-        { id: user.id, email: user.email, name: user.name, image: user.image, plan: user.plan, adminRole: user.admin_role },
+        {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          plan: user.plan,
+          adminRole: user.admin_role,
+        },
         { ip, userAgent: req.headers['user-agent'] },
       );
       this.setCookies(res, t);

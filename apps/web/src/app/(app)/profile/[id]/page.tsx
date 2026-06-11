@@ -1,9 +1,3 @@
-/**
- * /profile/[id] — public profile view của user khác.
- *
- * Chỉ show nếu user.isPublic = true (server filter), ngược lại 404.
- * Trang này có thể truy cập không cần login — middleware allow public route.
- */
 'use client';
 
 import { use } from 'react';
@@ -22,7 +16,6 @@ type PageProps = { params: Promise<{ id: string }> };
 
 export default function PublicProfilePage({ params }: PageProps) {
   const { id } = use(params);
-  // React Query: cache + revalidate. Lỗi (404/private) → coi như notFound.
   const { data, error } = useQuery({
     queryKey: qk.publicProfile(id),
     queryFn: () => apiGet<PublicProfileDTO>(`/api/profile/${id}`),
@@ -34,7 +27,7 @@ export default function PublicProfilePage({ params }: PageProps) {
     return (
       <div className="mx-auto max-w-md p-12 text-center">
         <h1 className="text-xl font-semibold">Không tìm thấy profile</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-2 text-sm">
           User này chưa công khai profile hoặc không tồn tại.
         </p>
         <Link href="/leaderboard">
@@ -47,7 +40,7 @@ export default function PublicProfilePage({ params }: PageProps) {
   }
 
   if (!data) {
-    return <p className="p-6 text-sm text-muted-foreground">Đang tải...</p>;
+    return <p className="text-muted-foreground p-6 text-sm">Đang tải...</p>;
   }
 
   const { user, stats, achievementMeta } = data;
@@ -62,35 +55,32 @@ export default function PublicProfilePage({ params }: PageProps) {
         </Avatar>
         <div className="flex-1">
           <h1 className="text-2xl font-semibold">{user.name ?? 'Anonymous'}</h1>
-          <p className="text-xs text-muted-foreground">
-            Học tại Cogniva từ{' '}
-            {new Date(user.createdAt).toLocaleDateString('vi-VN')}
+          <p className="text-muted-foreground text-xs">
+            Học tại Cogniva từ {new Date(user.createdAt).toLocaleDateString('vi-VN')}
           </p>
         </div>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+        <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs">
           {user.plan}
         </span>
       </Card>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="space-y-1 p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Zap className="h-4 w-4 text-yellow-500" />
             XP
           </div>
-          <p className="text-2xl font-bold tabular-nums">
-            {stats.xp.toLocaleString('vi-VN')}
-          </p>
+          <p className="text-2xl font-bold tabular-nums">{stats.xp.toLocaleString('vi-VN')}</p>
         </Card>
         <Card className="space-y-1 p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Flame className="h-4 w-4 text-orange-500" />
             Streak
           </div>
           <p className="text-2xl font-bold tabular-nums">{stats.currentStreak} ngày</p>
         </Card>
         <Card className="space-y-1 p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
             <Trophy className="h-4 w-4 text-amber-600" />
             Streak dài nhất
           </div>

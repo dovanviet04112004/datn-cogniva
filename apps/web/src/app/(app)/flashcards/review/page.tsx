@@ -1,6 +1,3 @@
-/**
- * /flashcards/review — màn ôn flashcards. Wrapper page cho ReviewSession.
- */
 import { ReviewSession } from '@/components/flashcards/review-session';
 
 export const metadata = {

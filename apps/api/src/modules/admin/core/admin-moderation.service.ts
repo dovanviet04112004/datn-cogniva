@@ -1,14 +1,3 @@
-/**
- * AdminModerationService — content reports + context + resolve + banned list.
- *
- * GIỮ NGUYÊN quirk targetType 'message' của route cũ (3 chỗ hiểu KHÁC nhau,
- * cố tình không "sửa" để golden diff khớp):
- *  - takedown: xoá bảng `message` (AI chat)
- *  - warn: lookup author từ `study_group_message`
- *  - context: normalize 'message' → group_message
- * Ban qua resolve KHÔNG xoá session/refresh của user (khác /users/:id/suspend)
- * và không notify — y route cũ.
- */
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
@@ -19,7 +8,7 @@ import { AdminNotifyService } from './admin-notify.service';
 import type { ResolveReportInput } from './dto/admin-core.dto';
 import { isoOrNull, parseDateParam, parseLimit } from './admin-core.util';
 
-const CONTEXT_WINDOW = 2; // 2 message trước + 2 sau
+const CONTEXT_WINDOW = 2;
 
 @Injectable()
 export class AdminModerationService {
@@ -29,7 +18,6 @@ export class AdminModerationService {
     private readonly notify: AdminNotifyService,
   ) {}
 
-  // ── GET /admin/moderation/reports ────────────────────────────────
   async listReports(query: {
     status?: string;
     targetType?: string;
@@ -67,9 +55,7 @@ export class AdminModerationService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
     const pendingCount = await this.prisma.content_report.count({
       where: { status: 'PENDING' },
@@ -97,7 +83,6 @@ export class AdminModerationService {
     };
   }
 
-  // ── GET /admin/moderation/context ────────────────────────────────
   async getContext(type: string | undefined, id: string | undefined) {
     const t = type ?? '';
     if (!id) throw new BadRequestException({ error: 'Missing id' });
@@ -223,69 +208,61 @@ export class AdminModerationService {
     };
   }
 
-  // ── POST /admin/moderation/reports/:id/resolve ───────────────────
   async resolveReport(ctx: AdminContext, id: string, dto: ResolveReportInput) {
     const { resolution, reason } = dto;
 
-    return this.audit.withAudit(
-      ctx,
-      `report.${resolution}`,
-      { type: 'report', id },
-      async () => {
-        const report = await this.prisma.content_report.findUnique({ where: { id } });
-        if (!report) throw new Error('Report not found');
-        if (report.status !== 'PENDING') throw new Error('Report đã được xử lý');
+    return this.audit.withAudit(ctx, `report.${resolution}`, { type: 'report', id }, async () => {
+      const report = await this.prisma.content_report.findUnique({ where: { id } });
+      if (!report) throw new Error('Report not found');
+      if (report.status !== 'PENDING') throw new Error('Report đã được xử lý');
 
-        const now = new Date();
-        let sideEffect: Record<string, unknown> = {};
+      const now = new Date();
+      let sideEffect: Record<string, unknown> = {};
 
-        if (resolution === 'takedown') {
-          sideEffect = await this.takedownTarget(report.target_type, report.target_id);
-        } else if (resolution === 'ban') {
-          sideEffect = await this.banTarget(report.target_type, report.target_id, reason);
-        } else if (resolution === 'warn') {
-          const userId = await this.resolveWarnUserId(report.target_type, report.target_id);
-          if (userId) {
-            // Route cũ AWAIT notify ở nhánh warn (khác group suspend fire-and-forget).
-            await this.notify.notifyWarnUser({
-              userId,
-              reason,
-              context: {
-                reportId: report.id,
-                targetType: report.target_type,
-                targetId: report.target_id,
-              },
-            });
-            sideEffect = { type: 'warn.notification', userId };
-          } else {
-            sideEffect = {
-              skipped: true,
-              reason: `Không tìm được userId cho targetType=${report.target_type}`,
-            };
-          }
+      if (resolution === 'takedown') {
+        sideEffect = await this.takedownTarget(report.target_type, report.target_id);
+      } else if (resolution === 'ban') {
+        sideEffect = await this.banTarget(report.target_type, report.target_id, reason);
+      } else if (resolution === 'warn') {
+        const userId = await this.resolveWarnUserId(report.target_type, report.target_id);
+        if (userId) {
+          await this.notify.notifyWarnUser({
+            userId,
+            reason,
+            context: {
+              reportId: report.id,
+              targetType: report.target_type,
+              targetId: report.target_id,
+            },
+          });
+          sideEffect = { type: 'warn.notification', userId };
+        } else {
+          sideEffect = {
+            skipped: true,
+            reason: `Không tìm được userId cho targetType=${report.target_type}`,
+          };
         }
+      }
 
-        await this.prisma.content_report.update({
-          where: { id },
-          data: {
-            status: 'RESOLVED',
-            resolved_by: ctx.userId,
-            resolved_at: now,
-            resolution,
-          },
-        });
+      await this.prisma.content_report.update({
+        where: { id },
+        data: {
+          status: 'RESOLVED',
+          resolved_by: ctx.userId,
+          resolved_at: now,
+          resolution,
+        },
+      });
 
-        return {
-          before: { status: report.status, resolution: report.resolution },
-          after: { status: 'RESOLVED', resolution, sideEffect },
-          reason,
-          result: { ok: true, resolution, sideEffect },
-        };
-      },
-    );
+      return {
+        before: { status: report.status, resolution: report.resolution },
+        after: { status: 'RESOLVED', resolution, sideEffect },
+        reason,
+        result: { ok: true, resolution, sideEffect },
+      };
+    });
   }
 
-  /** Takedown — hard delete content; deleteMany để không-throw khi target đã mất (y drizzle). */
   private async takedownTarget(
     targetType: string,
     targetId: string,
@@ -318,7 +295,6 @@ export class AdminModerationService {
       return m?.author_id ?? null;
     }
     if (targetType === 'ai_message') {
-      // Author là user của conversation; skip nếu role ASSISTANT (warn AI vô nghĩa).
       const m = await this.prisma.message.findUnique({
         where: { id: targetId },
         select: { role: true, conversation_id: true },
@@ -359,7 +335,6 @@ export class AdminModerationService {
     }
   }
 
-  // ── GET /admin/moderation/banned ─────────────────────────────────
   async listBanned(query: { type?: string; q?: string; limit?: string }) {
     const type = query.type ?? null;
     const q = query.q?.trim() ?? '';

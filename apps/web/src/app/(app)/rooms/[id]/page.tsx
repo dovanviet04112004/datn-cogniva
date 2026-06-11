@@ -1,11 +1,3 @@
-/**
- * /rooms/[id] — main room page (in-call).
- *
- * Server component: verify room exists + render RoomClient wrapper.
- * Lobby phải đi qua trước (lấy display name + device prefs) — nếu user
- * vào thẳng đây mà localStorage trống, RoomClient vẫn fetch token được
- * (default displayName = user.name từ session).
- */
 import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 

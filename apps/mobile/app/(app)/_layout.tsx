@@ -1,11 +1,3 @@
-/**
- * (app) group layout — protected routes (cần auth).
- *
- * Auth guard: nếu user null → redirect (auth)/sign-in.
- * Tab navigation cho dashboard / flashcards / chat / settings.
- *
- * Stage 2 M6 W2 sẽ thêm tabs + icon (lucide-react-native).
- */
 import { Redirect, Tabs } from 'expo-router';
 
 import { useAuth } from '@/store/auth';
@@ -24,22 +16,10 @@ export default function AppLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{ title: 'Trang chính', tabBarLabel: 'Home' }}
-      />
-      <Tabs.Screen
-        name="documents"
-        options={{ title: 'Tài liệu', tabBarLabel: 'Tài liệu' }}
-      />
-      <Tabs.Screen
-        name="flashcards"
-        options={{ title: 'Flashcards', tabBarLabel: 'Học' }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{ title: 'Cài đặt', tabBarLabel: 'Tôi' }}
-      />
+      <Tabs.Screen name="dashboard" options={{ title: 'Trang chính', tabBarLabel: 'Home' }} />
+      <Tabs.Screen name="documents" options={{ title: 'Tài liệu', tabBarLabel: 'Tài liệu' }} />
+      <Tabs.Screen name="flashcards" options={{ title: 'Flashcards', tabBarLabel: 'Học' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Cài đặt', tabBarLabel: 'Tôi' }} />
     </Tabs>
   );
 }

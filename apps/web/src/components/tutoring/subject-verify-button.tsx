@@ -1,13 +1,3 @@
-/**
- * SubjectVerifyButton — tutor verify chuyên môn 1 môn qua AI quiz.
- *
- * Click → POST /api/tutors/[id]/subjects/[sid]/verify-quiz → AI gen 10 câu
- * MCQ → redirect /quiz/[id] để tutor làm. Sau khi user submit quiz xong,
- * caller (FE) sẽ PATCH endpoint với score (separately — V3 wire này sau,
- * V3 hiện scaffolding chỉ gen quiz, scoring qua existing quiz attempt UI).
- *
- * Khi subject đã verified → render badge readonly thay nút.
- */
 'use client';
 
 import * as React from 'react';
@@ -33,12 +23,10 @@ export function SubjectVerifyButton({
 
   if (isVerified) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+      <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold">
         <Verified className="h-3 w-3" />
         Verified
-        {verifyScore !== null && (
-          <span className="font-mono tabular-nums">{verifyScore}%</span>
-        )}
+        {verifyScore !== null && <span className="font-mono tabular-nums">{verifyScore}%</span>}
       </span>
     );
   }
@@ -46,10 +34,9 @@ export function SubjectVerifyButton({
   const startVerify = async () => {
     setBusy(true);
     try {
-      const res = await fetch(
-        `/api/tutors/${tutorId}/subjects/${subjectId}/verify-quiz`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`/api/tutors/${tutorId}/subjects/${subjectId}/verify-quiz`, {
+        method: 'POST',
+      });
       if (!res.ok) {
         const e = (await res.json().catch(() => null)) as { error?: unknown } | null;
         throw new Error(typeof e?.error === 'string' ? e.error : 'AI gen lỗi');
@@ -73,11 +60,7 @@ export function SubjectVerifyButton({
         busy && 'pointer-events-none opacity-60',
       )}
     >
-      {busy ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <Sparkles className="h-3 w-3" />
-      )}
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
       Verify môn này
     </button>
   );

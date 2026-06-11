@@ -1,19 +1,3 @@
-/**
- * Documents tab (list) — list tài liệu user upload.
- *
- * Stage 2 M6 W4 update:
- *   - Tách khỏi `documents.tsx` flat → nested Stack
- *   - Card tap → navigate `/documents/${id}` (detail screen)
- *   - FAB upload PDF giữ nguyên
- *
- * Stage 2 M6 W2 scope (giữ nguyên):
- *   - Fetch documents list qua api.documents.list()
- *   - Pull-to-refresh (RefreshControl) + empty state
- *   - Status badge (UPLOADING/PROCESSING/READY/FAILED) + file type icon
- *
- * Pending Stage 3:
- *   - PDF viewer native (react-native-pdf — cần EAS dev client)
- */
 import { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -46,10 +30,6 @@ const STATUS_LABEL: Record<DocumentDTO['status'], string> = {
   FAILED: 'Thất bại',
 };
 
-/**
- * Map mimeType → icon emoji. Backend trả mimeType chuẩn (application/pdf,
- * application/vnd.openxmlformats-officedocument.wordprocessingml.document, …).
- */
 function fileIcon(mimeType: string): string {
   if (mimeType.includes('pdf')) return '📕';
   if (mimeType.includes('word') || mimeType.includes('docx')) return '📘';
@@ -77,10 +57,6 @@ export default function DocumentsScreen() {
 
   const items = useMemo(() => query.data ?? [], [query.data]);
 
-  /**
-   * Upload flow: DocumentPicker → FormData → POST /api/documents/upload.
-   * Backend block-then-ingest synchronously (5-30s) → mobile show busy state.
-   */
   const uploadMutation = useMutation({
     mutationFn: async () => {
       const picked = await DocumentPicker.getDocumentAsync({
@@ -93,15 +69,12 @@ export default function DocumentsScreen() {
       }
       const asset = picked.assets[0]!;
       const form = new FormData();
-      // RN FormData accept { uri, name, type } object cast (không phải standard DOM File)
       form.append('file', {
         uri: asset.uri,
         name: asset.name,
         type: asset.mimeType ?? 'application/pdf',
       } as unknown as Blob);
 
-      // Upload FormData đi fetch thẳng (không qua shared client) → tự lấy
-      // accessToken còn hạn, tránh 401 giữa chừng vì JWT 15'.
       const token = await getValidAccessToken();
       const url = `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000'}/api/documents/upload`;
       const res = await fetch(url, {
@@ -110,7 +83,6 @@ export default function DocumentsScreen() {
         headers: {
           ...(token ? { authorization: `Bearer ${token}` } : {}),
           'x-client-name': 'cogniva-mobile',
-          // KHÔNG set Content-Type — fetch tự set với boundary cho multipart
         },
         body: form,
       });
@@ -125,7 +97,7 @@ export default function DocumentsScreen() {
       void qc.invalidateQueries({ queryKey: ['documents', 'list'] });
     },
     onError: (err) => {
-      if (err.message === 'CANCELED') return; // user huỷ → silent
+      if (err.message === 'CANCELED') return;
       Alert.alert('Upload thất bại', err.message);
     },
   });

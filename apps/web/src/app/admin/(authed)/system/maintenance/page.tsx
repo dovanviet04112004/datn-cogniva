@@ -1,6 +1,3 @@
-/**
- * /admin/system/maintenance — toggle maintenance + edit banner.
- */
 import { MaintenanceClient } from '@/components/admin/system/maintenance-client';
 import { getMaintenanceConfig } from '@/lib/system/config';
 

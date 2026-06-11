@@ -1,15 +1,3 @@
-/**
- * CostDashboardClient — admin AI cost dashboard.
- *
- * UX: chọn window (7d/30d/90d) → fetch /api/admin/ai/cost → render:
- *   1. KPI tiles: total, calls, cache hit ratio, unique users
- *   2. Stacked line chart: cost/day broken down by provider (inline SVG)
- *   3. Horizontal bar: by provider (window) — không dùng pie cho dễ đọc
- *   4. Table: by feature/use-case (top 20)
- *   5. Table: top 20 users by cost (click → /admin/users/[id])
- *
- * KHÔNG dùng recharts/chart.js — overhead ~300KB. Inline SVG đủ cho admin UI.
- */
 'use client';
 
 import * as React from 'react';
@@ -53,15 +41,14 @@ type Data = {
   topUsers: TopUser[];
 };
 
-// Màu cố định cho provider để chart consistent. Provider mới sẽ fall back vào slate.
 const PROVIDER_COLORS: Record<string, string> = {
-  openai: '#10b981', // emerald
-  anthropic: '#f59e0b', // amber
-  google: '#3b82f6', // blue
-  voyage: '#a855f7', // purple
-  cohere: '#ec4899', // pink
-  groq: '#ef4444', // red
-  unknown: '#64748b', // slate
+  openai: '#10b981',
+  anthropic: '#f59e0b',
+  google: '#3b82f6',
+  voyage: '#a855f7',
+  cohere: '#ec4899',
+  groq: '#ef4444',
+  unknown: '#64748b',
 };
 
 function colorFor(provider: string): string {
@@ -99,8 +86,7 @@ export function CostDashboardClient() {
           </div>
         </div>
         <p className="text-sm text-slate-400">
-          Cost breakdown từ <code>ai_usage_log</code>. Số liệu cập nhật ngay sau mỗi
-          LLM call.
+          Cost breakdown từ <code>ai_usage_log</code>. Số liệu cập nhật ngay sau mỗi LLM call.
         </p>
       </header>
 
@@ -112,7 +98,6 @@ export function CostDashboardClient() {
         <EmptyState days={days} />
       ) : (
         <>
-          {/* KPI tiles */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <KpiTile
               icon={Coins}
@@ -140,31 +125,24 @@ export function CostDashboardClient() {
             />
           </div>
 
-          {/* Line chart by day */}
           <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
-            <h2 className="mb-4 text-sm font-semibold tracking-tight">
-              Cost theo ngày (USD)
-            </h2>
+            <h2 className="mb-4 text-sm font-semibold tracking-tight">Cost theo ngày (USD)</h2>
             <LineChart byDay={data.byDay} days={data.days} />
             <ProviderLegend providers={data.byProvider.map((p) => p.provider)} />
           </section>
 
-          {/* By provider */}
           <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
             <h2 className="mb-3 text-sm font-semibold tracking-tight">By provider</h2>
             <ProviderBar items={data.byProvider} total={data.summary.totalUsd} />
           </section>
 
-          {/* By feature + Top users */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
               <h2 className="mb-3 text-sm font-semibold tracking-tight">By feature</h2>
               <FeatureTable items={data.byFeature} />
             </section>
             <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
-              <h2 className="mb-3 text-sm font-semibold tracking-tight">
-                Top 20 users
-              </h2>
+              <h2 className="mb-3 text-sm font-semibold tracking-tight">Top 20 users</h2>
               <TopUserTable items={data.topUsers} />
             </section>
           </div>
@@ -182,8 +160,8 @@ function EmptyState({ days }: { days: number }) {
         Chưa có data AI usage trong {days} ngày qua
       </p>
       <p className="mt-1 text-[12px] text-slate-400">
-        Bảng <code>ai_usage_log</code> trống — hoặc Phase 3 mới wire xong và chưa có
-        LLM call nào ghi vào DB. Gửi 1 chat AI để verify.
+        Bảng <code>ai_usage_log</code> trống — hoặc Phase 3 mới wire xong và chưa có LLM call nào
+        ghi vào DB. Gửi 1 chat AI để verify.
       </p>
     </div>
   );
@@ -212,29 +190,19 @@ function KpiTile({
   );
 }
 
-/**
- * Inline SVG line chart — stacked theo provider.
- * Tự scale Y-axis theo max value. X-axis label chỉ hiện đầu/giữa/cuối.
- */
 function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
-  // Group by day → total cost cho stacked area baseline
   const dayMap = new Map<string, Map<string, number>>();
   for (const r of byDay) {
     if (!dayMap.has(r.day)) dayMap.set(r.day, new Map());
     dayMap.get(r.day)!.set(r.provider, r.costUsd);
   }
   const allDays = Array.from(dayMap.keys()).sort();
-  const providers = Array.from(
-    new Set(byDay.map((r) => r.provider)),
-  ).sort();
+  const providers = Array.from(new Set(byDay.map((r) => r.provider))).sort();
 
-  // Fill missing days với 0 (xuất hiện trục liên tục)
   const filledDays = fillDays(allDays, days);
   const maxTotal = Math.max(
     0.01,
-    ...filledDays.map((d) =>
-      providers.reduce((sum, p) => sum + (dayMap.get(d)?.get(p) ?? 0), 0),
-    ),
+    ...filledDays.map((d) => providers.reduce((sum, p) => sum + (dayMap.get(d)?.get(p) ?? 0), 0)),
   );
 
   const W = 800;
@@ -246,13 +214,9 @@ function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
 
-  // X positions
   const xFor = (i: number) =>
-    filledDays.length === 1
-      ? padL + innerW / 2
-      : padL + (i / (filledDays.length - 1)) * innerW;
+    filledDays.length === 1 ? padL + innerW / 2 : padL + (i / (filledDays.length - 1)) * innerW;
 
-  // Render từng provider thành 1 polyline
   const lines = providers.map((p) => {
     const points = filledDays
       .map((d, i) => {
@@ -264,13 +228,11 @@ function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
     return { provider: p, points };
   });
 
-  // Y axis ticks (4 ticks)
   const yTicks = Array.from({ length: 5 }, (_, i) => i / 4).map((r) => ({
     y: padT + innerH - r * innerH,
     label: `$${(r * maxTotal).toFixed(maxTotal < 1 ? 3 : 2)}`,
   }));
 
-  // X axis: first, middle, last
   const xLabels =
     filledDays.length === 0
       ? []
@@ -295,7 +257,6 @@ function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
       preserveAspectRatio="none"
       style={{ maxHeight: 240 }}
     >
-      {/* Y grid + labels */}
       {yTicks.map((t, i) => (
         <g key={i}>
           <line
@@ -319,7 +280,6 @@ function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
         </g>
       ))}
 
-      {/* Provider lines */}
       {lines.map((l) => (
         <polyline
           key={l.provider}
@@ -332,7 +292,6 @@ function LineChart({ byDay, days }: { byDay: ByDay[]; days: number }) {
         />
       ))}
 
-      {/* X labels */}
       {xLabels.map((l, i) => (
         <text
           key={i}
@@ -358,10 +317,7 @@ function ProviderLegend({ providers }: { providers: string[] }) {
           key={p}
           className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-slate-400"
         >
-          <span
-            className="h-2 w-3 rounded-sm"
-            style={{ backgroundColor: colorFor(p) }}
-          />
+          <span className="h-2 w-3 rounded-sm" style={{ backgroundColor: colorFor(p) }} />
           {p}
         </span>
       ))}
@@ -369,13 +325,7 @@ function ProviderLegend({ providers }: { providers: string[] }) {
   );
 }
 
-function ProviderBar({
-  items,
-  total,
-}: {
-  items: ByProvider[];
-  total: number;
-}) {
+function ProviderBar({ items, total }: { items: ByProvider[]; total: number }) {
   if (items.length === 0) {
     return <p className="text-[11px] text-slate-500">Không có data.</p>;
   }
@@ -466,9 +416,7 @@ function TopUserTable({ items }: { items: TopUser[] }) {
                 className="flex flex-col leading-tight text-slate-300 hover:text-red-300"
               >
                 <span className="truncate text-[11.5px]">{u.name ?? '—'}</span>
-                <span className="truncate font-mono text-[10px] text-slate-500">
-                  {u.email}
-                </span>
+                <span className="truncate font-mono text-[10px] text-slate-500">{u.email}</span>
               </Link>
             </td>
             <td className="py-1.5">
@@ -498,9 +446,6 @@ function TopUserTable({ items }: { items: TopUser[] }) {
   );
 }
 
-/**
- * Fill missing days với placeholder để X axis liên tục — chart không jump.
- */
 function fillDays(have: string[], days: number): string[] {
   const result: string[] = [];
   const today = new Date();
@@ -509,13 +454,11 @@ function fillDays(have: string[], days: number): string[] {
     d.setUTCDate(d.getUTCDate() - i);
     result.push(d.toISOString().slice(0, 10));
   }
-  // Nếu có data ngoài range (edge case) thì cũng thêm
   for (const h of have) if (!result.includes(h)) result.push(h);
   return result.sort();
 }
 
 function shortDate(iso: string): string {
-  // 'YYYY-MM-DD' → 'DD/MM'
   const [, m, d] = iso.split('-');
   return `${d}/${m}`;
 }

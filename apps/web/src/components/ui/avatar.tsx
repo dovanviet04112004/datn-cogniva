@@ -1,16 +1,3 @@
-/**
- * Avatar — wrap @radix-ui/react-avatar theo chuẩn shadcn/ui.
- *
- * Lý do dùng Radix:
- *  - Tự động fall-back sang AvatarFallback nếu ảnh load lỗi/chậm.
- *  - Hỗ trợ accessibility (alt text, role=img).
- *
- * Cách dùng:
- *   <Avatar>
- *     <AvatarImage src={user.image} alt={user.name} />
- *     <AvatarFallback>{initials}</AvatarFallback>
- *   </Avatar>
- */
 'use client';
 
 import * as React from 'react';
@@ -42,10 +29,6 @@ const AvatarImage = React.forwardRef<
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
-/**
- * Hiển thị khi ảnh chưa load xong hoặc load thất bại.
- * Thường chứa chữ viết tắt 1-2 ký tự.
- */
 const AvatarFallback = React.forwardRef<
   React.ComponentRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
@@ -53,7 +36,7 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      'flex h-full w-full items-center justify-center rounded-full bg-muted text-sm font-medium',
+      'bg-muted flex h-full w-full items-center justify-center rounded-full text-sm font-medium',
       className,
     )}
     {...props}

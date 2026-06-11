@@ -1,8 +1,3 @@
-/**
- * Mapper row Prisma (snake_case) → wire shape route cũ (camelCase, ĐÚNG thứ tự
- * cột khai báo trong Drizzle schema — packages/db/src/schema.ts) để JSON
- * byte-identical với `.returning()`/`db.select()` của route Next.
- */
 import { Prisma } from '@prisma/client';
 import type {
   exam as ExamRow,
@@ -12,10 +7,6 @@ import type {
   exam_violation as ExamViolationRow,
 } from '@prisma/client';
 
-/**
- * jsonb null: Drizzle cũ ghi SQL NULL thường — Prisma bắt phân biệt nên phải
- * dùng DbNull (KHÔNG phải JsonNull = 'null'::jsonb) để giữ nguyên data cũ.
- */
 export function jsonOrDbNull(v: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
   return v === null || v === undefined ? Prisma.DbNull : (v as Prisma.InputJsonValue);
 }
@@ -79,7 +70,6 @@ export function toQuestionDto(row: ExamQuestionRow) {
   };
 }
 
-/** Subset question khi attempt còn IN_PROGRESS (không leak correctAnswer). */
 export function toStrippedQuestionDto(row: ExamQuestionRow) {
   return {
     id: row.id,

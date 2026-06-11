@@ -1,12 +1,3 @@
-/**
- * ThreadList — DM threads sidebar list.
- *
- * Dùng ở 2 chỗ:
- *   - Desktop sidebar (`/messages` layout, md+ width 340px)
- *   - Mobile full-screen ở `/messages` page
- *
- * Active row dựa vào pathname match `/messages/[id]`. Click → navigate.
- */
 'use client';
 
 import * as React from 'react';
@@ -37,39 +28,33 @@ export type DmThreadItem = {
 export function ThreadList() {
   const pathname = usePathname();
   const [query, setQuery] = React.useState('');
-  // React Query: share cache với DmList (cùng qk.dmThreads).
   const { data: threads = [], isLoading: loading } = useQuery({
     queryKey: qk.dmThreads(),
     queryFn: () => apiGet<{ threads: DmThreadItem[] }>('/api/dm').then((d) => d.threads ?? []),
   });
 
-  // Filter client-side theo tên peer
   const filtered = React.useMemo(() => {
     if (!query.trim()) return threads;
     const q = query.trim().toLowerCase();
-    return threads.filter((t) =>
-      (t.peer.name ?? '').toLowerCase().includes(q),
-    );
+    return threads.filter((t) => (t.peer.name ?? '').toLowerCase().includes(q));
   }, [threads, query]);
 
   return (
-    <div className="flex h-full flex-col bg-surface-secondary/50">
-      {/* Header — title + new DM button */}
-      <header className="flex items-center justify-between gap-2 border-b border-divider px-4 py-3">
+    <div className="bg-surface-secondary/50 flex h-full flex-col">
+      <header className="border-divider flex items-center justify-between gap-2 border-b px-4 py-3">
         <h2 className="text-base font-semibold tracking-tight">Tin nhắn</h2>
         <button
           type="button"
           title="Tin nhắn mới (chọn member từ group)"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
         >
           <MessageSquarePlus className="h-4 w-4" />
         </button>
       </header>
 
-      {/* Search */}
-      <div className="border-b border-divider px-3 py-2.5">
+      <div className="border-divider border-b px-3 py-2.5">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+          <Search className="text-text-muted pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -79,17 +64,16 @@ export function ThreadList() {
         </div>
       </div>
 
-      {/* Threads scroll */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      <div className="scrollbar-thin flex-1 overflow-y-auto">
         {loading ? (
           <ThreadListSkeleton />
         ) : filtered.length === 0 ? (
           <div className="px-6 py-8 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {query ? 'Không tìm thấy' : 'Chưa có tin nhắn'}
             </p>
             {!query && (
-              <p className="mt-1 text-xs text-text-muted">
+              <p className="text-text-muted mt-1 text-xs">
                 Click avatar member trong group để bắt đầu DM.
               </p>
             )}
@@ -113,14 +97,11 @@ export function ThreadList() {
                     {active && (
                       <span
                         aria-hidden
-                        className="absolute -left-1 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-full bg-primary"
+                        className="bg-primary absolute -left-1 top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-full"
                       />
                     )}
                     <Avatar className="h-11 w-11 shrink-0">
-                      <AvatarImage
-                        src={t.peer.image ?? undefined}
-                        alt={t.peer.name ?? ''}
-                      />
+                      <AvatarImage src={t.peer.image ?? undefined} alt={t.peer.name ?? ''} />
                       <AvatarFallback className="text-sm">
                         {(t.peer.name ?? '?')[0]?.toUpperCase()}
                       </AvatarFallback>
@@ -136,7 +117,7 @@ export function ThreadList() {
                           {t.peer.name ?? 'Anonymous'}
                         </p>
                         {t.lastMessageAt && (
-                          <span className="shrink-0 font-mono text-[11px] tabular-nums text-text-muted">
+                          <span className="text-text-muted shrink-0 font-mono text-[11px] tabular-nums">
                             <RelativeTime date={t.lastMessageAt} />
                           </span>
                         )}
@@ -145,19 +126,15 @@ export function ThreadList() {
                         <p
                           className={cn(
                             'truncate text-xs',
-                            hasUnread
-                              ? 'font-medium text-foreground/85'
-                              : 'text-muted-foreground',
+                            hasUnread ? 'text-foreground/85 font-medium' : 'text-muted-foreground',
                           )}
                         >
                           {t.lastMessage ?? (
-                            <span className="italic text-text-muted">
-                              Chưa có tin nhắn
-                            </span>
+                            <span className="text-text-muted italic">Chưa có tin nhắn</span>
                           )}
                         </p>
                         {hasUnread && (
-                          <span className="inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] font-bold text-primary-foreground">
+                          <span className="bg-primary text-primary-foreground inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full px-1.5 font-mono text-[11px] font-bold">
                             {unread > 99 ? '99+' : unread}
                           </span>
                         )}
@@ -178,14 +155,11 @@ function ThreadListSkeleton() {
   return (
     <ul className="space-y-2 p-2">
       {Array.from({ length: 5 }).map((_, i) => (
-        <li
-          key={i}
-          className="flex items-center gap-3 rounded-xl px-3 py-2.5"
-        >
-          <div className="h-11 w-11 animate-soft-pulse rounded-full bg-muted" />
+        <li key={i} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+          <div className="animate-soft-pulse bg-muted h-11 w-11 rounded-full" />
           <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="h-3.5 w-1/2 animate-soft-pulse rounded bg-muted" />
-            <div className="h-3 w-3/4 animate-soft-pulse rounded bg-muted/60" />
+            <div className="animate-soft-pulse bg-muted h-3.5 w-1/2 rounded" />
+            <div className="animate-soft-pulse bg-muted/60 h-3 w-3/4 rounded" />
           </div>
         </li>
       ))}

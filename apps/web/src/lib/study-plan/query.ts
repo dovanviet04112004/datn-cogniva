@@ -1,9 +1,3 @@
-/**
- * getStudyPlanItems — list study-plan item theo filter status/kind.
- *
- * Logic gốc inline trong GET /api/study-plan; tách ra để CẢ route (mobile) LẪN
- * trang SSR /study-plan prefetch manual items dùng chung. Server-only (Drizzle).
- */
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { db, studyPlanItem } from '@cogniva/db';
@@ -25,7 +19,6 @@ export async function getStudyPlanItems(
     where.push(eq(studyPlanItem.kind, kind));
   }
 
-  // ORDER BY due_date ASC NULLS LAST → item có deadline lên trước
   return db
     .select()
     .from(studyPlanItem)

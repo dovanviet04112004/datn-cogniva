@@ -7,17 +7,10 @@ import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { IngestService } from './ingest.service';
 
-/**
- * DocumentsModule — documents CRUD + ingest pipeline + concept extraction
- * (Wave 3 core học tập). QueueModule: enqueue extract-document-concepts lên
- * queue `document`; GamificationModule: XP cho upload.
- */
 @Module({
   imports: [QueueModule, GamificationModule],
   controllers: [DocumentsController],
   providers: [DocumentsService, IngestService, ConceptsService],
-  // ConceptsService + IngestService exported cho DocumentProcessor (jobs):
-  // extract concepts + admin reingest (job `ingest-document`).
   exports: [ConceptsService, IngestService],
 })
 export class DocumentsModule {}

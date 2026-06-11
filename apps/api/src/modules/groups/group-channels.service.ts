@@ -1,9 +1,3 @@
-/**
- * GroupChannelsService — categories + channels (CRUD/reorder/typing) +
- * per-channel permission overrides. Port từ apps/web/src/app/api/groups/[id]/
- * {categories/**,channels/**} — GIỮ NGUYÊN wire shape/status/message; body
- * parse SAU check membership/permission (403/404 trước 400) y route cũ.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -44,10 +38,6 @@ export class GroupChannelsService {
       where: { group_id_user_id: { group_id: groupId, user_id: userId } },
     });
   }
-
-  // ──────────────────────────────────────────────────────────
-  // Categories
-  // ──────────────────────────────────────────────────────────
 
   async listCategories(uid: string, groupId: string) {
     const me = await this.membership(groupId, uid);
@@ -95,7 +85,6 @@ export class GroupChannelsService {
     const parsed = updateCategorySchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: parsed.error.flatten() });
 
-    // UPDATE WHERE (id, group) — 0 row = không tồn tại (y .returning() rỗng cũ)
     const result = await this.prisma.study_group_category.updateMany({
       where: { id: catId, group_id: groupId },
       data: {
@@ -123,15 +112,10 @@ export class GroupChannelsService {
       throw new NotFoundException({ error: 'Category không tồn tại' });
     }
 
-    // FK SET NULL trên channel.category_id → channels trong groupDetail đổi → bust.
     await onGroupChanged(groupId);
 
     return { deleted: true };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // Channels
-  // ──────────────────────────────────────────────────────────
 
   async listChannels(uid: string, groupId: string) {
     const me = await this.membership(groupId, uid);
@@ -154,7 +138,6 @@ export class GroupChannelsService {
     const parsed = createChannelSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: parsed.error.flatten() });
 
-    // Lấy max position hiện có để append cuối
     const existing = await this.prisma.study_group_channel.findMany({
       where: { group_id: groupId },
       orderBy: { position: 'asc' },
@@ -174,7 +157,7 @@ export class GroupChannelsService {
         created_by: uid,
         voice_max_participants:
           parsed.data.type === 'VOICE' || parsed.data.type === 'STAGE'
-            ? parsed.data.voiceMaxParticipants ?? null
+            ? (parsed.data.voiceMaxParticipants ?? null)
             : null,
       },
     });
@@ -185,7 +168,6 @@ export class GroupChannelsService {
 
     await onGroupChanged(groupId);
 
-    // VOICE + STAGE channel: gán livekitRoomName sau khi có id
     if (created.type === 'VOICE' || created.type === 'STAGE') {
       const updated = await this.prisma.study_group_channel.update({
         where: { id: created.id },
@@ -221,7 +203,6 @@ export class GroupChannelsService {
         }),
         ...(parsed.data.categoryId !== undefined && { category_id: parsed.data.categoryId }),
         ...(parsed.data.availableTags !== undefined && {
-          // jsonb null → DbNull giữ nguyên SQL NULL như Drizzle cũ
           available_tags:
             parsed.data.availableTags === null
               ? Prisma.DbNull
@@ -245,7 +226,6 @@ export class GroupChannelsService {
       throw new ForbiddenException({ error: 'Không có quyền xoá channel' });
     }
 
-    // Đảm bảo group còn ít nhất 1 channel sau khi xoá
     const count = await this.prisma.study_group_channel.count({
       where: { group_id: groupId },
     });
@@ -267,7 +247,6 @@ export class GroupChannelsService {
     return { deleted: true };
   }
 
-  /** POST /groups/:id/channels/reorder — bulk update position trong txn. */
   async reorderChannels(uid: string, groupId: string, raw: unknown) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
@@ -278,7 +257,6 @@ export class GroupChannelsService {
     const parsed = reorderChannelsSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: parsed.error.flatten() });
 
-    // Bulk update trong txn — WHERE kèm group_id đảm bảo channel thuộc đúng group
     await this.prisma.$transaction(async (tx) => {
       for (const { id, position } of parsed.data.orders) {
         await tx.study_group_channel.updateMany({
@@ -293,12 +271,7 @@ export class GroupChannelsService {
     return { updated: parsed.data.orders.length };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // POST /groups/:id/channels/:channelId/typing — ephemeral, không lưu DB
-  // ──────────────────────────────────────────────────────────
-
   async typing(uid: string, groupId: string, channelId: string) {
-    // Verify membership + channel thuộc group (chống cross-group spoof)
     const member = await this.membership(groupId, uid);
     if (!member) throw new ForbiddenException({ error: 'Forbidden' });
 
@@ -317,14 +290,9 @@ export class GroupChannelsService {
       userId: uid,
       name: u?.name ?? 'Ai đó',
       image: u?.image ?? null,
-      /** Client expire local sau 5s nếu không có event mới. */
       expiresAt: Date.now() + 5_000,
     });
 
     return { ok: true };
   }
-
-  /* Nhóm route channel permission overrides (V2 G1) KHÔNG port — 0 caller
-     (caller-analysis Wave 4). PermissionsService vẫn ĐỌC bảng
-     study_group_channel_permission khi resolve quyền. */
 }

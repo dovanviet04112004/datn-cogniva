@@ -1,7 +1,3 @@
-/**
- * /quiz/[id]/attempt — load quiz + questions (NO answers) rồi render
- * QuizAttemptSession. Sau khi submit, results hiển thị in-place.
- */
 'use client';
 
 import { use } from 'react';
@@ -26,14 +22,14 @@ export default function QuizAttemptPage({ params }: PageProps) {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl p-8 text-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground mx-auto max-w-2xl p-8 text-center text-sm">
         Lỗi: {(error as Error).message}
       </div>
     );
   }
   if (!data) {
     return (
-      <div className="mx-auto flex max-w-2xl items-center justify-center p-8 text-sm text-muted-foreground">
+      <div className="text-muted-foreground mx-auto flex max-w-2xl items-center justify-center p-8 text-sm">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         Đang tải quiz...
       </div>

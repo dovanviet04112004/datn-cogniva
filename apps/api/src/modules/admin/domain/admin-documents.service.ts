@@ -1,11 +1,3 @@
-/**
- * AdminDocumentsService — port từ apps/web/src/app/api/admin/documents/**.
- *
- * Reingest: route web cũ gọi ingestDocument() in-process fire-and-forget;
- * api ĐỔI thành enqueue BullMQ queue `document` job `ingest-document`
- * jobId=documentId (deviation có chủ đích — pipeline chạy ở worker, HTTP
- * process không bị block/ăn CPU parse PDF). DocumentProcessor (jobs) consume.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -27,7 +19,6 @@ export class AdminDocumentsService {
     @InjectQueue(DOCUMENT_QUEUE) private readonly documentQueue: Queue,
   ) {}
 
-  /** GET /admin/documents — list cross-user, filter + cursor createdAt. */
   async list(params: {
     q?: string;
     status?: string;
@@ -86,11 +77,8 @@ export class AdminDocumentsService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
-    // Total chỉ count khi không có filter (cache UX) — y route cũ.
     let total: number | null = null;
     if (conditions === 0) {
       total = await this.prisma.document.count();
@@ -115,7 +103,6 @@ export class AdminDocumentsService {
     };
   }
 
-  /** GET /admin/documents/:id — detail + 20 chunks preview + stats. */
   async getDetail(id: string) {
     const row = await this.prisma.document.findUnique({
       where: { id },
@@ -179,7 +166,6 @@ export class AdminDocumentsService {
     };
   }
 
-  /** DELETE /admin/documents/:id — hard delete row (FK cascade chunk), R2 GIỮ. */
   async delete(ctx: AdminContext, id: string, reason: string) {
     return this.audit.withAudit(ctx, 'document.delete', { type: 'document', id }, async () => {
       const before = await this.prisma.document.findUnique({
@@ -188,7 +174,6 @@ export class AdminDocumentsService {
       });
       if (!before) throw new Error('Document not found');
 
-      // FK cascade từ document → chunk → chunkConcept tự lo
       await this.prisma.document.delete({ where: { id } });
 
       return {
@@ -200,7 +185,6 @@ export class AdminDocumentsService {
     });
   }
 
-  /** POST /admin/documents/:id/reingest — xoá chunks, PROCESSING, enqueue job. */
   async reingest(ctx: AdminContext, id: string, reason: string) {
     const result = await this.audit.withAudit(
       ctx,
@@ -228,9 +212,6 @@ export class AdminDocumentsService {
       },
     );
 
-    // Fire-and-forget enqueue — KHÔNG await; lỗi enqueue (Redis chết) không
-    // làm fail response, y semantics fire-and-forget cũ. Worker tự set
-    // READY/FAILED, UI poll list để cập nhật.
     void this.enqueueIngest(id);
 
     return result;
@@ -238,9 +219,6 @@ export class AdminDocumentsService {
 
   private async enqueueIngest(documentId: string): Promise<void> {
     try {
-      // jobId=documentId dedup — nhưng job cũ cùng id (extract-document-concepts
-      // của lần upload trước còn retained trong completed set) sẽ chặn add mới.
-      // Remove trước (no-op nếu không có / đang active) để reingest luôn chạy.
       await this.documentQueue.remove(documentId).catch(() => {});
       await this.documentQueue.add(
         'ingest-document',

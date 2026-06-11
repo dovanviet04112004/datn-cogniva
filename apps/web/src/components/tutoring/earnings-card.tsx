@@ -1,26 +1,9 @@
-/**
- * EarningsCard — tutor xem tổng earnings + request payout.
- *
- * Hiển thị:
- *   - 4 metric: total earned, released (qua escrow), pending payout, withdrawable
- *   - Form quick request payout (input amount + bank info)
- *   - List payout requests gần đây
- *
- * Client component — fetch /api/tutoring/payouts khi mount.
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Banknote,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  Wallet,
-  XCircle,
-} from 'lucide-react';
+import { Banknote, CheckCircle2, Clock, Loader2, Wallet, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -86,7 +69,6 @@ export function EarningsCard() {
   const summary = data?.summary ?? null;
   const payouts = data?.payouts ?? [];
   const verificationStatus = data?.tutor?.verificationStatus ?? 'NONE';
-  // invalidate để refetch sau khi gửi yêu cầu rút tiền.
   const load = () => qc.invalidateQueries({ queryKey: qk.tutoringPayouts() });
 
   const [amount, setAmount] = React.useState('');
@@ -125,8 +107,8 @@ export function EarningsCard() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl bg-card p-6 shadow-soft">
-        <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="bg-card shadow-soft rounded-2xl p-6">
+        <Loader2 className="text-muted-foreground mx-auto h-5 w-5 animate-spin" />
       </div>
     );
   }
@@ -135,24 +117,17 @@ export function EarningsCard() {
 
   return (
     <div className="space-y-4">
-      {/* 4-metric grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Metric label="Tổng earned" value={summary.earned} accent="bg-primary" />
         <Metric label="Đã release" value={summary.released} accent="bg-emerald-500" />
         <Metric label="Đang chờ rút" value={summary.pending} accent="bg-amber-500" />
-        <Metric
-          label="Rút được"
-          value={summary.withdrawable}
-          accent="bg-discovery-500"
-          highlight
-        />
+        <Metric label="Rút được" value={summary.withdrawable} accent="bg-discovery-500" highlight />
       </div>
 
-      {/* Payout request form */}
       {verificationStatus === 'KYC_VERIFIED' && summary.withdrawable >= 50000 ? (
-        <div className="space-y-3 rounded-2xl bg-card p-5 shadow-soft">
+        <div className="bg-card shadow-soft space-y-3 rounded-2xl p-5">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Wallet className="h-4 w-4 text-primary" />
+            <Wallet className="text-primary h-4 w-4" />
             Yêu cầu rút tiền
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -191,24 +166,23 @@ export function EarningsCard() {
           </div>
         </div>
       ) : verificationStatus !== 'KYC_VERIFIED' ? (
-        <div className="rounded-2xl border border-dashed border-divider bg-card/40 p-4 text-center">
-          <p className="text-xs text-muted-foreground">
+        <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-4 text-center">
+          <p className="text-muted-foreground text-xs">
             Cần KYC verified trước khi rút tiền.{' '}
-            <Link href="/tutors/me/kyc" className="font-semibold text-primary hover:underline">
+            <Link href="/tutors/me/kyc" className="text-primary font-semibold hover:underline">
               Upload CCCD ngay →
             </Link>
           </p>
         </div>
       ) : (
-        <p className="rounded-2xl bg-card/40 p-4 text-center text-xs text-muted-foreground">
+        <p className="bg-card/40 text-muted-foreground rounded-2xl p-4 text-center text-xs">
           Số dư rút được {'<'} 50K — chưa đủ minimum payout. Hoàn thành thêm buổi học để tích luỹ.
         </p>
       )}
 
-      {/* Payouts list */}
       {payouts.length > 0 && (
         <div>
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+          <h3 className="text-text-muted mb-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
             Lịch sử rút tiền
           </h3>
           <ul className="space-y-1.5">
@@ -218,13 +192,13 @@ export function EarningsCard() {
               return (
                 <li
                   key={p.id}
-                  className="flex items-center gap-3 rounded-xl bg-card px-4 py-3 shadow-soft"
+                  className="bg-card shadow-soft flex items-center gap-3 rounded-xl px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm font-semibold tabular-nums">
                       {p.amountVnd.toLocaleString('vi-VN')}đ
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-muted-foreground text-[11px]">
                       {new Date(p.requestedAt).toLocaleString('vi-VN')}
                       {p.note && ` · ${p.note}`}
                     </p>
@@ -262,13 +236,13 @@ function Metric({
   return (
     <div
       className={cn(
-        'rounded-xl bg-card p-3 shadow-soft',
-        highlight && 'ring-1 ring-inset ring-primary/30',
+        'bg-card shadow-soft rounded-xl p-3',
+        highlight && 'ring-primary/30 ring-1 ring-inset',
       )}
     >
       <div className="flex items-center gap-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${accent}`} />
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.14em]">
           {label}
         </p>
       </div>

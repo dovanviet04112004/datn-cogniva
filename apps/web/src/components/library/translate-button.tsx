@@ -1,16 +1,3 @@
-/**
- * TranslateButton — Bonus #11 inline translate cho text payload (Phase 3, 2026-05-27).
- *
- * Wrap quanh 1 đoạn text (AI summary, description, ...) với button toggle
- * dịch sang ngôn ngữ target. Cache kết quả client-side per session.
- *
- * Behaviour:
- *   - sourceLang === target → ẩn button (no-op)
- *   - Click "Dịch" → fetch /api/library/docs/[id]/translate → render translated
- *   - Click lại "Bản gốc" → swap về original
- *
- * Spec: docs/plans/library-share.md §Bonus 11.
- */
 'use client';
 
 import * as React from 'react';
@@ -23,7 +10,6 @@ import { useT } from '@/lib/i18n/context';
 
 type Target = 'vi' | 'en';
 
-/** Target → dict key cho label (dịch tại render qua t()). */
 const TARGET_LABEL_KEY: Record<Target, string> = {
   vi: 'library.detail.lang_vi',
   en: 'library.detail.lang_en',
@@ -37,23 +23,17 @@ export function TranslateButton({
   className,
 }: {
   docId: string;
-  /** Text gốc cần dịch (max 2000 char API limit). */
   text: string;
-  /** Ngôn ngữ gốc của text (từ doc.language). */
   sourceLang: string;
-  /** Target. Default: opposite of source. */
   target?: Target;
   className?: string;
 }) {
   const t = useT();
   const resolvedTarget: Target = target ?? (sourceLang === 'vi' ? 'en' : 'vi');
   const [translated, setTranslated] = React.useState<string | null>(null);
-  const [showing, setShowing] = React.useState<'original' | 'translated'>(
-    'original',
-  );
+  const [showing, setShowing] = React.useState<'original' | 'translated'>('original');
   const [loading, setLoading] = React.useState(false);
 
-  // Same lang → render no UI
   if (sourceLang === resolvedTarget) return null;
 
   const toggle = async () => {
@@ -87,7 +67,7 @@ export function TranslateButton({
       onClick={toggle}
       disabled={loading}
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border border-divider px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700 disabled:opacity-50 dark:hover:text-discovery-300',
+        'border-divider text-muted-foreground hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700 dark:hover:text-discovery-300 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50',
         className,
       )}
       title={t('library.translate.translate_title')
@@ -99,15 +79,13 @@ export function TranslateButton({
       ) : (
         <Languages className="h-2.5 w-2.5" />
       )}
-      {showing === 'translated' ? t('library.translate.original') : t(TARGET_LABEL_KEY[resolvedTarget])}
+      {showing === 'translated'
+        ? t('library.translate.original')
+        : t(TARGET_LABEL_KEY[resolvedTarget])}
     </button>
   );
 }
 
-/**
- * TranslatableText — wrapper component cho 1 đoạn text với button toggle.
- * Dùng khi caller muốn cùng component handle cả display + button.
- */
 export function TranslatableText({
   docId,
   text,
@@ -126,9 +104,7 @@ export function TranslatableText({
   const t = useT();
   const resolvedTarget: Target = target ?? (sourceLang === 'vi' ? 'en' : 'vi');
   const [translated, setTranslated] = React.useState<string | null>(null);
-  const [showing, setShowing] = React.useState<'original' | 'translated'>(
-    'original',
-  );
+  const [showing, setShowing] = React.useState<'original' | 'translated'>('original');
   const [loading, setLoading] = React.useState(false);
 
   const canTranslate = sourceLang !== resolvedTarget;
@@ -163,16 +139,14 @@ export function TranslatableText({
 
   return (
     <div className={className}>
-      <p className="text-[12.5px] leading-relaxed text-foreground/85">
-        {displayed}
-      </p>
+      <p className="text-foreground/85 text-[12.5px] leading-relaxed">{displayed}</p>
       {canTranslate && (
         <div className={cn('mt-1.5 flex', buttonAlign === 'right' && 'justify-end')}>
           <button
             type="button"
             onClick={toggle}
             disabled={loading}
-            className="inline-flex items-center gap-1 rounded-md border border-divider px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700 disabled:opacity-50 dark:hover:text-discovery-300"
+            className="border-divider text-muted-foreground hover:border-discovery-500/40 hover:bg-discovery-500/5 hover:text-discovery-700 dark:hover:text-discovery-300 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="h-2.5 w-2.5 animate-spin" />

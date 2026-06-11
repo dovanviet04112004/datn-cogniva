@@ -1,17 +1,3 @@
-/**
- * PomodoroWidget — đồng hồ Pomodoro 25/5 trong topbar.
- *
- * State machine:
- *   IDLE → click "Bắt đầu" → FOCUS (25 phút) → khi countdown=0 → BREAK (5 phút)
- *     → khi countdown=0 → FOCUS lần kế (cycle++). Cycle 4 → long break (15 phút).
- *
- * UX:
- *   - Topbar: hiển thị MM:SS + nút play/pause + nút reset.
- *   - localStorage giữ state qua reload.
- *   - Notification + sound khi 1 phase xong (browser permission).
- *
- * Phase 7 v1: client-only, không lưu DB. Phase sau có thể log studySession.
- */
 'use client';
 
 import * as React from 'react';
@@ -29,7 +15,7 @@ type Phase = 'IDLE' | 'FOCUS' | 'BREAK';
 type State = {
   phase: Phase;
   remaining: number;
-  cycle: number; // số lần FOCUS đã xong (resetable)
+  cycle: number;
   running: boolean;
 };
 
@@ -45,17 +31,13 @@ function formatTime(sec: number): string {
   return `${m}:${s}`;
 }
 
-/** Gửi browser notification + chuông nếu permission granted. */
 function notify(title: string, body: string) {
   if (typeof window === 'undefined') return;
   if ('Notification' in window && Notification.permission === 'granted') {
     try {
       new Notification(title, { body, icon: '/favicon.ico' });
-    } catch {
-      /* iOS Safari ko hỗ trợ — bỏ qua */
-    }
+    } catch {}
   }
-  // Beep ngắn qua Web Audio API — không cần asset file
   try {
     const ctx = new AudioContext();
     const osc = ctx.createOscillator();
@@ -66,41 +48,32 @@ function notify(title: string, body: string) {
     gain.gain.setValueAtTime(0.1, ctx.currentTime);
     osc.start();
     osc.stop(ctx.currentTime + 0.2);
-  } catch {
-    /* SSR safe */
-  }
+  } catch {}
 }
 
 export function PomodoroWidget() {
-  // Pref toggle ở /settings — default off, user phải bật mới hiện widget.
   const [enabled] = usePomodoroEnabled();
   const [state, setState] = React.useState<State>(defaultState);
   const [hydrated, setHydrated] = React.useState(false);
 
-  // Load từ localStorage 1 lần
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as State;
-        setState({ ...parsed, running: false }); // restart paused để user chủ động
+        setState({ ...parsed, running: false });
       }
-    } catch {
-      /* ignore */
-    }
+    } catch {}
     setHydrated(true);
-    // Xin permission notification 1 lần
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
   }, []);
 
-  // Persist mỗi khi state đổi
   React.useEffect(() => {
     if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state, hydrated]);
 
-  // Countdown tick
   React.useEffect(() => {
     if (!state.running) return;
     const interval = setInterval(() => {
@@ -109,7 +82,6 @@ export function PomodoroWidget() {
         if (prev.remaining > 1) {
           return { ...prev, remaining: prev.remaining - 1 };
         }
-        // Hết phase — chuyển kế tiếp
         if (prev.phase === 'FOCUS') {
           const newCycle = prev.cycle + 1;
           const isLong = newCycle % 4 === 0;
@@ -121,7 +93,6 @@ export function PomodoroWidget() {
             running: true,
           };
         }
-        // BREAK xong → FOCUS lần kế tiếp (paused chờ user start)
         notify('Pomodoro', 'Nghỉ xong — sẵn sàng focus tiếp!');
         return {
           phase: 'IDLE',
@@ -153,18 +124,17 @@ export function PomodoroWidget() {
         ? 'text-success'
         : 'text-muted-foreground';
 
-  // Pref OFF (default) → không render widget. Hook đã handle SSR/hydration.
   if (!enabled) return null;
 
   return (
     <div className="hidden items-center gap-1 rounded-md border px-2 py-1 sm:flex">
       <Icon className={`h-3.5 w-3.5 ${phaseColor}`} />
-      <span className="tabular-nums text-xs font-medium" suppressHydrationWarning>
+      <span className="text-xs font-medium tabular-nums" suppressHydrationWarning>
         {formatTime(state.remaining)}
       </span>
       <button
         onClick={toggle}
-        className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+        className="hover:bg-muted ml-1 inline-flex h-6 w-6 items-center justify-center rounded"
         aria-label={state.running ? 'Tạm dừng Pomodoro' : 'Bắt đầu Pomodoro'}
       >
         {state.running ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
@@ -172,14 +142,14 @@ export function PomodoroWidget() {
       {state.phase !== 'IDLE' && (
         <button
           onClick={reset}
-          className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+          className="hover:bg-muted inline-flex h-6 w-6 items-center justify-center rounded"
           aria-label="Reset"
         >
           <RotateCcw className="h-3 w-3" />
         </button>
       )}
       {state.cycle > 0 && (
-        <span className="ml-1 text-[11px] text-muted-foreground">×{state.cycle}</span>
+        <span className="text-muted-foreground ml-1 text-[11px]">×{state.cycle}</span>
       )}
     </div>
   );

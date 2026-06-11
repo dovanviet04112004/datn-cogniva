@@ -1,9 +1,3 @@
-/**
- * UsersService — profile (me/public) + user status. Port từ
- * apps/web/src/app/api/{profile,user/status} — GIỮ NGUYÊN wire shape
- * (field camelCase như Drizzle alias cũ) + cùng cache key/TTL/invalidator
- * (@cogniva/server-core) nên Next/Nest sống chung không lệch cache.
- */
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { cached } from '@cogniva/server-core/cache/cache-aside';
 import { ck } from '@cogniva/server-core/cache/keys';
@@ -12,7 +6,6 @@ import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 
-/** Shape stats trả về client — khớp row userStats cũ (camelCase). */
 interface StatsDto {
   userId: string;
   xp: number;
@@ -56,13 +49,20 @@ export class UsersService {
     };
   }
 
-  /** GET /profile/me — TTL 120s; bust bởi onXpChanged + onProfileChanged. */
   async getProfileMe(userId: string) {
     const data = await cached(ck.profileMe(userId), 120, async () => {
       const [userRow, stats] = await Promise.all([
         this.prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true, name: true, email: true, image: true, plan: true, is_public: true, created_at: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            plan: true,
+            is_public: true,
+            created_at: true,
+          },
         }),
         this.prisma.user_stats.findUnique({ where: { user_id: userId } }),
       ]);
@@ -86,7 +86,6 @@ export class UsersService {
     return { user: data.user, stats: data.stats ?? EMPTY_STATS(userId) };
   }
 
-  /** PATCH /profile/me — đổi tên/visibility rồi bust cache profile. */
   async updateProfileMe(userId: string, input: { isPublic?: boolean; name?: string }) {
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -101,10 +100,6 @@ export class UsersService {
     return { user: { id: updated.id, name: updated.name, isPublic: updated.is_public } };
   }
 
-  /**
-   * GET /profile/:id — public profile, KHÔNG leak existence (private/không
-   * tồn tại → null, cache cả null chống stampede). TTL 300s.
-   */
   async getPublicProfile(id: string) {
     return cached(ck.profilePublic(id), 300, async () => {
       const userRow = await this.prisma.user.findFirst({
@@ -137,7 +132,6 @@ export class UsersService {
     });
   }
 
-  /** GET /user/status — status hiệu lực (expired → fallback 'online'). */
   async getStatus(userId: string) {
     const u = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -146,7 +140,9 @@ export class UsersService {
     if (!u) throw new NotFoundException({ error: 'Not found' });
 
     const effective =
-      u.status_expires_at && new Date(u.status_expires_at).getTime() < Date.now() ? 'online' : u.status;
+      u.status_expires_at && new Date(u.status_expires_at).getTime() < Date.now()
+        ? 'online'
+        : u.status;
     return {
       status: effective,
       storedStatus: u.status,
@@ -156,10 +152,14 @@ export class UsersService {
     };
   }
 
-  /** PUT /user/status — update + broadcast `status:change` tới mọi group của user. */
   async updateStatus(
     userId: string,
-    input: { status?: string; statusText?: string | null; statusEmoji?: string | null; expiresInSec?: number | null },
+    input: {
+      status?: string;
+      statusText?: string | null;
+      statusEmoji?: string | null;
+      expiresInSec?: number | null;
+    },
   ) {
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -168,13 +168,13 @@ export class UsersService {
         ...(input.statusText !== undefined && { status_text: input.statusText }),
         ...(input.statusEmoji !== undefined && { status_emoji: input.statusEmoji }),
         ...(input.expiresInSec !== undefined && {
-          status_expires_at: input.expiresInSec === null ? null : new Date(Date.now() + input.expiresInSec * 1000),
+          status_expires_at:
+            input.expiresInSec === null ? null : new Date(Date.now() + input.expiresInSec * 1000),
         }),
       },
       select: { status: true, status_text: true, status_emoji: true, status_expires_at: true },
     });
 
-    // Fan-out realtime tới các group user là member — fire-and-forget như cũ.
     void (async () => {
       try {
         const groups = await this.prisma.study_group_member.findMany({
@@ -190,9 +190,7 @@ export class UsersService {
         for (const g of groups) {
           void triggerEvent(`presence-group-${g.group_id}`, 'status:change', payload);
         }
-      } catch {
-        /* broadcast best-effort */
-      }
+      } catch {}
     })();
 
     return {

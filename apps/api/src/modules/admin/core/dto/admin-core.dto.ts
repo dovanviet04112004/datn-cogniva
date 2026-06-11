@@ -1,8 +1,3 @@
-/**
- * Zod schemas cho AdminCoreModule — giữ NGUYÊN constraint route cũ
- * (apps/web/src/app/api/admin/**): reason chuẩn 10..500, RIÊNG PATCH user
- * min 5 (quirk route cũ, không "sửa" để golden diff khớp).
- */
 import { z } from 'zod';
 
 export const adminReasonSchema = z.object({
@@ -25,7 +20,6 @@ export const impersonateSchema = z.object({
 });
 export type ImpersonateInput = z.infer<typeof impersonateSchema>;
 
-/** Tên flag kebab-case max 60 chars — dùng cả cho DELETE query param. */
 export const FLAG_NAME = /^[a-z][a-z0-9_-]{0,59}$/;
 
 export const setFlagSchema = z.object({

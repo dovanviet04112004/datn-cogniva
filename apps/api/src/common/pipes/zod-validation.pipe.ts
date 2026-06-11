@@ -1,8 +1,3 @@
-/**
- * ZodValidationPipe — validate body bằng zod schema, lỗi trả ĐÚNG shape
- * `{ error: flatten() }` mà client web/mobile đang parse (contract §10 plan).
- * Dùng: `@Body(new ZodValidationPipe(schema)) dto: z.infer<typeof schema>`
- */
 import { BadRequestException, Injectable, type PipeTransform } from '@nestjs/common';
 import type { ZodSchema } from 'zod';
 

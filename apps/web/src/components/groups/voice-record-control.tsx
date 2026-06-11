@@ -1,14 +1,3 @@
-/**
- * VoiceRecordControl — toggle record cho VOICE channel của study group.
- *
- * Tương tự rooms/record-button.tsx nhưng cho channel thay vì room:
- *   - POST/DELETE /api/channels/[id]/record
- *   - Subscribe `presence-voice-{channelId}` cho realtime sync giữa mod
- *   - Render nút "REC" + banner "Đang ghi" cho mọi participant
- *
- * Compliance: banner hiển thị cho TẤT CẢ participant (non-mod cũng thấy)
- * suốt thời gian recording — consent visibility theo GDPR.
- */
 'use client';
 
 import * as React from 'react';
@@ -21,7 +10,6 @@ import { cn } from '@/lib/utils';
 
 type Props = {
   channelId: string;
-  /** Chỉ MOD+ mới render — parent check role. */
   canRecord: boolean;
 };
 
@@ -37,7 +25,6 @@ export function VoiceRecordControl({ channelId, canRecord }: Props) {
   const [state, setState] = React.useState<RecState>('IDLE');
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
-  // Initial poll — biết có recording nào RECORDING không (e.g. mod khác đã start)
   React.useEffect(() => {
     if (!canRecord) return;
     fetch(`/api/channels/${channelId}/record`)
@@ -52,7 +39,6 @@ export function VoiceRecordControl({ channelId, canRecord }: Props) {
       .catch((err) => console.error('[voice-rec] init fail:', err));
   }, [channelId, canRecord]);
 
-  // Realtime sync — nhiều mod cùng channel sẽ thấy state nhau (chỉ khi canRecord).
   const channel = `presence-voice-${channelId}`;
   useRealtimeEvent<{ recordingId: string }>(
     channel,
@@ -103,10 +89,9 @@ export function VoiceRecordControl({ channelId, canRecord }: Props) {
     if (!activeId) return;
     setState('STOPPING');
     try {
-      const res = await fetch(
-        `/api/channels/${channelId}/record/${activeId}/stop`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`/api/channels/${channelId}/record/${activeId}/stop`, {
+        method: 'POST',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Stop record fail');
       toast.message('Đã dừng ghi. Đang xử lý transcript...');
@@ -148,17 +133,10 @@ export function VoiceRecordControl({ channelId, canRecord }: Props) {
   );
 }
 
-/**
- * VoiceRecordingBanner — banner đỏ "Đang ghi" hiển thị cho TẤT CẢ participant
- * khi mod đang record. Listen realtime event `recording:started`/`stopped`.
- *
- * Render fixed bottom của voice panel để mọi non-mod đều thấy (consent).
- */
 export function VoiceRecordingBanner({ channelId }: { channelId: string }) {
   const [recording, setRecording] = React.useState(false);
 
   React.useEffect(() => {
-    // Init: nếu vào lúc đang ghi sẵn thì banner hiện ngay
     fetch(`/api/channels/${channelId}/record`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { recordings: ApiListRecording[] }) => {
@@ -180,7 +158,9 @@ export function VoiceRecordingBanner({ channelId }: { channelId: string }) {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
       </span>
-      <span className="font-medium">Đang ghi voice channel này — mọi audio/video sẽ được lưu lại</span>
+      <span className="font-medium">
+        Đang ghi voice channel này — mọi audio/video sẽ được lưu lại
+      </span>
     </div>
   );
 }

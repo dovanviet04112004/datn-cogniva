@@ -1,6 +1,3 @@
-/**
- * /admin/tutoring/reviews — moderation reviews.
- */
 import { requireAdmin } from '@/lib/admin/guard';
 import { ReviewsListClient } from '@/components/admin/tutoring/reviews-list-client';
 

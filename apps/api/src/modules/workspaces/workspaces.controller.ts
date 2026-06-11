@@ -1,7 +1,3 @@
-/**
- * /api/workspaces/* — port từ route Next (apps/web/src/app/api/workspaces/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- */
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -30,7 +26,6 @@ export class WorkspacesController {
     return this.workspaces.listWorkspaces(user.id);
   }
 
-  /** POST /workspaces — 201 mặc định của Nest = status route cũ. */
   @Post()
   create(
     @CurrentUser() user: AuthUser,
@@ -58,7 +53,6 @@ export class WorkspacesController {
     return this.workspaces.deleteWorkspace(user.id, id);
   }
 
-  /** GET /workspaces/:id/atom-guide?regenerate=1 — LLM study guide (cache 24h). */
   @Get(':id/atom-guide')
   atomGuide(
     @CurrentUser() user: AuthUser,
@@ -68,7 +62,6 @@ export class WorkspacesController {
     return this.ai.atomGuide(user, id, regenerate === '1');
   }
 
-  /** GET /workspaces/:id/atoms?sort=mastery&limit=100 — parse y route cũ (cap 200). */
   @Get(':id/atoms')
   atoms(
     @CurrentUser() user: AuthUser,
@@ -81,7 +74,6 @@ export class WorkspacesController {
     return this.workspaces.listAtoms(user.id, id, sort, limit);
   }
 
-  /** GET /workspaces/:id/briefing?regenerate=1 — LLM tóm tắt 200-300 từ (cache 24h). */
   @Get(':id/briefing')
   briefing(
     @CurrentUser() user: AuthUser,

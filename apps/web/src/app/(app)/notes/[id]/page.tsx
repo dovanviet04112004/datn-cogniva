@@ -1,8 +1,3 @@
-/**
- * /notes/[id] — load note + render NoteEditor (TipTap + autosave + AI).
- *
- * Client-only: fetch /api/notes/[id] khi mount.
- */
 'use client';
 
 import { use } from 'react';
@@ -23,7 +18,6 @@ type PageProps = {
 
 export default function NotePage({ params }: PageProps) {
   const { id } = use(params);
-  // React Query: cache + revalidate, share cache với NoteEditorDialog (cùng key).
   const { data: note, error } = useQuery({
     queryKey: qk.note(id),
     queryFn: () => apiGet<{ note: NoteDTO }>(`/api/notes/${id}`).then((d) => d.note),
@@ -47,16 +41,9 @@ export default function NotePage({ params }: PageProps) {
   return (
     <PageShell size="narrow">
       <Breadcrumbs
-        segments={[
-          { href: '/notes', label: 'Notes' },
-          { label: note.title || 'Untitled' },
-        ]}
+        segments={[{ href: '/notes', label: 'Notes' }, { label: note.title || 'Untitled' }]}
       />
-      <NoteEditor
-        noteId={note.id}
-        initialTitle={note.title}
-        initialContent={note.content}
-      />
+      <NoteEditor noteId={note.id} initialTitle={note.title} initialContent={note.content} />
     </PageShell>
   );
 }

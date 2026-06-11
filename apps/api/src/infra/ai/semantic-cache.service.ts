@@ -1,44 +1,24 @@
-/**
- * SemanticCacheService — port nguyên văn apps/web/src/lib/ai/semantic-cache.ts.
- *
- * Redis-backed response cache cho LLM call, v1 là EXACT HASH (KHÔNG embedding
- * similarity — đó là plan v2 Qdrant). Key contract GIỮ NGUYÊN để Next + Nest
- * sống chung 1 cache:
- *   aicache:v1:{useCase}:{u:userId|shared}:{sha256(normalize(query)+'|'+sysHash16)[:24]}
- *   TTL default 300s. Stats counter aicache:stats:{hit|miss}:{useCase} TTL 24h.
- *
- * Opt-in only (caller bật enableSemanticCache) — KHÔNG dùng cho conversational
- * chat (mỗi message phụ thuộc prev). Redis lỗi → fail-open (miss).
- */
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { getRedis, logger } from '@cogniva/server-core';
 
-/** TTL mặc định 5 phút — đủ cho session ngắn, không stale quá. */
 const DEFAULT_TTL_SEC = 300;
 
 export type CacheScope = 'user' | 'shared';
 
 export type CachedResponse = {
-  /** Text response đã lưu. */
   text: string;
-  /** Model ID đã dùng khi tạo (audit). */
   modelId: string;
-  /** Provider ID. */
   providerId: string;
-  /** Original prompt tokens (cho cost report). */
   promptTokens: number;
   completionTokens: number;
-  /** Cost USD khi sinh original (cache user tiết kiệm này). */
   originalCostUsd: number;
-  /** Khi cache entry tạo. */
   cachedAt: string;
 };
 
 export type CacheLookupArgs = {
   useCase: string;
   query: string;
-  /** System prompt — hash để tránh stale khi prompt template đổi. */
   systemPrompt: string;
   scope: CacheScope;
   userId: string;
@@ -50,10 +30,6 @@ export type CacheStats = {
   hitRate: number;
 };
 
-/**
- * Normalize query: lowercase + collapse whitespace + strip punctuation cuối.
- * Giúp "Lim là gì?" và "lim là gì" hit cùng cache entry.
- */
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -62,14 +38,9 @@ function normalize(s: string): string {
     .trim();
 }
 
-/** Generate cache key — version trong key giúp invalidate hàng loạt khi đổi template. */
 function buildKey(args: CacheLookupArgs): string {
   const normalized = normalize(args.query);
-  // Hash system prompt riêng để giảm key length (system thường dài 2-5KB)
-  const sysHash = createHash('sha256')
-    .update(args.systemPrompt)
-    .digest('hex')
-    .slice(0, 16);
+  const sysHash = createHash('sha256').update(args.systemPrompt).digest('hex').slice(0, 16);
   const queryHash = createHash('sha256')
     .update(normalized + '|' + sysHash)
     .digest('hex')
@@ -78,10 +49,6 @@ function buildKey(args: CacheLookupArgs): string {
   return `aicache:v1:${args.useCase}:${scopePart}:${queryHash}`;
 }
 
-/**
- * Stream cached text từng chunk — mimic streamText().textStream (chunk 24
- * char/10ms như bản web). Module-level vì pure, không cần DI.
- */
 export async function* streamCachedText(
   text: string,
   opts: { chunkSize?: number; delayMs?: number } = {},
@@ -96,7 +63,6 @@ export async function* streamCachedText(
 
 @Injectable()
 export class SemanticCacheService {
-  /** Lookup cache. Trả null nếu miss (kể cả Redis error — fail-open). */
   async getCachedResponse(args: CacheLookupArgs): Promise<CachedResponse | null> {
     const redis = getRedis();
     const key = buildKey(args);
@@ -121,7 +87,6 @@ export class SemanticCacheService {
     }
   }
 
-  /** Save response vào cache. Best-effort — log lỗi nhưng không throw. */
   async setCachedResponse(
     args: CacheLookupArgs & { response: CachedResponse; ttlSec?: number },
   ): Promise<void> {
@@ -144,7 +109,6 @@ export class SemanticCacheService {
     }
   }
 
-  /** Stats cache cho dashboard — counter hit/miss per use case (24h window). */
   async getCacheStats(useCase: string): Promise<CacheStats> {
     const redis = getRedis();
     try {
@@ -165,7 +129,6 @@ export class SemanticCacheService {
     }
   }
 
-  /** Increment counter — gọi từ router sau mỗi cache check. TTL 24h. */
   async recordCacheStat(useCase: string, hit: boolean): Promise<void> {
     const redis = getRedis();
     const key = `aicache:stats:${hit ? 'hit' : 'miss'}:${useCase}`;
@@ -174,8 +137,6 @@ export class SemanticCacheService {
       pipeline.incr(key);
       pipeline.expire(key, 86_400);
       await pipeline.exec();
-    } catch {
-      // silent — stats không critical
-    }
+    } catch {}
   }
 }

@@ -1,10 +1,3 @@
-/**
- * ConversationDetailClient — full thread read-only + soft-delete action.
- *
- * Render messages giống chat UI thường nhưng có metadata badge (tokens, cost,
- * latency) phía dưới mỗi message. Citations render link tới chunk preview ở
- * tooltip — Phase 2 chỉ show ID.
- */
 'use client';
 
 import * as React from 'react';
@@ -175,8 +168,8 @@ export function ConversationDetailClient({
         title="Xoá conversation?"
         description={
           <span>
-            Toàn bộ <strong>{messages.length}</strong> messages sẽ bị xoá vĩnh viễn (FK
-            cascade). Chỉ dùng cho support case nhạy cảm (vd: user yêu cầu GDPR).
+            Toàn bộ <strong>{messages.length}</strong> messages sẽ bị xoá vĩnh viễn (FK cascade).
+            Chỉ dùng cho support case nhạy cảm (vd: user yêu cầu GDPR).
           </span>
         }
         confirmLabel="Xoá conversation"
@@ -195,9 +188,7 @@ function MessageItem({ m }: { m: Message }) {
     <article
       className={cn(
         'rounded-lg border bg-slate-900/30 p-4',
-        isSystem
-          ? 'border-amber-500/30 bg-amber-500/5'
-          : 'border-slate-800/60',
+        isSystem ? 'border-amber-500/30 bg-amber-500/5' : 'border-slate-800/60',
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -219,12 +210,9 @@ function MessageItem({ m }: { m: Message }) {
         {m.content}
       </pre>
 
-      {/* Citations */}
       {m.citations && m.citations.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
-          <span className="text-[11px] uppercase tracking-wider text-slate-500">
-            Citations:
-          </span>
+          <span className="text-[11px] uppercase tracking-wider text-slate-500">Citations:</span>
           {m.citations.map((c, i) => (
             <span
               key={i}
@@ -237,7 +225,6 @@ function MessageItem({ m }: { m: Message }) {
         </div>
       )}
 
-      {/* Metadata bar */}
       {(m.metadata?.tokensIn ||
         m.metadata?.tokensOut ||
         m.metadata?.costUsd ||
@@ -245,9 +232,7 @@ function MessageItem({ m }: { m: Message }) {
         <div className="mt-2 flex flex-wrap items-center gap-3 border-t border-slate-800/60 pt-2 font-mono text-[10px] tabular-nums text-slate-500">
           {m.metadata.tokensIn !== undefined && <span>in: {m.metadata.tokensIn}</span>}
           {m.metadata.tokensOut !== undefined && <span>out: {m.metadata.tokensOut}</span>}
-          {m.metadata.costUsd !== undefined && (
-            <span>cost: ${m.metadata.costUsd.toFixed(5)}</span>
-          )}
+          {m.metadata.costUsd !== undefined && <span>cost: ${m.metadata.costUsd.toFixed(5)}</span>}
           {m.metadata.latencyMs !== undefined && <span>{m.metadata.latencyMs}ms</span>}
         </div>
       )}

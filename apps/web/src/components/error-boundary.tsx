@@ -1,13 +1,3 @@
-/**
- * AppErrorBoundary — React class boundary catch lỗi render trong cây con.
- *
- * Khi crash:
- *   - Capture qua Sentry (no-op nếu thiếu DSN)
- *   - Hiển thị fallback UI thân thiện + nút reload
- *
- * Đặt ở layout.tsx (root) để cover toàn app. Next.js error.tsx file route
- * vẫn handle theo từng segment, boundary này là safety net cuối.
- */
 'use client';
 
 import * as React from 'react';
@@ -32,9 +22,10 @@ export class AppErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Log + send to Sentry (no-op trong dev / thiếu DSN)
     console.error('[error-boundary]', error, info);
-    captureError(error, { route: typeof window !== 'undefined' ? window.location.pathname : undefined });
+    captureError(error, {
+      route: typeof window !== 'undefined' ? window.location.pathname : undefined,
+    });
   }
 
   reset = () => this.setState({ error: null });
@@ -45,21 +36,16 @@ export class AppErrorBoundary extends React.Component<Props, State> {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md space-y-4 text-center">
-          <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
+          <AlertTriangle className="text-destructive mx-auto h-12 w-12" />
           <div>
             <h1 className="text-xl font-semibold">Có lỗi xảy ra</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Chúng tôi đã ghi nhận lỗi và sẽ xử lý sớm. Bạn có thể reload trang
-              để thử lại.
+            <p className="text-muted-foreground mt-2 text-sm">
+              Chúng tôi đã ghi nhận lỗi và sẽ xử lý sớm. Bạn có thể reload trang để thử lại.
             </p>
           </div>
-          <details className="rounded-md bg-muted/30 p-3 text-left text-xs">
-            <summary className="cursor-pointer text-muted-foreground">
-              Chi tiết lỗi
-            </summary>
-            <pre className="mt-2 overflow-auto whitespace-pre-wrap">
-              {this.state.error.message}
-            </pre>
+          <details className="bg-muted/30 rounded-md p-3 text-left text-xs">
+            <summary className="text-muted-foreground cursor-pointer">Chi tiết lỗi</summary>
+            <pre className="mt-2 overflow-auto whitespace-pre-wrap">{this.state.error.message}</pre>
           </details>
           <Button onClick={this.reset}>
             <RefreshCw className="mr-1 h-4 w-4" />

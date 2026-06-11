@@ -1,22 +1,9 @@
-/**
- * getLeaderboard — top user theo XP (chỉ user công khai profile).
- *
- * Phase 3 precompute: đọc thứ hạng từ ZSET Redis `LB_XP` (O(log N), cộng dồn atomic
- * trong awardXp qua `lbIncr`) thay vì `ORDER BY xp` quét DB mỗi lần. ZSET chứa MỌI
- * user (kể cả private) → đọc dư buffer ×3 rồi hydrate user + lọc isPublic.
- *
- * Fail-open nhiều lớp: ZSET trống/lỗi → fallback đường DB gốc (index `userStats.xp`)
- * + lazy backfill ZSET (fire-and-forget). Worst case = hành vi cũ (query DB).
- *
- * 1 nguồn dùng chung route `/api/leaderboard` (mobile) LẪN trang SSR. Server-only.
- */
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { dbReplica, user, userStats } from '@cogniva/db';
 
 import { lbBackfill, lbTop } from '@/lib/cache/leaderboard';
 
-/** 1 dòng bảng xếp hạng — rank tính sẵn theo thứ tự XP giảm dần. */
 export type LeaderboardRow = {
   rank: number;
   userId: string;
@@ -28,13 +15,9 @@ export type LeaderboardRow = {
   achievementsCount: number;
 };
 
-/**
- * @param limit số dòng tối đa (mặc định 20, trần 100 — chống over-fetch).
- */
 export async function getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
   const capped = Math.min(limit, 100);
 
-  // 1) ZSET trước. Buffer ×3 bù lọc isPublic + user đã xoá.
   const top = await lbTop(capped * 3);
   if (top && top.length > 0) {
     const ids = top.map((t) => t.userId);
@@ -53,7 +36,7 @@ export async function getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
       .where(and(inArray(user.id, ids), eq(user.isPublic, true)));
 
     const sorted = hydrated
-      .map((r) => ({ ...r, xp: xpMap.get(r.userId) ?? 0 })) // dùng XP "live" từ ZSET
+      .map((r) => ({ ...r, xp: xpMap.get(r.userId) ?? 0 }))
       .sort((a, b) => b.xp - a.xp)
       .slice(0, capped);
 
@@ -69,13 +52,11 @@ export async function getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
     }));
   }
 
-  // 2) ZSET cold/lỗi → DB gốc + lazy backfill (fire-and-forget, không chặn response).
   const rows = await fetchLeaderboardFromDb(capped);
   void backfillZsetFromDb();
   return rows;
 }
 
-/** Đường DB gốc (index `userStats.xp`) — fallback khi ZSET chưa sẵn sàng. */
 async function fetchLeaderboardFromDb(capped: number): Promise<LeaderboardRow[]> {
   const rows = await dbReplica
     .select({
@@ -105,7 +86,6 @@ async function fetchLeaderboardFromDb(capped: number): Promise<LeaderboardRow[]>
   }));
 }
 
-/** Backfill ZSET từ TOÀN BỘ userStats (lọc public ở read, không ở đây). */
 async function backfillZsetFromDb(): Promise<void> {
   const all = await dbReplica
     .select({ userId: userStats.userId, xp: userStats.xp })

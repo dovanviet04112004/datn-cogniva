@@ -1,11 +1,3 @@
-/**
- * wiki.ts — fetch nội dung THẬT từ Wikipedia tiếng Việt (2026-05-28).
- *
- * Wikipedia = CC-BY-SA 4.0 → dùng hợp pháp khi GHI NGUỒN + giữ share-alike.
- * Mỗi doc render kèm dòng attribution + link bài gốc.
- *
- * API: action=query (extracts plaintext + categorymembers). Không cần key.
- */
 import type { Block } from '../fixtures/real-doc-content';
 
 const API = 'https://vi.wikipedia.org/w/api.php';
@@ -20,9 +12,11 @@ async function api<T>(params: Record<string, string>, retry = 3): Promise<T> {
   for (let attempt = 0; attempt <= retry; attempt++) {
     const res = await fetch(`${API}?${qs}`, { headers: { 'User-Agent': UA } });
     const text = await res.text();
-    // Rate-limit: Wikipedia trả text "You are making too many requests" (không JSON)
     if (!res.ok || text.startsWith('You are making too many')) {
-      if (attempt < retry) { await sleep(2000 * (attempt + 1)); continue; }
+      if (attempt < retry) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
       throw new Error(`wiki ${res.status} rate-limited`);
     }
     return JSON.parse(text) as T;
@@ -30,7 +24,6 @@ async function api<T>(params: Record<string, string>, retry = 3): Promise<T> {
   throw new Error('wiki: hết retry');
 }
 
-/** Lấy plaintext 1 bài. Trả null nếu không tồn tại / quá ngắn. */
 export async function fetchArticle(title: string): Promise<WikiArticle | null> {
   type Resp = {
     query?: { pages?: Record<string, { title: string; extract?: string; missing?: string }> };
@@ -45,7 +38,7 @@ export async function fetchArticle(title: string): Promise<WikiArticle | null> {
   const page = Object.values(j.query?.pages ?? {})[0];
   if (!page || page.missing !== undefined) return null;
   const extract = (page.extract ?? '').trim();
-  if (extract.length < 600) return null; // bài stub → bỏ
+  if (extract.length < 600) return null;
   return {
     title: page.title,
     extract,
@@ -55,7 +48,11 @@ export async function fetchArticle(title: string): Promise<WikiArticle | null> {
 
 type CMResp = { query?: { categorymembers?: Array<{ title: string; ns: number }> } };
 
-async function rawMembers(category: string, type: 'page' | 'subcat', limit: number): Promise<string[]> {
+async function rawMembers(
+  category: string,
+  type: 'page' | 'subcat',
+  limit: number,
+): Promise<string[]> {
   const j = await api<CMResp>({
     action: 'query',
     list: 'categorymembers',
@@ -66,10 +63,6 @@ async function rawMembers(category: string, type: 'page' | 'subcat', limit: numb
   return (j.query?.categorymembers ?? []).map((m) => m.title);
 }
 
-/**
- * Lấy tên bài thuộc category + recurse subcat 1 cấp (nhiều category VN chỉ có
- * subcat, không có page trực tiếp). Dedupe.
- */
 export async function fetchCategoryMembers(category: string, limit = 200): Promise<string[]> {
   const titles = new Set<string>(await rawMembers(category, 'page', limit));
   if (titles.size < limit) {
@@ -82,16 +75,12 @@ export async function fetchCategoryMembers(category: string, limit = 200): Promi
           titles.add(t);
           if (titles.size >= limit) break;
         }
-      } catch { /* subcat lỗi → bỏ qua */ }
+      } catch {}
     }
   }
   return [...titles];
 }
 
-/**
- * Chuyển plaintext bài → Block[] có cấu trúc (heading + đoạn) cho PDF render.
- * Heuristic heading: dòng ngắn (<70 ký tự) không kết câu = tiêu đề mục.
- */
 export function articleToBlocks(art: WikiArticle, maxParas = 24): Block[] {
   const blocks: Block[] = [];
   const lines = art.extract
@@ -103,7 +92,10 @@ export function articleToBlocks(art: WikiArticle, maxParas = 24): Block[] {
   for (const line of lines) {
     if (paras >= maxParas) break;
     const isHeading =
-      line.length < 70 && !/[.!?:;,]$/.test(line) && !/^\d/.test(line) && line.split(' ').length <= 8;
+      line.length < 70 &&
+      !/[.!?:;,]$/.test(line) &&
+      !/^\d/.test(line) &&
+      line.split(' ').length <= 8;
     if (isHeading) {
       blocks.push({ type: 'h', text: line });
     } else {
@@ -112,7 +104,6 @@ export function articleToBlocks(art: WikiArticle, maxParas = 24): Block[] {
     }
   }
 
-  // Attribution bắt buộc (CC-BY-SA)
   blocks.push({ type: 'h', text: 'Nguồn' });
   blocks.push({
     type: 'p',
@@ -121,7 +112,6 @@ export function articleToBlocks(art: WikiArticle, maxParas = 24): Block[] {
   return blocks;
 }
 
-/** Plaintext gọn cho preview/search fallback. */
 export function articlePlain(art: WikiArticle): string {
   return art.extract.replace(/\s+/g, ' ').slice(0, 600);
 }

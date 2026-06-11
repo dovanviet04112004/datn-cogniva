@@ -1,12 +1,3 @@
-/**
- * GroupMembersService — members (list/detail/update/kick/mute) + custom roles
- * (V2 G1) + invites. Port từ apps/web/src/app/api/groups/[id]/{members/**,
- * roles/**,invites/**} — GIỮ NGUYÊN wire shape/status/message; cache key
- * ck.groupMembers + invalidator onGroupChanged/onGroupMembershipChanged y cũ.
- *
- * Audit write port subset từ apps/web/src/lib/observability/audit.ts
- * (fail-open: lỗi DB chỉ logger.warn, không block flow mod action).
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -19,10 +10,7 @@ import { Prisma } from '@prisma/client';
 import { logger } from '@cogniva/server-core';
 import { cached } from '@cogniva/server-core/cache/cache-aside';
 import { ck } from '@cogniva/server-core/cache/keys';
-import {
-  onGroupChanged,
-  onGroupMembershipChanged,
-} from '@cogniva/server-core/cache/invalidate';
+import { onGroupChanged, onGroupMembershipChanged } from '@cogniva/server-core/cache/invalidate';
 
 import { PrismaService } from '../../infra/database/prisma.service';
 import {
@@ -42,7 +30,6 @@ import {
   updateRoleSchema,
 } from './dto/groups.dto';
 
-/** Permissions object chỉ accept key hợp lệ + value boolean (copy route cũ). */
 function isValidPermissionMap(input: unknown): input is PermissionMap {
   if (typeof input !== 'object' || input === null) return false;
   for (const key of Object.keys(input)) {
@@ -76,7 +63,6 @@ export class GroupMembersService {
     });
   }
 
-  /** Fail-open audit insert — caller `void` fire-and-forget như writeAudit cũ. */
   private async writeAudit(event: AuditEvent): Promise<void> {
     try {
       await this.prisma.audit_log.create({
@@ -101,10 +87,6 @@ export class GroupMembersService {
     }
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /groups/:id/members — guard ngoài cache, list chung cache 60s
-  // ──────────────────────────────────────────────────────────
-
   async listMembers(uid: string, groupId: string) {
     const mine = await this.membership(groupId, uid);
     if (!mine) throw new ForbiddenException({ error: 'Not a member' });
@@ -124,7 +106,6 @@ export class GroupMembersService {
             select: {
               name: true,
               image: true,
-              // V2 G3: user status fields cho member-sidebar dot color
               status: true,
               status_text: true,
               status_emoji: true,
@@ -152,7 +133,6 @@ export class GroupMembersService {
     return { members, myRole: mine.role };
   }
 
-  /** GET /groups/:id/members/:userId — detail cho ProfileHoverCard (V2 G7.2). */
   async getMemberDetail(uid: string, groupId: string, targetUserId: string) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Forbidden' });
@@ -192,10 +172,6 @@ export class GroupMembersService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // PUT /groups/:id/members/:userId — role (ADMIN+) / nickname (self hoặc MOD+)
-  // ──────────────────────────────────────────────────────────
-
   async updateMember(uid: string, groupId: string, targetUserId: string, raw: unknown) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
@@ -209,7 +185,6 @@ export class GroupMembersService {
     const isSelf = me.user_id === targetUserId;
     const updates: Partial<{ role: GroupRole; nickname: string | null }> = {};
 
-    // Role change
     if (parsed.data.role !== undefined) {
       if (isSelf) {
         throw new BadRequestException({ error: 'Không thể tự đổi role' });
@@ -217,22 +192,18 @@ export class GroupMembersService {
       if (!this.permissions.can(me.role as GroupRole, 'member.change-role')) {
         throw new ForbiddenException({ error: 'Không có quyền đổi role' });
       }
-      // Owner role chỉ owner mới gán (transfer ownership)
       if (parsed.data.role === 'OWNER' && me.role !== 'OWNER') {
         throw new ForbiddenException({ error: 'Chỉ OWNER mới chuyển quyền sở hữu' });
       }
-      // Không đụng role OWNER hiện tại nếu mình không phải OWNER
       if (target.role === 'OWNER' && me.role !== 'OWNER') {
         throw new ForbiddenException({ error: 'Không thể đổi role OWNER' });
       }
-      // ADMIN không gán role >= mình (tránh self-elevation tương đương)
       if (me.role === 'ADMIN' && !this.permissions.isHigherRole('ADMIN', parsed.data.role)) {
         throw new ForbiddenException({ error: 'ADMIN chỉ gán role thấp hơn mình' });
       }
       updates.role = parsed.data.role;
     }
 
-    // Nickname change
     if (parsed.data.nickname !== undefined) {
       if (!isSelf && !this.permissions.can(me.role as GroupRole, 'member.change-nickname')) {
         throw new ForbiddenException({ error: 'Không có quyền đổi nickname' });
@@ -251,7 +222,6 @@ export class GroupMembersService {
 
     await onGroupChanged(groupId);
 
-    // Audit log nếu là mod action (role change). Nickname change skip để giảm noise.
     if (updates.role) {
       void this.writeAudit({
         action: 'study_group.member.role-changed',
@@ -271,10 +241,6 @@ export class GroupMembersService {
     return { member: toMemberDto(updated) };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // DELETE /groups/:id/members/:userId — self leave hoặc kick (ADMIN+)
-  // ──────────────────────────────────────────────────────────
-
   async removeMember(uid: string, groupId: string, targetUserId: string) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
@@ -282,14 +248,12 @@ export class GroupMembersService {
     const isSelf = me.user_id === targetUserId;
 
     if (isSelf) {
-      // Leave — OWNER không leave được
       if (me.role === 'OWNER') {
         throw new BadRequestException({
           error: 'OWNER phải transfer ownership hoặc xoá group trước khi leave',
         });
       }
     } else {
-      // Kick — cần quyền + target role thấp hơn mình
       if (!this.permissions.can(me.role as GroupRole, 'member.kick')) {
         throw new ForbiddenException({ error: 'Không có quyền kick' });
       }
@@ -298,11 +262,9 @@ export class GroupMembersService {
       if (!this.permissions.isHigherRole(me.role as GroupRole, target.role as GroupRole)) {
         throw new ForbiddenException({ error: 'Chỉ kick được member role thấp hơn' });
       }
-      // OWNER không bị kick
       if (target.role === 'OWNER') {
         throw new ForbiddenException({ error: 'Không thể kick OWNER' });
       }
-      // Verify group owner check phụ
       const grp = await this.prisma.study_group.findUnique({
         where: { id: groupId },
         select: { owner_user_id: true },
@@ -316,10 +278,8 @@ export class GroupMembersService {
       where: { group_id: groupId, user_id: targetUserId },
     });
 
-    // targetUserId đúng là user rời/bị kick (self-leave hoặc kick member khác).
     await onGroupMembershipChanged(targetUserId, groupId);
 
-    // Audit log — kick action (skip self-leave)
     if (!isSelf) {
       void this.writeAudit({
         action: 'study_group.member.kicked',
@@ -334,10 +294,6 @@ export class GroupMembersService {
 
     return { removed: true, self: isSelf };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // POST/DELETE /groups/:id/members/:userId/mute
-  // ──────────────────────────────────────────────────────────
 
   async muteMember(uid: string, groupId: string, targetUserId: string, raw: unknown) {
     const me = await this.membership(groupId, uid);
@@ -368,7 +324,6 @@ export class GroupMembersService {
       data: { muted_until: mutedUntil },
     });
 
-    // mutedUntil hiển thị trong groupMembers/groupDetail cache → bust.
     await onGroupChanged(groupId);
 
     void this.writeAudit({
@@ -400,18 +355,10 @@ export class GroupMembersService {
     return { unmuted: true };
   }
 
-  /* GET/PUT :id/members/:userId/roles (bulk replace) KHÔNG port — 0 caller;
-     UI gán role qua PUT :id/members/:userId (field role). */
-
-  // ──────────────────────────────────────────────────────────
-  // GET/POST /groups/:id/roles + PUT/DELETE /groups/:id/roles/:roleId
-  // ──────────────────────────────────────────────────────────
-
   async listRoles(uid: string, groupId: string) {
     const member = await this.membership(groupId, uid);
     if (!member) throw new ForbiddenException({ error: 'Forbidden' });
 
-    // memberCount per role qua subquery — copy semantics Drizzle cũ (coalesce ::int)
     const rows = await this.prisma.$queryRaw<unknown[]>(Prisma.sql`
       SELECT
         r.id,
@@ -451,7 +398,6 @@ export class GroupMembersService {
       throw new BadRequestException({ error: 'permissions chứa key không hợp lệ' });
     }
 
-    // Position = max(position) + 1, capped < 100 (OWNER reserved)
     const maxRows = await this.prisma.$queryRaw<Array<{ p: number }>>(Prisma.sql`
       SELECT coalesce(max(position), 0)::int AS p
       FROM study_group_role WHERE group_id = ${groupId}`);
@@ -475,8 +421,6 @@ export class GroupMembersService {
 
       return { role: toRoleDto(inserted) };
     } catch (err) {
-      // Unique (group_id, name) — Prisma P2002 KHÔNG mang tên constraint trong
-      // message (khác Drizzle) nên match theo code; bảng chỉ có 1 unique này.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException({ error: 'Đã có role cùng tên trong group' });
       }
@@ -491,7 +435,6 @@ export class GroupMembersService {
       throw new ForbiddenException({ error: 'Bạn không có quyền quản lý role' });
     }
 
-    // Verify role thuộc group
     const row = await this.prisma.study_group_role.findFirst({
       where: { id: roleId, group_id: groupId },
       select: { id: true, is_managed: true, legacy_role: true },
@@ -501,7 +444,6 @@ export class GroupMembersService {
     const parsed = updateRoleSchema.safeParse(raw);
     if (!parsed.success) throw new BadRequestException({ error: parsed.error.flatten() });
 
-    // Managed role: không cho đổi name (legacy_role link by name "Chủ nhóm",…)
     const updates: Record<string, unknown> = {};
     if (parsed.data.name !== undefined) {
       if (row.is_managed) {
@@ -513,7 +455,6 @@ export class GroupMembersService {
     if (parsed.data.hoisted !== undefined) updates.hoisted = parsed.data.hoisted;
     if (parsed.data.mentionable !== undefined) updates.mentionable = parsed.data.mentionable;
     if (parsed.data.position !== undefined) {
-      // OWNER position luôn 100 (managed) — không cho đổi
       if (row.legacy_role === 'OWNER') {
         throw new BadRequestException({ error: 'Không đổi được position của OWNER' });
       }
@@ -564,10 +505,6 @@ export class GroupMembersService {
     return { ok: true };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // Invites — list/create/revoke
-  // ──────────────────────────────────────────────────────────
-
   async listInvites(uid: string, groupId: string) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
@@ -608,11 +545,9 @@ export class GroupMembersService {
       throw new ForbiddenException({ error: 'Không có quyền tạo invite' });
     }
 
-    // Body có thể rỗng — route cũ .catch(() => ({})) rồi parse default
     const parsed = createInviteSchema.safeParse(raw ?? {});
     if (!parsed.success) throw new BadRequestException({ error: parsed.error.flatten() });
 
-    // Retry tối đa 5 lần nếu code va đập (gần như impossible với 32^8)
     let inserted = null;
     for (let i = 0; i < 5; i++) {
       const code = generateInviteCode();
@@ -632,7 +567,6 @@ export class GroupMembersService {
         });
         break;
       } catch (err) {
-        // Unique violation — retry với code mới
         if (i === 4) throw err;
       }
     }
@@ -644,7 +578,6 @@ export class GroupMembersService {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });
 
-    // Mod+ revoke bất kỳ. Member chỉ revoke invite mình tạo
     const canRevokeAny = this.permissions.can(me.role as GroupRole, 'invite.revoke');
 
     const invite = await this.prisma.study_group_invite.findFirst({

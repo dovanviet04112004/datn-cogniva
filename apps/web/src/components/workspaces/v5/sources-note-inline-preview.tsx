@@ -1,20 +1,3 @@
-/**
- * SourcesNoteInlinePreview — V8.12 (2026-05-20).
- *
- * Render khi `useNotePreview().noteId != null && mode === 'inline'` — sidebar
- * Sources tạm thời thay đổi content thành compact preview của note đang xem.
- *
- * Layout (fit 320px sidebar):
- *   - Header: title (editable inline) + zoom + X close
- *   - Meta: updated time
- *   - Body: plain text preview (HTML stripped), scrollable
- *   - Footer: "Mở full editor" button → setMode('modal')
- *
- * KHÔNG render TipTap editor ở đây — 320px hẹp + features Tab/AI cần space.
- * Modal mới là editor đầy đủ.
- *
- * Fetch /api/notes/[id].
- */
 'use client';
 
 import * as React from 'react';
@@ -34,11 +17,7 @@ type NoteData = {
   updatedAt: string;
 };
 
-/** Save title qua PATCH. Toast lỗi nếu fail. Return note mới nếu OK. */
-async function saveTitle(
-  noteId: string,
-  newTitle: string,
-): Promise<NoteData | null> {
+async function saveTitle(noteId: string, newTitle: string): Promise<NoteData | null> {
   try {
     const res = await fetch(`/api/notes/${noteId}`, {
       method: 'PATCH',
@@ -54,7 +33,6 @@ async function saveTitle(
   }
 }
 
-/** Strip HTML tags để show preview text-only. */
 function stripHtml(html: string): string {
   if (typeof window === 'undefined') return html.replace(/<[^>]*>/g, ' ');
   const div = document.createElement('div');
@@ -66,7 +44,6 @@ export function SourcesNoteInlinePreview() {
   const ctx = useNotePreview();
   const confirm = useConfirm();
   const qc = useQueryClient();
-  /** Title đang edit inline (null = view mode). */
   const [editingTitle, setEditingTitle] = React.useState<string | null>(null);
   const [savingTitle, setSavingTitle] = React.useState(false);
 
@@ -74,16 +51,12 @@ export function SourcesNoteInlinePreview() {
 
   const noteId = ctx?.noteId ?? null;
 
-  // Dùng chung key qk.note(id) với trang /notes/[id] + NoteEditorDialog → sửa
-  // title ở đây cập nhật luôn cache các nơi kia (và ngược lại).
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.note(noteId ?? ''),
-    queryFn: () =>
-      apiGet<{ note: NoteData }>(`/api/notes/${noteId}`).then((d) => d.note),
+    queryFn: () => apiGet<{ note: NoteData }>(`/api/notes/${noteId}`).then((d) => d.note),
     enabled: !!noteId,
   });
 
-  /** Delete note + close preview + trigger list refetch ở SourcesPanel. */
   const handleDelete = async () => {
     if (!data || deleting || !ctx) return;
     const ok = await confirm({
@@ -98,8 +71,8 @@ export function SourcesNoteInlinePreview() {
       const res = await fetch(`/api/notes/${data.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`status ${res.status}`);
       toast.success('Đã xoá note');
-      ctx.bumpNotesVersion(); // SourcesPanel refetch list
-      ctx.close(); // back to sources list view
+      ctx.bumpNotesVersion();
+      ctx.close();
     } catch (err) {
       toast.error('Xoá lỗi: ' + (err as Error).message);
     } finally {
@@ -112,11 +85,10 @@ export function SourcesNoteInlinePreview() {
   const previewText = data ? stripHtml(data.content) : '';
 
   return (
-    <aside className="flex h-full flex-col overflow-hidden border-r bg-card">
-      {/* Header — title click để edit inline */}
+    <aside className="bg-card flex h-full flex-col overflow-hidden border-r">
       <header className="shrink-0 border-b px-3 py-2.5">
         <div className="flex items-start gap-2">
-          <NotebookPen className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+          <NotebookPen className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" />
           {editingTitle !== null && data ? (
             <input
               type="text"
@@ -133,9 +105,7 @@ export function SourcesNoteInlinePreview() {
                 setSavingTitle(true);
                 const updated = await saveTitle(data.id, next);
                 if (updated) {
-                  // Ghi thẳng vào cache chung → đồng bộ mọi nơi đọc qk.note(id).
                   qc.setQueryData(qk.note(data.id), updated);
-                  // V8.13: bump để SourcesPanel refetch notes list → sync title
                   ctx.bumpNotesVersion();
                 }
                 setSavingTitle(false);
@@ -149,7 +119,7 @@ export function SourcesNoteInlinePreview() {
                 }
               }}
               maxLength={200}
-              className="min-w-0 flex-1 rounded border border-primary/40 bg-background px-1.5 py-0.5 text-[13px] font-semibold tracking-tight outline-none focus:ring-1 focus:ring-primary"
+              className="border-primary/40 bg-background focus:ring-primary min-w-0 flex-1 rounded border px-1.5 py-0.5 text-[13px] font-semibold tracking-tight outline-none focus:ring-1"
             />
           ) : (
             <button
@@ -157,7 +127,7 @@ export function SourcesNoteInlinePreview() {
               onClick={() => data && setEditingTitle(data.title)}
               disabled={!data}
               title={data ? `${data.title} — click để đổi tên` : ''}
-              className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-tight hover:text-primary disabled:cursor-default"
+              className="hover:text-primary min-w-0 flex-1 truncate text-left text-[13px] font-semibold tracking-tight disabled:cursor-default"
             >
               {data?.title || (loading ? 'Đang tải…' : 'Note')}
             </button>
@@ -168,7 +138,7 @@ export function SourcesNoteInlinePreview() {
             disabled={!data || deleting}
             aria-label="Xoá note"
             title="Xoá note"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-50"
           >
             {deleting ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -181,7 +151,7 @@ export function SourcesNoteInlinePreview() {
             onClick={() => ctx.setMode('modal')}
             aria-label="Mở rộng — edit full"
             title="Mở full editor"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
@@ -190,39 +160,35 @@ export function SourcesNoteInlinePreview() {
             onClick={() => ctx.close()}
             aria-label="Đóng — quay lại danh sách"
             title="Đóng"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
         {data?.updatedAt && (
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="text-muted-foreground mt-1 text-[11px]">
             Cập nhật {new Date(data.updatedAt).toLocaleString('vi-VN')}
           </p>
         )}
       </header>
 
-      {/* Body — plain text preview */}
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {loading && !data ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
           </div>
         ) : !data ? (
-          <p className="text-center text-[11px] text-muted-foreground">
-            Note không tải được.
-          </p>
+          <p className="text-muted-foreground text-center text-[11px]">Note không tải được.</p>
         ) : previewText.length === 0 ? (
-          <p className="text-center text-[11px] italic text-muted-foreground">
+          <p className="text-muted-foreground text-center text-[11px] italic">
             Note trống. Bấm nút mở rộng ở góc trên để bắt đầu viết.
           </p>
         ) : (
-          <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/90">
+          <p className="text-foreground/90 whitespace-pre-wrap text-[12px] leading-relaxed">
             {previewText}
           </p>
         )}
       </div>
-      {/* Đã bỏ footer "Mở full editor" — trùng nút zoom ở header. */}
     </aside>
   );
 }

@@ -1,21 +1,3 @@
-/**
- * StudioRecipePreviews — V8.26 (2026-05-20).
- *
- * 5 sidebar preview component cho recipes (không-Exam): Flashcard, Quiz,
- * Atom guide, Mind map, Briefing. Pattern giống StudioExamInlinePreview:
- *   - Header: title + icon + zoom button (mở modal full) + X close (về recipes)
- *   - Body: management info (stats, meta, last gen, preview snippet…) + action
- *     thật (gen theo atom / regenerate). KHÔNG còn footer CTA "Mở rộng/Bắt đầu"
- *     riêng — đã trùng nút zoom ở header nên gỡ bỏ.
- *
- * Khi user click recipe trong Studio:
- *   1. setMainView(recipe) → URL ?view=X + recipeMode='inline'
- *   2. StudioPanel render preview component tương ứng trong sidebar
- *   3. User xem stats + bấm nút zoom (Maximize2) ở header → recipeMode='modal'
- *   4. RecipeOverlay (gated bởi recipeMode='modal') mở modal full screen
- *   5. Đóng modal → recipeMode='inline', sidebar preview vẫn còn
- *   6. X close sidebar → setMainView('chat') quay về recipes list
- */
 'use client';
 
 import * as React from 'react';
@@ -45,39 +27,25 @@ import { cn } from '@/lib/utils';
 import { useNotebook } from './notebook-context';
 import { FlashcardManageList, QuestionManageList } from './views/manage-lists';
 
-/** ─── Shared shell ─────────────────────────────────────────────── */
-
 type ShellProps = {
   title: string;
   icon: LucideIcon;
-  /** Subtitle nhỏ dưới title (vd "Scope workspace · 5 atom") */
   subtitle?: string;
   children: React.ReactNode;
 };
 
-/**
- * StudioPreviewShell — layout chung cho 6 recipe previews.
- *
- * Header có 2 button: Maximize2 (zoom modal) + X (close, về recipes).
- * Body scrollable, Footer sticky bottom.
- */
 function StudioPreviewShell({ title, icon: Icon, subtitle, children }: ShellProps) {
   const { setMainView, setRecipeMode } = useNotebook();
 
   return (
-    <aside className="flex h-full flex-col overflow-hidden border-l bg-card">
-      {/* Header */}
+    <aside className="bg-card flex h-full flex-col overflow-hidden border-l">
       <header className="shrink-0 border-b px-3 py-2.5">
         <div className="flex items-start gap-2">
-          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+          <Icon className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold tracking-tight">
-              {title}
-            </p>
+            <p className="truncate text-[13px] font-semibold tracking-tight">{title}</p>
             {subtitle && (
-              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                {subtitle}
-              </p>
+              <p className="text-muted-foreground mt-0.5 truncate text-[11px]">{subtitle}</p>
             )}
           </div>
           <button
@@ -85,7 +53,7 @@ function StudioPreviewShell({ title, icon: Icon, subtitle, children }: ShellProp
             onClick={() => setRecipeMode('modal')}
             aria-label="Mở rộng modal"
             title="Mở rộng (full screen)"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
@@ -94,20 +62,18 @@ function StudioPreviewShell({ title, icon: Icon, subtitle, children }: ShellProp
             onClick={() => setMainView('chat')}
             aria-label="Đóng — quay lại Studio"
             title="Đóng"
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
 
-      {/* Body — đã bỏ footer CTA "Bắt đầu/Mở rộng" (trùng nút zoom ở header). */}
       <div className="flex-1 overflow-y-auto p-3 text-[12px]">{children}</div>
     </aside>
   );
 }
 
-/** Generic stat chip — số to + label nhỏ. */
 function StatCard({
   label,
   value,
@@ -120,18 +86,17 @@ function StatCard({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-2.5">
-      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="bg-card rounded-lg border p-2.5">
+      <div className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
         {Icon && <Icon className="h-2.5 w-2.5" />}
         {label}
       </div>
       <p className="mt-0.5 font-mono text-lg font-bold tabular-nums">{value}</p>
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-muted-foreground text-[11px]">{hint}</p>}
     </div>
   );
 }
 
-/** Strip markdown heading/format và truncate cho preview snippet. */
 function extractSnippet(markdown: string | undefined, maxLen: number): string {
   if (!markdown) return '';
   const cleaned = markdown
@@ -140,8 +105,6 @@ function extractSnippet(markdown: string | undefined, maxLen: number): string {
     .trim();
   return cleaned.slice(0, maxLen) + (cleaned.length > maxLen ? '…' : '');
 }
-
-/** ─── Ôn flashcard ──────────────────────────────────────────────── */
 
 type FlashcardStats = {
   due: number;
@@ -154,13 +117,15 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
   const queryClient = useQueryClient();
   const [generating, setGenerating] = React.useState(false);
 
-  const { data: stats, isLoading: loading, refetch } = useQuery({
+  const {
+    data: stats,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.workspaceRecipe(workspaceId, 'flashcard'),
     queryFn: async () => {
       const [statsData, queueData] = await Promise.all([
-        apiGet<{ byState: Record<string, number>; dueToday: number }>(
-          '/api/flashcards/stats',
-        ),
+        apiGet<{ byState: Record<string, number>; dueToday: number }>('/api/flashcards/stats'),
         apiGet<{ flashcards: Array<unknown> }>(
           `/api/flashcards/queue?workspaceId=${workspaceId}&limit=100`,
         ),
@@ -178,8 +143,6 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
     },
   });
 
-  // Tạo flashcard cho ATOM ĐANG CHỌN ở cột trái (conceptId-targeted + dedup) →
-  // status atom + stats cập nhật ngay. KHÔNG gen từ doc chung chung nữa.
   const genForSelected = async () => {
     const atomIds = Array.from(selectedAtoms);
     if (atomIds.length === 0) {
@@ -188,15 +151,13 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
     }
     setGenerating(true);
     try {
-      // coverAll=true → phủ HẾT chunk chưa-có-thẻ của atom ("gen đủ thì dừng"),
-      // không cap số thẻ. remaining > 0 = atom quá lớn chạm trần → bấm tạo tiếp.
       const results = await Promise.all(
         atomIds.map((conceptId) =>
-          apiSend<{ created: number; remaining?: number }>(
-            '/api/flashcards/generate',
-            'POST',
-            { conceptId, type: 'BASIC', coverAll: true },
-          ).catch(() => ({ created: 0, remaining: 0 })),
+          apiSend<{ created: number; remaining?: number }>('/api/flashcards/generate', 'POST', {
+            conceptId,
+            type: 'BASIC',
+            coverAll: true,
+          }).catch(() => ({ created: 0, remaining: 0 })),
         ),
       );
       const created = results.reduce((s, r) => s + (r.created ?? 0), 0);
@@ -225,22 +186,17 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
     >
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <StatCard
-              icon={Target}
-              label="Đến hạn"
-              value={stats?.due ?? 0}
-              hint="ôn ngay"
-            />
+            <StatCard icon={Target} label="Đến hạn" value={stats?.due ?? 0} hint="ôn ngay" />
             <StatCard icon={Layers} label="Tổng" value={stats?.total ?? 0} hint="của bạn" />
           </div>
 
-          <div className="rounded-md border bg-muted/30 p-2.5">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="bg-muted/30 rounded-md border p-2.5">
+            <h3 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               Phân loại
             </h3>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -261,12 +217,11 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
             </div>
           </div>
 
-          {/* Tạo thẻ cho ATOM ĐANG CHỌN ở cột trái (không gen từ doc chung chung). */}
           <button
             type="button"
             onClick={genForSelected}
             disabled={generating}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+            className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-[11px] font-medium transition-colors disabled:opacity-50"
           >
             {generating ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -278,15 +233,12 @@ export function StudioFlashcardPreview({ workspaceId }: { workspaceId: string })
               : 'Chọn atom bên trái để tạo thẻ'}
           </button>
 
-          {/* Xem lại thẻ đã tạo + đã ôn/chưa ôn (gộp vào đây, không tab riêng). */}
           <FlashcardManageList workspaceId={workspaceId} />
         </div>
       )}
     </StudioPreviewShell>
   );
 }
-
-/** ─── 3. Quick Quiz ────────────────────────────────────────────── */
 
 type QuizMeta = {
   questionCount: number;
@@ -298,18 +250,18 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = React.useState(false);
 
-  const { data: meta, isLoading: loading, refetch } = useQuery({
+  const {
+    data: meta,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.workspaceRecipe(workspaceId, 'quiz'),
     queryFn: () =>
       apiGet<{ questions: Array<unknown>; hint?: string }>(
         `/api/workspaces/${workspaceId}/quick-quiz`,
-      ).then(
-        (d) => ({ questionCount: d.questions?.length ?? 0, hint: d.hint }) as QuizMeta,
-      ),
+      ).then((d) => ({ questionCount: d.questions?.length ?? 0, hint: d.hint }) as QuizMeta),
   });
 
-  // Tạo quiz cho ATOM ĐANG CHỌN ở cột trái (conceptId-targeted) — gắn đúng atom
-  // để làm xong cập nhật mastery atom đó.
   const generate = async () => {
     if (generating) return;
     const atomIds = Array.from(selectedAtoms);
@@ -319,17 +271,15 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
     }
     setGenerating(true);
     try {
-      // coverAll=true → phủ HẾT chunk của atom, không cap số câu; dedup theo
-      // prompt nên bấm lại không đẻ câu trùng.
       let total = 0;
       let remaining = 0;
       await Promise.all(
         atomIds.map((conceptId) =>
-          apiSend<{ questions?: unknown[]; remaining?: number }>(
-            '/api/quiz/generate',
-            'POST',
-            { conceptId, types: ['MCQ', 'TRUE_FALSE'], coverAll: true },
-          )
+          apiSend<{ questions?: unknown[]; remaining?: number }>('/api/quiz/generate', 'POST', {
+            conceptId,
+            types: ['MCQ', 'TRUE_FALSE'],
+            coverAll: true,
+          })
             .then((r) => {
               total += r.questions?.length ?? 0;
               remaining += r.remaining ?? 0;
@@ -361,7 +311,7 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
     >
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -373,7 +323,7 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
           />
 
           {meta?.hint === 'no-atoms' && (
-            <p className="rounded-md border border-warning/30 bg-warning/5 p-2 text-[11px] text-warning">
+            <p className="border-warning/30 bg-warning/5 text-warning rounded-md border p-2 text-[11px]">
               Workspace chưa có atom. Upload doc + đợi AI extract (~30-60s).
             </p>
           )}
@@ -383,7 +333,7 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
               type="button"
               onClick={generate}
               disabled={generating}
-              className="flex w-full items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+              className="border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-[11px] font-medium transition-colors disabled:opacity-50"
             >
               {generating ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -398,26 +348,23 @@ export function StudioQuizPreview({ workspaceId }: { workspaceId: string }) {
             </button>
           )}
 
-          <div className="rounded-md border bg-muted/30 p-2.5">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="bg-muted/30 rounded-md border p-2.5">
+            <h3 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               Cơ chế
             </h3>
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-foreground/90 text-[11px]">
+            <ul className="text-foreground/90 mt-1 list-disc space-y-0.5 pl-4 text-[11px]">
               <li>MCQ / True-False sinh theo atom đang chọn</li>
               <li>Grade ngay khi submit; lưu lịch sử → biết câu nào đã làm</li>
               <li>Update mastery atom qua applyAttempt</li>
             </ul>
           </div>
 
-          {/* Xem lại câu hỏi đã tạo + đã làm/chưa làm (gộp vào đây, không tab riêng). */}
           <QuestionManageList workspaceId={workspaceId} />
         </div>
       )}
     </StudioPreviewShell>
   );
 }
-
-/** ─── 4. Atom guide ────────────────────────────────────────────── */
 
 type GuideData = {
   markdown: string;
@@ -432,11 +379,9 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
 
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.workspaceRecipe(workspaceId, 'atom-guide'),
-    queryFn: () =>
-      apiGet<GuideData>(`/api/workspaces/${workspaceId}/atom-guide`),
+    queryFn: () => apiGet<GuideData>(`/api/workspaces/${workspaceId}/atom-guide`),
   });
 
-  // Regenerate = gọi endpoint với ?regenerate=1 rồi ghi đè cache (không refetch lại).
   const regenerate = async () => {
     setRegenerating(true);
     try {
@@ -451,10 +396,7 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
     }
   };
 
-  const snippet = React.useMemo(
-    () => extractSnippet(data?.markdown, 220),
-    [data],
-  );
+  const snippet = React.useMemo(() => extractSnippet(data?.markdown, 220), [data]);
 
   return (
     <StudioPreviewShell
@@ -464,15 +406,15 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
     >
       {loading ? (
         <div className="space-y-2">
-          <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-          <div className="h-3 w-full animate-pulse rounded bg-muted" />
-          <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          <div className="bg-muted h-3 w-1/3 animate-pulse rounded" />
+          <div className="bg-muted h-3 w-full animate-pulse rounded" />
+          <div className="bg-muted h-3 w-3/4 animate-pulse rounded" />
+          <p className="text-muted-foreground mt-2 text-center text-[11px]">
             AI đang tổng kết… (~10-30s)
           </p>
         </div>
       ) : !data ? (
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-muted-foreground text-center text-[11px]">
           Không load được. Bấm Regenerate.
         </p>
       ) : (
@@ -488,11 +430,11 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
           </div>
 
           {snippet && (
-            <div className="rounded-md border bg-muted/30 p-2.5">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="bg-muted/30 rounded-md border p-2.5">
+              <h3 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
                 Preview
               </h3>
-              <p className="mt-1 line-clamp-6 text-[11px] leading-relaxed text-foreground/90">
+              <p className="text-foreground/90 mt-1 line-clamp-6 text-[11px] leading-relaxed">
                 {snippet}
               </p>
             </div>
@@ -502,7 +444,7 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
             type="button"
             onClick={regenerate}
             disabled={regenerating || loading}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+            className="bg-card text-muted-foreground hover:bg-muted flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
           >
             {regenerating ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -517,15 +459,12 @@ export function StudioAtomGuidePreview({ workspaceId }: { workspaceId: string })
   );
 }
 
-/** ─── 5. Mind map ──────────────────────────────────────────────── */
-
 type GraphStats = {
   nodes: number;
   edges: number;
 };
 
 export function StudioMindMapPreview({ workspaceId }: { workspaceId: string }) {
-  // Dùng chung key qk.graph(workspaceId) với graph-view → share cache.
   const { data: graph, isLoading: loading } = useQuery({
     queryKey: qk.graph(workspaceId),
     queryFn: () =>
@@ -538,14 +477,10 @@ export function StudioMindMapPreview({ workspaceId }: { workspaceId: string }) {
     : null;
 
   return (
-    <StudioPreviewShell
-      title="Mind map"
-      icon={Network}
-      subtitle="Graph atom workspace"
-    >
+    <StudioPreviewShell title="Mind map" icon={Network} subtitle="Graph atom workspace">
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
         </div>
       ) : (
         <div className="space-y-3">
@@ -560,16 +495,16 @@ export function StudioMindMapPreview({ workspaceId }: { workspaceId: string }) {
           </div>
 
           {(stats?.nodes ?? 0) === 0 && (
-            <p className="rounded-md border border-warning/30 bg-warning/5 p-2 text-[11px] text-warning">
+            <p className="border-warning/30 bg-warning/5 text-warning rounded-md border p-2 text-[11px]">
               Workspace chưa có atom — upload doc + đợi AI extract.
             </p>
           )}
 
-          <div className="rounded-md border bg-muted/30 p-2.5">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="bg-muted/30 rounded-md border p-2.5">
+            <h3 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               Trong modal
             </h3>
-            <ul className="mt-1 list-disc space-y-0.5 pl-4 text-foreground/90 text-[11px]">
+            <ul className="text-foreground/90 mt-1 list-disc space-y-0.5 pl-4 text-[11px]">
               <li>Toggle scope: workspace này / tất cả</li>
               <li>Dagre hierarchical layout (connected)</li>
               <li>Grid theo domain cho atom mồ côi</li>
@@ -581,8 +516,6 @@ export function StudioMindMapPreview({ workspaceId }: { workspaceId: string }) {
     </StudioPreviewShell>
   );
 }
-
-/** ─── 6. Briefing doc ──────────────────────────────────────────── */
 
 type BriefingData = {
   markdown: string;
@@ -614,10 +547,7 @@ export function StudioBriefingPreview({ workspaceId }: { workspaceId: string }) 
     }
   };
 
-  const snippet = React.useMemo(
-    () => extractSnippet(data?.markdown, 240),
-    [data],
-  );
+  const snippet = React.useMemo(() => extractSnippet(data?.markdown, 240), [data]);
 
   return (
     <StudioPreviewShell
@@ -627,15 +557,15 @@ export function StudioBriefingPreview({ workspaceId }: { workspaceId: string }) 
     >
       {loading ? (
         <div className="space-y-2">
-          <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-          <div className="h-3 w-full animate-pulse rounded bg-muted" />
-          <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          <div className="bg-muted h-3 w-1/3 animate-pulse rounded" />
+          <div className="bg-muted h-3 w-full animate-pulse rounded" />
+          <div className="bg-muted h-3 w-3/4 animate-pulse rounded" />
+          <p className="text-muted-foreground mt-2 text-center text-[11px]">
             AI đang đọc sources… (~5-15s)
           </p>
         </div>
       ) : !data ? (
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-muted-foreground text-center text-[11px]">
           Không load được. Bấm Regenerate.
         </p>
       ) : (
@@ -651,11 +581,11 @@ export function StudioBriefingPreview({ workspaceId }: { workspaceId: string }) 
           </div>
 
           {snippet && (
-            <div className="rounded-md border bg-muted/30 p-2.5">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="bg-muted/30 rounded-md border p-2.5">
+              <h3 className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
                 Preview
               </h3>
-              <p className="mt-1 line-clamp-6 text-[11px] leading-relaxed text-foreground/90">
+              <p className="text-foreground/90 mt-1 line-clamp-6 text-[11px] leading-relaxed">
                 {snippet}
               </p>
             </div>
@@ -665,7 +595,7 @@ export function StudioBriefingPreview({ workspaceId }: { workspaceId: string }) 
             type="button"
             onClick={regenerate}
             disabled={regenerating || loading}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border bg-card px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+            className="bg-card text-muted-foreground hover:bg-muted flex w-full items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
           >
             {regenerating ? (
               <Loader2 className="h-3 w-3 animate-spin" />

@@ -1,24 +1,3 @@
-/**
- * library doc search — V2 (2026-05-22, refactor 2026-05-28).
- *
- * Search doc-level:
- *   - query rỗng → filter + sort theo `sort` mode.
- *   - query có → FTS `search_vec` (đã unaccent — gõ không dấu vẫn match, mig 0054)
- *     xếp theo `ts_rank` DESC + relative floor cắt đuôi nhiễu.
- *
- * KHÔNG dùng vector embedding ở grid search: probe cho thấy title_embedding
- * (voyage-3) gần như vô tín hiệu với content tiếng Việt — "giải tích" xếp
- * "Vợ chồng A Phủ" gần hơn cả "Giải tích 1", distance dồn cục 0.63-0.73 không
- * phân biệt được. FTS có trọng số (title/course = A) cho kết quả chính xác hơn
- * hẳn. Semantic chunk-level vẫn ở luồng reverse/voice (dùng content_vec riêng).
- *
- * Filters: subjectSlug, level, grade, docType, examType, language, fileFormat,
- * region, schoolYear, minPages, maxPages, minRating, difficulty, university, course.
- *
- * Sort modes (chỉ khi query rỗng):
- *   - 'top' (default): weighted score quality + popularity
- *   - 'rating': rating_avg DESC · 'popular': import+download · 'newest': created_at DESC
- */
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { db, libraryDoc, user as userTable } from '@cogniva/db';
@@ -43,21 +22,13 @@ export type LibrarySearchInput = {
     minRating?: number;
     tags?: string[];
     verifiedUploaderOnly?: boolean;
-    /** Phase 3 Bonus #13 — filter by computed difficulty. */
     difficulty?: Array<'easy' | 'medium' | 'hard'>;
-    /** University→Course model — filter by trường / khoá học. */
     universityId?: string;
     courseId?: string;
   };
   sort?: 'top' | 'rating' | 'popular' | 'newest';
   limit?: number;
   offset?: number;
-  /**
-   * Cách ghép token FTS:
-   *   - 'and' (mặc định): cần MỌI token → precise, hợp grid search query ngắn.
-   *   - 'or': chỉ cần 1 token → recall cao, hợp query dài nhiều topic (goal
-   *     planner). ts_rank vẫn đẩy doc khớp nhiều token lên đầu + floor cắt nhiễu.
-   */
   matchMode?: 'and' | 'or';
 };
 
@@ -86,12 +57,9 @@ export type LibraryDocResult = {
   workspaceImportCount: number;
   qualityScore: number | null;
   badges: string[];
-  /** Phase 3 Bonus #13 — easy/medium/hard. */
   difficulty: string | null;
-  /** Phase 4 Step 5 — premium gating */
   isPremium: boolean;
   priceVnd: number | null;
-  /** University→Course model — tên course hiển thị trên card. */
   courseNameCache: string | null;
   createdAt: Date;
   score: number;
@@ -99,13 +67,6 @@ export type LibraryDocResult = {
   vecRank: number | null;
 };
 
-/**
- * Hybrid search doc-level.
- *
- * Trường hợp:
- *   - query rỗng → filter + sort theo `sort` mode
- *   - query có → RRF (FTS + vector) trên candidate filtered, fallback sort khi 0 hit
- */
 export async function hybridSearchLibraryDocs(
   input: LibrarySearchInput,
 ): Promise<{ items: LibraryDocResult[]; total: number }> {
@@ -115,10 +76,8 @@ export async function hybridSearchLibraryDocs(
   const filters = input.filters ?? {};
   const sort = input.sort ?? 'top';
 
-  // ── Build filter WHERE conditions ──────────────────────────────────
   const conds = [eq(libraryDoc.status, 'PUBLISHED')];
 
-  // Subject hierarchy expand (vd "english" → ['english', 'english-ielts', 'english-toeic'])
   let expandedSlugs: string[] | null = null;
   if (filters.subjectSlug) {
     expandedSlugs = expandSubjectSlug(filters.subjectSlug);
@@ -150,13 +109,13 @@ export async function hybridSearchLibraryDocs(
     conds.push(gte(libraryDoc.ratingAvg, String(filters.minRating)));
   }
   if (filters.tags && filters.tags.length > 0) {
-    // Postgres array overlap operator &&
-    conds.push(sql`${libraryDoc.tags} && ${`{${filters.tags.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(',')}}`}::text[]`);
+    conds.push(
+      sql`${libraryDoc.tags} && ${`{${filters.tags.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(',')}}`}::text[]`,
+    );
   }
   if (filters.difficulty && filters.difficulty.length > 0) {
     conds.push(inArray(libraryDoc.difficulty, filters.difficulty));
   }
-  // University→Course filters
   if (filters.universityId) {
     conds.push(eq(libraryDoc.universityId, filters.universityId));
   }
@@ -164,7 +123,6 @@ export async function hybridSearchLibraryDocs(
     conds.push(eq(libraryDoc.courseId, filters.courseId));
   }
 
-  // ── No query path: pure filter + sort ──────────────────────────────
   if (!query) {
     const orderBy = buildOrderBy(sort);
     const [rows, total] = await Promise.all([
@@ -185,31 +143,28 @@ export async function hybridSearchLibraryDocs(
     return { items: rows.map(rowToResult), total };
   }
 
-  // ── Query path: full-text search (FTS) xếp theo ts_rank ─────────────
-  // Lexical FTS đáng tin cho tiếng Việt + quy mô catalog hiện tại. Vector
-  // embedding (nửa số doc còn null + nhiễu) từng kéo kết quả lệch — search
-  // "giải tích" lại ra "Vợ chồng A Phủ" — nên KHÔNG dùng ở grid search nữa.
   const tsq = toTsQuery(query, input.matchMode === 'or' ? '|' : '&');
   if (!tsq) return { items: [], total: 0 };
 
-  // filterSql: tái dùng các filter phổ biến trong raw SQL (alias tp.*).
   const subjectArr = expandedSlugs
     ? `{${expandedSlugs.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`
     : null;
   const subjectSqlF = subjectArr ? sql`AND tp.subject_slug = ANY(${subjectArr}::text[])` : sql``;
   const levelSqlF = filters.level ? sql`AND tp.level = ${filters.level}` : sql``;
   const langSqlF = filters.language ? sql`AND tp.language = ${filters.language}` : sql``;
-  const gradeArr = filters.grade && filters.grade.length > 0 ? `{${filters.grade.join(',')}}` : null;
+  const gradeArr =
+    filters.grade && filters.grade.length > 0 ? `{${filters.grade.join(',')}}` : null;
   const gradeSqlF = gradeArr ? sql`AND tp.grade = ANY(${gradeArr}::int[])` : sql``;
-  const typeArr = filters.docType && filters.docType.length > 0
-    ? `{${filters.docType.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`
-    : null;
+  const typeArr =
+    filters.docType && filters.docType.length > 0
+      ? `{${filters.docType.map((s) => `"${s.replace(/"/g, '\\"')}"`).join(',')}}`
+      : null;
   const typeSqlF = typeArr ? sql`AND tp.doc_type = ANY(${typeArr}::text[])` : sql``;
-  const universitySqlF = filters.universityId ? sql`AND tp.university_id = ${filters.universityId}` : sql``;
+  const universitySqlF = filters.universityId
+    ? sql`AND tp.university_id = ${filters.universityId}`
+    : sql``;
   const courseSqlF = filters.courseId ? sql`AND tp.course_id = ${filters.courseId}` : sql``;
 
-  // LƯU Ý: phải có khoảng trắng (newline) giữa các mảnh — nối dính sẽ tạo
-  // "tp.level = $3AND ..." → Postgres "trailing junk after parameter".
   const filterSql = sql`tp.status = 'PUBLISHED'
     ${subjectSqlF}
     ${levelSqlF}
@@ -219,8 +174,6 @@ export async function hybridSearchLibraryDocs(
     ${universitySqlF}
     ${courseSqlF}`;
 
-  // Rank theo ts_rank DESC; relative floor (2% rank cao nhất) cắt đuôi nhiễu —
-  // doc chỉ khớp lẻ tẻ trong body (rank ~0) bị loại để không lẫn doc lạc đề.
   const ranked = await db.execute<{ id: string; rank: number }>(sql`
     WITH q AS (SELECT to_tsquery('simple', immutable_unaccent(${tsq})) AS tsq),
     scored AS (
@@ -260,7 +213,6 @@ export async function hybridSearchLibraryDocs(
   return { items, total };
 }
 
-// ─── Select shape ────────────────────────────────────────────────────
 function buildSelect() {
   return {
     id: libraryDoc.id,
@@ -295,10 +247,11 @@ function buildSelect() {
   };
 }
 
-type SelectRow = Awaited<ReturnType<typeof buildSelect>> extends infer T
-  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  : never;
+type SelectRow =
+  Awaited<ReturnType<typeof buildSelect>> extends infer T
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      any
+    : never;
 
 function rowToResult(r: SelectRow): LibraryDocResult {
   return {
@@ -337,26 +290,19 @@ function rowToResult(r: SelectRow): LibraryDocResult {
   };
 }
 
-// ─── Sort modes ──────────────────────────────────────────────────────
 function buildOrderBy(sort: 'top' | 'rating' | 'popular' | 'newest') {
   switch (sort) {
     case 'rating':
-      return [
-        desc(sql`COALESCE(${libraryDoc.ratingAvg}, 0)`),
-        desc(libraryDoc.ratingCount),
-      ];
+      return [desc(sql`COALESCE(${libraryDoc.ratingAvg}, 0)`), desc(libraryDoc.ratingCount)];
     case 'popular':
       return [
-        desc(
-          sql`${libraryDoc.workspaceImportCount} * 3 + ${libraryDoc.downloadCount}`,
-        ),
+        desc(sql`${libraryDoc.workspaceImportCount} * 3 + ${libraryDoc.downloadCount}`),
         desc(libraryDoc.createdAt),
       ];
     case 'newest':
       return [desc(libraryDoc.createdAt)];
     case 'top':
     default:
-      // Weighted: quality + rating + import + recency boost
       return [
         desc(
           sql`COALESCE(${libraryDoc.qualityScore}, 0) * 100
@@ -368,7 +314,6 @@ function buildOrderBy(sort: 'top' | 'rating' | 'popular' | 'newest') {
   }
 }
 
-// ─── tsquery helper (strip Unicode punctuation) ──────────────────────
 function toTsQuery(text: string, op: '&' | '|' = '&'): string {
   const cleaned = text
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')

@@ -1,14 +1,6 @@
-/**
- * GET /api/healthz — health của riêng NestJS (DB + Redis). Aggregate health
- * cho LB/monitoring (/api/health) port riêng ở health-public.controller.ts.
- */
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  HealthCheck,
-  HealthCheckService,
-  HealthIndicatorService,
-} from '@nestjs/terminus';
+import { HealthCheck, HealthCheckService, HealthIndicatorService } from '@nestjs/terminus';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../infra/database/prisma.service';

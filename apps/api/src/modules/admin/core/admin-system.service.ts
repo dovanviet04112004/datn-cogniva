@@ -1,13 +1,3 @@
-/**
- * AdminSystemService — flags + maintenance (bảng system_config) + jobs status.
- *
- * Port lib/system/config.ts: cache in-memory Map TTL 5s PER-PROCESS (chấp nhận
- * instance khác stale tối đa 5s — y hành vi cũ, không thêm pub/sub).
- *
- * Jobs: đọc BullMQ qua @InjectQueue 3 queue của api (cron-v2/document/
- * recording); danh sách cron là hằng CRON_JOBS_V2 — web cũ sau W6 trả [] nên
- * nguồn sự thật giờ nằm ở api.
- */
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -16,11 +6,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../infra/database/prisma.service';
 import { AdminAuditService } from '../../../common/admin/admin-audit.service';
 import type { AdminContext } from '../../../common/admin/admin.guard';
-import {
-  CRON_QUEUE,
-  DOCUMENT_QUEUE,
-  RECORDING_QUEUE,
-} from '../../../infra/queue/queue.module';
+import { CRON_QUEUE, DOCUMENT_QUEUE, RECORDING_QUEUE } from '../../../infra/queue/queue.module';
 import { CRON_JOBS_V2 } from '../../jobs/cron-jobs';
 import type { SetFlagInput, SetMaintenanceInput } from './dto/admin-core.dto';
 
@@ -40,7 +26,6 @@ const DEFAULT_MAINTENANCE: MaintenanceConfig = {
 
 @Injectable()
 export class AdminSystemService {
-  /** Cache 5s per-process — service singleton nên Map sống cùng process. */
   private readonly cache = new Map<string, { value: unknown; expiresAt: number }>();
 
   constructor(
@@ -51,7 +36,6 @@ export class AdminSystemService {
     @InjectQueue(CRON_QUEUE) private readonly cronQueue: Queue,
   ) {}
 
-  // ── system_config helpers (port lib/system/config.ts) ───────────
   private async getSystemConfig<T>(key: string): Promise<T | null> {
     const entry = this.cache.get(key);
     if (entry && entry.expiresAt > Date.now()) {
@@ -72,9 +56,7 @@ export class AdminSystemService {
   private async setSystemConfig(key: string, value: unknown, updatedBy: string): Promise<void> {
     const now = new Date();
     const json =
-      value === null || value === undefined
-        ? Prisma.JsonNull
-        : (value as Prisma.InputJsonValue);
+      value === null || value === undefined ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
     await this.prisma.system_config.upsert({
       where: { key },
       create: { key, value: json, updated_by: updatedBy, updated_at: now },
@@ -93,7 +75,6 @@ export class AdminSystemService {
     };
   }
 
-  // ── GET /admin/system/flags ──────────────────────────────────────
   async listFlags() {
     const rows = await this.prisma.system_config.findMany();
     return {
@@ -108,7 +89,6 @@ export class AdminSystemService {
     };
   }
 
-  // ── POST /admin/system/flags ─────────────────────────────────────
   async setFlag(ctx: AdminContext, dto: SetFlagInput) {
     const { name, value, reason } = dto;
 
@@ -129,7 +109,6 @@ export class AdminSystemService {
     return { ok: true };
   }
 
-  // ── DELETE /admin/system/flags?name=X&reason=Y ───────────────────
   async deleteFlag(ctx: AdminContext, name: string, reason: string) {
     await this.audit.withAudit(ctx, 'flag.delete', { type: 'flag', id: name }, async () => {
       const existing = await this.prisma.system_config.findUnique({
@@ -150,13 +129,11 @@ export class AdminSystemService {
     return { ok: true };
   }
 
-  // ── GET /admin/system/maintenance ────────────────────────────────
   async getMaintenance() {
     const config = await this.getMaintenanceConfig();
     return { config };
   }
 
-  // ── POST /admin/system/maintenance ───────────────────────────────
   async setMaintenance(ctx: AdminContext, dto: SetMaintenanceInput) {
     const { enabled, banner, dismissible, reason } = dto;
 
@@ -179,7 +156,6 @@ export class AdminSystemService {
     return { ok: true };
   }
 
-  // ── GET /admin/system/jobs ───────────────────────────────────────
   async getJobs() {
     let queues: Array<{ name: string; counts: Record<string, number> }> = [];
     let redisOk = true;

@@ -13,17 +13,18 @@ theo roadmap §10.
 
 V1-V3 đã có đủ tính năng cơ bản nhưng user phàn nàn:
 
-| Friction điểm | Trải nghiệm hiện tại | Hậu quả |
-|---|---|---|
-| Tìm gia sư | Filter chip (subject + level + modality) → list grid → click profile từng cái → đối chiếu giá/rating thủ công | Mất 5-10 phút mỗi lần tìm |
-| Đăng yêu cầu | Form 6 field (title, desc, subject, level, budget, urgency) | 70% user bỏ giữa chừng |
-| Đặt buổi | Dialog 5 bước (subject → day → duration → time → message) → wait 24h tutor confirm | TTV cao, dropoff |
-| Thanh toán | 1 booking = 1 lần thanh toán full, no wallet, no installment | Khoá học dài (8 buổi) → student phải book + pay 8 lần |
-| Lịch | Linear list 7 ngày tới — không thấy buổi học cách 2 tuần | Không lên kế hoạch dài hạn |
-| Match AI | Chỉ chạy khi mở `/requests/[id]/matches` — lazy compute, no chat | User không biết feature tồn tại |
-| Trust | Self-claim experience + KYC badge nhỏ — không có "100+ buổi", "trả lời nhanh" | Khó so sánh tutor |
+| Friction điểm | Trải nghiệm hiện tại                                                                                          | Hậu quả                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Tìm gia sư    | Filter chip (subject + level + modality) → list grid → click profile từng cái → đối chiếu giá/rating thủ công | Mất 5-10 phút mỗi lần tìm                             |
+| Đăng yêu cầu  | Form 6 field (title, desc, subject, level, budget, urgency)                                                   | 70% user bỏ giữa chừng                                |
+| Đặt buổi      | Dialog 5 bước (subject → day → duration → time → message) → wait 24h tutor confirm                            | TTV cao, dropoff                                      |
+| Thanh toán    | 1 booking = 1 lần thanh toán full, no wallet, no installment                                                  | Khoá học dài (8 buổi) → student phải book + pay 8 lần |
+| Lịch          | Linear list 7 ngày tới — không thấy buổi học cách 2 tuần                                                      | Không lên kế hoạch dài hạn                            |
+| Match AI      | Chỉ chạy khi mở `/requests/[id]/matches` — lazy compute, no chat                                              | User không biết feature tồn tại                       |
+| Trust         | Self-claim experience + KYC badge nhỏ — không có "100+ buổi", "trả lời nhanh"                                 | Khó so sánh tutor                                     |
 
 **Mục tiêu V4 (3 tháng):**
+
 1. **TTV (Time-to-Value)**: từ click "Tìm gia sư" → confirmed booking ≤ 3 phút (hiện 10-15 phút)
 2. **Booking completion rate**: từ 35% (V3) → 65%
 3. **Repeat booking** trong 30 ngày: từ 18% → 45% (via recurring + wallet)
@@ -34,20 +35,20 @@ V1-V3 đã có đủ tính năng cơ bản nhưng user phàn nàn:
 
 ## 2. So sánh với marketplace khác
 
-| Feature | Cogniva V3 | Toidi/Edumaster/Tutor.vn | Preply/iTalki (global) | V4 target |
-|---|---|---|---|---|
-| Search | Filter chips | Filter chips | NLP + AI suggest | ✅ Conversational AI |
-| Instant book | ❌ (chờ 24h) | ❌ | ✅ Confirmed slots | ✅ "Sẵn sàng dạy ngay" badge |
-| Recurring booking | ❌ | ❌ | ✅ Weekly/biweekly | ✅ Pack 4/8/12 buổi |
-| Group classes | ❌ | ⚠️ (offline only) | ❌ | ✅ 1 tutor → N student |
-| Wallet / credit | ❌ | ❌ | ✅ Pre-paid balance | ✅ VND wallet + cashback |
-| Installment | ❌ | ⚠️ Manual qua admin | ❌ | ✅ Split N kỳ |
-| Trial buổi | ❌ | ⚠️ Tuỳ tutor | ✅ 30 phút giá thấp | ✅ Trial 30 phút giảm 50% |
-| Reviews v2 | Rating + comment | Rating + comment | Rating + tags + video | ✅ Tag filter + helpful count |
-| Map view (offline) | ❌ | ✅ | N/A | ✅ Mapbox |
-| Comparison side-by-side | ❌ | ❌ | ✅ Up to 4 | ✅ Up to 4 tutors |
-| Saved searches / fav | ❌ | ⚠️ Bookmark profile | ✅ Saved + alerts | ✅ Both |
-| Tutor responsiveness | ❌ | ❌ | ✅ "Replies in 2h" | ✅ Avg response time badge |
+| Feature                 | Cogniva V3       | Toidi/Edumaster/Tutor.vn | Preply/iTalki (global) | V4 target                     |
+| ----------------------- | ---------------- | ------------------------ | ---------------------- | ----------------------------- |
+| Search                  | Filter chips     | Filter chips             | NLP + AI suggest       | ✅ Conversational AI          |
+| Instant book            | ❌ (chờ 24h)     | ❌                       | ✅ Confirmed slots     | ✅ "Sẵn sàng dạy ngay" badge  |
+| Recurring booking       | ❌               | ❌                       | ✅ Weekly/biweekly     | ✅ Pack 4/8/12 buổi           |
+| Group classes           | ❌               | ⚠️ (offline only)        | ❌                     | ✅ 1 tutor → N student        |
+| Wallet / credit         | ❌               | ❌                       | ✅ Pre-paid balance    | ✅ VND wallet + cashback      |
+| Installment             | ❌               | ⚠️ Manual qua admin      | ❌                     | ✅ Split N kỳ                 |
+| Trial buổi              | ❌               | ⚠️ Tuỳ tutor             | ✅ 30 phút giá thấp    | ✅ Trial 30 phút giảm 50%     |
+| Reviews v2              | Rating + comment | Rating + comment         | Rating + tags + video  | ✅ Tag filter + helpful count |
+| Map view (offline)      | ❌               | ✅                       | N/A                    | ✅ Mapbox                     |
+| Comparison side-by-side | ❌               | ❌                       | ✅ Up to 4             | ✅ Up to 4 tutors             |
+| Saved searches / fav    | ❌               | ⚠️ Bookmark profile      | ✅ Saved + alerts      | ✅ Both                       |
+| Tutor responsiveness    | ❌               | ❌                       | ✅ "Replies in 2h"     | ✅ Avg response time badge    |
 
 V4 đóng GAP với Preply/iTalki nhưng giữ thế mạnh **tích hợp study tool** (study group + voice + AI Tutor + flashcards auto-gen).
 
@@ -56,9 +57,11 @@ V4 đóng GAP với Preply/iTalki nhưng giữ thế mạnh **tích hợp study 
 ## 3. Roadmap 5 phase
 
 ### Phase T1 — AI Conversational Search + Instant Match (~5 ngày)
+
 Mục tiêu: thay filter chips bằng chat tự nhiên + bring AI matching lên front.
 
 **Features:**
+
 - **AI Concierge chat panel** trên `/tutoring` (slide-in từ phải, Cmd+J shortcut)
 - Conversational flow:
   1. User: "Tôi muốn học Toán cho con lớp 11"
@@ -72,6 +75,7 @@ Mục tiêu: thay filter chips bằng chat tự nhiên + bring AI matching lên 
 - **Smart filter chip extraction**: AI parse query "toán lớp 11 dưới 200k" → tự set chip filter để user thấy
 
 **Schema thêm:**
+
 ```sql
 -- Lưu conversation history concierge — separate từ AI Tutor để analytics riêng
 CREATE TABLE tutoring_concierge_thread (
@@ -107,6 +111,7 @@ ALTER TABLE tutor_profile ADD COLUMN bio_embedding_updated_at timestamp;
 ```
 
 **API mới:**
+
 ```
 POST /api/tutoring/concierge/threads          — tạo thread mới
 GET  /api/tutoring/concierge/threads          — list threads của user
@@ -116,6 +121,7 @@ GET  /api/tutoring/concierge/search           — hybrid search (FTS + vector)
 ```
 
 **UI:**
+
 - `<TutoringConcierge>` panel: textarea + suggestion chips ("Toán 11", "IELTS 6.5", "Anh giao tiếp")
 - `<TutorMatchCard>` render trong chat — collapsible, có CTA "Đặt thử 30 phút"
 - Banner top `/tutoring`: "✨ Hỏi AI Concierge → tìm gia sư ngay" với CTA mở panel
@@ -123,9 +129,11 @@ GET  /api/tutoring/concierge/search           — hybrid search (FTS + vector)
 ---
 
 ### Phase T2 — Frictionless Booking + Instant Book (~4 ngày)
+
 Mục tiêu: rút từ 5 bước → 1 bước cho 60% case, cho phép book ngay không chờ tutor confirm.
 
 **Features:**
+
 - **Smart Default Booking dialog** (1 step thay vì 5):
   - AI auto-pick: subject mặc định (tutor chỉ 1) + duration 60min + time slot gần nhất 24h
   - User chỉ cần confirm hoặc tweak
@@ -139,6 +147,7 @@ Mục tiêu: rút từ 5 bước → 1 bước cho 60% case, cho phép book ngay
 - **Rate request** — student mong giá X, tutor counter-offer (giảm dần thanh thoả thuận chat)
 
 **Schema thêm:**
+
 ```sql
 ALTER TABLE tutor_profile
   ADD COLUMN instant_book_enabled boolean NOT NULL DEFAULT false,
@@ -159,6 +168,7 @@ CREATE UNIQUE INDEX tutoring_booking_trial_uniq
 ```
 
 **API mới:**
+
 ```
 POST /api/tutoring/bookings/quick    — instant-book endpoint, validate slot + instant_book_enabled
 POST /api/tutoring/bookings/[id]/reschedule  — propose new time
@@ -166,6 +176,7 @@ POST /api/tutoring/bookings/[id]/counter-rate — tutor đề xuất giá khác
 ```
 
 **UI:**
+
 - BookingDialog redesign — **2 column layout**:
   - Left (60%): calendar 14-ngày grid + slot picker (visual heatmap màu theo độ trống)
   - Right (40%): order summary + instant-book CTA
@@ -175,9 +186,11 @@ POST /api/tutoring/bookings/[id]/counter-rate — tutor đề xuất giá khác
 ---
 
 ### Phase T3 — Wallet + Installment + Smart Pricing (~5 ngày)
+
 Mục tiêu: dòng tiền linh hoạt, giảm dropoff giữa intent→capture.
 
 **Features:**
+
 - **VND Wallet** — user nạp tiền 1 lần, book nhiều buổi không phải qua VNPay mỗi lần
   - Nạp tiền: 100K / 500K / 1M / 5M (preset) hoặc custom
   - Cashback 5% khi nạp ≥ 1M (promo, configurable)
@@ -192,6 +205,7 @@ Mục tiêu: dòng tiền linh hoạt, giảm dropoff giữa intent→capture.
 - **Promo code** — admin tạo code (vd: STUDENT2026) giảm % hoặc tặng wallet credit
 
 **Schema thêm:**
+
 ```sql
 -- Wallet account per user (1-1)
 CREATE TABLE user_wallet (
@@ -289,6 +303,7 @@ CREATE TABLE promo_code_redemption (
 ```
 
 **API mới:**
+
 ```
 GET    /api/wallet                    — balance + recent txn
 POST   /api/wallet/topup              — tạo intent nạp tiền (VNPay/MoMo)
@@ -305,6 +320,7 @@ POST   /api/tutoring/pricing/suggest  — AI gợi ý giá cho tutor mới
 ```
 
 **UI:**
+
 - `/wallet` page: balance card + nạp tiền + txn history (filter type + date range)
 - TutorProfile thêm tab "Pack giảm giá" → grid card pack với CTA "Mua pack -10%"
 - BookingPaymentBox: 3 method tabs (Wallet | VNPay | MoMo) — default Wallet nếu đủ balance
@@ -313,9 +329,11 @@ POST   /api/tutoring/pricing/suggest  — AI gợi ý giá cho tutor mới
 ---
 
 ### Phase T4 — Calendar V2 + Group Classes + Recurring (~6 ngày)
+
 Mục tiêu: dạy nhiều student cùng lúc + lịch học định kỳ.
 
 **Features:**
+
 - **Calendar tuần/tháng view** — drag/drop reschedule, color theo subject
   - Tutor: thấy availability + booking + blocked time
   - Student: thấy upcoming + history + recurring schedule
@@ -331,6 +349,7 @@ Mục tiêu: dạy nhiều student cùng lúc + lịch học định kỳ.
 - **Waitlist** — class full → student vào waitlist, tự push lên khi có seat trống
 
 **Schema thêm:**
+
 ```sql
 CREATE TABLE tutoring_class (
   id text PRIMARY KEY,
@@ -390,6 +409,7 @@ ALTER TABLE "user" ADD COLUMN booking_ical_token text;
 ```
 
 **API mới:**
+
 ```
 GET  /api/tutoring/classes                    — list group classes (filter subject/level/start_date)
 POST /api/tutoring/classes                    — tutor tạo class
@@ -407,6 +427,7 @@ GET  /api/tutoring/ical/[token].ics           — iCal feed (public token URL)
 ```
 
 **UI:**
+
 - `/tutoring/calendar` page — full calendar view (FullCalendar / custom grid)
 - `/tutoring/classes` tab thứ 4 trong hub — browse group classes
 - TutorDashboard: nút "Tạo lớp nhóm" + form (subject/level/max/price/schedule)
@@ -416,9 +437,11 @@ GET  /api/tutoring/ical/[token].ics           — iCal feed (public token URL)
 ---
 
 ### Phase T5 — Trust & Discovery polish (~4 ngày)
+
 Mục tiêu: comparison + reviews v2 + saved searches.
 
 **Features:**
+
 - **Side-by-side comparison** — chọn 2-4 tutor → mở compare view (price, rating, response time, subjects, sample sessions)
 - **Reviews v2**:
   - Tag categories (helpful, knowledgeable, patient, on-time) — student tick chips
@@ -438,6 +461,7 @@ Mục tiêu: comparison + reviews v2 + saved searches.
 - **Tutor video intro** — MP4 upload 60s, render trên profile card
 
 **Schema thêm:**
+
 ```sql
 -- Reviews v2 — extend tutor_review
 ALTER TABLE tutor_review
@@ -478,6 +502,7 @@ ALTER TABLE tutor_profile ADD COLUMN intro_video_thumb_url text;
 ```
 
 **API mới:**
+
 ```
 POST   /api/tutoring/compare         — body: { tutorIds: [] } → trả side-by-side data
 POST   /api/tutors/[id]/favorite     — toggle favorite
@@ -493,6 +518,7 @@ POST   /api/tutoring/reviews/[id]/attachments  — upload photo
 ```
 
 **UI:**
+
 - TutorCard: checkbox "So sánh" → floating bar dưới "So sánh 3 tutor" → mở /tutoring/compare?ids=
 - /tutoring/compare page: 4 column side-by-side table (price/rating/response/subjects)
 - ReviewList: tag filter chips + sort dropdown + photo lightbox
@@ -505,13 +531,13 @@ POST   /api/tutoring/reviews/[id]/attachments  — upload photo
 
 Migration order khi start V4:
 
-| # | Migration | Phase | Apply order |
-|---|---|---|---|
-| 0040 | `concierge_threads_messages` + tsvector tutor_profile | T1 | 1 |
-| 0041 | `instant_book_columns + reschedule + trial` | T2 | 2 |
-| 0042 | `wallet_packs_promo` | T3 | 3 |
-| 0043 | `classes_blocked_time_recurring` | T4 | 4 |
-| 0044 | `reviews_v2_favorites_saved_searches` | T5 | 5 |
+| #    | Migration                                             | Phase | Apply order |
+| ---- | ----------------------------------------------------- | ----- | ----------- |
+| 0040 | `concierge_threads_messages` + tsvector tutor_profile | T1    | 1           |
+| 0041 | `instant_book_columns + reschedule + trial`           | T2    | 2           |
+| 0042 | `wallet_packs_promo`                                  | T3    | 3           |
+| 0043 | `classes_blocked_time_recurring`                      | T4    | 4           |
+| 0044 | `reviews_v2_favorites_saved_searches`                 | T5    | 5           |
 
 Total ~5 migration. Batch ship — apply chung qua docker exec script.
 
@@ -550,8 +576,12 @@ Giọng văn thân thiện, tiếng Việt tự nhiên.
       }),
       execute: hybridSearchTutors, // FTS + cosine fusion
     },
-    getTutorDetails: { /* ... */ },
-    suggestBudget: { /* P50/P75 stats */ },
+    getTutorDetails: {
+      /* ... */
+    },
+    suggestBudget: {
+      /* P50/P75 stats */
+    },
   },
 });
 ```
@@ -591,6 +621,7 @@ Kết hợp filter (subject/level/budget) qua WHERE clauses thêm.
 ### 5.3. Tool result format
 
 `searchTutors` returns:
+
 ```json
 {
   "tutors": [
@@ -620,10 +651,12 @@ Kết hợp filter (subject/level/budget) qua WHERE clauses thêm.
 Trước V4: Booking → VNPay intent → redirect → capture webhook → confirmed. Failure rate ~15%.
 
 V4: Booking → check wallet balance:
+
 - Đủ → trừ wallet ngay, status=CAPTURED (no external call)
 - Không đủ → modal "Nạp 200K để hoàn tất + 50K dư cho lần sau" → 1 VNPay flow vẫn dùng được
 
 Lợi ích:
+
 - Repeat student: 1 VNPay charge cover 5-10 booking
 - Refund instant qua wallet credit, không qua VNPay refund (3-7 days)
 - Reduce VNPay/MoMo transaction fees ~70%
@@ -632,26 +665,26 @@ Lợi ích:
 
 User mua pack 8 buổi giá 1.6M, chia 4 kỳ (400K/kỳ, mỗi 2 tuần):
 
-| Period | Trigger | Action |
-|---|---|---|
-| 1 | Mua pack | Charge 400K (wallet hoặc VNPay), pack ACTIVE, 8 buổi available |
-| 2 | After 14 days | BullMQ cron charge 400K wallet auto; nếu wallet < 400K → email + push "nạp ngay" |
-| 3 | After 28 days | Same |
-| 4 | After 42 days | Same — paid_periods = 4 → pack PAID_FULL |
+| Period | Trigger       | Action                                                                           |
+| ------ | ------------- | -------------------------------------------------------------------------------- |
+| 1      | Mua pack      | Charge 400K (wallet hoặc VNPay), pack ACTIVE, 8 buổi available                   |
+| 2      | After 14 days | BullMQ cron charge 400K wallet auto; nếu wallet < 400K → email + push "nạp ngay" |
+| 3      | After 28 days | Same                                                                             |
+| 4      | After 42 days | Same — paid_periods = 4 → pack PAID_FULL                                         |
 
 Nếu fail kỳ 2 → grace 7 ngày → student không nạp → pause pack (block booking) → 14 ngày → refund + cancel còn lại.
 
 ### 6.3. Refund matrix
 
-| Trigger | Within | Refund % | To |
-|---|---|---|---|
-| Student cancel | >24h before | 100% | Wallet (instant) |
-| Student cancel | 1-24h before | 90% | Wallet (instant) |
-| Student cancel | <1h before | 0% | (Tutor get full) |
-| Tutor cancel | Any time | 100% + 10% credit | Wallet (instant) + promo credit cho lần sau |
-| No-show student | After 15min | 0% | Tutor get full |
-| No-show tutor | After 15min | 100% + 20% credit | Wallet + promo |
-| Dispute (admin review) | Within 7 days post | Case-by-case | Admin decide |
+| Trigger                | Within             | Refund %          | To                                          |
+| ---------------------- | ------------------ | ----------------- | ------------------------------------------- |
+| Student cancel         | >24h before        | 100%              | Wallet (instant)                            |
+| Student cancel         | 1-24h before       | 90%               | Wallet (instant)                            |
+| Student cancel         | <1h before         | 0%                | (Tutor get full)                            |
+| Tutor cancel           | Any time           | 100% + 10% credit | Wallet (instant) + promo credit cho lần sau |
+| No-show student        | After 15min        | 0%                | Tutor get full                              |
+| No-show tutor          | After 15min        | 100% + 20% credit | Wallet + promo                              |
+| Dispute (admin review) | Within 7 days post | Case-by-case      | Admin decide                                |
 
 ---
 
@@ -722,6 +755,7 @@ shadow-glow           /* hover CTA primary */
 ### 7.2. Hub `/tutoring` redesign — mockup chi tiết
 
 **Trước (V3):**
+
 - Hero band cao 200px chiếm 30% màn hình
 - 3 tab horizontal underline
 - Filter chip row riêng (subject + level + modality)
@@ -808,6 +842,7 @@ shadow-glow           /* hover CTA primary */
 ```
 
 Hover state:
+
 - Card lift `translate-y-[-2px]` + `shadow-elevated`
 - Photo zoom 1.05 (smooth 200ms)
 - Hidden tertiary action reveals: "Lưu" + "Nhắn DM" + "Xem profile"
@@ -855,15 +890,16 @@ Hover state:
 
 **Tab content sections:**
 
-| Tab | Content | Sticky? |
-|---|---|---|
-| Giới thiệu | Markdown bio + intro video | No |
-| Môn | Grid môn (emoji + level + verified badge + sessions taught) | No |
-| Lịch | Mini calendar 14 ngày + chỉ slot trống | No |
-| Pack | Pack 4/8/12 buổi cards + CTA "Mua" | No |
-| Đánh giá | Reviews v2 list + tag filter | No |
+| Tab        | Content                                                     | Sticky? |
+| ---------- | ----------------------------------------------------------- | ------- |
+| Giới thiệu | Markdown bio + intro video                                  | No      |
+| Môn        | Grid môn (emoji + level + verified badge + sessions taught) | No      |
+| Lịch       | Mini calendar 14 ngày + chỉ slot trống                      | No      |
+| Pack       | Pack 4/8/12 buổi cards + CTA "Mua"                          | No      |
+| Đánh giá   | Reviews v2 list + tag filter                                | No      |
 
 **Subtle interaction:**
+
 - Scroll past hero → tab nav `position: sticky top-14` để luôn thấy
 - Sticky CTA right panel chỉ hiển thị desktop ≥ 1024px
 
@@ -909,12 +945,14 @@ Hover state:
 **Mobile:** stack vertical — calendar trên, summary dưới, sticky CTA dưới cùng.
 
 **Smart prefill logic:**
+
 1. Subject: auto chọn nếu tutor chỉ dạy 1 môn; nếu nhiều → AI chọn theo last booking subject của student
 2. Duration: 60 phút default; user toggle 90/120 trong summary
 3. Time: AI pick slot gần nhất ≥ 24h sau (gợi ý highlight cyan)
 4. Trial checkbox auto-check nếu eligible (chưa từng book tutor này)
 
 **Reschedule mode** dùng same dialog với `mode="reschedule"`:
+
 - Banner amber: "Đổi lịch buổi 27/5 19:00 → chọn slot mới"
 - Validate ≥ 12h before original time
 - CTA: "Đề xuất đổi lịch" (tutor accept → applied)
@@ -922,6 +960,7 @@ Hover state:
 ### 7.5. Concierge panel — full spec
 
 **Trigger:**
+
 - Floating gradient pill ở góc dưới phải `/tutoring` (accent-discovery glow)
 - Cmd+J / Ctrl+J shortcut
 - Smart search bar top click
@@ -978,6 +1017,7 @@ Hover state:
 ```
 
 **Microcopy spec (concierge):**
+
 - Empty state: "Mình giúp bạn tìm gia sư phù hợp" — KHÔNG "Tôi" (xa cách)
 - AI clarify question: dưới 80 ký tự, chỉ 1 câu hỏi / turn
 - Match reason: "💡 ... — match query 'X'" để user thấy AI lý do
@@ -1114,43 +1154,47 @@ Hover state:
 **Touch target:** mọi clickable ≥ 44×44px (đạt WCAG AA).
 
 **Swipe gestures:**
+
 - Swipe left tutor card → quick action drawer (Favorite, Compare, Hide)
 - Swipe right calendar week → tuần kế / trước
 
 **Bottom sheet thay sidebar:**
+
 - Filter trên mobile dùng bottom sheet (Apple HIG pattern) thay sidebar overlay
 - Concierge mobile = full-screen takeover thay slide-in
 
 **Sticky bottom CTA bar:**
+
 - Tutor profile mobile: "150k/h · [Đặt buổi]"
 - Booking dialog mobile: CTA fixed bottom
 
 **Pull to refresh:**
+
 - Hub tab Tutors: pull → refresh search
 - Calendar: pull → refresh booking list
 
 ### 7.11. Loading / Empty / Error states (đều có)
 
-| State | Component | Pattern |
-|---|---|---|
-| Loading (initial) | Skeleton card 3-6 placeholder | pulse animate-pulse |
-| Loading (pagination) | Spinner footer "Đang tải..." | inline |
-| Empty (no result) | EmptyState illustration + CTA | "Chưa tìm thấy gia sư khớp · [Thử AI Concierge] [Đăng yêu cầu]" |
-| Empty (no favorites) | Heart icon + "Lưu gia sư yêu thích" | CTA về tab Tutors |
-| Empty (wallet new) | Wallet icon + "Nạp tiền lần đầu cashback 5%" | CTA [Nạp ngay] |
-| Error (network) | Banner top "Mạng chậm, thử lại?" | retry button |
-| Error (booking conflict) | Inline error đỏ trong dialog + suggest slot khác | |
-| Error (payment fail) | Modal "Thanh toán thất bại — thử lại / dùng phương thức khác" | |
-| Optimistic update fail | Toast destructive + rollback UI | |
+| State                    | Component                                                     | Pattern                                                         |
+| ------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| Loading (initial)        | Skeleton card 3-6 placeholder                                 | pulse animate-pulse                                             |
+| Loading (pagination)     | Spinner footer "Đang tải..."                                  | inline                                                          |
+| Empty (no result)        | EmptyState illustration + CTA                                 | "Chưa tìm thấy gia sư khớp · [Thử AI Concierge] [Đăng yêu cầu]" |
+| Empty (no favorites)     | Heart icon + "Lưu gia sư yêu thích"                           | CTA về tab Tutors                                               |
+| Empty (wallet new)       | Wallet icon + "Nạp tiền lần đầu cashback 5%"                  | CTA [Nạp ngay]                                                  |
+| Error (network)          | Banner top "Mạng chậm, thử lại?"                              | retry button                                                    |
+| Error (booking conflict) | Inline error đỏ trong dialog + suggest slot khác              |                                                                 |
+| Error (payment fail)     | Modal "Thanh toán thất bại — thử lại / dùng phương thức khác" |                                                                 |
+| Optimistic update fail   | Toast destructive + rollback UI                               |                                                                 |
 
 **Skeleton component template** (V4 dùng chung cho mọi loading):
 
 ```tsx
-<TutorCardSkeleton>  
-  <Skeleton className="h-32 w-full rounded-xl" />     {/* photo */}
-  <Skeleton className="mt-3 h-4 w-3/4" />              {/* name */}
-  <Skeleton className="mt-1 h-3 w-1/2" />              {/* meta */}
-  <Skeleton className="mt-2 h-3 w-2/3" />              {/* badge */}
+<TutorCardSkeleton>
+  <Skeleton className="h-32 w-full rounded-xl" /> {/* photo */}
+  <Skeleton className="mt-3 h-4 w-3/4" /> {/* name */}
+  <Skeleton className="mt-1 h-3 w-1/2" /> {/* meta */}
+  <Skeleton className="mt-2 h-3 w-2/3" /> {/* badge */}
   <Skeleton className="mt-3 h-8 w-full rounded-lg" /> {/* CTA */}
 </TutorCardSkeleton>
 ```
@@ -1158,6 +1202,7 @@ Hover state:
 ### 7.12. Animations & motion
 
 **Timing tokens:**
+
 - Fast (instant feedback): 100-150ms — hover, button press
 - Base (UI transition): 200ms — card hover, tab switch
 - Slow (page transition): 300-400ms — modal open, drawer slide
@@ -1167,6 +1212,7 @@ Hover state:
 **Reduced motion respect:** Khi `prefers-reduced-motion: reduce` → tắt mọi transition trên 200ms, chỉ giữ opacity fade.
 
 **Concrete animations V4 thêm:**
+
 - Tutor card hover: lift + shadow + photo zoom (composite, 200ms)
 - Concierge panel mở: slide từ right + fade backdrop (300ms)
 - Match card stream-in: fade + slide up từng card 50ms stagger
@@ -1177,18 +1223,18 @@ Hover state:
 
 ### 7.13. Accessibility (WCAG AA target)
 
-| Aspect | Implementation |
-|---|---|
-| Keyboard navigation | Tab order logic, no `tabIndex=-1` trừ skip-link |
-| Focus ring | `focus-visible:ring-2 ring-primary/40` mọi interactive |
-| Skip link | "Bỏ qua đến nội dung chính" top-left khi tab |
-| ARIA labels | Mọi icon-only button có `aria-label` |
-| Color contrast | Text ≥ 4.5:1, large text ≥ 3:1; badge có icon song song không chỉ màu |
-| Heading hierarchy | h1 → h2 → h3, không skip |
-| Screen reader live region | `aria-live="polite"` cho chat stream, calendar update |
-| Reduced motion | Detect + tắt transition |
-| Form validation | inline error + `aria-describedby` link tới message |
-| Modal trap focus | Radix Dialog đã handle |
+| Aspect                    | Implementation                                                        |
+| ------------------------- | --------------------------------------------------------------------- |
+| Keyboard navigation       | Tab order logic, no `tabIndex=-1` trừ skip-link                       |
+| Focus ring                | `focus-visible:ring-2 ring-primary/40` mọi interactive                |
+| Skip link                 | "Bỏ qua đến nội dung chính" top-left khi tab                          |
+| ARIA labels               | Mọi icon-only button có `aria-label`                                  |
+| Color contrast            | Text ≥ 4.5:1, large text ≥ 3:1; badge có icon song song không chỉ màu |
+| Heading hierarchy         | h1 → h2 → h3, không skip                                              |
+| Screen reader live region | `aria-live="polite"` cho chat stream, calendar update                 |
+| Reduced motion            | Detect + tắt transition                                               |
+| Form validation           | inline error + `aria-describedby` link tới message                    |
+| Modal trap focus          | Radix Dialog đã handle                                                |
 
 ### 7.14. Microcopy guidelines
 
@@ -1196,25 +1242,27 @@ Hover state:
 
 **Examples:**
 
-| Tình huống | Trước (V3) | Sau (V4) |
-|---|---|---|
-| Empty tutor list | "Không có gia sư." | "Chưa tìm thấy gia sư khớp · [Thử AI Concierge]" |
-| Booking PENDING | "PENDING_TUTOR" | "Đang chờ gia sư xác nhận (thường < 30 phút)" |
-| Pay button | "Thanh toán" | "Đặt ngay 180k" |
-| Cancel | "Cancel" | "Huỷ buổi học" |
-| Cancel free window | (chỉ button) | "Huỷ free trước 24h" |
-| Error | "Error" | "Có lỗi xảy ra, thử lại?" |
-| Slow mode | "Slow mode 5s" | "Đợi 5 giây để gửi tiếp" |
-| AI loading | "Loading..." | "✨ Đang tìm gia sư phù hợp..." |
-| Verify badge | "VERIFIED" | "Đã xác thực CCCD + bằng cấp" (tooltip) |
-| Trust 100+ | "100+" | "100+ buổi đã hoàn thành" |
+| Tình huống         | Trước (V3)         | Sau (V4)                                         |
+| ------------------ | ------------------ | ------------------------------------------------ |
+| Empty tutor list   | "Không có gia sư." | "Chưa tìm thấy gia sư khớp · [Thử AI Concierge]" |
+| Booking PENDING    | "PENDING_TUTOR"    | "Đang chờ gia sư xác nhận (thường < 30 phút)"    |
+| Pay button         | "Thanh toán"       | "Đặt ngay 180k"                                  |
+| Cancel             | "Cancel"           | "Huỷ buổi học"                                   |
+| Cancel free window | (chỉ button)       | "Huỷ free trước 24h"                             |
+| Error              | "Error"            | "Có lỗi xảy ra, thử lại?"                        |
+| Slow mode          | "Slow mode 5s"     | "Đợi 5 giây để gửi tiếp"                         |
+| AI loading         | "Loading..."       | "✨ Đang tìm gia sư phù hợp..."                  |
+| Verify badge       | "VERIFIED"         | "Đã xác thực CCCD + bằng cấp" (tooltip)          |
+| Trust 100+         | "100+"             | "100+ buổi đã hoàn thành"                        |
 
 **Pricing display:**
+
 - Always thousand separator: `180.000đ` not `180000`
 - Use `đ` suffix not `VND` (thân thuộc hơn)
 - Pack pricing: `1.300.000đ (-10%)` với strikethrough giá gốc bên cạnh
 
 **Date/time:**
+
 - "Hôm nay 19:00" cho ≤ 24h
 - "T6 27/5 · 19:00" cho ≤ 7d
 - "27/05 · 19:00" cho > 7d
@@ -1223,16 +1271,20 @@ Hover state:
 ### 7.15. Discoverability & onboarding nudge
 
 **First-time visitor `/tutoring`:**
+
 - Show banner top: "✨ Mới: AI Concierge giúp tìm gia sư trong 1 phút" với CTA "Thử ngay"
 - After dismiss → ẩn 7 ngày
 
 **Tutor mới (chưa publish):**
+
 - Banner: "Hoàn thành 3 bước để xuất hiện trên marketplace" + progress indicator
 
 **Booking đầu tiên xong:**
+
 - Toast success + modal soft "Đặt buổi lặp lại tuần tới?" → 1 click recurring
 
 **Trial buổi xong:**
+
 - Modal: "Buổi học thế nào? · [⭐ Rate] · [Đặt buổi tiếp][Mua pack 8 -10%]"
 
 ### 7.16. Design QA checklist (mỗi screen V4 ship)
@@ -1266,6 +1318,7 @@ V3 đã có Expo push qua BullMQ. V4 mở rộng:
 - **SMS fallback** (tuỳ chọn paid) — booking confirmation cho student không có push
 
 Schema:
+
 ```sql
 ALTER TABLE notification_log ADD COLUMN channel text DEFAULT 'push'
   CHECK (channel IN ('push', 'email', 'inapp', 'sms'));
@@ -1299,17 +1352,18 @@ CREATE TABLE user_notification_pref (
 
 ## 10. Roadmap implementation
 
-| Batch | Phase | Effort | Output |
-|---|---|---|---|
-| W1-W2 | T1 — AI Concierge | 5 ngày | Concierge panel + hybrid search + tool calls |
-| W2-W3 | T2 — Frictionless booking | 4 ngày | Instant book + trial + reschedule + smart dialog |
-| W3-W5 | T3 — Wallet + Packs + Promo | 5 ngày | Wallet ledger + pack purchase + installment + promo |
-| W5-W7 | T4 — Calendar V2 + Group classes | 6 ngày | Calendar view + group class + recurring + iCal |
-| W7-W8 | T5 — Trust polish | 4 ngày | Comparison + reviews v2 + favorites + alerts |
+| Batch | Phase                            | Effort | Output                                              |
+| ----- | -------------------------------- | ------ | --------------------------------------------------- |
+| W1-W2 | T1 — AI Concierge                | 5 ngày | Concierge panel + hybrid search + tool calls        |
+| W2-W3 | T2 — Frictionless booking        | 4 ngày | Instant book + trial + reschedule + smart dialog    |
+| W3-W5 | T3 — Wallet + Packs + Promo      | 5 ngày | Wallet ledger + pack purchase + installment + promo |
+| W5-W7 | T4 — Calendar V2 + Group classes | 6 ngày | Calendar view + group class + recurring + iCal      |
+| W7-W8 | T5 — Trust polish                | 4 ngày | Comparison + reviews v2 + favorites + alerts        |
 
 Total ~24 ngày net coding (4-5 weeks calendar với QA + iteration).
 
 **Soft launch dần**:
+
 - Sau T1 → ship internal beta, dogfood concierge
 - Sau T2 → 10% rollout instant-book (opt-in tutors)
 - Sau T3 → wallet GA cho mọi user
@@ -1320,37 +1374,38 @@ Total ~24 ngày net coding (4-5 weeks calendar với QA + iteration).
 
 ## 11. Risks & mitigation
 
-| Risk | Severity | Mitigation |
-|---|---|---|
-| AI Concierge tốn token mỗi user → cost | High | Cache embedding + filter result, dùng Claude Haiku cho tool calls (rẻ hơn Sonnet) |
-| Wallet ledger inconsistency (race) | Critical | DB transaction lock + ledger audit cron đối chiếu balance |
-| Pack purchase abuse (mua → cancel buổi → refund hết) | Medium | Refund pack chỉ buổi chưa dùng + 10% admin fee |
-| Group class no-show — N student rảnh | Medium | Min enrolled = 3 mới start, dưới ngưỡng → refund 100% |
-| Recurring booking conflict tutor lịch đổi | Medium | Tutor edit availability → invalidate future recurring + notify cả 2 bên 7 ngày trước |
-| Installment fail thanh toán | Medium | Auto-retry 3 lần / 3 ngày → escalate admin → mark DEFAULTED giữ booking đã học, freeze còn lại |
-| iCal token leak | Low | Token rotate hàng quý + audit access log |
+| Risk                                                 | Severity | Mitigation                                                                                     |
+| ---------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| AI Concierge tốn token mỗi user → cost               | High     | Cache embedding + filter result, dùng Claude Haiku cho tool calls (rẻ hơn Sonnet)              |
+| Wallet ledger inconsistency (race)                   | Critical | DB transaction lock + ledger audit cron đối chiếu balance                                      |
+| Pack purchase abuse (mua → cancel buổi → refund hết) | Medium   | Refund pack chỉ buổi chưa dùng + 10% admin fee                                                 |
+| Group class no-show — N student rảnh                 | Medium   | Min enrolled = 3 mới start, dưới ngưỡng → refund 100%                                          |
+| Recurring booking conflict tutor lịch đổi            | Medium   | Tutor edit availability → invalidate future recurring + notify cả 2 bên 7 ngày trước           |
+| Installment fail thanh toán                          | Medium   | Auto-retry 3 lần / 3 ngày → escalate admin → mark DEFAULTED giữ booking đã học, freeze còn lại |
+| iCal token leak                                      | Low      | Token rotate hàng quý + audit access log                                                       |
 
 ---
 
 ## 12. Success metrics
 
-| Metric | V3 baseline | V4 target | Measure |
-|---|---|---|---|
-| TTV (search → confirmed) | 12 phút | 3 phút | analytics event funnel |
-| Booking completion | 35% | 65% | (completed / created) |
-| Repeat booking 30d | 18% | 45% | distinct (student, tutor) ≥ 2 |
-| Concierge adoption | 0% | 40% | sessions with `tutoring_concierge_thread` |
-| Wallet adoption | 0% | 70% | users with `user_wallet.balance > 0` |
-| Group class enrollments | 0 | 100/tháng | enrollment count |
-| Payment success rate | 85% | 95% | (captured / intent created) |
-| Avg session rating | 4.2 | 4.5 | avg(rating) |
-| Tutor responsiveness P50 | n/a | < 30 phút | tracked column |
+| Metric                   | V3 baseline | V4 target | Measure                                   |
+| ------------------------ | ----------- | --------- | ----------------------------------------- |
+| TTV (search → confirmed) | 12 phút     | 3 phút    | analytics event funnel                    |
+| Booking completion       | 35%         | 65%       | (completed / created)                     |
+| Repeat booking 30d       | 18%         | 45%       | distinct (student, tutor) ≥ 2             |
+| Concierge adoption       | 0%          | 40%       | sessions with `tutoring_concierge_thread` |
+| Wallet adoption          | 0%          | 70%       | users with `user_wallet.balance > 0`      |
+| Group class enrollments  | 0           | 100/tháng | enrollment count                          |
+| Payment success rate     | 85%         | 95%       | (captured / intent created)               |
+| Avg session rating       | 4.2         | 4.5       | avg(rating)                               |
+| Tutor responsiveness P50 | n/a         | < 30 phút | tracked column                            |
 
 ---
 
 ## 13. Out of scope V4
 
 Defer sang V5+:
+
 - **Marketplace fee tier** (current 0% — V5 add 10-15% commission)
 - **Tutor leaderboard / featured paid placement**
 - **Mobile native app** (web responsive vẫn đủ)

@@ -1,10 +1,3 @@
-/**
- * /tutoring/requests/[id] — đã gom vào modal ở hub.
- *
- * Trang đầy đủ bị bỏ: xem/ứng tuyển/duyệt làm trong RequestDetailModal ở
- * /tutoring tab "Yêu cầu học". Route này chỉ redirect deep-link cũ (mine-tab,
- * concierge, tạo yêu cầu xong…) về hub + auto mở modal.
- */
 import { redirect } from 'next/navigation';
 
 export const runtime = 'nodejs';

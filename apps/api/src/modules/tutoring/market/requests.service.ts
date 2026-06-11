@@ -1,11 +1,3 @@
-/**
- * TutoringRequestsService — port từ apps/web/src/app/api/tutoring/
- * {requests,requests/[id],requests/[id]/apply,applications/[id]}/route.ts.
- *
- * Mutation request/application PHẢI bust onTutoringMineChanged cho ĐỦ các
- * phía (student + tutor + tutor bị cascade-reject) — SSR MineTab web cache
- * `tutoring-mine:v1:{userId}` còn sống.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -19,10 +11,7 @@ import { onTutoringMineChanged } from '@cogniva/server-core/cache/invalidate';
 import { z } from 'zod';
 
 import { PrismaService } from '../../../infra/database/prisma.service';
-import {
-  validateSubject,
-  type SubjectLevel,
-} from '../../library/subject-taxonomy';
+import { validateSubject, type SubjectLevel } from '../../../common/subject-taxonomy';
 
 const CREATE_SCHEMA = z.object({
   title: z.string().min(10).max(160),
@@ -72,17 +61,13 @@ type RequestRow = {
 export class TutoringRequestsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** POST /tutoring/requests — student tạo request, expires +30 ngày. */
   async create(userId: string, raw: unknown) {
     const parsed = CREATE_SCHEMA.safeParse(raw);
     if (!parsed.success) {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
 
-    const subject = validateSubject(
-      parsed.data.subjectSlug,
-      parsed.data.level as SubjectLevel,
-    );
+    const subject = validateSubject(parsed.data.subjectSlug, parsed.data.level as SubjectLevel);
     if (!subject) {
       throw new BadRequestException({ error: 'Môn / level không hợp lệ' });
     }
@@ -107,11 +92,9 @@ export class TutoringRequestsService {
 
     await onTutoringMineChanged(userId);
 
-    // Insert mới → embedding luôn null (route cũ .returning() trả cả 2 cột này).
     return { request: this.serializeRequest(created, null) };
   }
 
-  /** GET /tutoring/requests/:id — public; owner thấy applications, tutor thấy myApplication. */
   async detail(id: string, userId: string | null) {
     const row = await this.prisma.tutor_request.findUnique({
       where: { id },
@@ -161,8 +144,6 @@ export class TutoringRequestsService {
       });
       isTutor = !!myProfile;
       if (myProfile) {
-        // BUG-COMPATIBLE với route cũ (golden diff): lookup "mine" theo tutorId
-        // KHÔNG filter requestId — có thể trả application của REQUEST KHÁC.
         const app = await this.prisma.tutor_application.findFirst({
           where: { request_id: id },
           select: { id: true, status: true },
@@ -209,11 +190,8 @@ export class TutoringRequestsService {
         status: a.status,
         createdAt: a.created_at,
         tutorHeadline: a.tutor_profile.headline,
-        // numeric(3,2) — Drizzle trả pg text "4.50"; Decimal.toFixed(2) tái tạo format.
         tutorRating:
-          a.tutor_profile.rating_avg === null
-            ? null
-            : a.tutor_profile.rating_avg.toFixed(2),
+          a.tutor_profile.rating_avg === null ? null : a.tutor_profile.rating_avg.toFixed(2),
         tutorRatingCount: a.tutor_profile.rating_count,
         tutorSessionsCompleted: a.tutor_profile.sessions_completed,
         tutorAvatarUrl: a.tutor_profile.avatar_url,
@@ -226,7 +204,6 @@ export class TutoringRequestsService {
     return { request: req, isOwner: false, isTutor, myApplication };
   }
 
-  /** PATCH /tutoring/requests/:id — chỉ owner; update body/đổi status (close). */
   async update(userId: string, id: string, raw: unknown) {
     const existing = await this.prisma.tutor_request.findUnique({
       where: { id },
@@ -250,8 +227,6 @@ export class TutoringRequestsService {
 
     const updated = await this.prisma.tutor_request.update({ where: { id }, data });
 
-    // Route cũ .returning() trả CẢ cột embedding (vector → number[] | null) —
-    // Prisma không đọc được Unsupported("vector") nên lấy riêng qua ::text.
     const [emb] = await this.prisma.$queryRaw<{ embedding: string | null }[]>(
       Prisma.sql`SELECT embedding::text AS embedding FROM tutor_request WHERE id = ${id}`,
     );
@@ -262,7 +237,6 @@ export class TutoringRequestsService {
     return { request: this.serializeRequest(updated, embedding) };
   }
 
-  /** POST /tutoring/requests/:id/apply — tutor apply (unique requestId+tutorId). */
   async apply(userId: string, id: string, raw: unknown) {
     const myProfile = await this.prisma.tutor_profile.findUnique({
       where: { user_id: userId },
@@ -289,7 +263,6 @@ export class TutoringRequestsService {
       throw new BadRequestException({ error: parsed.error.flatten() });
     }
 
-    // Catch-all → 409 như route cũ (chủ yếu unique violation P2002 khi đã apply).
     try {
       const created = await this.prisma.tutor_application.create({
         data: {
@@ -322,7 +295,6 @@ export class TutoringRequestsService {
     }
   }
 
-  /** PATCH /tutoring/applications/:id — student accept/reject; ACCEPT cascade-reject. */
   async patchApplication(userId: string, id: string, body: ApplicationPatchInput) {
     const app = await this.prisma.tutor_application.findUnique({
       where: { id },
@@ -348,8 +320,6 @@ export class TutoringRequestsService {
     }
 
     if (body.status === 'ACCEPTED') {
-      // Gom userId các tutor PENDING khác TRƯỚC khi update (sau cascade không
-      // query lại được) — dùng bust MineTab của họ sau commit.
       const cascadeRejected = await this.prisma.tutor_application.findMany({
         where: {
           request_id: app.request_id,
@@ -395,7 +365,6 @@ export class TutoringRequestsService {
     return { ok: true, status: 'REJECTED' };
   }
 
-  /** Row Prisma snake_case → shape camelCase y Drizzle .returning() route cũ. */
   private serializeRequest(row: RequestRow, embedding: number[] | null) {
     return {
       id: row.id,

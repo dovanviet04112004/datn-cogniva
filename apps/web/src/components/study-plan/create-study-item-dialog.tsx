@@ -1,9 +1,3 @@
-/**
- * CreateStudyItemDialog — dialog modal tạo study plan item.
- *
- * Thay thế pattern `showForm` toggle inline trên /study-plan. Sau submit
- * gọi `onCreated()` để parent refetch list.
- */
 'use client';
 
 import * as React from 'react';
@@ -113,7 +107,7 @@ export function CreateStudyItemDialog({ onCreated, trigger }: Props) {
                 rows={2}
                 maxLength={1000}
                 placeholder="Ghi chú thêm về nội dung cần ôn..."
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1"
               />
             </div>
             <div className="space-y-1.5">

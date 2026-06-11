@@ -1,18 +1,3 @@
-/**
- * GraphService — knowledge graph: viz (GET /graph), mine prerequisite edges
- * (POST /graph/mine) và concept detail panel (GET /graph/concept/:id).
- *
- * Port từ apps/web: app/api/graph/* + lib/graph/get-graph.ts +
- * lib/concepts/{dedup,prerequisite}.ts — GIỮ NGUYÊN wire shape (camelCase),
- * cùng cache key ck.graph(u, ws) TTL 3600s + invalidator onGraphChanged nên
- * Next/Nest sống chung không lệch cache.
- *
- * Khác biệt cố ý so với web:
- *   - Web đọc graph qua dbReplica; API hiện chỉ có 1 PrismaClient (primary).
- *     Cache Redis Tier 1 vẫn là tầng giảm tải chính — replica routing để infra lo sau.
- *   - LLM mining → LlmService (infra/ai, @Global) — cùng provider pick order /
- *     model default như getChatModel() web, params giữ nguyên mineGroup cũ.
- */
 import { randomUUID } from 'node:crypto';
 import {
   BadGatewayException,
@@ -29,7 +14,6 @@ import { onGraphChanged } from '@cogniva/server-core/cache/invalidate';
 import { LlmService } from '../../infra/ai/llm.service';
 import { PrismaService } from '../../infra/database/prisma.service';
 
-/** Node React Flow — { id, type, data, position } (position client tự layout). */
 export type GraphNode = {
   id: string;
   type: 'concept';
@@ -37,13 +21,11 @@ export type GraphNode = {
     name: string;
     description: string | null;
     domain: string;
-    /** Mastery BKT score (0..1) — undefined nếu user chưa attempt concept đó. */
     mastery?: number;
   };
   position: { x: number; y: number };
 };
 
-/** Edge React Flow — quan hệ prerequisite giữa 2 concept. */
 export type GraphEdge = {
   id: string;
   source: string;
@@ -54,13 +36,10 @@ export type GraphEdge = {
 
 export type GraphPayload = { nodes: GraphNode[]; edges: GraphEdge[] };
 
-/** Row concept tối thiểu cho viz + mining. */
 type ConceptRow = { id: string; name: string; description: string | null; domain: string };
 
-/** Cạnh prerequisite LLM trả về (id phải thuộc batch đang mine). */
 type MinedEdge = { from: string; to: string; strength: number };
 
-// ── Prompt mining — copy NGUYÊN VĂN từ lib/concepts/prerequisite.ts ──────────
 const PREREQ_INSTRUCTION = `Bạn là chuyên gia thiết kế đường học. Cho danh sách KHÁI NIỆM dưới đây (cùng domain), liệt kê CÀNG NHIỀU cặp prerequisite/dependency CÀNG TỐT để dựng đồ thị kiến thức.
 
 Cặp (from, to) nghĩa: "muốn hiểu \`to\` thì cần biết \`from\` trước", hoặc "to xây dựng dựa trên from".
@@ -79,10 +58,8 @@ QUY TẮC:
 DANH SÁCH KHÁI NIỆM (id | name | description):
 {{LIST}}`;
 
-/** Batch ≤ 10 concept/LLM call — group lớn hơn LLM dễ bỏ sót cặp. */
 const MAX_GROUP_SIZE = 10;
 
-/** Bóc JSON khỏi output LLM (lột code-fence nếu có). */
 function extractJson(text: string): unknown {
   const stripped = text
     .replace(/^```(?:json)?\s*/i, '')
@@ -100,25 +77,13 @@ export class GraphService {
     private readonly llm: LlmService,
   ) {}
 
-  // ════════════════════════════════════════════════════════════════════════
-  // GET /graph — viz (cache-aside Redis TTL 1h, bust qua onDocumentChanged/
-  // onGraphChanged/onMasteryChanged ở server-core)
-  // ════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Graph (nodes + edges) của user, có thể scope theo 1 workspace (V5 MindMap).
-   * ws='all' khi không lọc — KHỚP key invalidator xoá (ck.graph(u,'all')).
-   */
   async getGraphForUser(userId: string, workspaceId?: string | null): Promise<GraphPayload> {
     return cached(ck.graph(userId, workspaceId ?? 'all'), 3600, () =>
       this.fetchGraph(userId, workspaceId ?? null),
     );
   }
 
-  /** Truy vấn thật dựng graph — chỉ chạy khi cache MISS. */
   private async fetchGraph(userId: string, workspaceId: string | null): Promise<GraphPayload> {
-    // 1. Concepts của user — scope qua pivot chunk_concept → chunk → document
-    // (concept không có cột user_id, entity dùng chung).
     const concepts = await this.prisma.$queryRaw<ConceptRow[]>(
       workspaceId
         ? Prisma.sql`
@@ -142,8 +107,6 @@ export class GraphService {
 
     const conceptIds = concepts.map((c) => c.id);
 
-    // 2. Prerequisite edges — chỉ cạnh mà CẢ from & to đều trong tập concept
-    // của user (tránh kéo cạnh trỏ ra ngoài scope). ANY(text[]) khớp query gốc.
     const idsArrayLiteral = `{${conceptIds.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')}}`;
     const relations = conceptIds.length
       ? await this.prisma.$queryRaw<
@@ -156,7 +119,6 @@ export class GraphService {
         `)
       : [];
 
-    // 3. Mastery scores → tô màu node theo BKT (đỏ/vàng/xanh).
     const masteryRows = conceptIds.length
       ? await this.prisma.mastery.findMany({
           where: { user_id: userId, concept_id: { in: conceptIds } },
@@ -165,7 +127,6 @@ export class GraphService {
       : [];
     const masteryMap = new Map(masteryRows.map((m) => [m.concept_id, m.score]));
 
-    // 4. Format chuẩn React Flow — client (Dagre/ELK) tự layout position.
     const nodes: GraphNode[] = concepts.map((c) => ({
       id: c.id,
       type: 'concept',
@@ -173,9 +134,9 @@ export class GraphService {
         name: c.name,
         description: c.description,
         domain: c.domain,
-        mastery: masteryMap.get(c.id), // undefined nếu chưa attempt
+        mastery: masteryMap.get(c.id),
       },
-      position: { x: 0, y: 0 }, // 0,0 — client layout sẽ override
+      position: { x: 0, y: 0 },
     }));
 
     const edges: GraphEdge[] = relations.map((r, i) => ({
@@ -189,14 +150,6 @@ export class GraphService {
     return { nodes, edges };
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  // GET /graph/concept/:id — ConceptPanel (không cache, như route cũ)
-  // ════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Chi tiết 1 concept + chunks liên quan. Chunks scope theo user (chống IDOR:
-   * user A click concept không xem được chunks của user B).
-   */
   async getConceptDetail(userId: string, id: string) {
     const conceptRow = await this.prisma.concept.findUnique({
       where: { id },
@@ -204,7 +157,6 @@ export class GraphService {
     });
     if (!conceptRow) throw new NotFoundException({ error: 'Not found' });
 
-    // Chunks của user link tới concept này — limit 10 để panel gọn.
     const chunks = await this.prisma.$queryRaw<
       {
         id: string;
@@ -240,7 +192,6 @@ export class GraphService {
       },
       chunks: chunks.map((c) => ({
         id: c.id,
-        // Truncate ~220 chars cho panel — full chunk có ở document viewer
         snippet: c.content.length > 220 ? c.content.slice(0, 220) + '…' : c.content,
         documentId: c.document_id,
         filename: c.filename,
@@ -250,16 +201,9 @@ export class GraphService {
     };
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  // POST /graph/mine — LLM mining prerequisite edges
-  // ════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Mine prerequisite cho toàn bộ concepts của user. Idempotent qua
-   * uniqueIndex concept_relation_uniq. Edges mới → bust ck.graph(u,'all')
-   * qua onGraphChanged (mine không biết workspaceId).
-   */
-  async minePrerequisitesForUser(userId: string): Promise<{ inserted: number; totalConcepts: number }> {
+  async minePrerequisitesForUser(
+    userId: string,
+  ): Promise<{ inserted: number; totalConcepts: number }> {
     try {
       const concepts = await this.listConceptsForUser(userId);
       if (concepts.length < 2) {
@@ -272,13 +216,12 @@ export class GraphService {
       if (inserted > 0) await onGraphChanged(userId);
       return { inserted, totalConcepts: concepts.length };
     } catch (err) {
-      if (err instanceof HttpException) throw err; // 400 ở trên giữ nguyên status
+      if (err instanceof HttpException) throw err;
       console.error('[graph-mine]', err);
       throw new BadGatewayException({ error: `Mine lỗi: ${(err as Error).message}` });
     }
   }
 
-  /** Concept của 1 user (qua chunks → documents) — copy SQL từ lib/concepts/dedup.ts. */
   private async listConceptsForUser(userId: string): Promise<ConceptRow[]> {
     return this.prisma.$queryRaw<ConceptRow[]>(Prisma.sql`
       SELECT DISTINCT c.id, c.name, c.description, c.domain
@@ -290,10 +233,6 @@ export class GraphService {
     `);
   }
 
-  /**
-   * Group concepts theo domain (prereq cross-domain hiếm) → mine + INSERT ngay
-   * từng batch để edges persist dù chạy dở + user refresh /graph thấy progress.
-   */
   private async minePrerequisites(concepts: ConceptRow[]): Promise<number> {
     const byDomain = new Map<string, ConceptRow[]>();
     for (const c of concepts) {
@@ -318,7 +257,6 @@ export class GraphService {
     return totalInserted;
   }
 
-  /** Mine 1 nhóm concepts (≤ MAX_GROUP_SIZE) — lỗi LLM chỉ warn + bỏ batch như cũ. */
   private async mineGroup(concepts: ConceptRow[]): Promise<MinedEdge[]> {
     if (concepts.length < 2) return [];
 
@@ -327,7 +265,6 @@ export class GraphService {
       .join('\n');
 
     try {
-      // temperature 0.2 / max 1000 token — như mineGroup cũ (prerequisite.ts).
       const text = await this.llm.complete(PREREQ_INSTRUCTION.replace('{{LIST}}', list), {
         temperature: 0.2,
         maxTokens: 1000,
@@ -358,12 +295,6 @@ export class GraphService {
     }
   }
 
-  /**
-   * INSERT edges với ON CONFLICT DO NOTHING. `inserted` đếm edge KHÔNG throw
-   * (kể cả conflict bị skip) — giữ đúng semantics đếm của lib cũ.
-   * id: route cũ Drizzle $defaultFn(createId) sinh client-side; ở đây dùng
-   * randomUUID (id không lộ ra wire — edge viz dùng id tổng hợp from->to-i).
-   */
   private async insertEdges(edges: MinedEdge[]): Promise<number> {
     let inserted = 0;
     for (const edge of edges) {

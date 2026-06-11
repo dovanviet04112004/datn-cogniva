@@ -1,12 +1,3 @@
-/**
- * TwoFactorService — verify TOTP TƯƠNG THÍCH dữ liệu Better Auth twoFactor
- * plugin (đã đọc source v1.6.10):
- *  - secret lưu DB = XChaCha20-Poly1305(key = SHA-256(BETTER_AUTH_SECRET)),
- *    hex, nonce 24B prepend (managedNonce), có thể bọc envelope `$ba$<v>$`.
- *  - TOTP: HMAC-SHA1 trên secret utf8, 6 số, period 30s, window ±1.
- * Quản lý enable/disable vẫn ở flow cũ tới khi gỡ Better Auth — service này
- * chỉ phục vụ bước verify lúc đăng nhập (parity sign-in).
- */
 import { createHash, createHmac } from 'node:crypto';
 
 import { Injectable, UnauthorizedException } from '@nestjs/common';
@@ -21,7 +12,6 @@ const WINDOW = 1;
 export class TwoFactorService {
   constructor(private readonly config: ConfigService) {}
 
-  /** Giải mã secret từ DB (envelope `$ba$v$hex` hoặc hex trần legacy). */
   async decryptSecret(stored: string): Promise<string> {
     let hex = stored;
     if (stored.startsWith(ENVELOPE_PREFIX)) {
@@ -42,7 +32,6 @@ export class TwoFactorService {
     return Buffer.from(plaintext).toString('utf8');
   }
 
-  /** Mã hoá secret theo đúng format Better Auth (dùng cho test + enable sau này). */
   async encryptSecret(secret: string): Promise<string> {
     const [{ xchacha20poly1305 }, { managedNonce }] = await Promise.all([
       import('@noble/ciphers/chacha.js'),

@@ -1,15 +1,18 @@
-/**
- * MessageComposer — textarea + send button.
- *
- * Behavior:
- *   - Enter → send, Shift+Enter → newline
- *   - ANNOUNCEMENT: chỉ ADMIN+ post (disable input + show hint)
- *   - Slow mode cooldown: nếu 429 retry-after → block input + countdown
- */
 'use client';
 
 import * as React from 'react';
-import { Send, Reply, X, Paperclip, Image as ImageIcon, FileText, Music, Video, Loader2, Smile } from 'lucide-react';
+import {
+  Send,
+  Reply,
+  X,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  Music,
+  Video,
+  Loader2,
+  Smile,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -48,39 +51,37 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  // V2 quick win 3: emit typing event (debounce 3s) khi user gõ trong textarea.
   const notifyTyping = useEmitTyping(channel.groupId, channel.id);
 
-  /** Chèn emoji vào textarea ở vị trí cursor (không append cuối). */
-  const insertEmoji = React.useCallback((e: string) => {
-    setEmojiOpen(false);
-    const ta = textareaRef.current;
-    if (!ta) {
-      setContent((c) => c + e);
-      return;
-    }
-    const start = ta.selectionStart ?? content.length;
-    const end = ta.selectionEnd ?? content.length;
-    const before = content.slice(0, start);
-    const after = content.slice(end);
-    const next = before + e + after;
-    setContent(next);
-    // Restore focus + cursor sau emoji
-    requestAnimationFrame(() => {
-      ta.focus();
-      const pos = start + e.length;
-      ta.setSelectionRange(pos, pos);
-    });
-  }, [content]);
+  const insertEmoji = React.useCallback(
+    (e: string) => {
+      setEmojiOpen(false);
+      const ta = textareaRef.current;
+      if (!ta) {
+        setContent((c) => c + e);
+        return;
+      }
+      const start = ta.selectionStart ?? content.length;
+      const end = ta.selectionEnd ?? content.length;
+      const before = content.slice(0, start);
+      const after = content.slice(end);
+      const next = before + e + after;
+      setContent(next);
+      requestAnimationFrame(() => {
+        ta.focus();
+        const pos = start + e.length;
+        ta.setSelectionRange(pos, pos);
+      });
+    },
+    [content],
+  );
 
-  // Cooldown timer
   React.useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Quyền post
   const canPost = (() => {
     if (channel.type === 'VOICE' || channel.type === 'STAGE') return false;
     if (channel.type === 'ANNOUNCEMENT') return can(myRole, 'group.update-meta');
@@ -108,7 +109,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
 
   const onPickFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    e.target.value = ''; // reset để có thể chọn lại cùng file
+    e.target.value = '';
     if (attachments.length + files.length > 10) {
       toast.error('Max 10 file/tin nhắn');
       return;
@@ -124,8 +125,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
 
   const send = async () => {
     const rawText = content.trim();
-    // V2 G7.3: Discord-style slash command — transform client-side trước khi POST.
-    // Server vẫn nhận text bình thường (server-agnostic).
     const transformed = executeSlash(rawText, {
       userName: me?.name ?? 'someone',
     });
@@ -135,10 +134,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
       toast.error('Đang upload, chờ xong rồi gửi');
       return;
     }
-    // V2 G2.4 optimistic: clear textarea + attachments + reply state NGAY
-    // trước khi await. Nếu fail → restore content (attachments không restore
-    // vì đã upload xong; tạm chấp nhận loss để giữ UX nhanh). Realtime
-    // `message:new` từ server sẽ append vào list — không cần optimistic insert.
     const snapshotContent = content;
     const snapshotAttachments = attachments;
     const snapshotReplyId = replyingTo?.id ?? undefined;
@@ -162,7 +157,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         const wait = d?.retryAfter ?? 5;
         setCooldown(wait);
         toast.error(`Slow mode — chờ ${wait}s`);
-        // Restore content cho user retry sau cooldown
         setContent(snapshotContent);
         setAttachments(snapshotAttachments);
         return;
@@ -171,11 +165,11 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         const d = await res.json().catch(() => null);
         throw new Error(d?.error ?? `status ${res.status}`);
       }
-      // Nếu chứa @AI, fire AI reply background (giữ logic cũ).
       if (/(^|\s)@AI(\s|$|[?!.,])/i.test(text)) {
-        const created = (await res.clone().json().catch(() => null)) as
-          | { message?: { id: string } }
-          | null;
+        const created = (await res
+          .clone()
+          .json()
+          .catch(() => null)) as { message?: { id: string } } | null;
         if (created?.message?.id) {
           fetch(`/api/channels/${channel.id}/ai-reply`, {
             method: 'POST',
@@ -193,8 +187,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
       }
     } catch (err) {
       toast.error('Gửi thất bại: ' + (err as Error).message);
-      // Restore content + attachments để user retry (composer giờ rỗng vì
-      // optimistic clear ở đầu hàm)
       setContent(snapshotContent);
       setAttachments(snapshotAttachments);
     } finally {
@@ -202,7 +194,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
     }
   };
 
-  // Auto-resize textarea
   React.useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -214,7 +205,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
     return null;
   }
 
-  // Replace last line `/cmd ...` với text user pick từ slash menu
   const handleSlashPick = (replacement: string) => {
     const lines = content.split('\n');
     lines[lines.length - 1] = replacement;
@@ -223,28 +213,24 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
   };
 
   return (
-    <div className="relative shrink-0 bg-background px-3 pb-4 pt-2 sm:px-4 lg:px-6">
-      {/* Cùng cap width + canh trái với message list (text-channel) → mép composer
-          thẳng hàng mép tin nhắn, không lệch. */}
+    <div className="bg-background relative shrink-0 px-3 pb-4 pt-2 sm:px-4 lg:px-6">
       <div className="max-w-screen-2xl">
-        {/* Slash menu */}
         {canPost && <SlashMenu content={content} onPick={handleSlashPick} />}
 
-        {/* Reply chip — pill subtle với corner indicator */}
         {replyingTo && canPost && (
-          <div className="mb-2 flex items-center gap-2 rounded-xl border border-divider bg-surface-secondary/60 px-3 py-2 text-xs">
-            <Reply className="h-3 w-3 shrink-0 text-primary" />
+          <div className="border-divider bg-surface-secondary/60 mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs">
+            <Reply className="text-primary h-3 w-3 shrink-0" />
             <span className="text-text-muted">Đang trả lời</span>
             <span className="font-semibold tracking-tight">
               {replyingTo.authorName ?? 'Anonymous'}
             </span>
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+            <span className="text-muted-foreground min-w-0 flex-1 truncate">
               {replyingTo.content}
             </span>
             <button
               type="button"
               onClick={onClearReply}
-              className="inline-flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-5 w-5 items-center justify-center rounded-md transition-colors"
               title="Bỏ trả lời"
             >
               <X className="h-3 w-3" />
@@ -253,25 +239,20 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         )}
 
         {!canPost ? (
-          <div className="rounded-xl border border-dashed border-border bg-surface-secondary/40 py-3 text-center text-xs text-muted-foreground">
+          <div className="border-border bg-surface-secondary/40 text-muted-foreground rounded-xl border border-dashed py-3 text-center text-xs">
             {channel.type === 'ANNOUNCEMENT'
               ? 'Chỉ ADMIN+ post được trong channel ANNOUNCEMENT'
               : 'Bạn không có quyền gửi tin nhắn'}
           </div>
         ) : (
           <>
-            {/* Attachment preview chips */}
             {(attachments.length > 0 || uploading > 0) && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {attachments.map((a, i) => (
-                  <AttachmentChip
-                    key={i}
-                    attachment={a}
-                    onRemove={() => removeAttachment(i)}
-                  />
+                  <AttachmentChip key={i} attachment={a} onRemove={() => removeAttachment(i)} />
                 ))}
                 {uploading > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="bg-muted/50 text-muted-foreground inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Upload {uploading}...
                   </span>
@@ -279,29 +260,19 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
               </div>
             )}
 
-            {/* Composer row — 1 thanh bo tròn, TẤT CẢ nút nằm TRONG khung (đính kèm
-                + emoji bên trái, gửi bên phải) như Discord, không để lòi ra ngoài
-                lệch tông. focus-within highlight cả thanh khi gõ. */}
-            <div className="relative flex items-end gap-1 rounded-3xl border border-divider bg-surface py-1 pl-2 pr-1.5 shadow-soft transition-all duration-base focus-within:border-primary/40 focus-within:shadow-glow">
+            <div className="border-divider bg-surface shadow-soft duration-base focus-within:border-primary/40 focus-within:shadow-glow relative flex items-end gap-1 rounded-3xl border py-1 pl-2 pr-1.5 transition-all">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || attachments.length >= 10}
                 aria-label="Đính kèm file"
                 title="Đính kèm (max 25MB)"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
               >
                 <Paperclip className="h-[18px] w-[18px]" />
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                hidden
-                onChange={onPickFiles}
-              />
+              <input ref={fileInputRef} type="file" multiple hidden onChange={onPickFiles} />
 
-              {/* Emoji picker button + floating panel */}
               <div className="relative">
                 <button
                   type="button"
@@ -309,60 +280,52 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
                   disabled={sending}
                   aria-label="Chèn emoji"
                   title="Emoji"
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
                 >
                   <Smile className="h-[18px] w-[18px]" />
                 </button>
                 {emojiOpen && (
                   <div className="absolute bottom-12 left-0 z-20">
-                    <EmojiPicker
-                      onSelect={insertEmoji}
-                      onClose={() => setEmojiOpen(false)}
-                    />
+                    <EmojiPicker onSelect={insertEmoji} onClose={() => setEmojiOpen(false)} />
                   </div>
                 )}
               </div>
 
-                <textarea
-                  ref={textareaRef}
-                  value={content}
-                  onChange={(e) => {
-                    setContent(e.target.value);
-                    // Fire typing event mỗi keystroke; hook tự debounce 3s.
-                    if (e.target.value.length > 0) notifyTyping();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      const isTouch =
-                        typeof window !== 'undefined' &&
-                        window.matchMedia('(pointer: coarse)').matches;
-                      if (!isTouch) {
-                        e.preventDefault();
-                        send();
-                      }
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  if (e.target.value.length > 0) notifyTyping();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    const isTouch =
+                      typeof window !== 'undefined' &&
+                      window.matchMedia('(pointer: coarse)').matches;
+                    if (!isTouch) {
+                      e.preventDefault();
+                      send();
                     }
-                  }}
-                  onPaste={(e) => {
-                    // Ctrl+V file/ảnh từ clipboard → upload như paperclip.
-                    // Text paste vẫn để browser xử lý mặc định (không preventDefault).
-                    const files = Array.from(e.clipboardData.files);
-                    if (files.length === 0) return;
-                    e.preventDefault();
-                    if (attachments.length + files.length > 10) {
-                      toast.error('Max 10 file/tin nhắn');
-                      return;
-                    }
-                    for (const f of files) void uploadFile(f);
-                  }}
-                  placeholder={
-                    cooldown > 0
-                      ? `Slow mode — chờ ${cooldown}s`
-                      : `Tin nhắn tới #${channel.name}`
                   }
-                  disabled={sending || cooldown > 0}
-                  rows={1}
-                  className="block max-h-[140px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed outline-none placeholder:text-text-muted disabled:opacity-50"
-                />
+                }}
+                onPaste={(e) => {
+                  const files = Array.from(e.clipboardData.files);
+                  if (files.length === 0) return;
+                  e.preventDefault();
+                  if (attachments.length + files.length > 10) {
+                    toast.error('Max 10 file/tin nhắn');
+                    return;
+                  }
+                  for (const f of files) void uploadFile(f);
+                }}
+                placeholder={
+                  cooldown > 0 ? `Slow mode — chờ ${cooldown}s` : `Tin nhắn tới #${channel.name}`
+                }
+                disabled={sending || cooldown > 0}
+                rows={1}
+                className="placeholder:text-text-muted block max-h-[140px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed outline-none disabled:opacity-50"
+              />
 
               <Button
                 type="button"
@@ -387,7 +350,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         )}
 
         {channel.slowModeSeconds ? (
-          <p className="mt-1.5 text-center font-mono text-[10.5px] tabular-nums text-text-muted">
+          <p className="text-text-muted mt-1.5 text-center font-mono text-[10.5px] tabular-nums">
             Slow mode: {channel.slowModeSeconds}s giữa 2 tin
           </p>
         ) : null}
@@ -412,22 +375,14 @@ function AttachmentChip({
           ? Video
           : FileText;
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-2 py-1 text-xs">
+    <div className="bg-muted/50 flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
       {attachment.type === 'image' ? (
-        <img
-          src={attachment.url}
-          alt={attachment.name}
-          className="h-8 w-8 rounded object-cover"
-        />
+        <img src={attachment.url} alt={attachment.name} className="h-8 w-8 rounded object-cover" />
       ) : (
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon className="text-muted-foreground h-4 w-4" />
       )}
       <span className="max-w-[120px] truncate">{attachment.name}</span>
-      <button
-        onClick={onRemove}
-        className="rounded p-0.5 hover:bg-accent"
-        aria-label="Xoá"
-      >
+      <button onClick={onRemove} className="hover:bg-accent rounded p-0.5" aria-label="Xoá">
         <X className="h-3 w-3" />
       </button>
     </div>

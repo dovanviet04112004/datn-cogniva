@@ -1,15 +1,3 @@
-/**
- * ReportDialog — dùng chung cho user gửi report content vi phạm.
- *
- * Khác ConfirmDialog admin ở chỗ:
- *   - Dùng theme product (light/dark hybrid theo CSS vars), KHÔNG hardcode
- *     slate-900
- *   - Reason 10..1000 chars (admin chỉ 10..500 vì action ngắn gọn hơn)
- *   - Có dropdown chọn lý do phổ biến để user nhanh
- *
- * Usage:
- *   <ReportButton targetType="group_message" targetId={msg.id} />
- */
 'use client';
 
 import * as React from 'react';
@@ -53,17 +41,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   targetType: ReportTargetType;
   targetId: string;
-  /** Hint hiển thị "Bạn đang report [tên]" — không bắt buộc, chỉ để UX rõ. */
   targetLabel?: string;
 };
 
-export function ReportDialog({
-  open,
-  onOpenChange,
-  targetType,
-  targetId,
-  targetLabel,
-}: Props) {
+export function ReportDialog({ open, onOpenChange, targetType, targetId, targetLabel }: Props) {
   const [category, setCategory] = React.useState<string>(QUICK_REASONS[0]!);
   const [detail, setDetail] = React.useState('');
   const [loading, setLoading] = React.useState(false);
@@ -78,13 +59,8 @@ export function ReportDialog({
     }
   }, [open]);
 
-  // Reason cuối cùng: "Category — detail" hoặc chỉ category nếu không có detail.
-  // Đủ chars chỉ cần (category + detail) >= MIN. Trim để chống space-only.
-  const fullReason = detail.trim()
-    ? `${category} — ${detail.trim()}`
-    : category;
-  const reasonValid =
-    fullReason.length >= MIN_REASON_LEN && fullReason.length <= MAX_REASON_LEN;
+  const fullReason = detail.trim() ? `${category} — ${detail.trim()}` : category;
+  const reasonValid = fullReason.length >= MIN_REASON_LEN && fullReason.length <= MAX_REASON_LEN;
 
   const submit = async () => {
     if (!reasonValid || loading) return;
@@ -124,13 +100,13 @@ export function ReportDialog({
           <DialogDescription className="pt-1 text-xs leading-relaxed">
             {targetLabel ? (
               <>
-                Bạn đang báo cáo: <strong>{targetLabel}</strong>. Vui lòng chọn
-                loại vi phạm và mô tả ngắn gọn. Báo cáo sai sự thật có thể bị xử lý.
+                Bạn đang báo cáo: <strong>{targetLabel}</strong>. Vui lòng chọn loại vi phạm và mô
+                tả ngắn gọn. Báo cáo sai sự thật có thể bị xử lý.
               </>
             ) : (
               <>
-                Vui lòng chọn loại vi phạm và mô tả ngắn gọn. Đội ngũ kiểm duyệt
-                sẽ xem xét trong 24h.
+                Vui lòng chọn loại vi phạm và mô tả ngắn gọn. Đội ngũ kiểm duyệt sẽ xem xét trong
+                24h.
               </>
             )}
           </DialogDescription>
@@ -163,7 +139,7 @@ export function ReportDialog({
           <div className="space-y-1.5">
             <label htmlFor="report-detail" className="text-xs font-medium">
               Mô tả chi tiết{' '}
-              <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+              <span className="text-muted-foreground ml-1 font-mono text-[10px]">
                 (không bắt buộc, tối đa {MAX_REASON_LEN} ký tự)
               </span>
             </label>
@@ -175,9 +151,9 @@ export function ReportDialog({
               maxLength={MAX_REASON_LEN}
               disabled={loading}
               placeholder="Ví dụ: User này spam link cờ bạc vào group chat nhiều lần…"
-              className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              className="border-border bg-background placeholder:text-muted-foreground w-full resize-none rounded-md border px-3 py-2 text-sm focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             />
-            <p className="text-right font-mono text-[10px] tabular-nums text-muted-foreground">
+            <p className="text-muted-foreground text-right font-mono text-[10px] tabular-nums">
               {detail.length}/{MAX_REASON_LEN}
             </p>
           </div>

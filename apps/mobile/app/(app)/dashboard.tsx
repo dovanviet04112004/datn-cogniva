@@ -1,12 +1,3 @@
-/**
- * Dashboard screen — minimal placeholder Stage 2 M6 W1.
- *
- * Stage 2 M6 W2-W4 sẽ wire:
- *   - Document list (offline cache với WatermelonDB)
- *   - Daily flashcard count
- *   - Mastery progress chart
- *   - Recent activity feed
- */
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { realtime } from '@cogniva/shared';
@@ -28,8 +19,6 @@ export default function DashboardScreen() {
     },
   });
 
-  // Realtime: nhận notification:new trên presence-user-{me} (auth bằng bearer token) →
-  // refresh usage. Chứng minh đường realtime mobile end-to-end + tích hợp React Query.
   useRealtimeEvent(
     user?.id ? realtime.ch.presenceUser(user.id) : '',
     'notification:new',
@@ -53,8 +42,7 @@ export default function DashboardScreen() {
         ) : usage.data ? (
           <>
             <Text style={styles.cardBody}>
-              ${(usage.data.spentUsd ?? 0).toFixed(3)} / $
-              {(usage.data.quotaUsd ?? 0).toFixed(2)}
+              ${(usage.data.spentUsd ?? 0).toFixed(3)} / ${(usage.data.quotaUsd ?? 0).toFixed(2)}
             </Text>
             <Text style={styles.cardMeta}>
               Còn lại: ${(usage.data.remainingUsd ?? 0).toFixed(3)}
@@ -69,8 +57,8 @@ export default function DashboardScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Stage 2 W1 — Mobile bootstrap</Text>
         <Text style={styles.cardBody}>
-          App scaffold xong. Document list + flashcard review + chat sẽ wire
-          ở M6 W2-W4. Hiện tại bạn có thể đăng ký / đăng nhập / xem usage.
+          App scaffold xong. Document list + flashcard review + chat sẽ wire ở M6 W2-W4. Hiện tại
+          bạn có thể đăng ký / đăng nhập / xem usage.
         </Text>
       </View>
     </ScrollView>

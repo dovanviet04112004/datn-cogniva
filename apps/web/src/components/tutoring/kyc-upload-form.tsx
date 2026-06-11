@@ -1,12 +1,3 @@
-/**
- * KycUploadForm — tutor upload CCCD + bằng cấp.
- *
- * 4 doc type required cho KYC_VERIFIED:
- *   - CCCD_FRONT, CCCD_BACK, DEGREE (≥1), CERTIFICATE (optional)
- *
- * Mỗi card render input file + preview + status badge nếu đã upload.
- * Sau upload thành công, list refresh và profile chuyển KYC_PENDING.
- */
 'use client';
 
 import * as React from 'react';
@@ -117,36 +108,23 @@ export function KycUploadForm({
         const latest = myDocs[0];
 
         return (
-          <div
-            key={field.type}
-            className="rounded-2xl bg-card p-5 shadow-soft"
-          >
+          <div key={field.type} className="bg-card shadow-soft rounded-2xl p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold tracking-tight">
-                    {field.label}
-                  </p>
+                  <p className="text-sm font-semibold tracking-tight">{field.label}</p>
                   {field.required && (
-                    <span className="text-[10px] font-semibold text-primary">
-                      *
-                    </span>
+                    <span className="text-primary text-[10px] font-semibold">*</span>
                   )}
                 </div>
-                <p className="mt-0.5 text-[11.5px] text-muted-foreground">
-                  {field.description}
-                </p>
+                <p className="text-muted-foreground mt-0.5 text-[11.5px]">{field.description}</p>
               </div>
-              {latest && (
-                <StatusBadge status={latest.status} />
-              )}
+              {latest && <StatusBadge status={latest.status} />}
             </div>
 
             {latest && (
-              <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2 text-[12px]">
-                <p className="truncate font-mono text-[11px]">
-                  {latest.originalName}
-                </p>
+              <div className="bg-muted/30 mt-3 rounded-xl px-3 py-2 text-[12px]">
+                <p className="truncate font-mono text-[11px]">{latest.originalName}</p>
                 {latest.reviewNote && (
                   <p className="mt-1 text-[11.5px] text-amber-700 dark:text-amber-400">
                     Note admin: {latest.reviewNote}
@@ -158,7 +136,7 @@ export function KycUploadForm({
             <div className="mt-3 flex items-center justify-end gap-2">
               <label
                 className={cn(
-                  'inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-divider bg-surface px-3 py-1.5 text-xs font-medium shadow-soft transition-colors hover:bg-muted',
+                  'border-divider bg-surface shadow-soft hover:bg-muted inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors',
                   uploading === field.type && 'pointer-events-none opacity-60',
                 )}
               >

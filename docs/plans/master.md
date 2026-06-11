@@ -1,6 +1,6 @@
 # 🎓 AI-Native Learning Workflow — Master Plan
 
-> **Vision:** Build a production-grade AI learning platform that truly understands learners — not a "ChatGPT wrapper". Every interaction makes the system smarter about *this specific user*.
+> **Vision:** Build a production-grade AI learning platform that truly understands learners — not a "ChatGPT wrapper". Every interaction makes the system smarter about _this specific user_.
 
 ---
 
@@ -38,24 +38,27 @@
 ## 1. Tổng quan & Differentiators
 
 ### 1.1. Tên dự án
+
 **Cogniva** (Cognition + Nova) — hoặc tên bạn thích. Cogniva = "AI tutor that knows you."
 
 ### 1.2. Một-câu-pitch
+
 > An AI-native learning platform that builds a personal knowledge graph for every learner, retrieves with multi-stage RAG, and adapts in real-time using Bayesian mastery tracking and spaced repetition.
 
 ### 1.3. Tại sao đây là project PRO (không phải GPT wrapper)
 
-| Đặc điểm | GPT Wrapper thường | Cogniva |
-|---|---|---|
-| Architecture | Frontend → OpenAI API → text | Multi-stage pipeline: ingest → embed → graph → retrieve → rerank → reason → eval |
-| State | Stateless chat | Persistent user knowledge graph + mastery scores |
-| Retrieval | Vector search top-5 | Hybrid (BM25 + vector) → rerank → context assembly |
-| Personalization | Tên user trong prompt | Profile-aware context injection, weak-topic boosting |
-| Quality | "Trust the LLM" | Evals + golden dataset + RAGAS metrics + A/B tests |
-| Observability | console.log | LangSmith/Langfuse traces, cost dashboards, latency P95 |
-| Models | One model fits all | Routing: Haiku for fast, Sonnet for reasoning, Opus for complex synthesis |
+| Đặc điểm        | GPT Wrapper thường           | Cogniva                                                                          |
+| --------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| Architecture    | Frontend → OpenAI API → text | Multi-stage pipeline: ingest → embed → graph → retrieve → rerank → reason → eval |
+| State           | Stateless chat               | Persistent user knowledge graph + mastery scores                                 |
+| Retrieval       | Vector search top-5          | Hybrid (BM25 + vector) → rerank → context assembly                               |
+| Personalization | Tên user trong prompt        | Profile-aware context injection, weak-topic boosting                             |
+| Quality         | "Trust the LLM"              | Evals + golden dataset + RAGAS metrics + A/B tests                               |
+| Observability   | console.log                  | LangSmith/Langfuse traces, cost dashboards, latency P95                          |
+| Models          | One model fits all           | Routing: Haiku for fast, Sonnet for reasoning, Opus for complex synthesis        |
 
 ### 1.4. Target users
+
 - Sinh viên đại học (primary)
 - Người tự học (online courses, certifications)
 - Học sinh cấp 3 ôn thi
@@ -68,6 +71,7 @@
 ### 2.1. Core AI Features (MVP — must-have)
 
 #### F1. Document Ingestion & Q&A
+
 - Upload PDF, DOCX, TXT, EPUB, ảnh, URL, YouTube transcript
 - OCR cho ảnh và scanned PDF
 - Multi-file workspace (project-based, like Notion)
@@ -76,6 +80,7 @@
 - Multi-document Q&A: hỏi 1 câu → AI trả lời tổng hợp từ nhiều file
 
 #### F2. AI Tutor Chat
+
 - Streaming chat với context từ user's documents
 - Tutor mode: AI dạy theo Socratic method (hỏi ngược user)
 - Adaptive difficulty: AI tự điều chỉnh độ khó dựa trên mastery
@@ -85,6 +90,7 @@
 - Voice mode (TTS + STT)
 
 #### F3. Knowledge Graph
+
 - Auto-extract concepts từ documents
 - Build prerequisite graph (concept A cần concept B trước)
 - Visualize bằng D3.js / React Flow
@@ -92,6 +98,7 @@
 - Color-coded by mastery level
 
 #### F4. Smart Flashcards
+
 - Auto-generate từ documents (LLM extract Q-A pairs)
 - Spaced repetition (SM-2 algorithm hoặc FSRS — newer, better)
 - Cloze deletion (fill-in-the-blank)
@@ -100,6 +107,7 @@
 - Import từ Anki
 
 #### F5. Quiz Generator
+
 - Multiple types: MCQ, true/false, short answer, essay, fill-blank
 - Difficulty adaptive theo user mastery
 - AI grading cho essay (with rubric)
@@ -107,6 +115,7 @@
 - "Weak topic" mode: chỉ hỏi về chỗ user yếu
 
 #### F6. Mastery Tracking
+
 - Bayesian Knowledge Tracing (BKT) cho từng concept
 - Visualize mastery: 0-1 score, decay theo thời gian
 - Recommended next topics dựa trên prerequisite + mastery
@@ -115,6 +124,7 @@
 ### 2.2. Productivity Features (V2)
 
 #### F7. Smart Notes
+
 - Markdown editor với AI assist
 - AI auto-link notes (Roam-style backlinks)
 - AI-generated summary của note
@@ -122,17 +132,20 @@
 - Block-based editor (Notion-style)
 
 #### F8. Mind Map Generator
+
 - AI vẽ mind map từ topic hoặc document
 - Editable, exportable
 - Convert mind map → study plan
 
 #### F9. Study Planner
+
 - AI tạo lịch học dựa trên: deadline + mastery + available time
 - Pomodoro timer tích hợp
 - Calendar view (sync Google Calendar optional)
 - Daily review queue (spaced repetition cards due today)
 
 #### F10. Writing Assistant
+
 - Essay outline generator
 - Citation checker (verify against sources)
 - Grammar + style check
@@ -142,6 +155,7 @@
 ### 2.3. Social & Gamification (V3)
 
 #### F11. Study Groups
+
 - Shared workspaces
 - Real-time collaborative whiteboard (Excalidraw-like)
 - Group quizzes (Kahoot-style)
@@ -149,6 +163,7 @@
 - Voice rooms (Discord-style cho study together)
 
 #### F12. Gamification
+
 - XP, levels, streaks
 - Achievement badges (50+ types)
 - Leaderboards (friends, global, by topic)
@@ -156,11 +171,13 @@
 - Pet/avatar that grows with progress (Duolingo-style)
 
 #### F13. Public Profile
+
 - Showcase learning journey
 - Public knowledge graphs
 - Study stats (LeetCode-style heatmap)
 
 #### F23. Workspace = Notebook (V5) — ✅ SHIPPED 2026-05-20 — xem [v5-notebooklm-layout.md](v5-notebooklm-layout.md)
+
 - **UX pivot (2026-05-20):** Bỏ tabs trong workspace. Mỗi workspace = 1
   "notebook" với 3-cột layout: **Sources · Chat · Studio** (lấy cảm hứng
   NotebookLM). Chat ở giữa là default view. Studio bên phải có 7 recipes
@@ -175,6 +192,7 @@
   mind map + briefing, V5.4 mobile + atom detail UX).
 
 #### F22. Atom-centric Re-architecture (V4) — xem [atom-centric.md](atom-centric.md)
+
 - **Triết lý mới (2026-05-20):** Mọi feature (Flashcard / Quiz / Exam / Graph
   / Study Plan / AI Tutor) là **view của 1 atom** kiến thức chung, không
   phải bảng độc lập.
@@ -187,6 +205,7 @@
 - Effort: ~2 tuần (5 ngày backend + 7 ngày frontend, 1 dev full-time).
 
 #### F21. Tutoring Marketplace (Phase 21+) — xem [tutoring.md](tutoring.md)
+
 - Tutor profile + browse + filter (subject/level/budget/modality)
 - Student post yêu cầu tìm gia sư + tutor apply
 - DM trước book (reuse Phase 20 V2)
@@ -197,27 +216,32 @@
 ### 2.4. Advanced AI Features (V4 — wow factor)
 
 #### F14. Voice AI Tutor
+
 - Real-time conversation (low latency với Deepgram + ElevenLabs)
 - Interrupt-able (user có thể cắt ngang)
 - Emotion-aware (detect frustration, encourage)
 
 #### F15. Video Learning
+
 - Upload video lecture → AI transcribes + summarizes
 - Chapter generation
 - Q&A on video timestamps
 - Generate flashcards từ video
 
 #### F16. Multi-modal
+
 - Upload sketch → AI explains it
 - Solve handwritten math problems (camera)
 - Diagram generator (AI vẽ diagram để giải thích)
 
 #### F17. Agentic Research Mode
+
 - "Research mode": AI tự search web, đọc papers, tổng hợp report
 - Citation-backed report generation
 - Export to PDF/Notion/Obsidian
 
 #### F18. Personal AI Memory
+
 - Long-term memory across sessions (Mem0 or custom)
 - "What did I struggle with last month?"
 - "Remind me what I learned about X"
@@ -225,12 +249,14 @@
 ### 2.5. Platform Features
 
 #### F19. Cross-platform
+
 - Web (primary)
 - PWA (mobile-installable)
 - Browser extension (highlight any webpage → save to Cogniva)
 - iOS/Android (React Native, V5)
 
 #### F20. Integrations
+
 - Notion, Obsidian, Roam (export/import notes)
 - Google Drive, Dropbox (auto-sync documents)
 - Anki (import/export decks)
@@ -238,11 +264,13 @@
 - Discord/Slack bot
 
 #### F21. Offline Mode
+
 - Service Worker cache
 - Local-first cho notes (CRDT với Yjs)
 - Sync khi online lại
 
 #### F22. Accessibility
+
 - Full keyboard navigation
 - Screen reader support
 - Dyslexia-friendly font option
@@ -253,6 +281,7 @@
 ## 3. Tech Stack chi tiết
 
 ### 3.1. Frontend
+
 ```
 Next.js 14 (App Router)         — SSR, RSC, streaming
 TypeScript 5                    — type safety
@@ -273,6 +302,7 @@ Vercel AI SDK                   — streaming UI
 ```
 
 ### 3.2. Backend
+
 ```
 Next.js API Routes              — primary backend (or separate FastAPI for ML)
 tRPC                            — type-safe API
@@ -287,6 +317,7 @@ LiveKit OSS                     — real-time voice/video (self-host)
 **Why Drizzle over Prisma:** edge runtime support out of the box, ~10x smaller client bundle, no separate generation step, and native SQL escape hatch for things like pgvector operators (`<->`, `<=>`) and recursive CTEs that Prisma awkwardly proxies through `$queryRaw`.
 
 ### 3.3. AI Layer
+
 ```
 Mastra                          — TypeScript-native agent + workflow framework
 Claude Sonnet 4.6               — primary reasoning
@@ -308,6 +339,7 @@ Unstructured.io                 — document parsing
 **Why OpenRouter as free LLM testing path:** Anthropic Console yêu cầu thẻ tín dụng cho production usage; OpenRouter cho phép sign up qua OAuth không thẻ và phơi 24+ model FREE (gpt-oss-20b/120b, GLM-4.5, Qwen3, Gemma-4, Hermes-3-405B…) qua OpenAI-compatible API tại `/api/v1`. Cogniva implement provider abstraction (`lib/ai/models.ts`): `ANTHROPIC_API_KEY` set → Claude direct; chỉ `OPENROUTER_API_KEY` → fallback OpenAI-compat client trỏ vào OpenRouter. Đổi giữa 2 path không touch app code, chỉ env. Free path quan trọng cho dev + portfolio demo, paid path cho production quality.
 
 ### 3.4. Vector & Graph DB
+
 ```
 pgvector (PostgreSQL extension) — vectors (start here, simple)
 Pinecone                        — alternative if scale > 10M vectors
@@ -315,6 +347,7 @@ Neo4j AuraDB                    — knowledge graph (or use Postgres recursive C
 ```
 
 ### 3.5. Storage & CDN
+
 ```
 Cloudflare R2                   — file storage (S3-compatible, zero egress fees)
 Cloudflare CDN                  — global distribution
@@ -322,6 +355,7 @@ ImageKit / Cloudinary           — image processing
 ```
 
 ### 3.6. Auth & Payment
+
 ```
 Better Auth                     — self-hosted auth (email/password + OAuth)
 Stripe                          — subscriptions
@@ -331,6 +365,7 @@ LemonSqueezy                    — alternative (handles tax)
 **Why Better Auth over Clerk:** Clerk's pricing kicks in hard at ~10k MAU ($25 + $0.02/MAU after 10k). Better Auth is open-source, runs on our own Postgres, has typed plugin system (organizations, 2FA, magic links, passkeys), and Drizzle/Prisma adapters. Clerk's hosted UI is nice but we can rebuild the sign-in/sign-up screens with shadcn in a day. Migration cost amortizes inside the first month at scale.
 
 ### 3.7. Observability
+
 ```
 Langfuse (self-hosted)          — LLM tracing, evals
 Sentry                          — error tracking
@@ -341,6 +376,7 @@ Vercel Analytics                — web vitals
 ```
 
 ### 3.8. DevOps
+
 ```
 Vercel                          — hosting (frontend + API)
 Railway / Fly.io                — workers, databases
@@ -351,6 +387,7 @@ pnpm workspaces                 — monorepo
 ```
 
 ### 3.9. Testing
+
 ```
 Vitest                          — unit tests
 Playwright                      — E2E
@@ -397,11 +434,13 @@ Promptfoo                       — prompt testing
 ### 4.2. Microservices vs Monolith
 
 **Khuyến nghị: Modular monolith** (Next.js + workers).
+
 - Đơn giản deploy
 - Dễ debug
 - Có thể tách microservice sau nếu scale
 
 Tách riêng nếu cần:
+
 - ML inference service (FastAPI + GPU) — chỉ cần nếu self-host model
 - Real-time collab service — nếu Socket.IO gateway (`apps/realtime`) không đủ
 
@@ -436,12 +475,14 @@ Tách riêng nếu cần:
 ### 5.1. Core tables
 
 **Snapshot DB hiện tại** (Phase 0-9 cộng dồn, 21 tables):
+
 - Auth (Better Auth managed): `user` (+ cột mở rộng `plan`/`isPublic`/`preferences`), `session`, `account`, `verification`
 - Domain core: `workspace`, `document`, `chunk`, `concept`, `concept_relation`, `chunk_concept`
 - Learning: `conversation`, `message`, `flashcard`, `review`, `quiz`, `question`, `mastery`, `note`, `study_plan_item`, `study_session`
 - Gamification: `user_stats`, `study_group`, `study_group_member`
 
 **Lưu ý migration thực tế**:
+
 - `chunk.embedding` + `concept.embedding` dùng `vector(1024)` (Voyage-3 native), không phải 1536 như code spec dưới
 - Phase 7-9 thêm `note`, `study_plan_item`, `user_stats`, `study_group`, `study_group_member`, cột `user.is_public` (không có trong code spec dưới)
 
@@ -450,8 +491,19 @@ Code spec gốc (giữ làm reference design):
 ```typescript
 // packages/db/src/schema.ts
 import {
-  pgTable, pgEnum, text, varchar, timestamp, integer, real, boolean,
-  jsonb, uniqueIndex, index, primaryKey, customType,
+  pgTable,
+  pgEnum,
+  text,
+  varchar,
+  timestamp,
+  integer,
+  real,
+  boolean,
+  jsonb,
+  uniqueIndex,
+  index,
+  primaryKey,
+  customType,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
@@ -465,199 +517,287 @@ const vector = (name: string, dim: number) =>
   })(name);
 
 // ── Enums ─────────────────────────────────────────────────
-export const planEnum         = pgEnum('plan',          ['FREE', 'PRO', 'TEAM']);
-export const docStatusEnum    = pgEnum('doc_status',    ['UPLOADING', 'PROCESSING', 'READY', 'FAILED']);
-export const roleEnum         = pgEnum('role',          ['USER', 'ASSISTANT', 'SYSTEM']);
-export const cardTypeEnum     = pgEnum('card_type',     ['BASIC', 'CLOZE', 'IMAGE_OCCLUSION']);
-export const fsrsStateEnum    = pgEnum('fsrs_state',    ['NEW', 'LEARNING', 'REVIEW', 'RELEARNING']);
-export const qTypeEnum        = pgEnum('q_type',        ['MCQ', 'TRUE_FALSE', 'SHORT', 'ESSAY', 'FILL_BLANK']);
-export const sessionTypeEnum  = pgEnum('session_type',  ['CHAT', 'FLASHCARD', 'QUIZ', 'READING']);
+export const planEnum = pgEnum('plan', ['FREE', 'PRO', 'TEAM']);
+export const docStatusEnum = pgEnum('doc_status', ['UPLOADING', 'PROCESSING', 'READY', 'FAILED']);
+export const roleEnum = pgEnum('role', ['USER', 'ASSISTANT', 'SYSTEM']);
+export const cardTypeEnum = pgEnum('card_type', ['BASIC', 'CLOZE', 'IMAGE_OCCLUSION']);
+export const fsrsStateEnum = pgEnum('fsrs_state', ['NEW', 'LEARNING', 'REVIEW', 'RELEARNING']);
+export const qTypeEnum = pgEnum('q_type', ['MCQ', 'TRUE_FALSE', 'SHORT', 'ESSAY', 'FILL_BLANK']);
+export const sessionTypeEnum = pgEnum('session_type', ['CHAT', 'FLASHCARD', 'QUIZ', 'READING']);
 
 // ── Users (Better Auth owns base columns; we extend) ──────
 export const user = pgTable('user', {
-  id:             text('id').primaryKey(),                     // Better Auth manages
-  email:          text('email').notNull().unique(),
-  emailVerified:  boolean('email_verified').notNull().default(false),
-  name:           text('name'),
-  image:          text('image'),
-  plan:           planEnum('plan').notNull().default('FREE'),
-  preferences:    jsonb('preferences').$type<UserPreferences>().default({}),
-  createdAt:      timestamp('created_at').notNull().defaultNow(),
-  updatedAt:      timestamp('updated_at').notNull().defaultNow(),
+  id: text('id').primaryKey(), // Better Auth manages
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  name: text('name'),
+  image: text('image'),
+  plan: planEnum('plan').notNull().default('FREE'),
+  preferences: jsonb('preferences').$type<UserPreferences>().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
 // ── Workspaces ────────────────────────────────────────────
-export const workspace = pgTable('workspace', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  userId:       text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  name:         text('name').notNull(),
-  description:  text('description'),
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
-}, (t) => ({
-  userIdx: index('workspace_user_idx').on(t.userId),
-}));
+export const workspace = pgTable(
+  'workspace',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('workspace_user_idx').on(t.userId),
+  }),
+);
 
 // ── Documents ─────────────────────────────────────────────
-export const document = pgTable('document', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  userId:       text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  workspaceId:  text('workspace_id').notNull().references(() => workspace.id, { onDelete: 'cascade' }),
-  filename:     text('filename').notNull(),
-  mimeType:     text('mime_type').notNull(),
-  size:         integer('size').notNull(),
-  storageKey:   text('storage_key').notNull(),                   // R2 key
-  status:       docStatusEnum('status').notNull().default('PROCESSING'),
-  metadata:     jsonb('metadata').$type<DocumentMetadata>().default({}),
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
-}, (t) => ({
-  userWorkspaceIdx: index('document_user_workspace_idx').on(t.userId, t.workspaceId),
-}));
+export const document = pgTable(
+  'document',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    filename: text('filename').notNull(),
+    mimeType: text('mime_type').notNull(),
+    size: integer('size').notNull(),
+    storageKey: text('storage_key').notNull(), // R2 key
+    status: docStatusEnum('status').notNull().default('PROCESSING'),
+    metadata: jsonb('metadata').$type<DocumentMetadata>().default({}),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (t) => ({
+    userWorkspaceIdx: index('document_user_workspace_idx').on(t.userId, t.workspaceId),
+  }),
+);
 
 // ── Chunks (with pgvector embedding) ──────────────────────
-export const chunk = pgTable('chunk', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  documentId:   text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
-  content:      text('content').notNull(),
-  embedding:    vector('embedding', 1536),                       // text-embedding-3-large @ 1536-dim (HNSW limit)
-  metadata:     jsonb('metadata').$type<ChunkMetadata>().default({}),
-  tokens:       integer('tokens').notNull(),
-}, (t) => ({
-  docIdx:       index('chunk_doc_idx').on(t.documentId),
-  // HNSW vector index (raw SQL — Drizzle escape hatch)
-  embeddingIdx: index('chunk_embedding_idx')
-                  .using('hnsw', sql`${t.embedding} vector_cosine_ops`),
-  // Full-text BM25-ish via tsvector
-  contentTsvIdx: index('chunk_content_tsv_idx')
-                  .using('gin', sql`to_tsvector('english', ${t.content})`),
-}));
+export const chunk = pgTable(
+  'chunk',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    embedding: vector('embedding', 1536), // text-embedding-3-large @ 1536-dim (HNSW limit)
+    metadata: jsonb('metadata').$type<ChunkMetadata>().default({}),
+    tokens: integer('tokens').notNull(),
+  },
+  (t) => ({
+    docIdx: index('chunk_doc_idx').on(t.documentId),
+    // HNSW vector index (raw SQL — Drizzle escape hatch)
+    embeddingIdx: index('chunk_embedding_idx').using('hnsw', sql`${t.embedding} vector_cosine_ops`),
+    // Full-text BM25-ish via tsvector
+    contentTsvIdx: index('chunk_content_tsv_idx').using(
+      'gin',
+      sql`to_tsvector('english', ${t.content})`,
+    ),
+  }),
+);
 
 // ── Concepts (vector-embedded for dedup) ──────────────────
-export const concept = pgTable('concept', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  name:         text('name').notNull(),
-  description:  text('description'),
-  domain:       text('domain').notNull(),                        // "math", "biology"…
-  embedding:    vector('embedding', 1536),
-}, (t) => ({
-  embeddingIdx: index('concept_embedding_idx')
-                  .using('hnsw', sql`${t.embedding} vector_cosine_ops`),
-}));
+export const concept = pgTable(
+  'concept',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    name: text('name').notNull(),
+    description: text('description'),
+    domain: text('domain').notNull(), // "math", "biology"…
+    embedding: vector('embedding', 1536),
+  },
+  (t) => ({
+    embeddingIdx: index('concept_embedding_idx').using(
+      'hnsw',
+      sql`${t.embedding} vector_cosine_ops`,
+    ),
+  }),
+);
 
-export const conceptRelation = pgTable('concept_relation', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  fromId:       text('from_id').notNull().references(() => concept.id, { onDelete: 'cascade' }),
-  toId:         text('to_id').notNull().references(() => concept.id, { onDelete: 'cascade' }),
-  relationType: text('relation_type').notNull(),                 // "prerequisite" | "related" | "specializes"
-  strength:     real('strength').notNull().default(1.0),
-}, (t) => ({
-  uniq: uniqueIndex('concept_relation_uniq').on(t.fromId, t.toId, t.relationType),
-}));
+export const conceptRelation = pgTable(
+  'concept_relation',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    fromId: text('from_id')
+      .notNull()
+      .references(() => concept.id, { onDelete: 'cascade' }),
+    toId: text('to_id')
+      .notNull()
+      .references(() => concept.id, { onDelete: 'cascade' }),
+    relationType: text('relation_type').notNull(), // "prerequisite" | "related" | "specializes"
+    strength: real('strength').notNull().default(1.0),
+  },
+  (t) => ({
+    uniq: uniqueIndex('concept_relation_uniq').on(t.fromId, t.toId, t.relationType),
+  }),
+);
 
 // ── Mastery (BKT per user × concept) ──────────────────────
-export const mastery = pgTable('mastery', {
-  id:          text('id').primaryKey().$defaultFn(() => createId()),
-  userId:      text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  conceptId:   text('concept_id').notNull().references(() => concept.id, { onDelete: 'cascade' }),
-  score:       real('score').notNull().default(0),               // 0..1
-  attempts:    integer('attempts').notNull().default(0),
-  correct:     integer('correct').notNull().default(0),
-  lastSeenAt:  timestamp('last_seen_at'),
-  decayedAt:   timestamp('decayed_at'),
-}, (t) => ({
-  uniq: uniqueIndex('mastery_user_concept_uniq').on(t.userId, t.conceptId),
-}));
+export const mastery = pgTable(
+  'mastery',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    conceptId: text('concept_id')
+      .notNull()
+      .references(() => concept.id, { onDelete: 'cascade' }),
+    score: real('score').notNull().default(0), // 0..1
+    attempts: integer('attempts').notNull().default(0),
+    correct: integer('correct').notNull().default(0),
+    lastSeenAt: timestamp('last_seen_at'),
+    decayedAt: timestamp('decayed_at'),
+  },
+  (t) => ({
+    uniq: uniqueIndex('mastery_user_concept_uniq').on(t.userId, t.conceptId),
+  }),
+);
 
 // ── Conversations ─────────────────────────────────────────
 export const conversation = pgTable('conversation', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  userId:       text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  workspaceId:  text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
-  title:        text('title'),
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+  title: text('title'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 export const message = pgTable('message', {
-  id:               text('id').primaryKey().$defaultFn(() => createId()),
-  conversationId:   text('conversation_id').notNull().references(() => conversation.id, { onDelete: 'cascade' }),
-  role:             roleEnum('role').notNull(),
-  content:          text('content').notNull(),
-  citations:        jsonb('citations').$type<Citation[]>().default([]),
-  metadata:         jsonb('metadata').$type<MessageMetadata>().default({}),
-  createdAt:        timestamp('created_at').notNull().defaultNow(),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  conversationId: text('conversation_id')
+    .notNull()
+    .references(() => conversation.id, { onDelete: 'cascade' }),
+  role: roleEnum('role').notNull(),
+  content: text('content').notNull(),
+  citations: jsonb('citations').$type<Citation[]>().default([]),
+  metadata: jsonb('metadata').$type<MessageMetadata>().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 // ── Flashcards (FSRS) ─────────────────────────────────────
-export const flashcard = pgTable('flashcard', {
-  id:               text('id').primaryKey().$defaultFn(() => createId()),
-  userId:           text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  conceptId:        text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
-  front:            text('front').notNull(),
-  back:             text('back').notNull(),
-  cardType:         cardTypeEnum('card_type').notNull().default('BASIC'),
-  sourceChunkId:    text('source_chunk_id').references(() => chunk.id, { onDelete: 'set null' }),
+export const flashcard = pgTable(
+  'flashcard',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
+    front: text('front').notNull(),
+    back: text('back').notNull(),
+    cardType: cardTypeEnum('card_type').notNull().default('BASIC'),
+    sourceChunkId: text('source_chunk_id').references(() => chunk.id, { onDelete: 'set null' }),
 
-  difficulty:       real('difficulty').notNull().default(0),
-  stability:        real('stability').notNull().default(0),
-  retrievability:   real('retrievability').notNull().default(0),
-  state:            fsrsStateEnum('state').notNull().default('NEW'),
-  due:              timestamp('due').notNull().defaultNow(),
-  lastReview:       timestamp('last_review'),
-}, (t) => ({
-  userDueIdx: index('flashcard_user_due_idx').on(t.userId, t.due),
-}));
+    difficulty: real('difficulty').notNull().default(0),
+    stability: real('stability').notNull().default(0),
+    retrievability: real('retrievability').notNull().default(0),
+    state: fsrsStateEnum('state').notNull().default('NEW'),
+    due: timestamp('due').notNull().defaultNow(),
+    lastReview: timestamp('last_review'),
+  },
+  (t) => ({
+    userDueIdx: index('flashcard_user_due_idx').on(t.userId, t.due),
+  }),
+);
 
 export const review = pgTable('review', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  flashcardId:  text('flashcard_id').notNull().references(() => flashcard.id, { onDelete: 'cascade' }),
-  rating:       integer('rating').notNull(),                     // 1..4 FSRS
-  duration:     integer('duration').notNull(),                   // ms
-  createdAt:    timestamp('created_at').notNull().defaultNow(),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  flashcardId: text('flashcard_id')
+    .notNull()
+    .references(() => flashcard.id, { onDelete: 'cascade' }),
+  rating: integer('rating').notNull(), // 1..4 FSRS
+  duration: integer('duration').notNull(), // ms
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 // ── Quizzes ───────────────────────────────────────────────
 export const quiz = pgTable('quiz', {
-  id:         text('id').primaryKey().$defaultFn(() => createId()),
-  userId:     text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  title:      text('title').notNull(),
-  config:     jsonb('config').$type<QuizConfig>().default({}),
-  createdAt:  timestamp('created_at').notNull().defaultNow(),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  config: jsonb('config').$type<QuizConfig>().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
 export const question = pgTable('question', {
-  id:             text('id').primaryKey().$defaultFn(() => createId()),
-  quizId:         text('quiz_id').notNull().references(() => quiz.id, { onDelete: 'cascade' }),
-  type:           qTypeEnum('type').notNull(),
-  prompt:         text('prompt').notNull(),
-  options:        jsonb('options').$type<string[] | null>(),
-  correctAnswer:  jsonb('correct_answer').notNull(),
-  explanation:    text('explanation').notNull(),
-  conceptId:      text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
-  difficulty:     real('difficulty').notNull(),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  quizId: text('quiz_id')
+    .notNull()
+    .references(() => quiz.id, { onDelete: 'cascade' }),
+  type: qTypeEnum('type').notNull(),
+  prompt: text('prompt').notNull(),
+  options: jsonb('options').$type<string[] | null>(),
+  correctAnswer: jsonb('correct_answer').notNull(),
+  explanation: text('explanation').notNull(),
+  conceptId: text('concept_id').references(() => concept.id, { onDelete: 'set null' }),
+  difficulty: real('difficulty').notNull(),
 });
 
 // ── Study sessions ────────────────────────────────────────
 export const studySession = pgTable('study_session', {
-  id:           text('id').primaryKey().$defaultFn(() => createId()),
-  userId:       text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  startedAt:    timestamp('started_at').notNull().defaultNow(),
-  endedAt:      timestamp('ended_at'),
-  sessionType:  sessionTypeEnum('session_type').notNull(),
-  metadata:     jsonb('metadata').default({}),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  endedAt: timestamp('ended_at'),
+  sessionType: sessionTypeEnum('session_type').notNull(),
+  metadata: jsonb('metadata').default({}),
 });
 
 // ── Relations (for type-safe joins via drizzle-orm) ───────
 export const userRelations = relations(user, ({ many }) => ({
   workspaces: many(workspace),
-  documents:  many(document),
+  documents: many(document),
   conversations: many(conversation),
   flashcards: many(flashcard),
-  mastery:    many(mastery),
+  mastery: many(mastery),
   studySessions: many(studySession),
 }));
 // (other relations elided for brevity — defined in packages/db/src/schema.ts)
 ```
 
 ### 5.2. Indexes quan trọng
+
 - `chunk.embedding` — **HNSW** index with `vector_cosine_ops` for ANN search (defined inline above)
   - **Note on dimensions:** pgvector HNSW has a hard limit of 2000 dimensions for `vector` type. We use **1536** so we can keep HNSW (the fastest option). Two ways to fit text-embedding-3-large into this:
     - Call OpenAI embeddings API with `dimensions: 1536` (the model is trained on a Matryoshka-style truncation, ~1% accuracy loss vs 3072).
@@ -669,6 +809,7 @@ export const userRelations = relations(user, ({ many }) => ({
 - `concept_relation (fromId, toId, relationType)` — unique compound
 
 ### 5.3. Better Auth tables (auto-managed)
+
 Better Auth creates and migrates `session`, `account`, `verification` tables automatically when you run `npx @better-auth/cli generate`. The base `user` table above intentionally matches Better Auth's expected shape (`id`, `email`, `emailVerified`, `name`, `image`, `createdAt`, `updatedAt`), then we add domain columns (`plan`, `preferences`).
 
 ---
@@ -679,8 +820,9 @@ Better Auth creates and migrates `session`, `account`, `verification` tables aut
 
 Spec ban đầu plan tRPC nhưng Phase 0-10 chọn **REST + Next.js route handlers**
 (`app/api/**/route.ts`) vì:
+
 - Đỡ phải maintain layer tRPC + zod context riêng (Next.js đã cho `Request`
-  + `NextResponse` chuẩn web standard).
+  - `NextResponse` chuẩn web standard).
 - Better Auth có built-in REST + cookie middleware → tích hợp natural.
 - Easier to consume từ external (mobile, extension Phase V3) — không phải
   bind tRPC client.
@@ -691,23 +833,23 @@ toàn input.
 
 **Route handlers thực tế** (`app/api/`):
 
-| Domain | Files |
-|---|---|
-| Auth (Better Auth) | `auth/[...all]/route.ts` |
-| Documents | `documents/route.ts`, `[id]/route.ts`, `upload/route.ts`, `[id]/move/route.ts` |
-| Chat | `chat/route.ts`, `conversations/route.ts`, `conversations/[id]/route.ts` |
-| Flashcards | `flashcards/route.ts`, `[id]/route.ts`, `[id]/review/route.ts`, `queue/`, `stats/`, `generate/`, `image/`, `upload-image/` |
-| Quiz | `quiz/route.ts`, `[id]/route.ts`, `[id]/attempt/route.ts`, `generate/` |
-| Mastery | `mastery/route.ts`, `recommendations/route.ts`, `decay/route.ts` |
-| Graph | `graph/route.ts`, `concept/[id]/route.ts` |
-| Notes | `notes/route.ts`, `[id]/route.ts`, `complete/route.ts` |
-| Study plan | `study-plan/route.ts`, `[id]/route.ts` |
-| Search | `search/route.ts` (Cmd+K global) |
-| Workspaces | `workspaces/route.ts`, `[id]/route.ts` |
-| Profile | `profile/me/route.ts`, `[id]/route.ts` |
-| Leaderboard | `leaderboard/route.ts` |
-| Groups | `groups/route.ts`, `[id]/route.ts`, `join/route.ts` |
-| Analytics | `analytics/route.ts` |
+| Domain             | Files                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Auth (Better Auth) | `auth/[...all]/route.ts`                                                                                                   |
+| Documents          | `documents/route.ts`, `[id]/route.ts`, `upload/route.ts`, `[id]/move/route.ts`                                             |
+| Chat               | `chat/route.ts`, `conversations/route.ts`, `conversations/[id]/route.ts`                                                   |
+| Flashcards         | `flashcards/route.ts`, `[id]/route.ts`, `[id]/review/route.ts`, `queue/`, `stats/`, `generate/`, `image/`, `upload-image/` |
+| Quiz               | `quiz/route.ts`, `[id]/route.ts`, `[id]/attempt/route.ts`, `generate/`                                                     |
+| Mastery            | `mastery/route.ts`, `recommendations/route.ts`, `decay/route.ts`                                                           |
+| Graph              | `graph/route.ts`, `concept/[id]/route.ts`                                                                                  |
+| Notes              | `notes/route.ts`, `[id]/route.ts`, `complete/route.ts`                                                                     |
+| Study plan         | `study-plan/route.ts`, `[id]/route.ts`                                                                                     |
+| Search             | `search/route.ts` (Cmd+K global)                                                                                           |
+| Workspaces         | `workspaces/route.ts`, `[id]/route.ts`                                                                                     |
+| Profile            | `profile/me/route.ts`, `[id]/route.ts`                                                                                     |
+| Leaderboard        | `leaderboard/route.ts`                                                                                                     |
+| Groups             | `groups/route.ts`, `[id]/route.ts`, `join/route.ts`                                                                        |
+| Analytics          | `analytics/route.ts`                                                                                                       |
 
 ### 6.2. Key endpoints
 
@@ -749,7 +891,7 @@ export async function POST(req: Request) {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
     },
   });
 }
@@ -921,11 +1063,13 @@ prompts/
 ```
 
 Each prompt:
+
 - Versioned (track in git, also in Langfuse)
 - A/B testable
 - Tested against golden dataset
 
 **Prompt structure template:**
+
 ```
 [ROLE]
 You are an expert tutor specialized in {{domain}}...
@@ -1097,6 +1241,7 @@ cogniva/                                     — Thực tế Phase 0-10
 ```
 
 **Deferred** (Phase 11+ nếu cần scale):
+
 - `apps/worker/` — Inngest jobs cho ingest, concept extraction (hiện sync inline trong API route + fire-and-forget)
 - `packages/ai/` — tách AI utilities khỏi `apps/web/src/lib/` nếu reuse cho mobile/extension
 - `packages/ui/` — tách shadcn components khỏi `apps/web` nếu cần share
@@ -1109,61 +1254,69 @@ cogniva/                                     — Thực tế Phase 0-10
 > **Status legend:** ✅ done · 🚧 in progress · ⬜ pending
 
 ### Phase 0: Foundation (Tuần 1-2) — ✅ **Mostly complete (2026-05-11)**
+
 **Goal:** Repo + auth + basic UI shell
 
 - [x] Setup monorepo (pnpm + turbo)
-- [x] Next.js 15 app with App Router *(plan said 14; Next 15 stable now, no functional difference)*
-- [x] Tailwind + shadcn/ui *(New York style, slate base, 12 primitives wired)*
-- [x] Auth với Better Auth (email/password + OAuth Google) — custom shadcn forms *(email/password fully wired; Google OAuth conditional on env keys)*
-- [x] Drizzle + PostgreSQL + pgvector (local Docker) *(17 tables, HNSW + GIN indexes, vector(1536))*
+- [x] Next.js 15 app with App Router _(plan said 14; Next 15 stable now, no functional difference)_
+- [x] Tailwind + shadcn/ui _(New York style, slate base, 12 primitives wired)_
+- [x] Auth với Better Auth (email/password + OAuth Google) — custom shadcn forms _(email/password fully wired; Google OAuth conditional on env keys)_
+- [x] Drizzle + PostgreSQL + pgvector (local Docker) _(17 tables, HNSW + GIN indexes, vector(1536))_
 - [x] Basic layout: sidebar, top nav, dashboard skeleton
-- [ ] Deploy preview to Vercel *(repo on GitHub at dovanviet04112004/datn-cogniva — Vercel import still pending)*
-- [x] CI: lint + typecheck + build on PR *(GitHub Actions workflow active)*
+- [ ] Deploy preview to Vercel _(repo on GitHub at dovanviet04112004/datn-cogniva — Vercel import still pending)_
+- [x] CI: lint + typecheck + build on PR _(GitHub Actions workflow active)_
 
 **Deliverable:** Live URL, login works, empty dashboard.
+
 > ✅ Login + dashboard verified end-to-end against real Postgres on 2026-05-11. Vercel import is the only outstanding item.
 
 ### Phase 1: Document Ingestion (Tuần 3-4) — ✅ **MVP shipped (2026-05-11)**
+
 **Goal:** Upload PDF → see chunks in DB
 
-- [x] Storage abstraction with local FS impl *(R2 swap: chỉ thêm `r2.ts` đáp ứng cùng interface `Storage` — code app không đổi)*
-- [x] Upload UI with progress *(react-dropzone + sonner toast, drag-drop + click-pick, validate size/MIME)*
-- [ ] Inngest setup *(skipped Phase 1 v1 — chạy inline trong route handler. Swap khi PDF >10 MB hoặc khi cần retry policy)*
-- [x] Ingestion job: PDF parse + chunk + embed *(unpdf parser, recursive char splitter ~512 token + overlap 200 chars, Voyage AI primary + OpenAI fallback)*
-- [x] pgvector extension + embedding storage *(vector(1024) HNSW, verified end-to-end)*
-- [ ] PDF viewer page (react-pdf) *(deferred to Phase 2 — chỉ cần khi click citation jump-to-page)*
-- [x] Document list UI *(server component, status pill, page count, chunk count, relative time)*
-- [x] PDF viewer page (react-pdf) *(landed in Phase 2 — react-pdf with PDF.js worker từ unpkg CDN, page navigation + zoom + URL hash `#page-N` cho citation jump)*
+- [x] Storage abstraction with local FS impl _(R2 swap: chỉ thêm `r2.ts` đáp ứng cùng interface `Storage` — code app không đổi)_
+- [x] Upload UI with progress _(react-dropzone + sonner toast, drag-drop + click-pick, validate size/MIME)_
+- [ ] Inngest setup _(skipped Phase 1 v1 — chạy inline trong route handler. Swap khi PDF >10 MB hoặc khi cần retry policy)_
+- [x] Ingestion job: PDF parse + chunk + embed _(unpdf parser, recursive char splitter ~512 token + overlap 200 chars, Voyage AI primary + OpenAI fallback)_
+- [x] pgvector extension + embedding storage _(vector(1024) HNSW, verified end-to-end)_
+- [ ] PDF viewer page (react-pdf) _(deferred to Phase 2 — chỉ cần khi click citation jump-to-page)_
+- [x] Document list UI _(server component, status pill, page count, chunk count, relative time)_
+- [x] PDF viewer page (react-pdf) _(landed in Phase 2 — react-pdf with PDF.js worker từ unpkg CDN, page navigation + zoom + URL hash `#page-N` cho citation jump)_
 
 **Deliverable:** Upload PDF → background processed → see "Ready" status.
+
 > ✅ Verified 2026-05-11: 4-page sample PDF → 4 chunks, vector(1024) via voyage-3, status READY trong **2 giây** end-to-end. UI render đúng với badge + metadata.
 
 ### Phase 2: RAG Chat MVP (Tuần 5-6) — ✅ **MVP shipped (2026-05-11)**
+
 **Goal:** Q&A on uploaded docs with citations
 
-- [x] Chat UI (streaming, Vercel AI SDK) *(useChat hook + token-by-token render + auto-scroll + Cmd/Ctrl+Enter to send)*
-- [x] Basic vector retrieval (top-5) *(pgvector cosine `<=>`, scoped by user, optional workspace filter)*
-- [ ] Mastra workflow (basic: retrieve → generate) *(deferred — current `buildChatContext` is linear function, sẽ wrap Mastra khi Phase 3 query classification thêm branching; @mastra/core dep đã install)*
-- [x] Citation extraction & rendering *(inline `[N]` + CJK `【N】` regex → popover với snippet, score, page, link)*
-- [x] Click citation → jump to PDF page *(citation popover link tới `/documents/[id]#page-N`, PdfViewer đọc hash + scroll — overlay highlight trong trang để Phase 3)*
-- [x] Conversation persistence *(Drizzle: USER msg lưu trước stream, ASSISTANT + citations + cost trong onFinish)*
-- [x] Langfuse integration *(trace mỗi turn chat với retrieval span + generation span; no-op khi env chưa cấu hình)*
+- [x] Chat UI (streaming, Vercel AI SDK) _(useChat hook + token-by-token render + auto-scroll + Cmd/Ctrl+Enter to send)_
+- [x] Basic vector retrieval (top-5) _(pgvector cosine `<=>`, scoped by user, optional workspace filter)_
+- [ ] Mastra workflow (basic: retrieve → generate) _(deferred — current `buildChatContext` is linear function, sẽ wrap Mastra khi Phase 3 query classification thêm branching; @mastra/core dep đã install)_
+- [x] Citation extraction & rendering _(inline `[N]` + CJK `【N】` regex → popover với snippet, score, page, link)_
+- [x] Click citation → jump to PDF page _(citation popover link tới `/documents/[id]#page-N`, PdfViewer đọc hash + scroll — overlay highlight trong trang để Phase 3)_
+- [x] Conversation persistence _(Drizzle: USER msg lưu trước stream, ASSISTANT + citations + cost trong onFinish)_
+- [x] Langfuse integration _(trace mỗi turn chat với retrieval span + generation span; no-op khi env chưa cấu hình)_
 
 **Deliverable:** Demo-able chat with citations.
+
 > ✅ Verified 2026-05-11: query "Tài liệu test.pdf nói về cái gì?" → 4 chunks retrieve (top score 0.69) → openai/gpt-oss-20b free model qua OpenRouter stream Vietnamese reply có [1][3] citations → conversation + messages persisted to DB với token usage. AI provider abstraction hỗ trợ Anthropic (paid prod) + OpenRouter (free testing với 24+ free model).
 
 ### Phase 3: Advanced RAG (Tuần 7) — ✅ **MVP shipped (2026-05-11)**
+
 **Goal:** Production-quality retrieval
 
-- [x] HyDE query rewriting *(lib/retrieval/hyde.ts — generate hypothetical answer 2-4 câu rồi embed thay query gốc; graceful fallback khi LLM lỗi/empty)*
-- [x] Hybrid search (BM25 + vector) *(lib/retrieval/bm25.ts dùng Postgres tsvector + ts_rank_cd norm 32; chunk_content_tsv_idx GIN đã có sẵn trong schema. Vector + BM25 chạy parallel trong advanced.ts)*
-- [x] Cohere reranking *(lib/retrieval/rerank.ts — rerank-multilingual-v3.0 hỗ trợ tiếng Việt; graceful no-op khi COHERE_API_KEY trống → pipeline vẫn chạy)*
-- [x] MMR diversity *(lib/retrieval/mmr.ts — λ=0.7, greedy O(n²); chunks pass embedding qua includeEmbedding flag từ vector + BM25 search)*
-- [x] Build golden dataset (50 Q-A pairs) *(evals/golden-build.ts — random sample chunks → LLM synthesize Q-A có ground_truth_chunk_id; chạy `pnpm eval:golden [size]`)*
-- [x] RAGAS evals (faithfulness, relevancy) *(evals/ragas.ts — 4 metric LLM-as-judge: faithfulness, answer_relevancy, context_relevancy, context_recall (binary chunk hit))*
-- [x] A/B test: basic RAG vs advanced → measure *(evals/run.ts — chạy 2 mode song song trên golden, in bảng delta + win rate + latency ratio; output evals/results.json)*
+- [x] HyDE query rewriting _(lib/retrieval/hyde.ts — generate hypothetical answer 2-4 câu rồi embed thay query gốc; graceful fallback khi LLM lỗi/empty)_
+- [x] Hybrid search (BM25 + vector) _(lib/retrieval/bm25.ts dùng Postgres tsvector + ts_rank_cd norm 32; chunk_content_tsv_idx GIN đã có sẵn trong schema. Vector + BM25 chạy parallel trong advanced.ts)_
+- [x] Cohere reranking _(lib/retrieval/rerank.ts — rerank-multilingual-v3.0 hỗ trợ tiếng Việt; graceful no-op khi COHERE_API_KEY trống → pipeline vẫn chạy)_
+- [x] MMR diversity _(lib/retrieval/mmr.ts — λ=0.7, greedy O(n²); chunks pass embedding qua includeEmbedding flag từ vector + BM25 search)_
+- [x] Build golden dataset (50 Q-A pairs) _(evals/golden-build.ts — random sample chunks → LLM synthesize Q-A có ground_truth_chunk_id; chạy `pnpm eval:golden [size]`)_
+- [x] RAGAS evals (faithfulness, relevancy) _(evals/ragas.ts — 4 metric LLM-as-judge: faithfulness, answer_relevancy, context_relevancy, context_recall (binary chunk hit))_
+- [x] A/B test: basic RAG vs advanced → measure _(evals/run.ts — chạy 2 mode song song trên golden, in bảng delta + win rate + latency ratio; output evals/results.json)_
 
 **Deliverable:** Eval dashboard showing improvements.
+
 > ✅ Built 2026-05-11: pipeline HyDE→Hybrid(vector+BM25)→RRF(k=60)→Cohere rerank→MMR(λ=0.7) trong `lib/retrieval/advanced.ts`. Switch qua `RETRIEVAL_MODE=basic|advanced` env (default `advanced`). Eval runner output bảng so sánh 4 metric × 2 mode + latency.
 >
 > **Smoke A/B 2026-05-11 (N=4, DB chỉ có test.pdf):**
@@ -1178,47 +1331,54 @@ cogniva/                                     — Thực tế Phase 0-10
 > Pipeline hoạt động end-to-end (HyDE + BM25 + Cohere rerank + MMR). N=4 quá nhỏ để significant; cần upload tài liệu lớn hơn (50-200 chunks) rồi rebuild golden để đo chính xác. Latency ×22 phần lớn do HyDE qua OpenRouter free model — Anthropic prod ×1.5-3.
 
 **Cohere setup (free trial):**
+
 1. Signup tại https://dashboard.cohere.com/welcome/register (email, không cần thẻ)
 2. Vào https://dashboard.cohere.com/api-keys → copy "Trial keys"
 3. Paste vào `apps/web/.env.local` dòng `COHERE_API_KEY="..."` (free 1000 search/tháng đủ dev + golden eval)
 4. Pipeline graceful no-op khi key trống → vẫn chạy được mà không có rerank stage
 
 ### Phase 4: Knowledge Graph (Tuần 8-9) — ✅ **MVP shipped (2026-05-11)**
+
 **Goal:** Auto-extract concepts and visualize
 
-- [x] Concept extraction job *(lib/concepts/extract.ts — LLM scan từng chunk → list named concepts với name/description/domain; bỏ qua từ chung chung; failure → return [] không crash batch)*
-- [x] Concept dedup (vector matching) *(lib/concepts/dedup.ts — embed concept name qua Voyage → HNSW search threshold 0.85 → reuse hoặc INSERT mới)*
-- [x] Prerequisite mining *(lib/concepts/prerequisite.ts — group concepts theo domain ≤20/batch → LLM sinh edges (from, to, strength) → insert vào concept_relation với onConflictDoNothing)*
-- [x] React Flow graph UI *(@xyflow/react v12 + Dagre auto-layout TB; ConceptNode tô màu theo domain; MiniMap+Controls+Background; sidebar nav `/graph` đã có sẵn)*
-- [x] Mastery color coding *(stub — ConceptNode đọc data.mastery, ring color đỏ/vàng/xanh theo BKT score; Phase 6 wire dữ liệu thật từ bảng `mastery`)*
-- [x] Click node → see related chunks/cards *(ConceptPanel slide từ phải, fetch /api/graph/concept/[id] → list chunks + filename + page; click chunk → /documents/[id]#page-N)*
+- [x] Concept extraction job _(lib/concepts/extract.ts — LLM scan từng chunk → list named concepts với name/description/domain; bỏ qua từ chung chung; failure → return [] không crash batch)_
+- [x] Concept dedup (vector matching) _(lib/concepts/dedup.ts — embed concept name qua Voyage → HNSW search threshold 0.85 → reuse hoặc INSERT mới)_
+- [x] Prerequisite mining _(lib/concepts/prerequisite.ts — group concepts theo domain ≤20/batch → LLM sinh edges (from, to, strength) → insert vào concept_relation với onConflictDoNothing)_
+- [x] React Flow graph UI _(@xyflow/react v12 + Dagre auto-layout TB; ConceptNode tô màu theo domain; MiniMap+Controls+Background; sidebar nav `/graph` đã có sẵn)_
+- [x] Mastery color coding _(stub — ConceptNode đọc data.mastery, ring color đỏ/vàng/xanh theo BKT score; Phase 6 wire dữ liệu thật từ bảng `mastery`)_
+- [x] Click node → see related chunks/cards _(ConceptPanel slide từ phải, fetch /api/graph/concept/[id] → list chunks + filename + page; click chunk → /documents/[id]#page-N)_
 
 **Deliverable:** Beautiful graph showing user's learning landscape.
+
 > ✅ Built 2026-05-11: pipeline `extractConceptsForChunks(chunkIds)` chạy auto trong ingest pipeline (sau khi chunks insert + READY) hoặc backfill qua `pnpm extract:concepts [docId|--user X|--prereq]`. Schema thêm `chunk_concept` pivot (chunkId × conceptId × strength). API `GET /api/graph` trả format React Flow-compatible (nodes + edges). UI `/graph` page render React Flow với Dagre layout + ConceptPanel side. Mastery color coding sẵn UI nhưng data chưa wire (Phase 6).
 >
 > Cần upload tài liệu mới (hoặc chạy `pnpm extract:concepts` trên test.pdf hiện có) để có concepts hiển thị.
 
 ### Phase 5: Flashcards + SR (Tuần 10) — ✅ **MVP shipped (2026-05-11)**
+
 **Goal:** Spaced repetition system
 
-- [x] Manual card creation *(FlashcardForm component, /flashcards page form collapsible, hỗ trợ BASIC + CLOZE + IMAGE_OCCLUSION)*
-- [x] AI-generate cards from doc/chunk *(lib/flashcards/generate.ts — LLM scan chunks → JSON {front, back} hoặc cloze text; API /api/flashcards/generate body {documentId, type, limit})*
-- [x] FSRS algorithm implementation *(ts-fsrs v4 wrapper lib/flashcards/fsrs.ts; state machine NEW→LEARNING→REVIEW + RELEARNING khi lapse; difficulty/stability/retrievability/due/lastReview lưu thẳng cột flashcard)*
-- [x] Daily review UI (swipe/keyboard) *(ReviewSession component, keyboard 1=Again/2=Hard/3=Good/4=Easy + Space=reveal, mobile-friendly grid 4-button)*
-- [x] Review stats *(StatsPanel — due today, retention 7d %, breakdown state count; API /api/flashcards/stats join review table)*
-- [x] Cloze deletion support *(lib/flashcards/cloze.ts — Anki-compat syntax {{c1::text}} hoặc {{c1::text::hint}}; ClozeRenderer ẩn/hiện theo revealed bool)*
-- [x] **Bonus: IMAGE_OCCLUSION** *(react-konva editor vẽ rectangle masks → upload ảnh /api/flashcards/upload-image → ImageOcclusionViewer overlay div absolute positioned theo % để responsive)*
+- [x] Manual card creation _(FlashcardForm component, /flashcards page form collapsible, hỗ trợ BASIC + CLOZE + IMAGE_OCCLUSION)_
+- [x] AI-generate cards from doc/chunk _(lib/flashcards/generate.ts — LLM scan chunks → JSON {front, back} hoặc cloze text; API /api/flashcards/generate body {documentId, type, limit})_
+- [x] FSRS algorithm implementation _(ts-fsrs v4 wrapper lib/flashcards/fsrs.ts; state machine NEW→LEARNING→REVIEW + RELEARNING khi lapse; difficulty/stability/retrievability/due/lastReview lưu thẳng cột flashcard)_
+- [x] Daily review UI (swipe/keyboard) _(ReviewSession component, keyboard 1=Again/2=Hard/3=Good/4=Easy + Space=reveal, mobile-friendly grid 4-button)_
+- [x] Review stats _(StatsPanel — due today, retention 7d %, breakdown state count; API /api/flashcards/stats join review table)_
+- [x] Cloze deletion support _(lib/flashcards/cloze.ts — Anki-compat syntax {{c1::text}} hoặc {{c1::text::hint}}; ClozeRenderer ẩn/hiện theo revealed bool)_
+- [x] **Bonus: IMAGE_OCCLUSION** _(react-konva editor vẽ rectangle masks → upload ảnh /api/flashcards/upload-image → ImageOcclusionViewer overlay div absolute positioned theo % để responsive)_
 
 **Deliverable:** Functional Anki-like flashcard system.
+
 > ✅ Built 2026-05-11: full Phase 5 với 3 card types. Schema flashcard + review từ Phase 0 reuse 100% (FSRS fields đã design sẵn). Review queue ưu tiên NEW > RELEARNING > LEARNING > REVIEW + due ASC (Anki convention). Latency ~50ms/review (chỉ DB UPDATE + INSERT). Có thể start dev server `pnpm dev` và mở /flashcards để demo.
 >
 > **Sequel cần (Phase 7+):**
+>
 > - Audio cards (TTS qua ElevenLabs)
 > - Anki import (.apkg parser)
 > - Multi-cloze split (1 text {{c1}} + {{c2}} → 2 cards)
 > - Card editor inline trong review (bấm 'e' edit nhanh)
 
 ### Phase 6: Quiz + Mastery (Tuần 11)
+
 **Goal:** Adaptive quizzing
 
 - [x] Quiz generator (MCQ, TRUE_FALSE, short answer) — `lib/quiz/generate.ts`
@@ -1235,6 +1395,7 @@ cogniva/                                     — Thực tế Phase 0-10
 > ✅ Built 2026-05-11: pipeline `generateQuestions(chunkContent, types, count)` sinh quiz JSON-schema chuẩn → INSERT quiz + questions. Attempt route chấm tuần tự (binary cho MCQ/T-F, LLM cho SHORT), gọi `applyAttempt(userId, conceptId, score)` để update bảng mastery theo BKT. `getRecommendations` xếp hạng concepts cần ôn dựa trên (1-mastery) × log(1+prereq_count). UI `/quiz` list + dialog AI gen + player tuần tự + ResultsView; `/graph` ConceptNode đã ring-color theo mastery.
 
 ### Phase 7: Polish + Productivity (Tuần 12)
+
 **Goal:** Notes, planner, search
 
 - [x] Notes editor (TipTap StarterKit + Placeholder) — `/notes/[id]` autosave 1.2s
@@ -1249,6 +1410,7 @@ cogniva/                                     — Thực tế Phase 0-10
 > ✅ Built 2026-05-11: schema thêm `note` (id, title, content HTML TipTap, concept/document FK optional) + `study_plan_item` (status PENDING/DONE, due_date, completed_at). API CRUD đầy đủ cho 2 entity + `/api/notes/complete` (LLM hoàn câu, prefix 500 ký tự cuối, maxTokens 120) + `/api/search` (5 entity ILIKE parallel với Promise.all). UI: `/notes` list + `/notes/[id]` TipTap editor; `/study-plan` 2-column kanban-lite; topbar swap search input → `CommandPaletteButton` mở `cmdk` dialog overlay; Pomodoro widget xen giữa ThemeToggle + UserMenu. Toàn bộ Vietnamese comments + JSDoc.
 
 ### Phase 8: Voice + Multimodal (Tuần 13)
+
 **Goal:** Wow factor features
 
 - [x] Voice chat — **Browser Web Speech API** (webkitSpeechRecognition cho STT, speechSynthesis cho TTS) thay vì Whisper+ElevenLabs để zero cost + zero latency. Trade-off chất lượng giọng (phase 9+ swap ElevenLabs khi cần)
@@ -1261,6 +1423,7 @@ cogniva/                                     — Thực tế Phase 0-10
 > ✅ Built 2026-05-11: 4 components mới (`VoiceInputButton`, `TtsButton`, `MathCanvasDialog`, file attach inline trong `ChatInterface`). Composer mở rộng: textarea + Mic + ImageAttach + PencilLine + Send. `MessageBubble` của assistant thêm `TtsButton` đọc to khi stream xong. Chat route handle content array (vision message): tách `query` text-only cho RAG retrieval, fallback `[image-only message]` khi user chỉ gửi ảnh để retrieval không crash. Real-time interrupt skip — Phase 9+ cần WebRTC stack riêng.
 
 ### Phase 9: Social + Gamification (Tuần 14)
+
 **Goal:** Retention features
 
 - [x] Streaks + XP — `user_stats` table, `awardXp(userId, amount, ctx)` cập nhật atomic XP + streak (today/yesterday/break → reset 1). Hook vào 4 events: flashcard review (+2/+5), quiz answer correct (+10), note create (+3), document upload (+20)
@@ -1274,6 +1437,7 @@ cogniva/                                     — Thực tế Phase 0-10
 > ✅ Built 2026-05-11: 3 bảng mới (`user_stats` PK userId, `study_group` + `study_group_member` với uniqueIndex `group_id × user_id`); thêm cột `user.is_public`. Gamification: 6 file lib + 7 API endpoints + 5 UI pages + `StreakBadge` topbar (Flame icon + currentStreak + xp). Middleware: tách `exactProtected` cho `/profile` để `/profile/[id]` public truy cập được; sidebar group "Social" mới gom 3 link Profile/Leaderboard/Groups.
 
 ### Phase 10: Production Hardening (Tuần 15)
+
 **Goal:** Scale-ready
 
 - [x] Rate limiting — token bucket in-memory `lib/rate-limit/`, preset chat (30/phút), aiGenerate (10/phút), upload (20/phút). Wire 5 endpoint: chat, flashcards/generate, quiz/generate, notes/complete, documents/upload. Trả 429 với Retry-After header
@@ -1344,11 +1508,13 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 > scheduled rooms) đặt thành deferred — chỉ wire khi cần.
 
 **Schema (6 tables, 5 enums):**
+
 - [x] `room`, `room_member`, `room_message`, `room_event`, `recording`, `collab_doc`
 - [x] Enums: `room_type`, `room_visibility`, `room_status`, `room_member_role`, `room_member_status`
 - [x] Apply migration qua psql trực tiếp (db:push hang trong WSL/Windows env)
 
 **API routes:**
+
 - [x] `GET/POST /api/rooms` — list mine + joined / create với joinCode unique
 - [x] `GET/DELETE /api/rooms/[id]` — fetch detail / owner delete
 - [x] `POST /api/rooms/[id]/token` — issue LiveKit JWT TTL 2h, auto-add MEMBER nếu visibility ≠ PRIVATE, capacity check qua LiveKit API
@@ -1356,22 +1522,26 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 - [x] `POST /api/webhooks/livekit` — sync room_started/finished/participant_joined/left → DB
 
 **UI:**
+
 - [x] `/rooms` — list mine + joined với memberCount sum query, Create dialog + Join by code input
 - [x] `/rooms/[id]/lobby` — cam preview (getUserMedia native), toggle mic/cam, save prefs localStorage, RoomShareCode (copy code + link)
 - [x] `/rooms/[id]` — LiveKitRoom wrapper, fetch token + simulcast 3 layers (h180/h360/h720), VideoGrid adaptive cols, ControlBar (mic/cam/screen/hand/leave + M/C shortcuts), ParticipantList sidebar
 
 **Components mới:**
+
 - [x] `components/rooms/{video-grid,control-bar,participant-list,create-room-dialog,join-by-code,room-share-code,lobby-form,room-client}.tsx`
 - [x] `components/ui/dialog.tsx` (shadcn Radix wrapper, đã có @radix-ui/react-dialog từ Phase 7)
 - [x] `lib/rooms/codes.ts` — generateJoinCode() 6-char base32 Crockford
 
 **Wiring:**
+
 - [x] Sidebar: thêm group "Spaces" > Study Rooms (Video icon)
 - [x] Middleware: `/rooms` protected prefix
 
 **Deliverable:** User tạo room qua UI → share 6-char code → 2 browser tab join cùng room → thấy/nghe nhau qua LiveKit local (no TURN, OK trên cùng LAN/wifi).
 
 **Skipped (defer):**
+
 - Waiting room flow (Phase 13.8 plan) — `requireApproval` schema sẵn nhưng UI flow chờ user need.
 - Scheduled rooms cron — Inngest cron sẵn pattern, wire khi Phase 14+ có Inngest setup.
 
@@ -1380,14 +1550,17 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 > Chi tiết tại `rooms-and-exam.md` §Phase 14. 6/6 mục ship.
 
 **Realtime layer (Socket.IO):**
+
 - [x] `POST /api/realtime/auth` — verify session + authorize membership (cookie web / bearer mobile), user member ACTIVE
 - [x] Socket.IO client singleton (Phase 12 đã sẵn) + `useRealtimeEvent()` hook tái dùng
 
 **Chat:**
+
 - [x] `GET/POST /api/rooms/[id]/chat` — fetch 50 message gần nhất + send với broadcast Socket.IO `chat:message`
 - [x] `components/rooms/chat-panel.tsx` — initial load + subscribe presence-room-{id}, auto-scroll bottom, avatar + own/other layout
 
 **Mod actions:**
+
 - [x] `POST /api/rooms/[id]/moderate` — discriminated union 8 actions: KICK, MUTE, UNMUTE_REQUEST, LOCK, APPROVE, REJECT, PROMOTE, DEMOTE
 - [x] LiveKit RoomService `removeParticipant` + `mutePublishedTrack` cho KICK/MUTE
 - [x] Socket.IO broadcast `room:kicked` / `room:approved` / `room:rejected` tới `presence-user-{id}`
@@ -1395,16 +1568,19 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 - [x] `participant-list.tsx` rewrite: dropdown menu 3-chấm cho mỗi participant (chỉ mod thấy)
 
 **Pomodoro:**
+
 - [x] `components/rooms/pomodoro-timer.tsx` — 3 mode FOCUS/SHORT_BREAK/LONG_BREAK
 - [x] Sync qua LiveKit data channel (không cần Socket.IO) — broadcast state {mode, startAt, durationSec, pausedAt}
 - [x] Wallclock-based (Date.now()) thay vì interval count → khỏi drift khi tab background
 
 **Reactions floating:**
+
 - [x] `components/rooms/reactions-layer.tsx` + `reaction-picker.tsx` (10 emoji)
 - [x] Publish qua LK data channel (unreliable OK)
 - [x] CSS `@keyframes float-up` 2s translate -280px + scale 1.4 + fade
 
 **Hocuspocus service (Yjs server):**
+
 - [x] New workspace `apps/hocuspocus/` — Node ESM, port 1234
 - [x] `Server.configure()` với JWT auth (verify userId + roomId + kind match document name)
 - [x] `Database` extension persist binary state vào bảng `collab_doc` (base64 encode)
@@ -1413,15 +1589,18 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 - [x] Root scripts: `dev:web` + `dev:hocus` cho dev riêng từng service
 
 **Whiteboard collab (Excalidraw + Yjs):**
+
 - [x] `POST /api/rooms/[id]/collab-token` — issue JWT 15min cho kind whiteboard|notes|code
 - [x] `components/rooms/whiteboard-panel.tsx` — dynamic import Excalidraw (no SSR, ~600KB), bidirectional sync Yjs ↔ Excalidraw qua observe + onChange, lastSerializedRef guard chống loop
 
 **Shared notes (TipTap + Yjs):**
+
 - [x] `components/rooms/notes-panel.tsx` — TipTap v3 với `Collaboration` + `CollaborationCursor` extension
 - [x] StarterKit.configure({undoRedo: false}) — TipTap v3 rename `history` → `undoRedo`, tắt vì Yjs UndoManager đảm nhận
 - [x] Color cursor stable từ hash userName → HSL hue
 
 **Wire vào RoomClient:**
+
 - [x] Sidebar Tabs (4 tab): Chat | Participants | Notes | Whiteboard — icon-only để gọn 360px width
 - [x] Pomodoro bar trên cùng main column
 - [x] ReactionsLayer absolute overlay
@@ -1435,6 +1614,7 @@ LiveKit ws://localhost:7880 + Socket.IO gateway ws://localhost:6002 + Redis sẵ
 **Deliverable:** Room có chat realtime + whiteboard cộng tác + notes cộng tác + pomodoro đồng bộ + emoji reactions + mod kick/mute/lock/promote.
 
 **Setup test:**
+
 ```bash
 # Terminal 1: realtime stack đã chạy (Phase 12)
 # Terminal 2: Next.js dev
@@ -1452,12 +1632,14 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 **Deviation từ plan §15.2:** dùng Vercel AI SDK `streamText` + `getChatModel()` (đã có từ Phase 3) thay vì scaffold Mastra runtime. Cùng pattern với `/api/chat/route.ts`. Giữ interface `streamRoomTutor()` mimic Mastra `agent.stream()` để swap sau dễ. Phase 18 (Adaptive Testing) cần workflow phức tạp → khi đó mới scaffold Mastra.
 
 **AI Tutor (in-room @AI):**
+
 - [x] `lib/ai/room-tutor.ts` — buildTutorSystemPrompt (persona + room context + RAG chunks scoped theo askingUserId), `streamRoomTutor()` trả `textStream` + `finishPromise`
 - [x] `lib/ai/summarize.ts` — `summarizeTranscript()` (map-reduce >8K từ) + `generateFlashcardsFromTranscript()` (JSON output, 10 cards default)
 - [x] `POST /api/rooms/[id]/ai-message` — rate limit 10/min/user/room (preset `aiGenerate`), insert placeholder AI message → for-await `textStream` → broadcast `ai:streaming` mỗi delta → `ai:complete` khi xong + update DB content
 - [x] `chat-panel.tsx` update — detect `@AI` prefix (regex), gọi /ai-message song song /chat (để user message vẫn vào lịch sử), bind `ai:streaming`/`ai:complete`/`ai:error`, render bubble AI với blinking caret khi streaming + error state
 
 **Recording (LiveKit Egress → R2):**
+
 - [x] `POST /api/rooms/[id]/record` — mod-only, S3Upload với R2 endpoint, `startRoomCompositeEgress(roomId, output, 'speaker')`, insert recording row status RECORDING, broadcast `recording:started`
 - [x] `POST /api/rooms/[id]/record/[recordingId]/stop` — mod-only, `stopEgress(egressId)`, idempotent (swallow 404), update PROCESSING + broadcast `recording:stopped`
 - [x] `GET /api/rooms/[id]/record` — list 50 recordings cho room (member-only)
@@ -1466,6 +1648,7 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 - [x] `components/rooms/recording-banner.tsx` — privacy notice "Buổi học đang được GHI HÌNH bởi {byUserName}" hiển thị TO ở top, không cho dismiss (Phase 15 compliance §🔐)
 
 **Inngest pipeline (post-processing):**
+
 - [x] `inngest/client.ts` — singleton `Inngest({id:'cogniva'})` + typed `InngestEvents` table với `recording/finished`
 - [x] `inngest/functions/process-recording.ts` — 7 steps độc lập retry (extract-audio → probe-duration → mark-processing → transcribe → summarize → detect-chapters → generate-flashcards → persist → notify); mỗi step có try/catch riêng để 1 step fail không kill pipeline (graceful degradation: no Whisper → no transcript nhưng vẫn save video)
 - [x] `app/api/inngest/route.ts` — `serve({client, functions})` cho Inngest Cloud/CLI discovery
@@ -1474,11 +1657,13 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 - [x] `lib/media/chapters.ts` — `detectChapters()` heuristic: group segments thành blocks 75s → embed Voyage → cosine similarity < 0.65 = boundary, merge chapter <120s
 
 **Replay UI:**
+
 - [x] `/rooms/[id]/recordings` — list 50 recordings với duration + status badge, link sang `[recId]`
 - [x] `/rooms/[id]/recordings/[recId]` — server fetch + verify member ACTIVE + redirect khi status=RECORDING (chưa kết thúc)
 - [x] `components/rooms/replay-client.tsx` — 2-col layout: video player + summary (markdown) | chapters (click seek) + transcript scrollable; polling 15s + Socket.IO `recording:processed` event để auto-refresh khi pipeline xong
 
 **Wire vào RoomClient:**
+
 - [x] `ControlBar` thêm prop `roomId` + `isMod` → render `<RecordButton>` chỉ khi mod
 - [x] `room-client.tsx` thêm `<RecordingBanner roomId={...}/>` ở top main column
 
@@ -1487,16 +1672,19 @@ Sau đó add vào `.env.local`: `JWT_SECRET=dev-jwt-secret-at-least-32-chars-lon
 **Env mới:** `R2_RECORDINGS_BUCKET` (default "cogniva-recordings"). Existing: `OPENAI_API_KEY` (Whisper), `R2_*` (egress upload), `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` (prod).
 
 **Runtime requirements:**
+
 - `ffmpeg` binary trong PATH (Windows dev: `choco install ffmpeg`, prod VPS: pre-installed via provision script)
 - LiveKit Egress container chạy (xem `rooms-and-exam.md` §12.2 docker-compose.prod.yml — Phase 15 uncomment block egress)
 - Inngest dev server: `npx inngest-cli@latest dev -u http://localhost:3000/api/inngest`
 
 **Acceptance (qua live test cần khi user smoke):**
+
 - [ ] Gõ `@AI lim là gì` → bubble AI bay vào chat, từng token stream cho cả phòng thấy
 - [ ] Mod bấm Record → banner đỏ TO xuất hiện cho mọi participant; bấm Stop → banner biến mất, sau ~30s pipeline xong → `/rooms/[id]/recordings` thấy row PROCESSED
 - [ ] Replay page: click chapter → video seek đúng timestamp, transcript hiển thị bên cạnh
 
 **Known limitations Phase 15 v1:**
+
 - Flashcard tự gen gắn vào owner room (không share với members) — schema flashcard chưa có metadata jsonb để track `fromRecordingId`; Phase 18 sẽ thêm.
 - ffmpeg phụ thuộc binary local — Inngest function chạy trên Vercel sẽ FAIL nếu ffmpeg không pre-bundled. Workaround: dùng Inngest Cloud + self-host runner, hoặc swap sang `@ffmpeg/ffmpeg` WASM (chậm 5-10x).
 - Egress fileUrl trỏ trực tiếp R2 — chưa có presigned. Phase 16+ sẽ thêm signed URL TTL 1h cho privacy compliance.
@@ -1531,6 +1719,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 #### M4 W1-W2: Cloudflare Workers edge gateway + Mobile RN bootstrap (2026-05-11) — local scaffold
 
 **Edge gateway (`apps/edge/`):**
+
 - [x] Hono + wrangler.toml + tsconfig (Workers compatible_flags `nodejs_compat`)
 - [x] `RateLimitDO` Durable Object — token bucket per user/IP (capacity + refillPerSec, transactional storage, single-threaded race-safe)
 - [x] `jwtVerifyMiddleware()` — đọc JWT từ Authorization header hoặc cookie `better-auth.session_token`, verify qua JWKS endpoint (`jose` lib, RSA/EdDSA, 1h cache), set `userId` vào context
@@ -1544,11 +1733,13 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] README với deploy guide (workers.dev free tier OK)
 
 **Shared types (`packages/shared/`):**
+
 - [x] `UserDTO` / `DocumentDTO` / `FlashcardDTO` / `ReviewDTO` / `MasteryDTO` / `ChatMessageDTO` / `UsageDTO` / `ApiResult<T>` — plain DTO, KHÔNG re-export DB types (`SessionDTO` đã xoá khi mobile chuyển JWT: /api/auth/me chỉ trả `{user}`)
 - [x] Zod schemas: `signUpSchema`, `signInSchema`, `documentMetaSchema`, `reviewRatingSchema`, `chatSendSchema`
 - [x] `createApiClient()` — fetch-based, getToken callback (cookie cho web, SecureStore cho mobile), retry/error envelope
 
 **Mobile (`apps/mobile/`):**
+
 - [x] Expo SDK 52 + Expo Router 4 + RN 0.76 + New Architecture + Hermes
 - [x] `app/_layout.tsx` — root: QueryClient + splash hydration
 - [x] `app/index.tsx` — auto redirect dựa auth
@@ -1561,11 +1752,13 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] README với deploy guide + simulator setup
 
 **Workspace wire:**
+
 - [x] Root scripts: `dev:edge`, `dev:mobile` thêm vào `package.json`
 - [x] `turbo.json` thêm task `start` (cho Expo)
 - [x] `pnpm-workspace.yaml` đã include `apps/*` + `packages/*` → tự pick
 
 **M4 W3 — JWT plugin + anti-bypass + region routing (2026-05-12) — ✅ done:**
+
 - [x] Wire Better Auth **JWT plugin** ở `apps/web/src/lib/auth.ts` (EdDSA Ed25519, issuer `cogniva`, audience `cogniva-app`, exp 7d, custom `definePayload` thêm `email/name/plan/parentalConsentStatus`)
 - [x] Wire Better Auth **bearer plugin** với `requireSignature: true` → mobile gửi `Authorization: Bearer <session_token>` được verify
 - [x] Endpoint `/api/auth/jwks` expose JWK Set (verified Ed25519 key trả về)
@@ -1578,6 +1771,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] `lib/observability/logger.ts` thêm `getRegion()` async helper (read request header)
 
 **M4 W4 — Close M4 (2026-05-12) — ✅ done:**
+
 - [x] Mobile `mintJwt()` helper export + architecture: session token là primary bearer (origin Better Auth bearer plugin verify HMAC); JWT cho edge verify offline + 3rd party (Hasura/Supabase RLS sau này)
 - [x] End-to-end pipeline tested với curl:
   - Origin direct: session bearer → `/api/auth/get-session` → 200
@@ -1591,6 +1785,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 **M4 đóng khẩu.** Stage 2 M4 W1-W4 close 4/4 (edge gateway + RN bootstrap + JWT/bearer + anti-bypass + region routing + CI deploy workflow).
 
 **Cần thiết khi deploy production (chờ user setup):**
+
 - [ ] CF account + domain → `wrangler login` + `wrangler kv namespace create FLAGS_KV` → paste id vào `wrangler.toml`
 - [ ] GitHub secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `EDGE_SHARED_SECRET`
 - [ ] Vercel env `EDGE_SHARED_SECRET` match edge (anti-bypass)
@@ -1601,12 +1796,14 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 #### M6 W2 — Mobile features (2026-05-12) — ✅ done
 
 **Documents screen (`apps/mobile/app/(app)/documents.tsx`):**
+
 - [x] FlatList fetch `api.documents.list()` qua TanStack Query
 - [x] Pull-to-refresh (RefreshControl) + loading + empty + error states
 - [x] Status badge với 4 màu (UPLOADING amber / PROCESSING blue / READY green / FAILED red)
 - [x] File type icon (📕 PDF, 📘 DOCX, 📝 MD, 📄 TXT) + format bytes/pages
 
 **Flashcards review (`apps/mobile/app/(app)/flashcards.tsx`):**
+
 - [x] Full FSRS review flow: fetch due → show front → tap reveal → 4 rating buttons (Again/Hard/Good/Easy) → POST /api/flashcards/review → optimistic advance → next card
 - [x] Progress bar `idx / total` realtime
 - [x] Empty + completion states với refetch button
@@ -1614,6 +1811,7 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] Color-coded rating buttons match FSRS standard (red/amber/green/blue)
 
 **Settings revamp (`apps/mobile/app/(app)/settings.tsx`):**
+
 - [x] Account info: email, name, plan, COPPA status conditional
 - [x] GDPR Article 20 — Export data button → POST /api/account/export → show URL
 - [x] GDPR Article 17 — Delete account flow → confirm 2 lần → POST /api/account/delete (30-day grace) → auto sign-out
@@ -1621,10 +1819,12 @@ việc nhỏ. Lưu chronological để git audit trail match plan:
 - [x] "Vùng nguy hiểm" section visually distinct (red border + light pink bg)
 
 **Tab navigation update (`apps/mobile/app/(app)/_layout.tsx`):**
+
 - [x] 4 tabs: Home / Tài liệu / Học / Tôi
 - [x] Active color #0066FF, inactive #999
 
 **Files mới batch này (5 mod + 1 new):**
+
 ```
 apps/mobile/app/(app)/
   documents.tsx          (new — 158 LOC)
@@ -1634,6 +1834,7 @@ apps/mobile/app/(app)/
 ```
 
 **Pending M6 W3:**
+
 - [ ] Swipe gestures (Reanimated 4) thay cho tap rating button
 - [ ] Document detail screen + PDF viewer (react-native-pdf)
 - [ ] Document upload từ mobile (DocumentPicker + presigned URL)
@@ -1644,12 +1845,14 @@ apps/mobile/app/(app)/
 #### M6 W3 — Mobile polish (2026-05-12) — ✅ done
 
 **Offline cache:**
+
 - [x] `PersistQueryClientProvider` + `createAsyncStoragePersister` ở root layout
 - [x] Cache lưu vào AsyncStorage key `cogniva.query-cache`, max 24h, throttle 1s
 - [x] Buster `v1` để invalidate khi API schema đổi
 - [x] App reopen offline → cache restore → render data ngay (stale-while-revalidate)
 
 **Swipe gestures (Reanimated 4 + Gesture Handler 2):**
+
 - [x] Rewrite `apps/mobile/app/(app)/flashcards.tsx` từ tap buttons → swipe full UX
 - [x] Tap card → flip front/back (animated opacity crossfade)
 - [x] PanGesture track translation x/y → card translate + rotate (±15deg) theo drag
@@ -1660,11 +1863,13 @@ apps/mobile/app/(app)/
 - [x] 4 rating buttons vẫn hiện bên dưới (accessibility cho user khó dùng gesture)
 
 **Cancel deletion flow (GDPR Article 17 hoàn chỉnh):**
+
 - [x] Shared API client thêm `deleteStatus()` GET + `requestDelete(reason)` POST với confirm "DELETE MY ACCOUNT"
 - [x] Settings poll `/api/account/delete` → render banner amber khi `pending=true` với daysRemaining + scheduledFor
 - [x] Cancel button → DELETE /api/account/delete → invalidate query → banner ẩn
 
 **Document upload từ mobile:**
+
 - [x] FAB button (góc phải dưới) + empty state upload button
 - [x] `expo-document-picker` pick PDF (mime filter, max 1 file, copy to cache)
 - [x] FormData multipart với asset URI → POST /api/documents/upload với Bearer auth
@@ -1672,6 +1877,7 @@ apps/mobile/app/(app)/
 - [x] Backend xử lý ingest sync (5-30s) → mobile show busy ActivityIndicator
 
 **Deps added (4):**
+
 ```
 @tanstack/react-query-persist-client@^5.100
 @tanstack/query-async-storage-persister@^5.100
@@ -1681,6 +1887,7 @@ expo-sharing@~55.0
 ```
 
 **M6 W4 — Mobile finalization (DONE):**
+
 - [x] Document detail screen `app/(app)/documents/[id].tsx` — metadata header (filename, size, pages, status badge) + chunks browser (FlatList với pageStart/pageEnd) + "Mở web" button qua `Linking.openURL`
 - [x] Restructure tab `documents` thành nested Stack (`documents/_layout.tsx` + `index.tsx` + `[id].tsx`) — fix conflict route giữa flat `documents.tsx` và `[id].tsx`
 - [x] Wire card tap → `router.push('/documents/${id}')` (back swipe iOS / back gesture Android tự work)
@@ -1698,6 +1905,7 @@ expo-sharing@~55.0
 - [x] `app.json` thêm `extra.eas.projectId` placeholder + `owner: cogniva` cho `eas init`
 
 **Files mới M6 W4:**
+
 ```
 apps/mobile/
   app/(app)/documents/_layout.tsx     # Nested Stack
@@ -1711,6 +1919,7 @@ apps/mobile/
 ```
 
 **Pending Stage 3 (mobile native deps):**
+
 - [ ] Native PDF viewer (`react-native-pdf` — cần EAS dev client, không work trong Expo Go vì TurboModule native)
 - [ ] iOS APNs cert + Android FCM service account JSON (cần Apple Dev Program $99/yr + Google Play Console $25)
 - [ ] `eas init` chính thức → fill `projectId` thật + Apple Team ID + service account path
@@ -1718,6 +1927,7 @@ apps/mobile/
 #### M7 — Push notification delivery (2026-05-12) — ✅ done
 
 **Schema (`packages/db/`):**
+
 - [x] Bảng `push_token` — `(id, user_id FK→user, token UNIQUE, platform ios/android/web, device_id?, enabled, created_at, last_seen_at)` + index `(user_id)` cho Inngest worker lookup
 - [x] Bảng `notification_log` — audit trail `(user_id, type, title, body, data jsonb, status pending/sent/failed/rejected, receipt_id, error, sent_at, created_at)` + index `(user_id, type, created_at DESC)` cho 24h dedupe query
 - [x] Migration `0007_push_token.sql` — idempotent CREATE TABLE + CREATE INDEX IF NOT EXISTS
@@ -1725,20 +1935,24 @@ apps/mobile/
 - [x] Export type `PushToken` / `NotificationLog` (cả `$inferSelect` + `$inferInsert`)
 
 **Backend endpoint (`apps/web/`):**
+
 - [x] `POST /api/account/push-token` — Zod validate Expo Push Token format, upsert theo `token` UNIQUE (cover case device transferred giữa users), audit log `push.token.{created|updated|transferred}`
 - [x] `DELETE /api/account/push-token` — body `{ token }`, chỉ xoá nếu token thuộc user (chống user A craft request xoá token user B), audit log
 - [x] Bearer protected (require `auth.api.getSession`), rate limit auto qua middleware 30/min anon hoặc 120/min auth
 
 **Shared API client (`packages/shared/`):**
+
 - [x] `account.registerPushToken({ token, platform, deviceId? })` → POST upsert
 - [x] `account.unregisterPushToken(token)` → DELETE unregister
 
 **Mobile wiring (`apps/mobile/`):**
+
 - [x] `src/lib/notifications.ts` thêm `cachedToken` module-level singleton + `getCachedPushToken()` export (cho sign-out flow KHÔNG phải re-request permission)
 - [x] `app/_layout.tsx` `NotificationsBridge` POST token sang `/api/account/push-token` sau khi `registerForPushNotificationsAsync` ok, log `action` (created/updated/transferred) cho debug
 - [x] `src/store/auth.ts` `signOut()` DELETE token TRƯỚC khi clear session (cần Bearer còn hợp lệ); failure không block sign-out flow (stale token sẽ tự dọn ở cron khi Expo Push API trả `DeviceNotRegistered`)
 
 **Inngest worker (`apps/web/src/inngest/functions/flashcard-due-reminder.ts`):**
+
 - [x] Cron `0 13 * * *` — 13:00 UTC daily = 20:00 VN (giờ học buổi tối)
 - [x] Step 1 `query-candidates` — SQL aggregate `count(*) WHERE due <= NOW AND state != 'NEW' GROUP BY userId HAVING count >= 5` (threshold tránh spam khi 1-2 thẻ)
 - [x] Step 2 `dedupe-recent-sent` — skip user đã nhận `flashcard-due` trong 24h gần nhất (query `notification_log` WHERE status='sent')
@@ -1749,6 +1963,7 @@ apps/mobile/
 - [x] Registered trong `apps/web/src/app/api/inngest/route.ts` `serve({ functions: [...] })`
 
 **Files mới M7:**
+
 ```
 packages/db/src/schema.ts                                   # +pushToken +notificationLog +relations +types
 packages/db/migrations/0007_push_token.sql                  # NEW
@@ -1762,6 +1977,7 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 ```
 
 **Acceptance — smoke test 2026-05-12 ✅:**
+
 - [x] Apply migration 0007 → `push_token` + `notification_log` tables exist
 - [x] Mobile sign-in trên Android device thật → log `[push] backend register OK: created`
 - [x] `push_token` row: 1 (`ExponentPushToken[Ka0_e1ETO1D4...]` / android / mobileapp@gmail.com)
@@ -1771,22 +1987,26 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 - [x] `notification_log` row: status='sent', receipt_id `019e1c8a-8f6a-7704-b714-...`, data `{type:'flashcard-due',dueCount:6}`
 
 **Smoke test pending (chưa verify cần test sau):**
+
 - [ ] **Tap notification → router.push deep link** — khi push tới app đang background hoặc closed, tap notif phải mở app + navigate `/flashcards`. Smoke test 2026-05-12 không verify được vì app đang foreground (notif show banner overlay, không trigger response listener). Test cách: tắt app hẳn (vuốt khỏi recent) → trigger Inngest → tap notif → app mở vào `/flashcards`
 - [ ] **Sign-out unregister token** — `signOut()` đã wire `api.account.unregisterPushToken(cachedToken)` nhưng chưa test live. Verify: sign-out mobile → `SELECT * FROM push_token WHERE token = '...'` empty
 - [ ] **24h dedupe** — invoke function 2 lần liên tiếp → lần 2 phải skip user vì `notification_log.status='sent'` < 24h. Verify: trigger Invoke 2 lần, lần 2 step `dedupe-recent-sent` filter ra hết
 - [ ] **DeviceNotRegistered cleanup** — uninstall Expo Go khỏi phone → trigger → Expo Push API trả `DeviceNotRegistered` → step `cleanup-invalid-tokens` xoá row khỏi push_token. Verify: phone uninstall + DB query thấy row deleted
 
 **Bugs đã fix trong smoke test:**
+
 - `app.json` để placeholder `REPLACE_ME_*` projectId — code pass placeholder → Expo Server validate UUID fail. **Fix:** chạy `eas init` chính thức (login Expo + create real project) → ghi real projectId vào app.json. Project ID hiện tại: `72508ea4-d50b-4dd4-a7e6-155fd654b3bc` (owner `dovanviet`).
-- Drizzle `sql\`... = ANY(${array})\`` không serialize JS array đúng qua postgres.js → query fail ở 3 step (`dedupe-recent-sent`, `lookup-tokens`, `cleanup-invalid-tokens`). **Fix:** dùng `inArray(column, array)` từ `drizzle-orm` thay vì raw sql template.
+- Drizzle `sql\`... = ANY(${array})\`` không serialize JS array đúng qua postgres.js → query fail ở 3 step (`dedupe-recent-sent`, `lookup-tokens`, `cleanup-invalid-tokens`). **Fix:** dùng `inArray(column, array)`từ`drizzle-orm` thay vì raw sql template.
 - SDK 54 đã xoá anonymous push token fallback của Expo Go → MUST có real EAS projectId. Code `notifications.ts` đã update remove the "skip placeholder" hack.
 
 **Why batch 100 + Expo Push API thay vì FCM/APNs trực tiếp:**
+
 - Expo Push API miễn phí, 1 endpoint cover cả iOS + Android — KHÔNG cần Apple Dev Program ($99/yr) hay Google service account JSON ở giai đoạn dev/test
 - Token format `ExponentPushToken[xxx]` ổn định, không phụ thuộc EAS production build → chạy được trên Expo Go dev cho test
 - Stage 3 nếu cần feature nâng cao (rich media, action buttons) sẽ migrate sang FCM/APNs trực tiếp qua `expo-server-sdk` hoặc Firebase Admin SDK
 
 **Why cron 20:00 VN không TZ-aware:**
+
 - TZ-aware notif cần `user.timezone` field + cron mỗi giờ + check TZ match → phức tạp, chỉ worth khi target market non-VN > 30%
 - 20:00 VN cover hầu hết VN user (target chính); EU/US user nhận giờ kỳ lạ — accept trade-off MVP
 - Stage 3 sẽ thêm `user.timezone` + UI Settings "Giờ nhắc nhở mong muốn" + cron mỗi giờ filter theo TZ
@@ -1798,6 +2018,7 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 > Naming convention thay đổi từ rooms-and-exam.md: dùng `exam` + `examQuestion` + `examAttempt` + `examResponse` + `examViolation` (singular) thay vì plural cho consistent với `user` / `document` / `flashcard` / `quiz` / `question` của Cogniva.
 
 **Schema (`packages/db/`):**
+
 - [x] 5 bảng: `exam`, `exam_question`, `exam_attempt`, `exam_response`, `exam_violation` + 3 enum (`exam_mode`, `exam_status`, `attempt_status`)
 - [x] Schema sẵn cột cho Phase 17 (`liveCode`, `currentQuestionIndex`), Phase 18 (`difficulty`/`discrimination`/`guessing` IRT params + `estimatedTheta`/`thetaSE`/`minQuestions`/`maxQuestions`/`targetSE`), Phase 19 (`antiCheat` jsonb + `violations`/`cheatRiskScore`/`flagged`/`webcamRecordingUrl`/`browserFingerprint`)
 - [x] `examQuestion.type` plain text (không enum) — dễ thêm loại mới không cần ALTER TYPE. Hỗ trợ: MCQ_SINGLE / MCQ_MULTI / TRUE_FALSE / SHORT / ESSAY / FILL_BLANK / MATCHING / ORDERING / CODE / MATH / DRAWING
@@ -1806,12 +2027,14 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 - [x] Drizzle relations + 12 type exports
 
 **Grading logic (`apps/web/src/lib/`):**
+
 - [x] `exam/grade.ts` — `gradeResponse(question, answer)` dispatch theo type, 7 auto-grade types: MCQ_SINGLE / MCQ_MULTI / TRUE_FALSE / FILL_BLANK / SHORT / ORDERING / MATCHING. Hỗ trợ partial credit (MCQ_MULTI / ORDERING / MATCHING) qua flag `partialCredit`
 - [x] Unicode NFC normalize + case-insensitive + trim cho FILL_BLANK/SHORT. Accept alts từ `acceptableAnswers` array
 - [x] SHORT exact-match fail → cờ `needsAiGrading=true` → caller chạy AI semantic
 - [x] `ai/grade-essay.ts` — `aiGradeShortAnswer` + `aiGradeEssay` qua `routedGenerateText(useCase: 'reasoning')` (Anthropic Opus primary, Sonnet fallback). JSON output zod-validate, clamp score [0, maxPoints]. Fail-open: AI lỗi → flagForReview=true, manual grade sau
 
 **Backend API (`apps/web/src/app/api/`):**
+
 - [x] `exams/route.ts` — GET list owned + POST create (auto-gen liveCode cho LIVE mode)
 - [x] `exams/[id]/route.ts` — GET detail (strip correctAnswer/explanation cho student) + PUT update (DRAFT only) + DELETE
 - [x] `exams/[id]/publish/route.ts` — DRAFT → PUBLISHED + aggregate maxScore từ sum points
@@ -1824,6 +2047,7 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 - [x] `attempts/[id]/submit/route.ts` — finalize: grade tất cả responses (parallel concurrency=5 cho AI batch), update attempt status=SUBMITTED + score + percentage + passed + timeSpent
 
 **UI (`apps/web/src/app/(app)/exams/`):**
+
 - [x] `page.tsx` — list owner's exams với status badge + mode label + button "Tạo exam"
 - [x] `new/page.tsx` — form tạo exam (title/description/mode/duration/maxAttempts/shuffle toggles)
 - [x] `[id]/page.tsx` — builder cho owner DRAFT (add manual + AI gen + publish) + start page cho student PUBLISHED. Preview question với highlight correctAnswer cho owner
@@ -1834,6 +2058,7 @@ apps/mobile/src/store/auth.ts                               # signOut() unregist
 - [x] Sidebar `/exams` link (icon ClipboardList) trong group "Practice"
 
 **Files mới Phase 16:**
+
 ```
 packages/db/src/schema.ts                                        # +exam/examQuestion/examAttempt/examResponse/examViolation +3 enum +5 relations +12 types
 packages/db/migrations/0008_exam_system.sql                      # NEW (idempotent migration)
@@ -1860,6 +2085,7 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 ```
 
 **Acceptance (live test pending — khi user QA):**
+
 - [ ] Apply migration: `psql $DATABASE_URL -f packages/db/migrations/0008_exam_system.sql`
 - [ ] /exams page render danh sách rỗng + button "Tạo exam"
 - [ ] Tạo exam Practice mode → redirect /exams/[id]
@@ -1870,8 +2096,9 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [ ] Timed mode 1 phút → countdown chạy → khi 0 auto-submit
 
 **⚠️ Phase 17 (Kahoot LIVE) + Phase 18 (Adaptive IRT) đã được REMOVE 2026-05-13:**
+
 - User quyết định bỏ 3 mode LIVE/TOURNAMENT/ADAPTIVE — chỉ giữ PRACTICE + TIMED
-- Files đã xoá: lib/adaptive/*, lib/live-exam/*, lib/exam/tournament.ts, app/api/live-exam/*, app/api/exams/[id]/calibrate, app/api/attempts/[id]/adaptive-next, app/(app)/exams/[id]/{live,tournament,adaptive}, app/(app)/live-exam, inngest/functions/exam-question-timeout
+- Files đã xoá: lib/adaptive/_, lib/live-exam/_, lib/exam/tournament.ts, app/api/live-exam/\*, app/api/exams/[id]/calibrate, app/api/attempts/[id]/adaptive-next, app/(app)/exams/[id]/{live,tournament,adaptive}, app/(app)/live-exam, inngest/functions/exam-question-timeout
 - DB: migration 0010_drop_tournament.sql drop bảng tournament_match (applied)
 - `examModeEnum` giữ value cũ trong DB (không ALTER TYPE) — UI/API chỉ accept PRACTICE/TIMED
 - Join code 6-char vẫn giữ — sinh khi publish, share qua `/join` page
@@ -1882,22 +2109,26 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 > Mục tiêu: Host tạo LIVE/TOURNAMENT exam → student join bằng 6-char code → Kahoot-style realtime → leaderboard top 10 + speed bonus → tournament bracket 1v1 elimination.
 
 **Schema (`packages/db/`):**
+
 - [x] Bảng `tournament_match` (singular) — bracket phẳng theo (round, matchIndex), index `exam_round`/`player1`/`player2`
 - [x] Migration `0009_tournament_match.sql` idempotent — applied dev DB
 - [x] Drizzle relations + type exports `TournamentMatch`/`NewTournamentMatch`
 - [x] `exam.liveCode` auto-gen khi POST /exams mode=LIVE|TOURNAMENT, fallback khi PUBLISH (cũ NULL)
 
 **Redis layer (sorted set + plain set):**
+
 - [x] `IoRedisAdapter` + `InMemoryRedis` thêm `zincrby` / `zrevrange` / `zrevrank` / `zscore` / `zcard` / `zrem` / `sadd` / `srem` / `scard` / `smembers`
 - [x] `del()` cover cả 3 namespace (string/zset/set) cho InMemoryRedis
 
 **Live exam helpers (`apps/web/src/lib/live-exam/`):**
+
 - [x] `code.ts` — `generateLiveCode()` 6-char alphabet bỏ 0/O/1/I/L (extract khỏi route)
 - [x] `state.ts` — `setCurrentQuestion/getCurrentQuestion/clearCurrentQuestion/markAnswered/clearAllLiveState` qua Redis `exam:{id}:current` + dedupe `exam:{id}:answered:{uid}:{qid}` (NX with TTL)
 - [x] `leaderboard.ts` — `awardPoints/topLeaderboard/leaderboardSize/getUserRank/markJoined/joinedCount/joinedUserIds` wrap ZSET + SET ops, normalize Upstash vs IoRedis API
 - [x] `lib/exam/tournament.ts` — `buildBracket(players)` Fisher-Yates shuffle, pad BYE (player2=null → auto-win), `nextRoundSlot()` helper advance bracket
 
 **Backend API (`apps/web/src/app/api/live-exam/`):**
+
 - [x] `join/route.ts` — POST { code } → resolve examId + tạo/resume attempt + SADD joined set
 - [x] `[examId]/start/route.ts` — owner DRAFT→IN_PROGRESS, clear stale Redis state, broadcast `exam:started`
 - [x] `[examId]/next-question/route.ts` — pick câu theo orderIndex, cache state Redis với correctAnswer (server-only), broadcast sanitized, schedule Inngest `exam/question-timeout`
@@ -1909,14 +2140,17 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] `[examId]/tournament/bracket/route.ts` — GET full bracket với player/winner enriched + question public
 
 **Realtime auth (`apps/web/src/app/api/realtime/auth/route.ts`):**
+
 - [x] Add `presence-exam-{examId}` channel — owner luôn pass; student phải có examAttempt IN_PROGRESS
 
 **Inngest worker (`apps/web/src/inngest/functions/`):**
+
 - [x] `exam-question-timeout.ts` — `step.sleep(timeLimit+1)` durable, check state mismatch (host advance sớm → skip idempotent), aggregate stats SQL group by isCorrect, top 10 leaderboard, broadcast `question:results` với correctAnswer, clear Redis state
 - [x] Đăng ký vào `api/inngest/route.ts` functions[]
 - [x] `InngestEvents` type thêm `exam/question-timeout` payload
 
 **UI (`apps/web/src/app/(app)/`):**
+
 - [x] `live-exam/page.tsx` — form nhập 6-char code → POST /join → redirect `/live-exam/[code]`
 - [x] `live-exam/[code]/page.tsx` — student state machine (loading/waiting/question/feedback/results/ended), Kahoot 4-color buttons cho MCQ_SINGLE, TRUE_FALSE 2-color, MCQ_MULTI checkbox+Submit, countdown sync server `startedAt`, Socket.IO `presence-exam-{id}` subscribe + 5s poll fallback
 - [x] `exams/[id]/live/page.tsx` — host control panel (chỉ owner): liveCode + copy, joinedCount realtime poll 3s, Start/Next/End buttons, preview câu broadcasting + timer + options list, top 10 leaderboard
@@ -1925,6 +2159,7 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] Sidebar nav thêm "Live Exam" (icon Zap) trong Practice group
 
 **Phase 17 Acceptance:**
+
 - [x] DB schema + migration applied
 - [x] TypeScript clean (cả `apps/web` + `packages/db` pass tsc)
 - [ ] Smoke test E2E: owner tạo LIVE → 2 trình duyệt student join code → host Next → cả 2 answer → results broadcast → leaderboard đúng → host End → final podium
@@ -1935,21 +2170,25 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 > Mục tiêu: AI điều chỉnh độ khó câu hỏi theo năng lực student dùng Item Response Theory (3PL) + Computerized Adaptive Testing. Test ngắn hơn 30-50% so với fixed-length mà SE θ vẫn converge.
 
 **IRT engine (`apps/web/src/lib/adaptive/`):**
+
 - [x] `irt.ts` — 3PL model: `p3PL(θ, a, b, c)` + `itemInformation(θ)` Fisher info + `estimateTheta()` MLE grid search 0.01 step + `shouldTerminate()` check minQ/maxQ/targetSE
 - [x] `cat.ts` — `pickNextItem()` Maximum Fisher Information picker (cold start: smallest |b|; warm: max I(θ)) + `autoCalibrate()` logit-proportion heuristic từ historical response
 
 **APIs (`apps/web/src/app/api/`):**
+
 - [x] `exams/[id]/calibrate/route.ts` — POST owner trigger auto-calibrate batch toàn bộ examQuestion từ examResponse history (cần >= 10 response/câu)
 - [x] `attempts/[id]/adaptive-next/route.ts` — POST trả câu kế tiếp theo θ ước lượng hiện tại HOẶC `done:true` khi terminate; cập nhật `examAttempt.estimatedTheta/thetaSE`
 - [x] `attempts/[id]/responses/route.ts` — extend: ADAPTIVE mode auto-grade ngay (cần isCorrect cho θ estimation)
 
 **AI essay grading nâng cao (`apps/web/src/lib/ai/grade-essay.ts`):**
+
 - [x] Thêm `confidence` per criterion (0..1) trong AI output
 - [x] Thêm `strengths` + `improvements` arrays — actionable feedback
 - [x] Auto-flag review nếu ANY criterion confidence < 0.6 (threshold cấu hình `CONFIDENCE_REVIEW_THRESHOLD`)
 - [x] System prompt cập nhật cho rubric grading + confidence guidance
 
 **UI:**
+
 - [x] `/exams/new` thêm option **Adaptive (IRT/CAT)**
 - [x] `ModeSwitcher` trong `/exams/[id]` thêm ADAPTIVE
 - [x] Owner button **"Auto IRT"** — bấm calibrate toàn bộ câu hỏi
@@ -1957,6 +2196,7 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] `startAttempt` redirect: ADAPTIVE → `/adaptive/[attemptId]` thay vì `/take/[attemptId]`
 
 **Phase 18 Acceptance:**
+
 - [x] TypeScript clean
 - [ ] Smoke test: tạo exam 20 câu MCQ → chạy TIMED nhiều lần (>= 10/câu) → bấm Auto IRT → clone sang ADAPTIVE → student làm → kết thúc trong 6-15 câu (SE ≤ 0.3)
 - [ ] Smoke test essay grading: tạo ESSAY câu có rubric 3 criterion → student trả lời → AI grade trả breakdown + confidence + strengths/improvements
@@ -1966,12 +2206,14 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 > Mục tiêu: TIMED exam có scheduled simultaneous start, webcam + mic check, anti-cheat detection (tab/fullscreen/copy-paste/devtools), violation log + cheatRiskScore + owner review dashboard.
 
 **Schema (KHÔNG cần migration — đã sẵn ở 0008):**
+
 - [x] `exam.antiCheat` jsonb thêm `requireMic` flag
 - [x] `exam.startsAt/endsAt` đã có — wire scheduled simultaneous start
 - [x] `examAttempt.violations/cheatRiskScore/flagged/flagReason` đã có — wire compute logic
 - [x] `examViolation` table đã có — wire insert path
 
 **Client detector hooks (`apps/web/src/lib/anti-cheat/detectors.ts`):**
+
 - [x] `useFullscreenLock` — request fullscreen, log fullscreen_exit khi user thoát
 - [x] `useTabSwitchDetection` — visibilitychange + window blur listener
 - [x] `useCopyPasteBlock` — preventDefault copy/paste/cut + log
@@ -1980,6 +2222,7 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] `useReportViolations` — batch queue + debounce 1s flush POST, retry on fail, flush-on-unmount
 
 **ProctorCamera component (`apps/web/src/components/exams/proctor-camera.tsx`):**
+
 - [x] getUserMedia video + audio per exam config
 - [x] Fixed bottom-right preview (200x150), LIVE badge, mic volume bar
 - [x] Snapshot capture every 30s qua canvas → JPEG q=0.6 base64 (client-side; V1 chưa upload)
@@ -1987,17 +2230,20 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] Permission denied → `webcam_denied` / `mic_denied` violation severity high
 
 **APIs:**
+
 - [x] `attempts/[id]/violations/route.ts` — POST batch log + APPEND jsonb + recompute cheatRiskScore (sigmoid weighted: low=1, medium=3, high=10, scale=30) + auto-flag khi >0.7; GET timeline cho owner
 - [x] `attempts/[id]/disqualify/route.ts` — owner POST set status=DISQUALIFIED + score=0
 - [x] `exams/[id]/proctor/route.ts` — GET list attempts với violation count + cheat score (sort flagged desc, score desc)
 - [x] `exams/[id]/route.ts` (PUT extended) — accept `antiCheat` jsonb + `startsAt/endsAt` ISO strings, convert sang Date
 
 **Owner UI:**
+
 - [x] `/exams/[id]` thêm `AntiCheatConfig` card cho DRAFT — 7 toggle (fullscreen/tab/copy/context/devtools/cam/mic + aiProctor placeholder V2) + datetime-local picker cho scheduled start
 - [x] `/exams/[id]/proctor/page.tsx` — bảng attempts với cheatRiskScore bar (xanh<30%/vàng/đỏ>70%), violation count, score, action Eye (timeline modal) + Ban (disqualify confirm)
 - [x] Button "Proctor" trên header /exams/[id] cho owner non-DRAFT
 
 **Student take page integration (`/exams/[id]/take/[attemptId]/page.tsx`):**
+
 - [x] **Waitroom**: nếu `startsAt > now` → countdown HH:MM:SS, exam tự động bắt đầu đúng giờ (camera/mic permission có thể request sớm để check)
 - [x] **Pre-flight consent screen**: nếu có bất kỳ anti-cheat config → hiện list rule + nút "Tôi đồng ý" (cần user gesture để requestFullscreen)
 - [x] Detectors hooks chỉ active sau khi `examStarted=true` && qua waitroom && IN_PROGRESS
@@ -2005,20 +2251,24 @@ apps/web/src/components/app/sidebar.tsx                          # +/exams link
 - [x] Toast warning realtime cho violation severity medium/high
 
 **Phase 19 Acceptance V1:**
+
 - [x] TypeScript clean
 - [ ] Smoke test E2E: tạo exam TIMED + bật fullscreen/tab/cam/mic + set startsAt = 2 phút sau → student vào → waitroom countdown → 0s auto-bắt đầu → consent screen → fullscreen → làm bài → tab switch → toast warning → submit → owner /proctor xem timeline
 
 **Phase 19 V2 (defer):**
-- [ ] Snapshot upload R2 (cần env R2_*) + gallery cho owner review
+
+- [ ] Snapshot upload R2 (cần env R2\_\*) + gallery cho owner review
 - [ ] AI proctor Gemini Vision analyze snapshot — detect no-face/multiple-faces/looking-away/phone
 - [ ] Whisper transcript mic — detect prohibited speech
 - [ ] Browser fingerprint dedup (chống multi-account 1 device)
 
 **Why local scaffold trước:**
+
 - Wrangler dev emulate Workers runtime LOCAL (`workerd` binary, DO + KV in-memory) → KHÔNG cần CF account hay domain để code + test logic
 - Khi user mua domain + CF account → chỉ cần `wrangler login` + `wrangler kv namespace create FLAGS_KV` + paste id + `wrangler deploy`. Code 100% production-ready.
 
 **Files mới batch này:**
+
 ```
 apps/edge/                    (14 files)
   package.json, tsconfig.json, wrangler.toml, .gitignore, .dev.vars.example,
@@ -2044,10 +2294,12 @@ apps/mobile/                  (18 files)
 **Total LOC scaffolded:** ~2.4K LOC (TS), 100% Vietnamese-commented (header + JSDoc).
 
 **Cost estimate khi deploy:**
+
 - Workers paid $5/mo (10M req/mo + DO + KV included) — 10K MAU ~$15/mo total
 - Expo / EAS Build free tier đủ cho dev; production submit App Store ($99/yr) + Play ($25 one-time)
 
 **Acceptance khi smoke test (cần `pnpm install` trước):**
+
 - [ ] `pnpm --filter @cogniva/edge dev` → wrangler dev port 8787 → `curl http://localhost:8787/__edge/health` → 200 OK JSON
 - [ ] `curl -X POST http://localhost:8787/api/test -i` (no cookie/header) → 403 CSRF mismatch (mutating method without token)
 - [ ] `curl http://localhost:8787/__edge/health` x 300 lần → trigger rate limit anon IP, expect 429 sau 30 req trong cùng phút
@@ -2059,25 +2311,29 @@ apps/mobile/                  (18 files)
 ## 11. DevOps, Security, Compliance
 
 ### 11.1. Environments
+
 - `local` — Docker compose, seeded data
 - `preview` — Vercel preview per PR
 - `staging` — staging.cogniva.com, weekly deploy
 - `production` — cogniva.com, on-demand deploy
 
 ### 11.2. Secrets management
+
 - Vercel env vars (encrypted)
 - Doppler / Infisical for sync across envs
 - Never commit `.env` (use `.env.example`)
 
 ### 11.3. Database
+
 - Daily automated backups (PITR)
 - Connection pooling (PgBouncer or Supabase Pooler)
 - Read replicas if scale requires
 
 ### 11.4. Security checklist (OWASP top 10 audit — Phase 10)
+
 - [x] **A01 Broken access control** — Every protected route verifies `auth.api.getSession()`; middleware redirect `protectedPrefixes`. Scope queries qua `where(eq(table.userId, session.user.id))` để chống IDOR (xem flashcard, note, group routes)
 - [x] **A02 Cryptographic failures** — Better Auth hash password (bcrypt) + session cookie httpOnly + secure flag
-- [x] **A03 Injection** — All inputs Zod validated; Drizzle parameterizes 100% query; raw SQL chỉ qua `sql\`\`` template tag (auto-parameterize); pgvector params dùng `::vector` cast string literal an toàn
+- [x] **A03 Injection** — All inputs Zod validated; Drizzle parameterizes 100% query; raw SQL chỉ qua `sql\`\``template tag (auto-parameterize); pgvector params dùng`::vector` cast string literal an toàn
 - [x] **A04 Insecure design** — Rate limit lib/rate-limit (chat/aiGenerate/upload preset); `note.content` HTML không render via dangerouslySetInnerHTML (TipTap render qua editor); image upload validate mime + size
 - [ ] **A05 Security misconfiguration** — CSP headers chưa add (Phase 11 polish). Cookie flags Better Auth defaults
 - [ ] **A06 Vulnerable components** — Dependabot enable trên GitHub Phase 11
@@ -2087,6 +2343,7 @@ apps/mobile/                  (18 files)
 - [x] **A10 SSRF** — Không có endpoint nhận URL user để fetch; image upload là direct multipart không qua URL
 
 ### 11.5. Privacy & Compliance
+
 - GDPR: data export, account deletion endpoints
 - DPA available for paid users
 - Privacy policy + ToS (use templates from Termly/iubenda)
@@ -2094,6 +2351,7 @@ apps/mobile/                  (18 files)
 - AI-specific: disclose models used, allow opt-out of training (Anthropic doesn't train on API by default — make sure)
 
 ### 11.6. Cost controls
+
 - LLM budget per user per month (free tier: 100k tokens/day)
 - Cached embeddings (don't re-embed identical text)
 - Use Haiku for cheap tasks (chunking, classification)
@@ -2105,6 +2363,7 @@ apps/mobile/                  (18 files)
 ## 12. Evaluation & Observability
 
 ### 12.1. Eval datasets
+
 Build 4 datasets, version-controlled in `tests/golden/`:
 
 1. **Retrieval eval** — 100 queries with ground-truth chunks
@@ -2117,12 +2376,15 @@ Build 4 datasets, version-controlled in `tests/golden/`:
    - Metric: Precision, Recall
 
 ### 12.2. CI evals
+
 On every PR touching `packages/ai`:
+
 - Run all 4 evals
 - Fail PR if any metric drops > 5%
 - Post results as PR comment
 
 ### 12.3. Observability stack
+
 - **Langfuse**: every LLM call traced (prompt, response, latency, cost, tokens)
 - **Sentry**: errors with source maps
 - **PostHog**: events (button clicks, feature usage), session replay (privacy-aware)
@@ -2130,6 +2392,7 @@ On every PR touching `packages/ai`:
 - **Vercel Analytics**: Web Vitals (LCP, INP, CLS)
 
 ### 12.4. KPIs to track
+
 - **Engagement:** DAU/MAU, session length, retention D1/D7/D30
 - **Learning:** mastery growth/week, cards reviewed/day, quiz accuracy
 - **AI quality:** P50/P95 latency, faithfulness score, user thumbs up/down
@@ -2137,7 +2400,9 @@ On every PR touching `packages/ai`:
 - **Cost:** $/user/month (LLM + infra), gross margin
 
 ### 12.5. Dashboards
+
 Build 3 dashboards (Metabase or PostHog):
+
 1. **Product health** — DAU, retention, NPS
 2. **AI performance** — latency, faithfulness, eval scores
 3. **Cost** — $/feature, $/user, projected burn
@@ -2148,20 +2413,21 @@ Build 3 dashboards (Metabase or PostHog):
 
 ### 13.1. Freemium tiers
 
-| Feature | Free | Pro ($12/mo) | Team ($25/user/mo) |
-|---|---|---|---|
-| Documents | 10 | Unlimited | Unlimited |
-| AI messages/day | 50 | 500 | 2000 |
-| Voice mode | ❌ | ✓ | ✓ |
-| Knowledge graph | ✓ | ✓ + advanced | ✓ |
-| Flashcards | 500 | Unlimited | Unlimited |
-| Quiz generation | 5/day | Unlimited | Unlimited |
-| Collaborative groups | ❌ | 3 members | Unlimited |
-| Priority models | Haiku | Sonnet | Opus available |
-| Support | Community | Email | Priority |
-| Data export | ✓ | ✓ | ✓ + API access |
+| Feature              | Free      | Pro ($12/mo) | Team ($25/user/mo) |
+| -------------------- | --------- | ------------ | ------------------ |
+| Documents            | 10        | Unlimited    | Unlimited          |
+| AI messages/day      | 50        | 500          | 2000               |
+| Voice mode           | ❌        | ✓            | ✓                  |
+| Knowledge graph      | ✓         | ✓ + advanced | ✓                  |
+| Flashcards           | 500       | Unlimited    | Unlimited          |
+| Quiz generation      | 5/day     | Unlimited    | Unlimited          |
+| Collaborative groups | ❌        | 3 members    | Unlimited          |
+| Priority models      | Haiku     | Sonnet       | Opus available     |
+| Support              | Community | Email        | Priority           |
+| Data export          | ✓         | ✓            | ✓ + API access     |
 
 ### 13.2. Strategy
+
 - Free tier generous enough to be useful (otherwise no virality)
 - Free → Pro conversion goal: 3-5%
 - Annual discount: 20% off
@@ -2169,6 +2435,7 @@ Build 3 dashboards (Metabase or PostHog):
 - Lifetime deal on launch: $99 (limited 100 spots) → AppSumo-style
 
 ### 13.3. Other revenue
+
 - Team/enterprise: custom pricing
 - Marketplace: users sell their decks/quizzes (rev share)
 - API access for Pro+ ($0.01/request)
@@ -2178,20 +2445,24 @@ Build 3 dashboards (Metabase or PostHog):
 ## 14. Portfolio & Marketing
 
 ### 14.1. Portfolio impact
+
 Khi present cho recruiter, focus vào:
 
 **Technical depth:**
+
 - "Built multi-stage RAG with HyDE + hybrid search + reranking → 91% faithfulness"
 - "Implemented Bayesian Knowledge Tracing for adaptive learning"
 - "Designed eval framework with 400-item golden dataset"
 - "Reduced P95 latency 4.2s → 1.8s with streaming + caching"
 
 **Production craft:**
+
 - "Built Langfuse observability covering 100% of LLM calls"
 - "CI runs evals on every PR — prevents regression"
 - "Cost optimization: routed simple queries to Haiku, saved 70% LLM cost"
 
 **Show, don't tell:**
+
 - Live demo URL
 - 90s Loom walkthrough
 - Architecture diagram (the one we made)
@@ -2200,6 +2471,7 @@ Khi present cho recruiter, focus vào:
 - Open-source 1-2 packages (the eval framework, the FSRS impl)
 
 ### 14.2. Launch channels
+
 - **Product Hunt** — schedule for Tuesday launch
 - **Hacker News** — Show HN with technical post
 - **Reddit** — r/ChatGPT, r/learnmachinelearning, r/GetStudying, r/Anki
@@ -2209,22 +2481,26 @@ Khi present cho recruiter, focus vào:
 - **Dev.to / Medium** — technical write-ups (RAG patterns, FSRS)
 
 ### 14.3. SEO
+
 - Blog with technical posts (RAG, evals, prompt engineering)
 - Comparison pages: "Cogniva vs Quizlet", "Cogniva vs Anki"
 - Free tools: "PDF to flashcards", "AI quiz generator" → lead gen
 
 ### 14.4. Open source strategy
+
 Open-source these standalone packages:
+
 - `@cogniva/fsrs` — TS implementation of FSRS
 - `@cogniva/rag-evals` — eval harness
 - `@cogniva/prompt-versioning` — prompt mgmt + A/B testing
-This builds reputation and gets external contributors.
+  This builds reputation and gets external contributors.
 
 ---
 
 ## 🎯 Definition of Done (Project)
 
 A recruiter looking at this should think:
+
 - [x] "This person can architect production AI systems"
 - [x] "They understand evaluation, not just prompting"
 - [x] "They know observability and cost management"
@@ -2232,6 +2508,7 @@ A recruiter looking at this should think:
 - [x] "The product itself is genuinely useful — not a toy"
 
 A user trying it should think:
+
 - [x] "This actually understands what I'm learning"
 - [x] "It's faster than my current workflow"
 - [x] "I want to use this every day"
@@ -2241,6 +2518,7 @@ A user trying it should think:
 ## 📚 Learning resources during build
 
 Recommended reading parallel to building:
+
 - **RAG**: "Retrieval-Augmented Generation for Knowledge-Intensive NLP" (Lewis 2020)
 - **Evals**: Eugene Yan's blog, especially "Evals" series
 - **Mastra docs**: agents, workflows, evals, tracing (mastra.ai/docs)
@@ -2262,4 +2540,4 @@ Recommended reading parallel to building:
 
 ---
 
-*Plan version 1.0 — May 2026. Update as you build; no plan survives contact with the keyboard intact.*
+_Plan version 1.0 — May 2026. Update as you build; no plan survives contact with the keyboard intact._

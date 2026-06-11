@@ -1,7 +1,3 @@
-/**
- * Zod schemas cho admin domain routes — body validate giữ y route cũ
- * (reason 10..500 bắt buộc trên mọi mutation có audit).
- */
 import { z } from 'zod';
 
 export const adminReasonSchema = z.object({
@@ -10,7 +6,6 @@ export const adminReasonSchema = z.object({
 export type AdminReasonInput = z.infer<typeof adminReasonSchema>;
 
 export const refundSchema = z.object({
-  /** Partial refund; omit = full refund (amountVnd của payment). */
   amountVnd: z.number().int().positive().optional(),
   reason: z.string().trim().min(10).max(500),
 });
@@ -28,13 +23,11 @@ export const kycReviewSchema = z.object({
 });
 export type KycReviewInput = z.infer<typeof kycReviewSchema>;
 
-/** Clamp limit query param y route cũ: NaN → default, floor, 1..max. */
 export function clampLimit(raw: string | undefined, def: number, max: number): number {
   const n = Number(raw ?? def);
   return Number.isFinite(n) ? Math.min(max, Math.max(1, Math.floor(n))) : def;
 }
 
-/** Cursor ISO → Date; invalid → null (route cũ bỏ qua cursor invalid). */
 export function parseCursor(cursor: string | undefined): Date | null {
   if (!cursor) return null;
   const d = new Date(cursor);

@@ -1,25 +1,9 @@
-/**
- * BookingDetailClient — chi tiết 1 booking + payment + review + actions.
- *
- * Actions:
- *   - Force cancel (SUPER_ADMIN / ADMIN): khi status không phải COMPLETED/CANCELLED
- *   - Refund (SUPER_ADMIN only): khi payment status = CAPTURED
- *     + Có thể nhập amountVnd partial (default = full)
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Calendar,
-  Coins,
-  Eye,
-  EyeOff,
-  MoreHorizontal,
-  Star,
-  XOctagon,
-} from 'lucide-react';
+import { Calendar, Coins, Eye, EyeOff, MoreHorizontal, Star, XOctagon } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { AdminRole } from '@cogniva/db';
@@ -108,8 +92,7 @@ export function BookingDetailClient({
     (adminRole === 'SUPER_ADMIN' || adminRole === 'ADMIN') &&
     b.status !== 'COMPLETED' &&
     b.status !== 'CANCELLED';
-  const canRefund =
-    adminRole === 'SUPER_ADMIN' && payment?.status === 'CAPTURED';
+  const canRefund = adminRole === 'SUPER_ADMIN' && payment?.status === 'CAPTURED';
 
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [refundOpen, setRefundOpen] = React.useState(false);
@@ -174,7 +157,6 @@ export function BookingDetailClient({
 
   return (
     <>
-      {/* Header */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -228,7 +210,6 @@ export function BookingDetailClient({
           )}
         </div>
 
-        {/* Cancel banner */}
         {b.cancelledAt && b.cancelReason && (
           <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/5 p-2.5 text-[12px] text-red-200">
             <span className="font-semibold">Đã huỷ</span> bởi{' '}
@@ -240,16 +221,11 @@ export function BookingDetailClient({
           </div>
         )}
 
-        {/* Stats */}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatTile label="Status" value={<StatusBadge status={b.status} />} />
           <StatTile
             label="Rate"
-            value={
-              <span className="font-mono">
-                {b.rateVnd.toLocaleString('vi-VN')}₫
-              </span>
-            }
+            value={<span className="font-mono">{b.rateVnd.toLocaleString('vi-VN')}₫</span>}
           />
           <StatTile
             label="Created"
@@ -277,7 +253,6 @@ export function BookingDetailClient({
         </div>
       </section>
 
-      {/* Parties */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PartyCard
           title="Tutor"
@@ -298,31 +273,19 @@ export function BookingDetailClient({
         />
       </div>
 
-      {/* Payment */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
         <h2 className="mb-3 text-sm font-semibold tracking-tight">Payment</h2>
         {payment ? (
           <dl className="grid grid-cols-2 gap-3 text-[12px] sm:grid-cols-4">
             <KV k="Provider" v={payment.provider} />
-            <KV
-              k="Status"
-              v={<PaymentStatusBadge status={payment.status} />}
-            />
+            <KV k="Status" v={<PaymentStatusBadge status={payment.status} />} />
             <KV
               k="Amount"
-              v={
-                <span className="font-mono">
-                  {payment.amountVnd.toLocaleString('vi-VN')}₫
-                </span>
-              }
+              v={<span className="font-mono">{payment.amountVnd.toLocaleString('vi-VN')}₫</span>}
             />
             <KV
               k="Fee"
-              v={
-                <span className="font-mono">
-                  {payment.feeVnd.toLocaleString('vi-VN')}₫
-                </span>
-              }
+              v={<span className="font-mono">{payment.feeVnd.toLocaleString('vi-VN')}₫</span>}
             />
             <KV k="Order code" v={<code className="text-[10.5px]">{payment.orderCode}</code>} />
             <KV
@@ -365,7 +328,6 @@ export function BookingDetailClient({
         )}
       </section>
 
-      {/* Review */}
       {review && (
         <section className="rounded-xl border border-slate-800 bg-slate-900/30 p-5">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold tracking-tight">
@@ -405,23 +367,21 @@ export function BookingDetailClient({
           )}
           {review.hiddenAt && review.hiddenReason && (
             <p className="mt-2 text-[11px] text-red-300">
-              <span className="font-semibold">Hidden reason:</span>{' '}
-              {review.hiddenReason}
+              <span className="font-semibold">Hidden reason:</span> {review.hiddenReason}
             </p>
           )}
         </section>
       )}
 
-      {/* Confirm dialogs */}
       <ConfirmDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         title="Force cancel booking?"
         description={
           <span>
-            Booking sẽ chuyển sang <strong>CANCELLED</strong>. Cả tutor và student
-            sẽ nhận notification. Study group (nếu có) KHÔNG bị xoá. Refund phải
-            gọi riêng nếu payment đã CAPTURED.
+            Booking sẽ chuyển sang <strong>CANCELLED</strong>. Cả tutor và student sẽ nhận
+            notification. Study group (nếu có) KHÔNG bị xoá. Refund phải gọi riêng nếu payment đã
+            CAPTURED.
           </span>
         }
         confirmLabel="Force cancel"
@@ -440,17 +400,13 @@ export function BookingDetailClient({
         description={
           <div className="space-y-2">
             <p>
-              Đặt payment status = <strong>REFUNDED</strong>. Phase 4 V1 KHÔNG gọi
-              VNPAY/MOMO API thật — admin manual transfer ngoài. Provider STUB tự
-              flip status.
+              Đặt payment status = <strong>REFUNDED</strong>. Phase 4 V1 KHÔNG gọi VNPAY/MOMO API
+              thật — admin manual transfer ngoài. Provider STUB tự flip status.
             </p>
             <div>
               <label className="block text-[10.5px] font-medium text-slate-400">
                 Amount VND (để trống = refund full{' '}
-                <span className="font-mono">
-                  {payment?.amountVnd.toLocaleString('vi-VN')}₫
-                </span>
-                )
+                <span className="font-mono">{payment?.amountVnd.toLocaleString('vi-VN')}₫</span>)
               </label>
               <input
                 type="text"
@@ -485,9 +441,7 @@ function StatTile({ label, value }: { label: string; value: React.ReactNode }) {
 function KV({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="rounded-md border border-slate-800/60 bg-slate-950/40 px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        {k}
-      </p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{k}</p>
       <p className="mt-0.5 truncate text-[12px] text-slate-200">{v}</p>
     </div>
   );
@@ -531,9 +485,7 @@ function PartyCard({
             <p className="truncate text-[13px] font-medium leading-tight text-slate-100">
               {name ?? '—'}
             </p>
-            <p className="truncate font-mono text-[10.5px] text-slate-500">
-              {email ?? '—'}
-            </p>
+            <p className="truncate font-mono text-[10.5px] text-slate-500">{email ?? '—'}</p>
           </div>
         </Link>
       ) : (
@@ -592,4 +544,3 @@ function PaymentStatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-

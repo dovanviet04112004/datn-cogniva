@@ -1,18 +1,3 @@
-/**
- * Command Palette — Cmd+K (Ctrl+K) global search — dropdown popover pattern.
- *
- * Pattern Notion/Slack: dropdown ngay dưới search input trong topbar, KHÔNG
- * modal trung tâm + KHÔNG overlay dim. Tự nhiên hơn, không gián đoạn flow.
- *
- * UX:
- *   - Click input hoặc Cmd+K → dropdown mở dưới input
- *   - Gõ → debounce 200ms → fetch /api/search
- *   - Enter / click → navigate + đóng
- *   - Esc / click outside → đóng
- *
- * Hydration-safe: navigator.platform check qua useEffect (SSR render "Ctrl+K",
- * client swap "⌘K" trên Mac sau mount).
- */
 'use client';
 
 import * as React from 'react';
@@ -52,7 +37,6 @@ const TYPE_LABEL: Record<SearchResult['type'], string> = {
   note: 'Notes',
 };
 
-/** Quick links hiện khi user chưa gõ — shortcut nav. */
 const QUICK_LINKS = [
   { label: 'Workspaces (chat + Studio)', href: '/workspaces', icon: BrainCircuit },
   { label: 'Tạo workspace mới', href: '/workspaces', icon: Sparkles },
@@ -67,21 +51,15 @@ export function CommandPaletteButton() {
   const [isMac, setIsMac] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Detect Mac sau mount (avoid hydration mismatch)
   React.useEffect(() => {
-    setIsMac(
-      typeof navigator !== 'undefined' &&
-        navigator.platform.toLowerCase().includes('mac'),
-    );
+    setIsMac(typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac'));
   }, []);
 
-  // Cmd+K / Ctrl+K shortcut — focus input + open dropdown
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOpen(true);
-        // Focus input sau khi popover open
         setTimeout(() => inputRef.current?.focus(), 0);
       }
     };
@@ -89,13 +67,11 @@ export function CommandPaletteButton() {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
-  // Debounce input 200ms → đẩy vào debouncedQuery (key của React Query).
   React.useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 200);
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Search qua React Query — keepPreviousData giữ kết quả cũ khi đổi từ khoá.
   const { data, isFetching } = useQuery({
     queryKey: qk.search(debouncedQuery),
     queryFn: () =>
@@ -105,10 +81,9 @@ export function CommandPaletteButton() {
     enabled: debouncedQuery.length > 0,
     placeholderData: keepPreviousData,
   });
-  const results = debouncedQuery ? data ?? [] : [];
+  const results = debouncedQuery ? (data ?? []) : [];
   const loading = isFetching && debouncedQuery.length > 0;
 
-  // Group results theo type
   const grouped = React.useMemo(() => {
     const m = new Map<SearchResult['type'], SearchResult[]>();
     for (const r of results) {
@@ -130,14 +105,11 @@ export function CommandPaletteButton() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
         <div className="relative flex h-9 w-full max-w-md items-center">
-          <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-text-muted" />
+          <Search className="text-text-muted pointer-events-none absolute left-3.5 h-4 w-4" />
           <input
             ref={inputRef}
             type="text"
             value={query}
-            // Chặn password manager / form-filler (LastPass, 1Password, Dashlane,
-            // trình duyệt) chèn icon/div vào ô input → tránh chúng sửa DOM TRƯỚC
-            // khi React hydrate gây hydration mismatch ở topbar.
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
@@ -154,11 +126,11 @@ export function CommandPaletteButton() {
               }
             }}
             placeholder="Tìm tài liệu, khái niệm, flashcard..."
-            className="flex h-9 w-full rounded-xl border border-input bg-surface/60 pl-10 pr-16 text-sm shadow-soft outline-none transition-all duration-base ease-expo-out placeholder:text-text-muted hover:border-border/80 focus-visible:border-primary/40 focus-visible:bg-surface focus-visible:ring-4 focus-visible:ring-primary/15"
+            className="border-input bg-surface/60 shadow-soft duration-base ease-expo-out placeholder:text-text-muted hover:border-border/80 focus-visible:border-primary/40 focus-visible:bg-surface focus-visible:ring-primary/15 flex h-9 w-full rounded-xl border pl-10 pr-16 text-sm outline-none transition-all focus-visible:ring-4"
           />
           <kbd
             suppressHydrationWarning
-            className="pointer-events-none absolute right-3 hidden select-none items-center gap-1 rounded-md border border-divider bg-surface-secondary px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-tight text-text-muted sm:flex"
+            className="border-divider bg-surface-secondary text-text-muted pointer-events-none absolute right-3 hidden select-none items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-tight sm:flex"
           >
             {isMac ? '⌘K' : 'Ctrl+K'}
           </kbd>
@@ -167,16 +139,9 @@ export function CommandPaletteButton() {
       <PopoverContent
         align="start"
         sideOffset={6}
-        // Tránh focus trap đẩy về trigger — giữ focus ở input khi gõ
         onOpenAutoFocus={(e) => e.preventDefault()}
-        // Không đóng khi user gõ trong input bên ngoài
         onInteractOutside={(e) => {
-          // Click trên input của trigger → giữ open (input vẫn focus)
-          if (
-            inputRef.current &&
-            e.target instanceof Node &&
-            inputRef.current.contains(e.target)
-          ) {
+          if (inputRef.current && e.target instanceof Node && inputRef.current.contains(e.target)) {
             e.preventDefault();
           }
         }}
@@ -188,18 +153,16 @@ export function CommandPaletteButton() {
       >
         <Command shouldFilter={false} className="flex flex-col">
           <Command.List className="max-h-[60vh] overflow-y-auto p-2">
-            {/* Loading state */}
             {loading && (
-              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+              <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-xs">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Đang tìm...
               </div>
             )}
 
-            {/* Empty (no query) — quick links */}
             {!loading && !query && (
               <div className="space-y-1">
-                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="text-muted-foreground px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider">
                   Gợi ý nhanh
                 </p>
                 {QUICK_LINKS.map((link) => {
@@ -209,9 +172,9 @@ export function CommandPaletteButton() {
                       key={link.label}
                       value={link.label}
                       onSelect={() => navigate(link.href)}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+                      className="text-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors"
                     >
-                      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
                       <span>{link.label}</span>
                     </Command.Item>
                   );
@@ -219,20 +182,18 @@ export function CommandPaletteButton() {
               </div>
             )}
 
-            {/* No results */}
             {!loading && query && results.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-                <SearchX className="h-7 w-7 text-muted-foreground/50" />
+                <SearchX className="text-muted-foreground/50 h-7 w-7" />
                 <p className="text-sm font-medium">Không có kết quả</p>
-                <p className="max-w-xs text-xs text-muted-foreground">
+                <p className="text-muted-foreground max-w-xs text-xs">
                   Không tìm thấy &ldquo;
-                  <span className="font-medium text-foreground">{query}</span>
+                  <span className="text-foreground font-medium">{query}</span>
                   &rdquo;
                 </p>
               </div>
             )}
 
-            {/* Results grouped */}
             {!loading &&
               [...grouped.entries()].map(([type, items]) => {
                 const Icon = TYPE_ICON[type];
@@ -240,20 +201,20 @@ export function CommandPaletteButton() {
                   <Command.Group
                     key={type}
                     heading={TYPE_LABEL[type]}
-                    className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1"
+                    className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1"
                   >
                     {items.map((item) => (
                       <Command.Item
                         key={`${item.type}-${item.id}`}
                         value={`${item.type}-${item.id}`}
                         onSelect={() => navigate(item.href)}
-                        className="flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-sm text-foreground transition-colors data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+                        className="text-foreground data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-sm transition-colors"
                       >
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <Icon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-normal">{item.label}</p>
                           {item.sublabel && (
-                            <p className="truncate text-xs text-muted-foreground">
+                            <p className="text-muted-foreground truncate text-xs">
                               {item.sublabel}
                             </p>
                           )}

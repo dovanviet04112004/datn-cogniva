@@ -1,9 +1,3 @@
-/**
- * GroupSettings — client tabs (Overview / Channels / Members / Invites).
- *
- * Layout: full-width inside main column (đã có 3-col layout từ group/[id]/layout).
- * Mỗi tab self-fetch data riêng để không lock toàn page khi 1 endpoint chậm.
- */
 'use client';
 
 import * as React from 'react';
@@ -52,26 +46,12 @@ type Props = {
   groupId: string;
   myRole: 'OWNER' | 'ADMIN';
   currentUserId: string;
-  /**
-   * Chế độ MODAL (overlay) — parent giữ state mở/đóng. Khi truyền, đóng modal
-   * KHÔNG điều hướng route → channel/tin nhắn phía dưới giữ nguyên (không reload).
-   * Khi KHÔNG truyền (mở qua route /groups/[id]/settings cho deep-link), đóng =
-   * router.push về group như cũ.
-   */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** Tab mở sẵn khi bật modal (vd quick-action "Category" → 'categories'). */
   initialTab?: TabKey;
 };
 
-type TabKey =
-  | 'overview'
-  | 'roles'
-  | 'channels'
-  | 'categories'
-  | 'members'
-  | 'invites'
-  | 'audit';
+type TabKey = 'overview' | 'roles' | 'channels' | 'categories' | 'members' | 'invites' | 'audit';
 
 const TAB_SECTIONS: Array<{
   group: string;
@@ -86,8 +66,18 @@ const TAB_SECTIONS: Array<{
     group: 'Cấu hình nhóm',
     items: [
       { key: 'overview', label: 'Tổng quan', description: 'Tên, mô tả, log recording', icon: Info },
-      { key: 'roles', label: 'Vai trò', description: 'Quản lý role tuỳ chỉnh + quyền', icon: ShieldCheck },
-      { key: 'categories', label: 'Danh mục', description: 'Gom channel theo chủ đề', icon: Folder },
+      {
+        key: 'roles',
+        label: 'Vai trò',
+        description: 'Quản lý role tuỳ chỉnh + quyền',
+        icon: ShieldCheck,
+      },
+      {
+        key: 'categories',
+        label: 'Danh mục',
+        description: 'Gom channel theo chủ đề',
+        icon: Folder,
+      },
       { key: 'channels', label: 'Channels', description: 'Danh sách channel + xoá', icon: Hash },
     ],
   },
@@ -101,7 +91,12 @@ const TAB_SECTIONS: Array<{
   {
     group: 'Theo dõi',
     items: [
-      { key: 'audit', label: 'Lịch sử hoạt động', description: 'Mod actions audit log', icon: History },
+      {
+        key: 'audit',
+        label: 'Lịch sử hoạt động',
+        description: 'Mod actions audit log',
+        icon: History,
+      },
     ],
   },
 ];
@@ -117,20 +112,12 @@ export function GroupSettings({
   const router = useRouter();
   const [active, setActive] = React.useState<TabKey>(initialTab ?? 'overview');
 
-  // Đồng bộ tab khi parent đổi initialTab lúc mở lại modal (vd bấm "Category"
-  // mở thẳng tab Danh mục thay vì Tổng quan).
   React.useEffect(() => {
     if (open && initialTab) setActive(initialTab);
   }, [open, initialTab]);
 
-  // Mở như "trang đè lên" giống recipe overlay của workspace: Dialog to bo góc +
-  // backdrop blur, KHÔNG edge-to-edge. DialogContent tự lo nút X / Esc / click-nền.
-  // 2 chế độ đóng:
-  //  - MODAL (parent truyền onOpenChange): đóng = onOpenChange(false), KHÔNG đổi
-  //    route → channel phía dưới không unmount, KHÔNG reload tin nhắn (Discord-style).
-  //  - ROUTE (deep-link /groups/[id]/settings): open mặc định true, đóng = về group.
   const controlled = onOpenChange !== undefined;
-  const isOpen = controlled ? open ?? false : true;
+  const isOpen = controlled ? (open ?? false) : true;
   const handleOpenChange = (o: boolean) => {
     if (controlled) {
       onOpenChange!(o);
@@ -144,25 +131,63 @@ export function GroupSettings({
       <DialogContent className="flex h-[88vh] w-[92vw] max-w-5xl flex-col gap-0 overflow-hidden rounded-2xl p-0">
         <DialogTitle className="sr-only">Cài đặt nhóm</DialogTitle>
 
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-divider px-4 pr-14 sm:px-6 sm:pr-14">
+        <header className="border-divider flex h-14 shrink-0 items-center gap-3 border-b px-4 pr-14 sm:px-6 sm:pr-14">
           <div className="min-w-0 flex-1">
             <h1 className="text-sm font-semibold tracking-tight">Cài đặt nhóm</h1>
-            <p className="hidden text-[11px] text-text-muted sm:block">
+            <p className="text-text-muted hidden text-[11px] sm:block">
               Quản trị viên: tinh chỉnh nhóm, role, thành viên, audit log
             </p>
           </div>
         </header>
 
         <div className="flex min-h-0 flex-1">
-        {/* Sidebar tabs — desktop only */}
-        <aside className="hidden w-[220px] shrink-0 border-r border-divider bg-surface-secondary/40 md:block">
-          <nav className="flex flex-col gap-4 p-3">
-            {TAB_SECTIONS.map((section) => (
-              <div key={section.group} className="space-y-0.5">
-                <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-                  {section.group}
-                </p>
-                {section.items.map((item) => {
+          <aside className="border-divider bg-surface-secondary/40 hidden w-[220px] shrink-0 border-r md:block">
+            <nav className="flex flex-col gap-4 p-3">
+              {TAB_SECTIONS.map((section) => (
+                <div key={section.group} className="space-y-0.5">
+                  <p className="text-text-muted px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                    {section.group}
+                  </p>
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = active === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => setActive(item.key)}
+                        className={cn(
+                          'group/tab relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-foreground'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                        )}
+                      >
+                        {isActive && (
+                          <span
+                            aria-hidden
+                            className="bg-primary absolute -left-1 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full"
+                          />
+                        )}
+                        <Icon
+                          className={cn(
+                            'h-4 w-4 shrink-0',
+                            isActive ? 'text-primary' : 'text-text-muted',
+                          )}
+                          strokeWidth={isActive ? 2.25 : 1.75}
+                        />
+                        <span className="truncate">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+          </aside>
+
+          <div className="flex w-full min-w-0 flex-col">
+            <div className="border-divider bg-surface-secondary/40 border-b px-3 py-2 md:hidden">
+              <div className="flex gap-1 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
+                {TAB_SECTIONS.flatMap((s) => s.items).map((item) => {
                   const Icon = item.icon;
                   const isActive = active === item.key;
                   return (
@@ -170,101 +195,58 @@ export function GroupSettings({
                       key={item.key}
                       onClick={() => setActive(item.key)}
                       className={cn(
-                        'group/tab relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
+                        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors',
                         isActive
-                          ? 'bg-primary/10 text-foreground'
-                          : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                          ? 'border-primary/40 bg-primary/10 text-primary'
+                          : 'bg-muted/40 text-muted-foreground hover:bg-muted border-transparent',
                       )}
                     >
-                      {isActive && (
-                        <span
-                          aria-hidden
-                          className="absolute -left-1 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-primary"
-                        />
-                      )}
-                      <Icon
-                        className={cn(
-                          'h-4 w-4 shrink-0',
-                          isActive ? 'text-primary' : 'text-text-muted',
-                        )}
-                        strokeWidth={isActive ? 2.25 : 1.75}
-                      />
-                      <span className="truncate">{item.label}</span>
+                      <Icon className="h-3 w-3" />
+                      {item.label}
                     </button>
                   );
                 })}
               </div>
-            ))}
-          </nav>
-        </aside>
+            </div>
 
-        {/* Mobile: horizontal scroll tabs */}
-        <div className="flex w-full min-w-0 flex-col">
-          <div className="border-b border-divider bg-surface-secondary/40 px-3 py-2 md:hidden">
-            <div className="flex gap-1 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
-              {TAB_SECTIONS.flatMap((s) => s.items).map((item) => {
-                const Icon = item.icon;
-                const isActive = active === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => setActive(item.key)}
-                    className={cn(
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors',
-                      isActive
-                        ? 'border-primary/40 bg-primary/10 text-primary'
-                        : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted',
-                    )}
-                  >
-                    <Icon className="h-3 w-3" />
-                    {item.label}
-                  </button>
-                );
-              })}
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6 lg:py-8">
+                <SectionHeader active={active} />
+                {active === 'overview' && <OverviewTab groupId={groupId} myRole={myRole} />}
+                {active === 'roles' && <SettingsRolesTab groupId={groupId} />}
+                {active === 'channels' && <ChannelsTab groupId={groupId} />}
+                {active === 'categories' && <CategoriesTab groupId={groupId} />}
+                {active === 'members' && (
+                  <MembersTab groupId={groupId} myRole={myRole} currentUserId={currentUserId} />
+                )}
+                {active === 'invites' && <InvitesTab groupId={groupId} myRole={myRole} />}
+                {active === 'audit' && <AuditTab groupId={groupId} />}
+              </div>
             </div>
           </div>
-
-          {/* Content area */}
-          <div className="min-h-0 flex-1 overflow-auto">
-            <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6 lg:py-8">
-              <SectionHeader active={active} />
-              {active === 'overview' && <OverviewTab groupId={groupId} myRole={myRole} />}
-              {active === 'roles' && <SettingsRolesTab groupId={groupId} />}
-              {active === 'channels' && <ChannelsTab groupId={groupId} />}
-              {active === 'categories' && <CategoriesTab groupId={groupId} />}
-              {active === 'members' && (
-                <MembersTab groupId={groupId} myRole={myRole} currentUserId={currentUserId} />
-              )}
-              {active === 'invites' && <InvitesTab groupId={groupId} myRole={myRole} />}
-              {active === 'audit' && <AuditTab groupId={groupId} />}
-            </div>
-          </div>
-        </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-/** Page heading riêng cho từng tab — section title + description rõ ràng. */
 function SectionHeader({ active }: { active: TabKey }) {
   const meta = TAB_SECTIONS.flatMap((s) => s.items).find((i) => i.key === active);
   if (!meta) return null;
   const Icon = meta.icon;
   return (
-    <header className="space-y-1 border-b border-divider pb-4">
+    <header className="border-divider space-y-1 border-b pb-4">
       <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <span className="bg-primary/10 text-primary flex h-7 w-7 items-center justify-center rounded-md">
           <Icon className="h-3.5 w-3.5" />
         </span>
         <h2 className="text-lg font-semibold tracking-tight">{meta.label}</h2>
       </div>
-      <p className="text-[12.5px] text-text-muted">{meta.description}</p>
+      <p className="text-text-muted text-[12.5px]">{meta.description}</p>
     </header>
   );
 }
 
-// ───────────── Overview tab — name/description + delete ─────────────
 type GroupDetailData = {
   group?: {
     name?: string;
@@ -284,13 +266,11 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
-  // Group detail qua React Query.
   const { data } = useQuery({
     queryKey: qk.groupDetail(groupId),
     queryFn: () => apiGet<GroupDetailData>(`/api/groups/${groupId}`),
   });
 
-  // Seed form 1 lần khi data về (không re-seed lúc refetch để không đè edit của user).
   React.useEffect(() => {
     if (data && !ready) {
       setName(data.group?.name ?? '');
@@ -300,12 +280,8 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
     }
   }, [data, ready]);
 
-  // Lọc TEXT/ANNOUNCEMENT cho dropdown — recording log phải post được message.
   const textChannels = React.useMemo(
-    () =>
-      (data?.channels ?? []).filter(
-        (c) => c.type === 'TEXT' || c.type === 'ANNOUNCEMENT',
-      ),
+    () => (data?.channels ?? []).filter((c) => c.type === 'TEXT' || c.type === 'ANNOUNCEMENT'),
     [data],
   );
 
@@ -349,7 +325,6 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
 
   return (
     <div className="space-y-6">
-      {/* Section: Thông tin nhóm */}
       <SectionCard
         title="Thông tin nhóm"
         description="Tên + mô tả hiển thị cho thành viên trong sidebar và search."
@@ -373,7 +348,6 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
         </FieldRow>
       </SectionCard>
 
-      {/* Section: Recording log */}
       <SectionCard
         title="Log recording"
         description="Channel nhận link + tóm tắt khi voice channel ghi xong."
@@ -387,14 +361,14 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
               <button
                 type="button"
                 id="g-rec-log"
-                className="flex w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors hover:bg-muted"
+                className="border-input bg-background hover:bg-muted flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
               >
                 <span className="truncate">
                   {recordingLogChannelId
                     ? `#${textChannels.find((c) => c.id === recordingLogChannelId)?.name ?? '...'}`
                     : '(Tự động — channel TEXT đầu tiên)'}
                 </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <ChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -403,7 +377,7 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
             >
               <DropdownMenuItem onClick={() => setRecordingLogChannelId('')} className="gap-2">
                 <span className="flex-1">(Tự động — channel TEXT đầu tiên)</span>
-                {!recordingLogChannelId && <Check className="h-3.5 w-3.5 text-primary" />}
+                {!recordingLogChannelId && <Check className="text-primary h-3.5 w-3.5" />}
               </DropdownMenuItem>
               {textChannels.length > 0 && <DropdownMenuSeparator />}
               {textChannels.map((c) => (
@@ -416,7 +390,7 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
                     #{c.name}
                     {c.type === 'ANNOUNCEMENT' ? ' · ANNOUNCEMENT' : ''}
                   </span>
-                  {recordingLogChannelId === c.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {recordingLogChannelId === c.id && <Check className="text-primary h-3.5 w-3.5" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -424,8 +398,7 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
         </FieldRow>
       </SectionCard>
 
-      {/* Save bar — sticky, hiện cố định để user không phải scroll xuống tìm */}
-      <div className="flex items-center justify-end gap-2 border-t border-divider pt-4">
+      <div className="border-divider flex items-center justify-end gap-2 border-t pt-4">
         <Button onClick={save} disabled={saving || !name.trim()} className="min-w-[120px]">
           {saving ? (
             <>
@@ -438,24 +411,23 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
         </Button>
       </div>
 
-      {/* Danger zone — chỉ OWNER thấy, tách riêng dưới cùng với border đỏ */}
       {myRole === 'OWNER' && (
         <Card className="border-destructive/30 bg-destructive/5 p-4">
           <div className="mb-3 flex items-start gap-3">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-destructive/15 text-destructive">
+            <span className="bg-destructive/15 text-destructive flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
               <Trash2 className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">
+              <h3 className="text-destructive text-sm font-semibold">Danger zone</h3>
+              <p className="text-muted-foreground mt-0.5 text-[12px]">
                 Hành động dưới đây không hoàn tác được.
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/20 bg-background p-3">
+          <div className="border-destructive/20 bg-background flex items-center justify-between gap-3 rounded-md border p-3">
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium">Xoá group vĩnh viễn</p>
-              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+              <p className="text-muted-foreground mt-0.5 text-[11.5px]">
                 Tất cả channel, tin nhắn, thành viên và lịch sử sẽ bị xoá.
               </p>
             </div>
@@ -470,7 +442,6 @@ function OverviewTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | '
   );
 }
 
-/** Khung card có header (title + description). Dùng cho mọi section trong settings. */
 function SectionCard({
   title,
   description,
@@ -484,23 +455,19 @@ function SectionCard({
 }) {
   return (
     <Card className={cn('overflow-hidden p-0', className)}>
-      <div className="border-b border-divider bg-muted/20 px-4 py-3">
+      <div className="border-divider bg-muted/20 border-b px-4 py-3">
         <h3 className="text-[13.5px] font-semibold tracking-tight">{title}</h3>
-        {description && (
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">{description}</p>
-        )}
+        {description && <p className="text-muted-foreground mt-0.5 text-[11.5px]">{description}</p>}
       </div>
       <div className="space-y-4 p-4">{children}</div>
     </Card>
   );
 }
 
-/** Field row gọn — label trên + input dưới với gap nhất quán. */
 function FieldRow({ children }: { children: React.ReactNode }) {
   return <div className="space-y-1.5">{children}</div>;
 }
 
-// ───────────── Channels tab — list + delete ─────────────
 type Channel = {
   id: string;
   name: string;
@@ -516,7 +483,6 @@ function ChannelsTab({ groupId }: { groupId: string }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
 
-  // Channels + categories qua React Query (categories share key với CategoriesTab).
   const { data: channels = [], isLoading: loading } = useQuery({
     queryKey: qk.groupChannels(groupId),
     queryFn: () =>
@@ -527,9 +493,9 @@ function ChannelsTab({ groupId }: { groupId: string }) {
   const { data: categories = [] } = useQuery({
     queryKey: qk.groupCategories(groupId),
     queryFn: () =>
-      apiGet<{ categories?: Category[] }>(
-        `/api/groups/${groupId}/categories`,
-      ).then((d) => d.categories ?? []),
+      apiGet<{ categories?: Category[] }>(`/api/groups/${groupId}/categories`).then(
+        (d) => d.categories ?? [],
+      ),
   });
 
   const refresh = React.useCallback(() => {
@@ -537,7 +503,6 @@ function ChannelsTab({ groupId }: { groupId: string }) {
     void qc.invalidateQueries({ queryKey: qk.groupCategories(groupId) });
   }, [qc, groupId]);
 
-  // Gán/bỏ channel vào danh mục — optimistic ghi cache, rollback bằng refetch.
   const setCategory = async (channelId: string, categoryId: string | null) => {
     qc.setQueryData<Channel[]>(qk.groupChannels(groupId), (prev) =>
       (prev ?? []).map((c) => (c.id === channelId ? { ...c, categoryId } : c)),
@@ -588,68 +553,73 @@ function ChannelsTab({ groupId }: { groupId: string }) {
       title="Danh sách channel"
       description={`Tổng ${channels.length} channel · Click icon thùng rác để xoá`}
     >
-      <ul className="-m-4 divide-y divide-divider">
+      <ul className="divide-divider -m-4 divide-y">
         {channels.map((c) => {
           const curCat = categories.find((cat) => cat.id === c.categoryId);
           return (
-          <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-            <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]', CHANNEL_TYPE_TONE[c.type])}>
-              {c.type}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13.5px] font-medium">#{c.name}</p>
-              {c.topic && (
-                <p className="truncate text-[11.5px] text-muted-foreground">{c.topic}</p>
-              )}
-            </div>
-            {categories.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    title="Chuyển channel vào danh mục"
-                    className="inline-flex max-w-[150px] shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1 text-[11.5px] text-foreground transition-colors hover:bg-muted"
-                  >
-                    <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{curCat ? curCat.name : 'Không phân loại'}</span>
-                    <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onClick={() => setCategory(c.id, null)} className="gap-2">
-                    <span className="flex-1">Không phân loại</span>
-                    {!c.categoryId && <Check className="h-3.5 w-3.5 text-primary" />}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {categories.map((cat) => (
-                    <DropdownMenuItem
-                      key={cat.id}
-                      onClick={() => setCategory(c.id, cat.id)}
-                      className="gap-2"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="flex-1 truncate">{cat.name}</span>
-                      {c.categoryId === cat.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {c.slowModeSeconds ? (
-              <span className="hidden rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 sm:inline-block">
-                Slow {c.slowModeSeconds}s
+            <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+              <span
+                className={cn(
+                  'shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em]',
+                  CHANNEL_TYPE_TONE[c.type],
+                )}
+              >
+                {c.type}
               </span>
-            ) : null}
-            <Button
-              onClick={() => remove(c.id, c.name)}
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              aria-label={`Xoá #${c.name}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </li>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13.5px] font-medium">#{c.name}</p>
+                {c.topic && (
+                  <p className="text-muted-foreground truncate text-[11.5px]">{c.topic}</p>
+                )}
+              </div>
+              {categories.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      title="Chuyển channel vào danh mục"
+                      className="border-input bg-background text-foreground hover:bg-muted inline-flex max-w-[150px] shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] transition-colors"
+                    >
+                      <FolderOpen className="text-muted-foreground h-3 w-3 shrink-0" />
+                      <span className="truncate">{curCat ? curCat.name : 'Không phân loại'}</span>
+                      <ChevronDown className="text-muted-foreground h-3 w-3 shrink-0" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => setCategory(c.id, null)} className="gap-2">
+                      <span className="flex-1">Không phân loại</span>
+                      {!c.categoryId && <Check className="text-primary h-3.5 w-3.5" />}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {categories.map((cat) => (
+                      <DropdownMenuItem
+                        key={cat.id}
+                        onClick={() => setCategory(c.id, cat.id)}
+                        className="gap-2"
+                      >
+                        <FolderOpen className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                        <span className="flex-1 truncate">{cat.name}</span>
+                        {c.categoryId === cat.id && <Check className="text-primary h-3.5 w-3.5" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {c.slowModeSeconds ? (
+                <span className="hidden rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 sm:inline-block dark:text-amber-400">
+                  Slow {c.slowModeSeconds}s
+                </span>
+              ) : null}
+              <Button
+                onClick={() => remove(c.id, c.name)}
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-7 w-7 shrink-0 p-0"
+                aria-label={`Xoá #${c.name}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </li>
           );
         })}
       </ul>
@@ -657,7 +627,6 @@ function ChannelsTab({ groupId }: { groupId: string }) {
   );
 }
 
-/** Tone màu theo loại channel — share giữa channel list + member list. */
 const CHANNEL_TYPE_TONE: Record<Channel['type'], string> = {
   VOICE: 'bg-green-500/10 text-green-700 dark:text-green-400',
   STAGE: 'bg-rose-500/10 text-rose-700 dark:text-rose-400',
@@ -666,7 +635,6 @@ const CHANNEL_TYPE_TONE: Record<Channel['type'], string> = {
   TEXT: 'bg-muted text-muted-foreground',
 };
 
-// ───────────── Members tab — role + kick ─────────────
 type Member = {
   userId: string;
   name: string | null;
@@ -690,13 +658,10 @@ function MembersTab({
   const confirm = useConfirm();
   const askPrompt = usePrompt();
 
-  // Members qua React Query — key dùng chung với MemberSidebar + SearchDialog.
   const { data: members = [], isLoading: loading } = useQuery({
     queryKey: qk.groupMembers(groupId),
     queryFn: () =>
-      apiGet<{ members?: Member[] }>(`/api/groups/${groupId}/members`).then(
-        (d) => d.members ?? [],
-      ),
+      apiGet<{ members?: Member[] }>(`/api/groups/${groupId}/members`).then((d) => d.members ?? []),
   });
 
   const refresh = React.useCallback(() => {
@@ -761,7 +726,6 @@ function MembersTab({
 
   if (loading) return <CardLoading />;
 
-  // Group members theo role để hiển thị có cấu trúc — Discord-style
   const rank: Record<GroupRole, number> = { OWNER: 0, ADMIN: 1, MODERATOR: 2, MEMBER: 3 };
   const sorted = [...members].sort((a, b) => {
     const r = rank[a.role] - rank[b.role];
@@ -778,17 +742,14 @@ function MembersTab({
   const renderRow = (m: Member) => {
     const isMe = m.userId === currentUserId;
     const canEdit = !isMe && m.role !== 'OWNER' && myRole === 'OWNER';
-    const canEditByAdmin =
-      !isMe && m.role !== 'OWNER' && m.role !== 'ADMIN' && myRole === 'ADMIN';
+    const canEditByAdmin = !isMe && m.role !== 'OWNER' && m.role !== 'ADMIN' && myRole === 'ADMIN';
     const canModifyRole = canEdit || canEditByAdmin;
     const isMutedNow = m.mutedUntil && new Date(m.mutedUntil).getTime() > Date.now();
     return (
       <li key={m.userId} className="flex items-center gap-3 px-4 py-2.5">
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={m.image ?? undefined} />
-          <AvatarFallback className="text-xs">
-            {(m.name ?? 'U')[0]?.toUpperCase()}
-          </AvatarFallback>
+          <AvatarFallback className="text-xs">{(m.name ?? 'U')[0]?.toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -796,7 +757,7 @@ function MembersTab({
               {m.nickname ?? m.name ?? 'Anonymous'}
             </p>
             {isMe && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+              <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[11px] font-medium">
                 Bạn
               </span>
             )}
@@ -806,7 +767,7 @@ function MembersTab({
               </span>
             )}
           </div>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="text-muted-foreground truncate text-[11px]">
             Tham gia{' '}
             {new Date(m.joinedAt).toLocaleDateString('vi-VN', {
               day: '2-digit',
@@ -821,10 +782,10 @@ function MembersTab({
               <button
                 type="button"
                 aria-label="Đổi role"
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-[11.5px] transition-colors hover:bg-muted"
+                className="border-input bg-background hover:bg-muted inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] transition-colors"
               >
                 {ROLE_LABEL[m.role]}
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                <ChevronDown className="text-muted-foreground h-3 w-3" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
@@ -832,13 +793,9 @@ function MembersTab({
                 ? (['ADMIN', 'MODERATOR', 'MEMBER'] as GroupRole[])
                 : (['MODERATOR', 'MEMBER'] as GroupRole[])
               ).map((r) => (
-                <DropdownMenuItem
-                  key={r}
-                  onClick={() => updateRole(m.userId, r)}
-                  className="gap-2"
-                >
+                <DropdownMenuItem key={r} onClick={() => updateRole(m.userId, r)} className="gap-2">
                   <span className="flex-1">{ROLE_LABEL[r]}</span>
-                  {m.role === r && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {m.role === r && <Check className="text-primary h-3.5 w-3.5" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -856,7 +813,7 @@ function MembersTab({
             {isMutedNow ? (
               <Volume2 className="h-3.5 w-3.5 text-amber-500" />
             ) : (
-              <VolumeX className="h-3.5 w-3.5 text-muted-foreground" />
+              <VolumeX className="text-muted-foreground h-3.5 w-3.5" />
             )}
           </Button>
         )}
@@ -865,7 +822,7 @@ function MembersTab({
             onClick={() => kick(m.userId, m.name)}
             variant="ghost"
             size="sm"
-            className="h-7 w-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-7 w-7 p-0"
             title="Kick"
             aria-label="Kick"
           >
@@ -887,7 +844,7 @@ function MembersTab({
             title={`${ROLE_LABEL[role]} · ${list.length}`}
             description={ROLE_HINT[role]}
           >
-            <ul className="-m-4 divide-y divide-divider">{list.map(renderRow)}</ul>
+            <ul className="divide-divider -m-4 divide-y">{list.map(renderRow)}</ul>
           </SectionCard>
         );
       })}
@@ -909,7 +866,6 @@ const ROLE_HINT: Record<GroupRole, string> = {
   MEMBER: 'Gửi tin + tham gia voice',
 };
 
-// ───────────── Invites tab — list + create + revoke ─────────────
 type Invite = {
   id: string;
   code: string;
@@ -921,23 +877,18 @@ type Invite = {
 };
 
 function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'ADMIN' }) {
-  void myRole; // mọi member tạo được, mod+ revoke bất kỳ
+  void myRole;
   const qc = useQueryClient();
   const confirm = useConfirm();
   const [creating, setCreating] = React.useState(false);
   const [maxUses, setMaxUses] = React.useState('');
   const [expiresHours, setExpiresHours] = React.useState('');
 
-  // Invites qua React Query — key dùng chung với InviteDialog (group-actions-menu).
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.groupInvites(groupId),
     queryFn: () =>
-      apiGet<{ invites?: Invite[] }>(`/api/groups/${groupId}/invites`).then(
-        (d) => d.invites ?? [],
-      ),
+      apiGet<{ invites?: Invite[] }>(`/api/groups/${groupId}/invites`).then((d) => d.invites ?? []),
   });
-  // Guard: cache persist (IndexedDB) có thể hydrate data shape CŨ (object thay vì array)
-  // từ trước đợt migrate React Query → `.map`/`.length` nổ. Ép luôn về array.
   const invites = Array.isArray(data) ? data : [];
 
   const refresh = React.useCallback(() => {
@@ -1033,15 +984,15 @@ function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'A
           title={`Đang hoạt động · ${invites.length}`}
           description="Code mất hiệu lực sau khi thu hồi hoặc hết hạn."
         >
-          <ul className="-m-4 divide-y divide-divider">
+          <ul className="divide-divider -m-4 divide-y">
             {invites.map((inv) => (
               <li key={inv.id} className="flex items-center gap-3 px-4 py-2.5">
-                <code className="shrink-0 rounded-md bg-primary/10 px-2 py-1 font-mono text-[12.5px] font-bold tracking-wider text-primary">
+                <code className="bg-primary/10 text-primary shrink-0 rounded-md px-2 py-1 font-mono text-[12.5px] font-bold tracking-wider">
                   {inv.code}
                 </code>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] text-muted-foreground">
-                    <span className="font-medium text-foreground">
+                  <p className="text-muted-foreground text-[12px]">
+                    <span className="text-foreground font-medium">
                       {inv.usesCount}
                       {inv.maxUses ? `/${inv.maxUses}` : ''}
                     </span>{' '}
@@ -1053,7 +1004,7 @@ function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'A
                       </span>
                     )}
                   </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="text-muted-foreground truncate text-[11px]">
                     Tạo bởi {inv.createdByName ?? 'unknown'} ·{' '}
                     {new Date(inv.createdAt).toLocaleDateString('vi-VN')}
                   </p>
@@ -1062,7 +1013,7 @@ function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'A
                   onClick={() => copyCode(inv.code)}
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
                   aria-label="Copy code"
                   title="Copy code"
                 >
@@ -1072,7 +1023,7 @@ function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'A
                   onClick={() => revoke(inv.code)}
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-7 w-7 p-0"
                   aria-label="Revoke"
                   title="Thu hồi invite"
                 >
@@ -1089,14 +1040,13 @@ function InvitesTab({ groupId, myRole }: { groupId: string; myRole: 'OWNER' | 'A
 
 function CardLoading() {
   return (
-    <Card className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+    <Card className="text-muted-foreground flex items-center justify-center gap-2 p-12 text-sm">
       <Loader2 className="h-4 w-4 animate-spin" />
       Đang tải…
     </Card>
   );
 }
 
-// ───────────── Categories tab ─────────────
 type Category = { id: string; name: string; position: number };
 
 function CategoriesTab({ groupId }: { groupId: string }) {
@@ -1105,13 +1055,12 @@ function CategoriesTab({ groupId }: { groupId: string }) {
   const [newName, setNewName] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
-  // Categories qua React Query — key dùng chung với ChannelsTab.
   const { data: cats = [], isLoading: loading } = useQuery({
     queryKey: qk.groupCategories(groupId),
     queryFn: () =>
-      apiGet<{ categories?: Category[] }>(
-        `/api/groups/${groupId}/categories`,
-      ).then((d) => d.categories ?? []),
+      apiGet<{ categories?: Category[] }>(`/api/groups/${groupId}/categories`).then(
+        (d) => d.categories ?? [],
+      ),
   });
 
   const refresh = React.useCallback(() => {
@@ -1186,18 +1135,16 @@ function CategoriesTab({ groupId }: { groupId: string }) {
           title={`Danh mục · ${cats.length}`}
           description="Xoá danh mục KHÔNG xoá channel bên trong — channel tự tách ra root."
         >
-          <ul className="-m-4 divide-y divide-divider">
+          <ul className="divide-divider -m-4 divide-y">
             {cats.map((c) => (
               <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">
-                  {c.name}
-                </span>
+                <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium">{c.name}</span>
                 <Button
                   onClick={() => remove(c.id, c.name)}
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-7 w-7 p-0"
                   aria-label={`Xoá ${c.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -1211,7 +1158,6 @@ function CategoriesTab({ groupId }: { groupId: string }) {
   );
 }
 
-/** Empty state card — illustration đơn giản + title + description + CTA optional. */
 function EmptyState({
   icon: Icon,
   title,
@@ -1225,17 +1171,16 @@ function EmptyState({
 }) {
   return (
     <Card className="flex flex-col items-center justify-center gap-2 p-8 text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+      <span className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-full">
         <Icon className="h-5 w-5" />
       </span>
       <p className="text-[13.5px] font-medium">{title}</p>
-      <p className="max-w-[280px] text-[11.5px] text-muted-foreground">{description}</p>
+      <p className="text-muted-foreground max-w-[280px] text-[11.5px]">{description}</p>
       {action}
     </Card>
   );
 }
 
-// ───────────── Audit log tab ─────────────
 type AuditEntry = {
   id: string;
   actorId: string | null;
@@ -1256,7 +1201,6 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function AuditTab({ groupId }: { groupId: string }) {
-  // Audit log qua React Query (read-only).
   const { data: entries = [], isLoading: loading } = useQuery({
     queryKey: qk.groupAudit(groupId),
     queryFn: () =>
@@ -1282,7 +1226,7 @@ function AuditTab({ groupId }: { groupId: string }) {
       title={`Hoạt động gần nhất · ${entries.length}`}
       description="Ghi nhận mọi mod action — chỉ admin+ xem được."
     >
-      <ul className="-m-4 divide-y divide-divider">
+      <ul className="divide-divider -m-4 divide-y">
         {entries.map((e) => {
           const meta = (e.metadata ?? {}) as Record<string, unknown>;
           return (
@@ -1300,7 +1244,7 @@ function AuditTab({ groupId }: { groupId: string }) {
                     {ACTION_LABEL[e.action] ?? e.action}
                   </span>
                 </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                <p className="text-muted-foreground mt-0.5 text-[11px]">
                   {new Date(e.timestamp).toLocaleString('vi-VN')}
                   {meta.targetUserId ? (
                     <> · target {String(meta.targetUserId).slice(0, 8)}…</>

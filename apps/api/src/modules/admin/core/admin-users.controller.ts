@@ -1,9 +1,3 @@
-/**
- * /api/admin/users/** — port từ apps/web/src/app/api/admin/users/**.
- * AdminGuard thay pattern requireAdminRole/isGuardResponse cũ (401/403 y hệt);
- * role per-route đọc từ route cũ: PATCH/suspend/unsuspend = SUPER_ADMIN+ADMIN,
- * list/detail/force-signout = mọi role (force-signout không destructive lâu dài).
- */
 import {
   Body,
   Controller,

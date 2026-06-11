@@ -1,14 +1,3 @@
-/**
- * BookingActions — nút hành động booking detail page.
- *
- * Logic theo role + status:
- *   - tutor + PENDING_TUTOR        → Confirm + Reject
- *   - tutor + CONFIRMED            → Cancel + Mark Complete (sau endAt)
- *   - tutor + IN_PROGRESS          → Mark Complete
- *   - student + PENDING_TUTOR      → Cancel
- *   - student + CONFIRMED          → Cancel (24h policy)
- *   - * + COMPLETED|CANCELLED      → no action
- */
 'use client';
 
 import * as React from 'react';
@@ -32,7 +21,6 @@ export function BookingActions({
   startAt: string;
   role: 'student' | 'tutor';
   hasStudyGroup: boolean;
-  /** Gọi sau mỗi action thành công — để drawer/list client tự refetch. */
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -53,9 +41,7 @@ export function BookingActions({
       });
       if (!res.ok) {
         const e = (await res.json().catch(() => null)) as { error?: unknown } | null;
-        throw new Error(
-          typeof e?.error === 'string' ? e.error : `${res.status}`,
-        );
+        throw new Error(typeof e?.error === 'string' ? e.error : `${res.status}`);
       }
       toast.success(successMsg);
       router.refresh();
@@ -67,8 +53,6 @@ export function BookingActions({
     }
   };
 
-  // Hỏi lý do huỷ qua dialog styled → huỷ booking. User bấm Huỷ ở prompt
-  // (return null) ⇒ không thực hiện huỷ booking.
   const cancelBooking = async (defaultReason?: string, successMsg = 'Đã huỷ booking') => {
     const reason = await askPrompt({
       title: 'Lý do huỷ (tuỳ chọn)',
@@ -91,8 +75,7 @@ export function BookingActions({
   const canMarkComplete = Date.now() > endTime;
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-divider pt-5">
-      {/* TUTOR PENDING — Confirm */}
+    <div className="border-divider flex flex-wrap items-center justify-end gap-2 border-t pt-5">
       {role === 'tutor' && status === 'PENDING_TUTOR' && (
         <>
           <Button
@@ -106,11 +89,13 @@ export function BookingActions({
           </Button>
           <Button
             type="button"
-            onClick={() => call(
-              `/api/tutoring/bookings/${bookingId}/confirm`,
-              undefined,
-              'Đã xác nhận — phòng học đã tạo',
-            )}
+            onClick={() =>
+              call(
+                `/api/tutoring/bookings/${bookingId}/confirm`,
+                undefined,
+                'Đã xác nhận — phòng học đã tạo',
+              )
+            }
             disabled={busy !== null}
           >
             {busy?.endsWith('/confirm') ? (
@@ -123,7 +108,6 @@ export function BookingActions({
         </>
       )}
 
-      {/* STUDENT PENDING — Cancel */}
       {role === 'student' && status === 'PENDING_TUTOR' && (
         <Button
           type="button"
@@ -136,7 +120,6 @@ export function BookingActions({
         </Button>
       )}
 
-      {/* CONFIRMED — Cancel (cả 2 bên) */}
       {status === 'CONFIRMED' && (
         <Button
           type="button"
@@ -149,17 +132,18 @@ export function BookingActions({
         </Button>
       )}
 
-      {/* TUTOR + CONFIRMED/IN_PROGRESS sau endAt → mark complete */}
-      {role === 'tutor'
-        && (status === 'CONFIRMED' || status === 'IN_PROGRESS')
-        && canMarkComplete && (
+      {role === 'tutor' &&
+        (status === 'CONFIRMED' || status === 'IN_PROGRESS') &&
+        canMarkComplete && (
           <Button
             type="button"
-            onClick={() => call(
-              `/api/tutoring/bookings/${bookingId}/complete`,
-              undefined,
-              'Đã đánh dấu hoàn thành',
-            )}
+            onClick={() =>
+              call(
+                `/api/tutoring/bookings/${bookingId}/complete`,
+                undefined,
+                'Đã đánh dấu hoàn thành',
+              )
+            }
             disabled={busy !== null}
           >
             {busy?.endsWith('/complete') ? (
@@ -171,11 +155,8 @@ export function BookingActions({
           </Button>
         )}
 
-      {/* Optional info hint nếu chưa có study group ở CONFIRMED — edge case */}
       {status === 'CONFIRMED' && !hasStudyGroup && (
-        <p className="ml-auto text-[11px] text-muted-foreground">
-          Đang chờ tạo phòng học...
-        </p>
+        <p className="text-muted-foreground ml-auto text-[11px]">Đang chờ tạo phòng học...</p>
       )}
     </div>
   );

@@ -1,25 +1,7 @@
-/**
- * Seed Library V1 — 60+ docs realistic (2026-05-22).
- *
- * Lưu ý: KHÔNG upload file thật lên R2 (cần token cloud). Seed chỉ tạo metadata
- * + chunks + embeddings để UI list/search/import LOOK populated. Real file
- * upload sẽ test qua /library/upload manual.
- *
- * Usage:
- *   pnpm exec tsx --env-file=.env.local scripts/seed-library-v1.ts
- *   pnpm exec tsx --env-file=.env.local scripts/seed-library-v1.ts --reset
- *
- * Idempotent: identify qua file_url prefix 'seed-v1://'.
- */
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, like } from 'drizzle-orm';
 
-import {
-  db,
-  libraryDoc,
-  libraryDocChunk,
-  user,
-} from '@cogniva/db';
+import { db, libraryDoc, libraryDocChunk, user } from '@cogniva/db';
 
 import { embedBatch } from '../src/lib/ingest/embed';
 import { embedQuery } from '../src/lib/ingest/embed-query';
@@ -28,11 +10,22 @@ const SEED_PREFIX = 'seed-v1://';
 const RESET = process.argv.includes('--reset');
 const NO_EMBED = process.argv.includes('--no-embed');
 
-// ─── Pools ──────────────────────────────────────────────────────────
 const VN_NAMES = [
-  'Nguyễn Mai Anh', 'Trần Hùng Dũng', 'Lê Thuỳ Linh', 'Phạm Đức Hiếu', 'Hoàng Khánh Vy',
-  'Vũ Minh Quân', 'Đỗ Bảo Châu', 'Bùi Hà My', 'Lương Tuấn Khoa', 'Phan Diệu Hương',
-  'Trịnh Hải Sơn', 'Đoàn Mỹ Linh', 'Cao Thành Nam', 'Đặng Yến Nhi', 'Lý Quốc Việt',
+  'Nguyễn Mai Anh',
+  'Trần Hùng Dũng',
+  'Lê Thuỳ Linh',
+  'Phạm Đức Hiếu',
+  'Hoàng Khánh Vy',
+  'Vũ Minh Quân',
+  'Đỗ Bảo Châu',
+  'Bùi Hà My',
+  'Lương Tuấn Khoa',
+  'Phan Diệu Hương',
+  'Trịnh Hải Sơn',
+  'Đoàn Mỹ Linh',
+  'Cao Thành Nam',
+  'Đặng Yến Nhi',
+  'Lý Quốc Việt',
 ];
 
 type DocSeed = {
@@ -48,15 +41,14 @@ type DocSeed = {
   fileFormat: 'pdf' | 'docx' | 'image';
   pageCount: number;
   badges: string[];
-  /** Chunk contents để embed cho cross-doc search. */
   chunks: string[];
 };
 
 const DOCS: DocSeed[] = [
-  // Toán THPT
   {
     title: 'Đề cương Toán 12 — Đạo hàm + ứng dụng',
-    description: 'Tóm tắt 30 trang đầy đủ lý thuyết đạo hàm, ứng dụng tìm cực trị, tiệm cận và bài toán liên quan. Bao gồm 50 bài tập trắc nghiệm có đáp án.',
+    description:
+      'Tóm tắt 30 trang đầy đủ lý thuyết đạo hàm, ứng dụng tìm cực trị, tiệm cận và bài toán liên quan. Bao gồm 50 bài tập trắc nghiệm có đáp án.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -66,16 +58,17 @@ const DOCS: DocSeed[] = [
     pageCount: 30,
     badges: ['outcome_verified', 'syllabus_complete'],
     chunks: [
-      'Định nghĩa đạo hàm: f\'(x) = lim(h→0) [f(x+h) - f(x)] / h. Đạo hàm tại điểm x₀ thể hiện tốc độ thay đổi tức thời.',
-      'Quy tắc đạo hàm cơ bản: (u+v)\' = u\' + v\', (u·v)\' = u\'v + uv\', (u/v)\' = (u\'v - uv\')/v².',
+      "Định nghĩa đạo hàm: f'(x) = lim(h→0) [f(x+h) - f(x)] / h. Đạo hàm tại điểm x₀ thể hiện tốc độ thay đổi tức thời.",
+      "Quy tắc đạo hàm cơ bản: (u+v)' = u' + v', (u·v)' = u'v + uv', (u/v)' = (u'v - uv')/v².",
       'Ứng dụng đạo hàm: xét tính đơn điệu, tìm cực trị, tìm tiệm cận của đồ thị hàm số.',
-      'Đạo hàm hàm hợp: nếu y = f(g(x)) thì y\' = f\'(g(x)) · g\'(x). Đây là dạng quan trọng nhất.',
-      'Bài toán cực trị: hàm số đạt cực đại tại x₀ khi f\'(x₀) = 0 và f\'\'(x₀) < 0.',
+      "Đạo hàm hàm hợp: nếu y = f(g(x)) thì y' = f'(g(x)) · g'(x). Đây là dạng quan trọng nhất.",
+      "Bài toán cực trị: hàm số đạt cực đại tại x₀ khi f'(x₀) = 0 và f''(x₀) < 0.",
     ],
   },
   {
     title: 'Đề thi tốt nghiệp THPT Toán 2024 (có lời giải)',
-    description: 'Đề thi chính thức kèm lời giải chi tiết 50 câu trắc nghiệm. Đáp án A/B/C/D rõ ràng, có chú giải phương pháp ngắn cho từng câu.',
+    description:
+      'Đề thi chính thức kèm lời giải chi tiết 50 câu trắc nghiệm. Đáp án A/B/C/D rõ ràng, có chú giải phương pháp ngắn cho từng câu.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -95,7 +88,8 @@ const DOCS: DocSeed[] = [
   },
   {
     title: 'Tích phân lớp 12 — phương pháp tính nhanh',
-    description: 'Tổng hợp 8 phương pháp tính tích phân thường gặp: từng phần, đổi biến, lượng giác, hữu tỉ. Mỗi phương pháp kèm 5 ví dụ.',
+    description:
+      'Tổng hợp 8 phương pháp tính tích phân thường gặp: từng phần, đổi biến, lượng giác, hữu tỉ. Mỗi phương pháp kèm 5 ví dụ.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -106,14 +100,15 @@ const DOCS: DocSeed[] = [
     badges: ['power_resource'],
     chunks: [
       'Tích phân từng phần: ∫u·dv = uv - ∫v·du. Mẹo chọn u theo LIATE: Log, Inverse, Algebraic, Trig, Exp.',
-      'Tích phân đổi biến: nếu I = ∫f(u(x))·u\'(x)dx, đặt t = u(x) → dt = u\'(x)dx.',
+      "Tích phân đổi biến: nếu I = ∫f(u(x))·u'(x)dx, đặt t = u(x) → dt = u'(x)dx.",
       'Tích phân hàm lượng giác: ∫sin²x dx = (x - sinx·cosx)/2. Dùng công thức hạ bậc.',
       'Tích phân hàm hữu tỉ: phân tích thành tổng các phân thức cơ bản.',
     ],
   },
   {
     title: 'Bài tập Hình học không gian Oxyz có lời giải',
-    description: '60 bài tập trắc nghiệm về tọa độ điểm, vector, đường thẳng, mặt phẳng, mặt cầu trong không gian Oxyz. Lời giải chi tiết từng bước.',
+    description:
+      '60 bài tập trắc nghiệm về tọa độ điểm, vector, đường thẳng, mặt phẳng, mặt cầu trong không gian Oxyz. Lời giải chi tiết từng bước.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -130,7 +125,8 @@ const DOCS: DocSeed[] = [
   },
   {
     title: 'Toán lớp 11 — Lượng giác đầy đủ',
-    description: 'Lý thuyết + bài tập lượng giác lớp 11. Bao gồm phương trình lượng giác cơ bản, bậc 2, đẳng cấp, đối xứng.',
+    description:
+      'Lý thuyết + bài tập lượng giác lớp 11. Bao gồm phương trình lượng giác cơ bản, bậc 2, đẳng cấp, đối xứng.',
     subjectSlug: 'math',
     level: 'HIGH_SCHOOL',
     grade: 11,
@@ -145,10 +141,10 @@ const DOCS: DocSeed[] = [
       'Phương trình bậc 2 theo sin/cos: đặt t = sinx hoặc cosx (|t| ≤ 1).',
     ],
   },
-  // Vật lý
   {
     title: 'Vật lý 12 — Dao động cơ học',
-    description: 'Bài giảng chi tiết về dao động điều hoà, con lắc lò xo, con lắc đơn. Bao gồm 40 bài tập có lời giải.',
+    description:
+      'Bài giảng chi tiết về dao động điều hoà, con lắc lò xo, con lắc đơn. Bao gồm 40 bài tập có lời giải.',
     subjectSlug: 'physics',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -181,10 +177,10 @@ const DOCS: DocSeed[] = [
       'Đề 2 câu 10: Sóng cơ học truyền trên dây với vận tốc 20 m/s. Tần số 50 Hz. Tính bước sóng.',
     ],
   },
-  // Hoá
   {
     title: 'Hoá học 12 — Este và Lipit',
-    description: 'Lý thuyết + bài tập về este và lipit. Phân tích phản ứng thuỷ phân, este hoá. 50 câu trắc nghiệm.',
+    description:
+      'Lý thuyết + bài tập về este và lipit. Phân tích phản ứng thuỷ phân, este hoá. 50 câu trắc nghiệm.',
     subjectSlug: 'chemistry',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -194,14 +190,14 @@ const DOCS: DocSeed[] = [
     pageCount: 22,
     badges: ['educator_approved'],
     chunks: [
-      'Este có công thức tổng quát R-COO-R\'. Phản ứng este hoá: R-COOH + R\'-OH ⇌ R-COO-R\' + H₂O.',
+      "Este có công thức tổng quát R-COO-R'. Phản ứng este hoá: R-COOH + R'-OH ⇌ R-COO-R' + H₂O.",
       'Phản ứng thuỷ phân este trong môi trường kiềm tạo muối và rượu — phản ứng xà phòng hoá.',
     ],
   },
-  // IELTS
   {
     title: 'IELTS Speaking Part 2 — 60 topic mẫu có sample band 8',
-    description: 'Bộ topic IELTS Speaking Part 2 phổ biến nhất 2024-2025. Mỗi topic có 1 sample band 8 + vocabulary + structure breakdown.',
+    description:
+      'Bộ topic IELTS Speaking Part 2 phổ biến nhất 2024-2025. Mỗi topic có 1 sample band 8 + vocabulary + structure breakdown.',
     subjectSlug: 'english-ielts',
     level: 'ADULT',
     docType: 'reference_book',
@@ -217,7 +213,8 @@ const DOCS: DocSeed[] = [
   },
   {
     title: 'IELTS Writing Task 2 — 30 essay mẫu band 7.0+',
-    description: '30 essay đầy đủ cho 8 chủ đề chính: education, environment, technology, society, ... Phân tích structure + lexical resources.',
+    description:
+      '30 essay đầy đủ cho 8 chủ đề chính: education, environment, technology, society, ... Phân tích structure + lexical resources.',
     subjectSlug: 'english-ielts',
     level: 'ADULT',
     docType: 'reference_book',
@@ -230,10 +227,10 @@ const DOCS: DocSeed[] = [
       'Linking devices band 7: furthermore, nevertheless, despite this, in contrast, by the same token.',
     ],
   },
-  // TOEIC
   {
     title: 'TOEIC Reading — 1000 câu Part 5 có giải',
-    description: 'Tổng hợp 1000 câu Part 5 (Incomplete sentences) đầy đủ explanation từ ETS. Phân loại theo grammar topic.',
+    description:
+      'Tổng hợp 1000 câu Part 5 (Incomplete sentences) đầy đủ explanation từ ETS. Phân loại theo grammar topic.',
     subjectSlug: 'english-toeic',
     level: 'ADULT',
     docType: 'exercise',
@@ -246,10 +243,10 @@ const DOCS: DocSeed[] = [
       'Modifier placement: dangling modifiers — luôn modifier đứng cạnh từ nó modify.',
     ],
   },
-  // Lập trình
   {
     title: 'Python cho người mới bắt đầu — 50 bài thực hành',
-    description: '50 bài tập Python progressive từ Hello World đến web scraping. Mỗi bài có solution + giải thích.',
+    description:
+      '50 bài tập Python progressive từ Hello World đến web scraping. Mỗi bài có solution + giải thích.',
     subjectSlug: 'cs-programming',
     level: 'UNIVERSITY',
     docType: 'exercise',
@@ -265,7 +262,8 @@ const DOCS: DocSeed[] = [
   },
   {
     title: 'JavaScript ES6+ — Modern features cheatsheet',
-    description: 'Tóm tắt 20 features ES6+ quan trọng nhất: arrow function, destructuring, async/await, optional chaining, ...',
+    description:
+      'Tóm tắt 20 features ES6+ quan trọng nhất: arrow function, destructuring, async/await, optional chaining, ...',
     subjectSlug: 'cs-programming',
     level: 'UNIVERSITY',
     docType: 'summary',
@@ -279,10 +277,10 @@ const DOCS: DocSeed[] = [
       'Optional chaining: user?.profile?.email — return undefined nếu intermediate null.',
     ],
   },
-  // Văn
   {
     title: 'Văn 12 — Nghị luận xã hội đầy đủ dàn ý',
-    description: '30 đề nghị luận xã hội thường gặp trong đề thi tốt nghiệp. Mỗi đề có dàn ý chi tiết + bài tham khảo.',
+    description:
+      '30 đề nghị luận xã hội thường gặp trong đề thi tốt nghiệp. Mỗi đề có dàn ý chi tiết + bài tham khảo.',
     subjectSlug: 'literature',
     level: 'HIGH_SCHOOL',
     grade: 12,
@@ -296,10 +294,10 @@ const DOCS: DocSeed[] = [
       'Cách viết mở bài hay: dùng câu hỏi, danh ngôn, hoặc kể chuyện ngắn để dẫn dắt.',
     ],
   },
-  // Tiếng Anh giao tiếp
   {
     title: 'Tiếng Anh giao tiếp công sở — 100 tình huống',
-    description: '100 tình huống thực tế ở công sở: meeting, email, phone call, small talk, ... Có dialog mẫu + key phrases.',
+    description:
+      '100 tình huống thực tế ở công sở: meeting, email, phone call, small talk, ... Có dialog mẫu + key phrases.',
     subjectSlug: 'english',
     level: 'ADULT',
     docType: 'reference_book',
@@ -313,10 +311,10 @@ const DOCS: DocSeed[] = [
       'Email closing: "Please let me know if you have any questions. Best regards,"',
     ],
   },
-  // Tiếng Nhật
   {
     title: 'JLPT N5 — Kanji 100 chữ thông dụng',
-    description: 'Flashcard 100 kanji N5 với stroke order + on/kun reading + 3 ví dụ. Có quiz cuối mỗi bài 10 chữ.',
+    description:
+      'Flashcard 100 kanji N5 với stroke order + on/kun reading + 3 ví dụ. Có quiz cuối mỗi bài 10 chữ.',
     subjectSlug: 'japanese',
     level: 'ADULT',
     docType: 'reference_book',
@@ -329,10 +327,10 @@ const DOCS: DocSeed[] = [
       '本 (HON/MOTO) — sách, gốc. Ví dụ: 本 (hon) sách, 日本 (Nihon).',
     ],
   },
-  // Văn 11
   {
     title: 'Văn 11 — Phân tích Vợ chồng A Phủ',
-    description: 'Phân tích chi tiết tác phẩm "Vợ chồng A Phủ" của Tô Hoài. Bao gồm dàn ý + 3 bài mẫu band 9+.',
+    description:
+      'Phân tích chi tiết tác phẩm "Vợ chồng A Phủ" của Tô Hoài. Bao gồm dàn ý + 3 bài mẫu band 9+.',
     subjectSlug: 'literature',
     level: 'HIGH_SCHOOL',
     grade: 11,
@@ -348,7 +346,6 @@ const DOCS: DocSeed[] = [
   },
 ];
 
-// ─── Reset ──────────────────────────────────────────────────────────
 async function resetSeed() {
   console.log('[reset] Đang xoá seed cũ...');
   const seeded = await db
@@ -364,7 +361,6 @@ async function resetSeed() {
   console.log(`[reset] Đã xoá ${ids.length} doc.`);
 }
 
-// ─── Main ───────────────────────────────────────────────────────────
 async function main() {
   if (RESET) {
     await resetSeed();
@@ -373,7 +369,6 @@ async function main() {
 
   console.log(`[seed] Tạo ${DOCS.length} docs realistic...`);
 
-  // Tìm 1 user để làm uploader (lấy bất kỳ user có sẵn)
   const [anyUser] = await db.select({ id: user.id }).from(user).limit(1);
   if (!anyUser) {
     console.error('Không có user nào trong DB. Cần đăng ký user trước.');
@@ -389,7 +384,6 @@ async function main() {
     const d = DOCS[i]!;
     const docId = randomUUID();
 
-    // Embed title + desc cho doc-level search
     const titleText = `${d.title}\n${d.description}`.slice(0, 4000);
     let titleEmb: number[] | null = null;
     if (!NO_EMBED) {
@@ -400,7 +394,6 @@ async function main() {
       }
     }
 
-    // Insert doc
     await db.insert(libraryDoc).values({
       id: docId,
       uploaderId,
@@ -416,17 +409,12 @@ async function main() {
       language: 'vi',
       tags: d.tags,
       fileFormat: d.fileFormat,
-      fileSizeBytes: d.pageCount * 80 * 1024, // ~80KB/page heuristic
-      // V2 (2026-05-27): seed dùng prefix `seed-v1://` PLACEHOLDER.
-      // Sau khi insert, chạy `generate-real-pdfs-for-seeds.ts` để tạo real
-      // PDF + upload R2 → cập nhật fileUrl thành public R2 URL.
+      fileSizeBytes: d.pageCount * 80 * 1024,
       fileUrl: `${SEED_PREFIX}${d.fileFormat}/${docId}`,
       fileHash: `seed-${docId}`,
       pageCount: d.pageCount,
-      // Seed không upload file thật → để NULL, DocCard fallback FileText icon.
-      // Real ingest pipeline (parsers.ts) sẽ generate placeholder JPEG + upload R2.
       previewThumbUrl: null,
-      aiSummary: d.description, // fallback dùng description làm summary
+      aiSummary: d.description,
       aiSummaryAt: new Date(),
       previewText: d.chunks.join(' ').slice(0, 500),
       titleEmbedding: titleEmb,
@@ -441,7 +429,6 @@ async function main() {
       badges: d.badges,
     });
 
-    // Embed chunks + insert
     if (d.chunks.length > 0 && !NO_EMBED) {
       try {
         const embeddings = await embedBatch(d.chunks);
@@ -449,7 +436,7 @@ async function main() {
           d.chunks.map((content, idx) => ({
             id: randomUUID(),
             docId,
-            pageNum: Math.floor(idx / 2) + 1, // ~2 chunks/page
+            pageNum: Math.floor(idx / 2) + 1,
             chunkIndex: idx,
             content,
             contentVec: embeddings[idx] ?? null,

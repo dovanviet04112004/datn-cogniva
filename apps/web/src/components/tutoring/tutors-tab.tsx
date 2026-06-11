@@ -1,14 +1,3 @@
-/**
- * TutorsTab — browse grid của tutor PUBLISHED.
- *
- * Server component fetch trực tiếp Drizzle. Filter qua searchParams:
- * subject / level / modality / minRate / maxRate.
- *
- * Cache: kết quả browse là DATA CÔNG KHAI (giống mọi visitor cùng filter), đổi chậm
- * (profile gia sư/rating cập nhật thưa) → cache-aside Redis TTL-only 600s theo
- * `filterHash` (chuẩn hoá subject/level/modality/rate/sort/page). Không invalidator:
- * lệch ≤ 10 phút chấp nhận được cho browse list. dbReplica (read thuần).
- */
 import { and, asc, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { Users } from 'lucide-react';
 
@@ -62,7 +51,6 @@ export async function TutorsTab({
     tab?: string;
   };
 }) {
-  // Parse page (1-indexed) + per (page size)
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
   const pageSize = parsePageSize(sp.per);
   const offset = (page - 1) * pageSize;
@@ -91,10 +79,7 @@ export async function TutorsTab({
   const orderClause = (() => {
     switch (sort) {
       case 'rating':
-        return [
-          desc(sql`COALESCE(${tutorProfile.ratingAvg}, 0)`),
-          desc(tutorProfile.ratingCount),
-        ];
+        return [desc(sql`COALESCE(${tutorProfile.ratingAvg}, 0)`), desc(tutorProfile.ratingCount)];
       case 'price-low':
         return [asc(tutorProfile.hourlyRateVnd)];
       case 'price-high':
@@ -105,7 +90,6 @@ export async function TutorsTab({
         return [desc(tutorProfile.sessionsCompleted)];
       case 'top':
       default:
-        // Default: weighted score — rating + sessions + verified bonus
         return [
           desc(
             sql`COALESCE(${tutorProfile.ratingAvg}, 0) * 100
@@ -117,10 +101,6 @@ export async function TutorsTab({
     }
   })();
 
-  // filterHash — chuẩn hoá MỌI biến ảnh hưởng kết quả query (subject/level/modality/
-  // rate/sort + page/pageSize) thành 1 chuỗi ổn định làm key cache. Cùng filter →
-  // cùng key → chia sẻ cache giữa các visitor. Thiếu = 'all' để 2 trạng thái khác
-  // nhau (không lọc vs lọc giá trị "all") không đụng key.
   const filterHash = [
     `s=${sp.subject ?? 'all'}`,
     `l=${sp.level ?? 'all'}`,
@@ -132,36 +112,31 @@ export async function TutorsTab({
     `per=${pageSize}`,
   ].join('|');
 
-  // Run count + paginated rows trong parallel — giảm latency. Bọc trong cache-aside
-  // (TTL 600s): rows + countRow đều JSON-serializable (subjects = json_agg, KHÔNG
-  // select cột Date nào) → không cần re-hydrate Date sau cache.
   const { countRow, rows } = await cached(ck.tutorsBrowse(filterHash), 600, async () => {
     const [countRow, rows] = await Promise.all([
-    dbReplica
-      .select({ n: count() })
-      .from(tutorProfile)
-      .where(and(...conds))
-      .then((r) => r[0]),
-    dbReplica
-      .select({
-        id: tutorProfile.id,
-        headline: tutorProfile.headline,
-        hourlyRateVnd: tutorProfile.hourlyRateVnd,
-        modality: tutorProfile.modality,
-        avatarUrl: tutorProfile.avatarUrl,
-        ratingAvg: tutorProfile.ratingAvg,
-        ratingCount: tutorProfile.ratingCount,
-        sessionsCompleted: tutorProfile.sessionsCompleted,
-        verificationStatus: tutorProfile.verificationStatus,
-        instantBookEnabled: tutorProfile.instantBookEnabled,
-        trialSessionEnabled: tutorProfile.trialSessionEnabled,
-        avgResponseMinutes: tutorProfile.avgResponseMinutes,
-        userId: tutorProfile.userId,
-        userName: userTable.name,
-        userImage: userTable.image,
-        subjects: sql<
-          Array<{ slug: string; level: string; verifiedAt: string | null }>
-        >`COALESCE(
+      dbReplica
+        .select({ n: count() })
+        .from(tutorProfile)
+        .where(and(...conds))
+        .then((r) => r[0]),
+      dbReplica
+        .select({
+          id: tutorProfile.id,
+          headline: tutorProfile.headline,
+          hourlyRateVnd: tutorProfile.hourlyRateVnd,
+          modality: tutorProfile.modality,
+          avatarUrl: tutorProfile.avatarUrl,
+          ratingAvg: tutorProfile.ratingAvg,
+          ratingCount: tutorProfile.ratingCount,
+          sessionsCompleted: tutorProfile.sessionsCompleted,
+          verificationStatus: tutorProfile.verificationStatus,
+          instantBookEnabled: tutorProfile.instantBookEnabled,
+          trialSessionEnabled: tutorProfile.trialSessionEnabled,
+          avgResponseMinutes: tutorProfile.avgResponseMinutes,
+          userId: tutorProfile.userId,
+          userName: userTable.name,
+          userImage: userTable.image,
+          subjects: sql<Array<{ slug: string; level: string; verifiedAt: string | null }>>`COALESCE(
           (SELECT json_agg(json_build_object(
             'slug', ${tutorSubject.subjectSlug},
             'level', ${tutorSubject.level},
@@ -171,13 +146,13 @@ export async function TutorsTab({
           WHERE ${tutorSubject.tutorId} = ${tutorProfile.id}),
           '[]'::json
         )`,
-      })
-      .from(tutorProfile)
-      .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
-      .where(and(...conds))
-      .orderBy(...orderClause)
-      .limit(pageSize)
-      .offset(offset),
+        })
+        .from(tutorProfile)
+        .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
+        .where(and(...conds))
+        .orderBy(...orderClause)
+        .limit(pageSize)
+        .offset(offset),
     ]);
     return { countRow, rows };
   });
@@ -208,7 +183,6 @@ export async function TutorsTab({
     })),
   }));
 
-  // Build active filter chips từ searchParams
   const activeFilters: ActiveFilterChip[] = [];
   if (sp.subject) {
     const s = SUBJECT_BY_SLUG[sp.subject];
@@ -236,8 +210,6 @@ export async function TutorsTab({
     activeFilters.push({ key: 'maxRate', label: `≤${Math.round(+sp.maxRate / 1000)}K` });
   }
 
-  // preservedParams = mọi searchParam hiện tại trừ page/per (Pagination tự
-  // append page/per khi cần). Plain object → serializable qua RSC boundary.
   const preservedParams: Record<string, string> = {};
   if (sp.tab) preservedParams.tab = sp.tab;
   if (sp.subject) preservedParams.subject = sp.subject;

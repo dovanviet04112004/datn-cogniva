@@ -1,18 +1,3 @@
-/**
- * /documents — list toàn bộ document cross-workspace.
- *
- * V8.16 (2026-05-20): trước đây redirect /workspaces (Phase 21 workspace-
- * centric). Giờ build lại proper list page để click "Xem tất cả" ở dashboard
- * có ý nghĩa thật, không bounce ngược.
- *
- * Layout:
- *   - Header: title + count
- *   - List rows: filename + workspace badge + relative time
- *   - Click row → /documents/[id] (page detail PDF + chunks đã có sẵn)
- *
- * Sort: lastest first (created_at desc). Limit 100 cho v1, chưa cần
- * pagination cursor.
- */
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -53,22 +38,15 @@ export default async function DocumentsListPage() {
 
   return (
     <PageShell>
-      {/* Breadcrumb là điều hướng (CONTENT) — giữ NGAY TRƯỚC hero, không nhồi vào. */}
       <Breadcrumbs
-        segments={[
-          { href: '/workspaces', label: 'Workspaces' },
-          { label: 'Tất cả tài liệu' },
-        ]}
+        segments={[{ href: '/workspaces', label: 'Workspaces' }, { label: 'Tất cả tài liệu' }]}
       />
-      {/* Hero CHUNG thay header tự-chế — h1 → title, p → description, nút Upload → children. */}
       <PageHero
         eyebrow="Tài liệu"
         eyebrowIcon={FileText}
         title="Tất cả tài liệu"
         description={`${rows.length} tài liệu cross-workspace — mới nhất trên cùng.`}
       >
-        {/* Nút Upload (+ auto-mở khi đáp `?upload=1` từ dashboard). Suspense vì
-            DocumentsUploadAction đọc useSearchParams. */}
         <Suspense>
           <DocumentsUploadAction />
         </Suspense>
@@ -80,24 +58,21 @@ export default async function DocumentsListPage() {
           description="Bấm Upload ở góc trên để thêm PDF đầu tiên — Cogniva sẽ parse + index để bạn hỏi đáp có citation."
         />
       ) : (
-        <ul className="overflow-hidden rounded-xl border bg-card/30 shadow-soft">
+        <ul className="bg-card/30 shadow-soft overflow-hidden rounded-xl border">
           {rows.map((d, i) => (
-            <li
-              key={d.id}
-              className={i > 0 ? 'border-t' : undefined}
-            >
+            <li key={d.id} className={i > 0 ? 'border-t' : undefined}>
               <Link
                 href={`/documents/${d.id}`}
-                className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50"
+                className="hover:bg-muted/50 group flex items-center gap-4 px-4 py-3 transition-colors"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                <div className="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors">
                   <FileText className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{d.filename}</p>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <div className="text-muted-foreground mt-0.5 flex items-center gap-2 text-[11px]">
                     {d.workspaceName && (
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-medium">
+                      <span className="bg-muted rounded px-1.5 py-0.5 font-medium">
                         {d.workspaceName}
                       </span>
                     )}
@@ -109,7 +84,7 @@ export default async function DocumentsListPage() {
                     )}
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                <ChevronRight className="text-muted-foreground/60 group-hover:text-foreground h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </li>
           ))}

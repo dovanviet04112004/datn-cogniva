@@ -1,11 +1,3 @@
-/**
- * ConversationsListClient — list cuộc hội thoại cross-user.
- *
- * UX:
- *   - Search title debounce 300ms
- *   - Filter substring email owner
- *   - Click row → /admin/conversations/[id] xem full thread
- */
 'use client';
 
 import * as React from 'react';
@@ -71,17 +63,12 @@ export function ConversationsListClient() {
   } = useInfiniteQuery({
     queryKey: qk.adminConversations(debouncedQ, debouncedEmail),
     queryFn: ({ pageParam }) =>
-      apiGet<Page>(
-        `/api/admin/conversations?${buildQuery(pageParam ?? undefined)}`,
-      ),
+      apiGet<Page>(`/api/admin/conversations?${buildQuery(pageParam ?? undefined)}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const rows = React.useMemo(
-    () => data?.pages.flatMap((p) => p.conversations) ?? [],
-    [data],
-  );
+  const rows = React.useMemo(() => data?.pages.flatMap((p) => p.conversations) ?? [], [data]);
   const total = data?.pages[0]?.total ?? null;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -104,7 +91,7 @@ export function ConversationsListClient() {
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="relative min-w-[200px] max-w-md flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
           <input
             value={filter.q}
@@ -185,7 +172,10 @@ function ConvRow({ c }: { c: Row }) {
   return (
     <tr className="border-b border-slate-800/60 transition-colors hover:bg-slate-800/40">
       <td className="px-3 py-2">
-        <Link href={`/admin/conversations/${c.id}`} className="flex items-center gap-2 text-slate-100">
+        <Link
+          href={`/admin/conversations/${c.id}`}
+          className="flex items-center gap-2 text-slate-100"
+        >
           <MessageSquare className="h-3.5 w-3.5 shrink-0 text-slate-500" />
           <span className="truncate text-[13px] font-medium">
             {c.title?.trim() || <span className="italic text-slate-500">— không có tiêu đề —</span>}
@@ -207,7 +197,7 @@ function ConvRow({ c }: { c: Row }) {
           '—'
         )}
       </td>
-      <td className="px-3 py-2 truncate text-[12px] text-slate-400">{c.workspaceName ?? '—'}</td>
+      <td className="truncate px-3 py-2 text-[12px] text-slate-400">{c.workspaceName ?? '—'}</td>
       <td className="px-3 py-2 text-center font-mono text-[11px] tabular-nums text-slate-300">
         {c.messageCount}
       </td>

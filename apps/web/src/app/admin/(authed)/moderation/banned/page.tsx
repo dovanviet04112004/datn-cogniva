@@ -1,6 +1,3 @@
-/**
- * /admin/moderation/banned — list users + groups đang bị suspend.
- */
 import { requireAdmin } from '@/lib/admin/guard';
 import { BannedListClient } from '@/components/admin/moderation/banned-list-client';
 

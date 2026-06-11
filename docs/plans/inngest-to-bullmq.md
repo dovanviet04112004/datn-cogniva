@@ -52,22 +52,23 @@
 
 **Bối cảnh:** Redis = **ioredis TCP** (`REDIS_URL`) → BullMQ chạy được. Đã có worker process pattern
 (`apps/realtime`). docker-compose.prod còn chỗ cho worker service. Deploy hiện = Inngest Cloud (prod)
-+ `inngest-cli dev` (dev). `tsx` đã resolve `@/` alias (các script `eval:*` đang dùng).
+
+- `inngest-cli dev` (dev). `tsx` đã resolve `@/` alias (các script `eval:*` đang dùng).
 
 ---
 
 ## 2. Inngest → BullMQ: ánh xạ khái niệm
 
-| Inngest | BullMQ tương đương |
-|---|---|
-| `createFunction({event})` | `new Worker(queue, processor)` + `queue.add(name, data)` |
-| `createFunction({cron})` | `queue.upsertJobScheduler(id, { pattern, tz })` (repeatable job) |
-| `step.run('x', fn)` | `await fn()` thuần. Cô lập retry/memoization → thay bằng **idempotency** (đa số có sẵn) hoặc **checkpoint DB** (recording) |
-| `retries: N` | job opts `attempts: N+1, backoff: { type:'exponential', delay }` |
-| `concurrency: { limit }` | `new Worker(..., { concurrency })` hoặc queue limiter |
-| `inngest.send(name, data)` | `queue.add(name, data, { jobId, attempts, backoff })` — `jobId` cho **dedup** (bonus so với Inngest) |
-| Dev server UI | Bull Board (`@bull-board`) |
-| Retry resume từ step đã xong | ❌ không có → whole-job retry; bù bằng idempotency/checkpoint |
+| Inngest                      | BullMQ tương đương                                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `createFunction({event})`    | `new Worker(queue, processor)` + `queue.add(name, data)`                                                                   |
+| `createFunction({cron})`     | `queue.upsertJobScheduler(id, { pattern, tz })` (repeatable job)                                                           |
+| `step.run('x', fn)`          | `await fn()` thuần. Cô lập retry/memoization → thay bằng **idempotency** (đa số có sẵn) hoặc **checkpoint DB** (recording) |
+| `retries: N`                 | job opts `attempts: N+1, backoff: { type:'exponential', delay }`                                                           |
+| `concurrency: { limit }`     | `new Worker(..., { concurrency })` hoặc queue limiter                                                                      |
+| `inngest.send(name, data)`   | `queue.add(name, data, { jobId, attempts, backoff })` — `jobId` cho **dedup** (bonus so với Inngest)                       |
+| Dev server UI                | Bull Board (`@bull-board`)                                                                                                 |
+| Retry resume từ step đã xong | ❌ không có → whole-job retry; bù bằng idempotency/checkpoint                                                              |
 
 **Bảng 13 job → queue + opts:**
 | Job | Queue | Trigger BullMQ | concurrency | attempts |
@@ -97,6 +98,7 @@ apps/web (Next.js)                         apps/web — WORKER process (tsx src/
 
 **Connection (BullMQ yêu cầu `maxRetriesPerRequest: null`)** — KHÔNG tái dùng `IoRedisAdapter` của
 cache (nó set =2). Tạo connection riêng:
+
 ```ts
 // apps/web/src/queue/connection.ts
 import IORedis from 'ioredis';
@@ -108,16 +110,18 @@ export function bullConnection() {
 ```
 
 **Queues (phía enqueue — dùng cả ở web routes):**
+
 ```ts
 // apps/web/src/queue/queues.ts
 import { Queue } from 'bullmq';
 const connection = bullConnection();
 export const recordingQueue = new Queue('recording', { connection });
-export const documentQueue  = new Queue('document',  { connection });
-export const cronQueue       = new Queue('cron',      { connection });
+export const documentQueue = new Queue('document', { connection });
+export const cronQueue = new Queue('cron', { connection });
 ```
 
 **Job name + payload types (thay `InngestEvents`):**
+
 ```ts
 // apps/web/src/queue/jobs.ts
 export type RecordingJob = { recordingId: string; fileUrl: string; roomId?: string; channelId?: string; ... };
@@ -138,6 +142,7 @@ export const CRON_JOBS = [
 ```
 
 **Job logic (di chuyển từ `inngest/functions/*` → `jobs/*`, bỏ wrapper):**
+
 ```ts
 // apps/web/src/jobs/reconcile-leaderboard.ts  (ví dụ cron — unwrap step.run)
 import { db, userStats } from '@cogniva/db';
@@ -150,6 +155,7 @@ export async function reconcileLeaderboard() {
 ```
 
 **Worker entrypoint:**
+
 ```ts
 // apps/web/src/worker/index.ts
 import { Worker } from 'bullmq';
@@ -161,8 +167,14 @@ import * as jobs from '@/jobs';
 const connection = bullConnection();
 
 // Event workers
-new Worker('recording', async (job) => jobs.processRecording(job.data), { connection, concurrency: 2 });
-new Worker('document',  async (job) => jobs.extractDocumentConcepts(job.data), { connection, concurrency: 2 });
+new Worker('recording', async (job) => jobs.processRecording(job.data), {
+  connection,
+  concurrency: 2,
+});
+new Worker('document', async (job) => jobs.extractDocumentConcepts(job.data), {
+  connection,
+  concurrency: 2,
+});
 
 // Cron: 1 worker dispatch theo job.name → logic tương ứng
 const CRON_MAP: Record<string, () => Promise<unknown>> = {
@@ -181,6 +193,7 @@ console.log('[worker] BullMQ workers + crons ready');
 ```
 
 **Senders (web) — đổi `inngest.send` → `queue.add`:**
+
 ```ts
 // webhook/livekit: recordingQueue.add('process', data, { jobId: data.recordingId, attempts: 2,
 //   backoff: { type: 'exponential', delay: 30_000 }, removeOnComplete: 100, removeOnFail: 500 });
@@ -193,6 +206,7 @@ console.log('[worker] BullMQ workers + crons ready');
 ## 4. Idempotency / whole-job retry (điểm cần soát kỹ)
 
 BullMQ retry CẢ job → phải an toàn khi chạy lại:
+
 - **extract-document-concepts**: ✅ đã idempotent (ON CONFLICT, UPDATE WHERE NULL). Port thẳng.
 - **process-recording** ⚠️: Whisper/summary đắt + dài. Thêm **checkpoint**: đầu job đọc `recording` row;
   nếu đã có `transcript` → bỏ Whisper; đã có `summary` → bỏ summarize; persist sớm từng phần. `attempts:2`.
@@ -210,12 +224,14 @@ BullMQ retry CẢ job → phải an toàn khi chạy lại:
 ## 5. Checklist file
 
 **Tạo:**
+
 - `apps/web/src/queue/{connection,queues,jobs}.ts`
 - `apps/web/src/worker/index.ts` + graceful shutdown
 - `apps/web/src/jobs/*.ts` (13 file logic, di từ `inngest/functions/*`) + `jobs/index.ts` (barrel)
 - (tuỳ chọn) Bull Board mount trong worker (admin-only)
 
 **Sửa:**
+
 - `apps/web/src/app/api/webhooks/livekit/route.ts` — `inngest.send` → `recordingQueue.add`
 - `apps/web/src/lib/ingest/pipeline.ts` — `inngest.send` → `documentQueue.add`
 - `apps/web/src/lib/env.ts` — bỏ `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` (REDIS_URL đã có)
@@ -229,7 +245,8 @@ BullMQ retry CẢ job → phải an toàn khi chạy lại:
 - `infrastructure/docker-compose.dev.yml` / README — note chạy worker qua pnpm
 
 **Xoá:**
-- `apps/web/src/inngest/` (client.ts + functions/*) — sau khi di logic sang `jobs/`
+
+- `apps/web/src/inngest/` (client.ts + functions/\*) — sau khi di logic sang `jobs/`
 - `apps/web/src/app/api/inngest/route.ts`
 - `vercel.json`: không cần đổi (Inngest Cloud auto-sync sẽ ngừng khi gỡ route)
 
@@ -264,6 +281,7 @@ Bắt buộc bám 2 trục này khi implement (theo [[feedback_conform_arch_stan
 [[feedback_web_mobile_shared_discipline]]):
 
 **A. Tích hợp — TÁI DÙNG, không viết lại:**
+
 - 1 **Redis instance** đang có (connection BullMQ riêng chỉ vì cần `maxRetriesPerRequest:null`; KHÔNG
   fork Redis mới). Đặt cạnh cache + Socket.IO adapter + secondaryStorage.
 - Job logic **gọi lại lib hiện có**, không nhân bản: `lbBackfill`, `extractConceptsForChunks`,
@@ -274,10 +292,11 @@ Bắt buộc bám 2 trục này khi implement (theo [[feedback_conform_arch_stan
 - Worker dùng đúng pattern `apps/realtime` (tsx, graceful SIGINT/SIGTERM, docker service riêng).
 
 **B. Mobile-safe — RANH GIỚI cứng (để sau còn dev app mobile):**
+
 - `bullmq`, `ioredis`, `@cogniva/db`, `src/queue/*`, `src/worker/*`, `src/jobs/*` = **SERVER-ONLY**,
   chỉ ở `apps/web`. **TUYỆT ĐỐI không import vào `packages/shared`** (shared phải RN-safe = chỉ zod) và
   **không vào `apps/mobile`**. Mobile KHÔNG enqueue job.
-- Nếu sau cần share *job-name/payload type* cho tooling chung → để **plain TS/zod** ở `packages/shared`,
+- Nếu sau cần share _job-name/payload type_ cho tooling chung → để **plain TS/zod** ở `packages/shared`,
   KHÔNG kéo theo bullmq/ioredis. Hiện mobile không cần → chưa tạo.
 - **Job phục vụ mobile vẫn nguyên hành vi**: `flashcard-due-reminder`, `library-pro-expiry-warn`,
   `library-saved-search-notify` bắn **Expo Push** tới mobile → giữ y nguyên (chỉ đổi cơ chế schedule,

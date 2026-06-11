@@ -1,17 +1,3 @@
-/**
- * /workspaces/[id]/atoms/[atomId] — atom detail page.
- *
- * Hiển thị:
- *   - Header: tên + domain + mastery chip + difficulty
- *   - Definition + examples
- *   - Preview Q/A (nếu LLM đã extract)
- *   - Mastery card: score, attempts, last review per source
- *   - All flashcards của user (workspace-scoped) — click → review
- *   - All quiz questions có atom — click → quiz
- *   - All exam questions có atom — click → exam
- *
- * Phase C (atom-centric). Spec: docs/plans/atom-centric.md §5.1 (Atom detail).
- */
 import { notFound, redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
@@ -36,7 +22,6 @@ export default async function AtomDetailPage({ params }: Props) {
 
   const { id: workspaceId, atomId } = await params;
 
-  // Verify workspace thuộc user
   const [ws] = await db
     .select({ id: workspace.id, name: workspace.name })
     .from(workspace)
@@ -79,8 +64,7 @@ export default async function AtomDetailPage({ params }: Props) {
                 correct: atom.mastery.correct,
                 lastSeenAt: atom.mastery.lastSeenAt?.toISOString() ?? null,
                 lastQuizAt: atom.mastery.lastQuizAt?.toISOString() ?? null,
-                lastFlashcardAt:
-                  atom.mastery.lastFlashcardAt?.toISOString() ?? null,
+                lastFlashcardAt: atom.mastery.lastFlashcardAt?.toISOString() ?? null,
                 lastExamAt: atom.mastery.lastExamAt?.toISOString() ?? null,
               }
             : null,

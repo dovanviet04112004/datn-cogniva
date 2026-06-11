@@ -1,7 +1,3 @@
-// tsconfig cho @cogniva/api — NestJS chạy Node, build bằng Nest CLI (tsc).
-// Override base (ESM/Bundler) sang CommonJS + decorator metadata vì NestJS DI
-// resolve dependency theo type lúc runtime (reflect-metadata) — tsx/esbuild
-// không emit metadata nên không dùng được như apps/realtime.
 {
   "extends": "@cogniva/tsconfig/base.json",
   "compilerOptions": {
@@ -14,12 +10,9 @@
     "removeComments": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
-    // "multer": nạp global augmentation Express.Multer.File (@types/multer
-    // không được import trực tiếp ở đâu nên phải khai báo tường minh).
     "types": ["node", "multer"],
     "incremental": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

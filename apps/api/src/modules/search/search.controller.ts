@@ -1,4 +1,3 @@
-/** /api/search + /api/chunks/:id — port từ route Next (global search + chunk preview). */
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -11,7 +10,6 @@ import { SearchService } from './search.service';
 export class SearchController {
   constructor(private readonly search: SearchService) {}
 
-  /** GET /search?q=text&limit=10 — limit default 10, cap 30 (như route cũ). */
   @Get()
   async globalSearch(
     @CurrentUser() user: AuthUser,
@@ -29,7 +27,6 @@ export class SearchController {
 export class ChunksController {
   constructor(private readonly search: SearchService) {}
 
-  /** GET /chunks/:id — DocPreviewPanel load full chunk + neighbors khi click citation. */
   @Get(':id')
   getChunk(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.search.getChunk(user.id, id);

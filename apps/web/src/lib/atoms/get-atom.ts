@@ -1,25 +1,6 @@
-/**
- * AtomView helper — Phase A8 (atom-centric).
- *
- * Trả về 1 atom với mastery của user + count flashcard/quiz/exam. Dùng cho
- * UI atom detail page (Phase C4) + workspace "Today" card (Phase B).
- *
- * Spec: docs/plans/atom-centric.md §3.4 (atom_view).
- *
- * Implementation note: làm bằng tay (không CREATE VIEW SQL) để Drizzle có
- * thể type-safe. Cost: 4 query song song (concept, mastery, flashcard count,
- * quiz count) — chấp nhận vì atom detail không phải hot path.
- */
 import { and, eq, sql } from 'drizzle-orm';
 
-import {
-  concept,
-  db,
-  flashcard,
-  mastery,
-  question,
-  examQuestion,
-} from '@cogniva/db';
+import { concept, db, flashcard, mastery, question, examQuestion } from '@cogniva/db';
 
 export type AtomView = {
   id: string;
@@ -30,7 +11,6 @@ export type AtomView = {
   difficulty: number | null;
   previewQuestion: string | null;
   previewAnswer: string | null;
-  /** Mastery của user hiện tại — null nếu chưa attempt lần nào. */
   mastery: {
     score: number;
     attempts: number;
@@ -47,23 +27,10 @@ export type AtomView = {
   };
 };
 
-/**
- * Load AtomView cho 1 atom (concept) của 1 user.
- *
- * @returns AtomView hoặc null nếu concept không tồn tại.
- */
-export async function getAtomView(
-  atomId: string,
-  userId: string,
-): Promise<AtomView | null> {
-  const [conceptRow] = await db
-    .select()
-    .from(concept)
-    .where(eq(concept.id, atomId))
-    .limit(1);
+export async function getAtomView(atomId: string, userId: string): Promise<AtomView | null> {
+  const [conceptRow] = await db.select().from(concept).where(eq(concept.id, atomId)).limit(1);
   if (!conceptRow) return null;
 
-  // Parallel — independent queries
   const [masteryRows, fcCount, qzCount, exCount] = await Promise.all([
     db
       .select()
@@ -73,9 +40,7 @@ export async function getAtomView(
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(flashcard)
-      .where(
-        and(eq(flashcard.userId, userId), eq(flashcard.conceptId, atomId)),
-      ),
+      .where(and(eq(flashcard.userId, userId), eq(flashcard.conceptId, atomId))),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(question)

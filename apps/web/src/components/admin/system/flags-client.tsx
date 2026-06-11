@@ -1,12 +1,3 @@
-/**
- * FlagsClient — list + create + edit + delete feature flags.
- *
- * UX:
- *   - Table flag name / value / updated / actions
- *   - Click row → expand JSON editor inline (textarea)
- *   - New flag button → modal with name input + JSON editor
- *   - Delete flag → ConfirmDialog với reason
- */
 'use client';
 
 import * as React from 'react';
@@ -46,12 +37,9 @@ export function FlagsClient({ initial }: { initial: Flag[] }) {
   const [newOpen, setNewOpen] = React.useState(false);
   const [deleteFlag, setDeleteFlag] = React.useState<Flag | null>(null);
 
-  // List flags qua React Query, seed bằng dữ liệu SSR (initialData) → không
-  // refetch ngay khi mount, chỉ refetch sau khi tạo/sửa/xoá.
   const { data: flags = initial, refetch } = useQuery({
     queryKey: qk.adminFlags(),
-    queryFn: () =>
-      apiGet<{ flags: Flag[] }>('/api/admin/system/flags').then((d) => d.flags),
+    queryFn: () => apiGet<{ flags: Flag[] }>('/api/admin/system/flags').then((d) => d.flags),
     initialData: initial,
   });
 
@@ -139,8 +127,8 @@ export function FlagsClient({ initial }: { initial: Flag[] }) {
           </button>
         </div>
         <p className="text-sm text-slate-400">
-          Lưu ở <code>system_config</code> key <code>flags.&lt;name&gt;</code>. Code đọc
-          qua <code>getFlag&lt;T&gt;(name)</code>. Cache 5s nên flag mới propagate sau ~5s.
+          Lưu ở <code>system_config</code> key <code>flags.&lt;name&gt;</code>. Code đọc qua{' '}
+          <code>getFlag&lt;T&gt;(name)</code>. Cache 5s nên flag mới propagate sau ~5s.
         </p>
       </header>
 
@@ -156,9 +144,7 @@ export function FlagsClient({ initial }: { initial: Flag[] }) {
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5">
                   <button
                     type="button"
-                    onClick={() =>
-                      expanded === f.name ? setExpanded(null) : startEdit(f)
-                    }
+                    onClick={() => (expanded === f.name ? setExpanded(null) : startEdit(f))}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
                     <code className="font-mono text-[12.5px] font-semibold text-slate-100">
@@ -246,8 +232,8 @@ export function FlagsClient({ initial }: { initial: Flag[] }) {
         title={`Xoá flag "${deleteFlag?.name}"?`}
         description={
           <span>
-            Code đọc qua <code>getFlag()</code> sẽ trả về <strong>null</strong> sau khi
-            xoá → fall back về default behavior. Action không thể undo qua admin UI.
+            Code đọc qua <code>getFlag()</code> sẽ trả về <strong>null</strong> sau khi xoá → fall
+            back về default behavior. Action không thể undo qua admin UI.
           </span>
         }
         confirmLabel="Xoá flag"
@@ -325,15 +311,12 @@ function NewFlagDialog({
         <DialogHeader>
           <DialogTitle>Flag mới</DialogTitle>
           <DialogDescription className="text-xs">
-            Tên kebab-case, value là JSON hợp lệ. Code đọc qua{' '}
-            <code>getFlag&lt;T&gt;(name)</code>.
+            Tên kebab-case, value là JSON hợp lệ. Code đọc qua <code>getFlag&lt;T&gt;(name)</code>.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-300">
-              Tên (kebab-case)
-            </label>
+            <label className="block text-[11px] font-medium text-slate-300">Tên (kebab-case)</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -342,9 +325,7 @@ function NewFlagDialog({
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-300">
-              Value (JSON)
-            </label>
+            <label className="block text-[11px] font-medium text-slate-300">Value (JSON)</label>
             <textarea
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -399,4 +380,3 @@ function valueSummary(v: unknown): string {
   if (typeof v === 'string') return `"${v.slice(0, 30)}${v.length > 30 ? '…' : ''}"`;
   return JSON.stringify(v).slice(0, 60);
 }
-

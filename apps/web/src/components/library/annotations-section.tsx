@@ -1,26 +1,7 @@
-/**
- * AnnotationsSection — Bonus #8 page-level notes (Phase 3, 2026-05-27).
- *
- * Section riêng dưới detail page:
- *   - Form thêm note (page number + text + visibility public/private)
- *   - List notes sorted by helpful_count DESC + most recent
- *   - Vote helpful toggle per note
- *   - Author có thể xoá note của mình
- *
- * Phase 4 sẽ thêm: pixel-perfect text selection overlay trên PDF.
- */
 'use client';
 
 import * as React from 'react';
-import {
-  EyeOff,
-  Loader2,
-  MessageCircle,
-  Pin,
-  ThumbsUp,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { EyeOff, Loader2, MessageCircle, Pin, ThumbsUp, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -33,7 +14,6 @@ import { cn } from '@/lib/utils';
 import { useConfirm } from '@/lib/use-confirm';
 import { useT } from '@/lib/i18n/context';
 
-// SectionHeading dùng chung toàn app (thay bản local cũ ở related-docs-section).
 import { SectionHeading } from '@/components/ui/section-heading';
 import {
   ANNOTATION_FOCUS_EVENT,
@@ -80,12 +60,8 @@ export function AnnotationsSection({ docId }: { docId: string }) {
   const [selectionRect, setSelectionRect] = React.useState<AnnotationSelectionRect | null>(null);
   const [visibility, setVisibility] = React.useState<'public' | 'private'>('public');
   const [submitting, setSubmitting] = React.useState(false);
-  // Phase 4 Step 3: hover state đến từ preview → highlight card tương ứng
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
-  // Flash animation khi user click rect overlay trong preview (FOCUS event).
   const [flashId, setFlashId] = React.useState<string | null>(null);
-  // Số trang user thật sự xem được — broadcast từ DocPreviewPanel.
-  // Mặc định 5 (PREVIEW_PAGE_COUNT_DEFAULT), update khi event fire.
   const [visiblePageLimit, setVisiblePageLimit] = React.useState(5);
   const [fullAccess, setFullAccess] = React.useState(false);
 
@@ -99,7 +75,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
     return () => window.removeEventListener(ANNOTATION_PREVIEW_LIMIT_EVENT, onLimit);
   }, []);
 
-  // Phase 4: listen text-selection event từ DocPreviewPanel
   React.useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<AnnotationSelectDetail>;
@@ -118,7 +93,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
     return () => window.removeEventListener(ANNOTATION_SELECT_EVENT, handler);
   }, []);
 
-  // Hover từ preview → highlight card tương ứng (bỏ qua nếu source = list)
   React.useEffect(() => {
     const onHover = (e: Event) => {
       const ce = e as CustomEvent<AnnotationHoverDetail>;
@@ -129,7 +103,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
     return () => window.removeEventListener(ANNOTATION_HOVER_EVENT, onHover);
   }, []);
 
-  // Focus event (click rect overlay) → scroll vào card + flash
   React.useEffect(() => {
     const onFocus = (e: Event) => {
       const ce = e as CustomEvent<AnnotationFocusDetail>;
@@ -140,7 +113,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
           .getElementById(`annotation-card-${id}`)
           ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
-      // Hết flash sau 1.6s
       window.setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1600);
     };
     window.addEventListener(ANNOTATION_FOCUS_EVENT, onFocus);
@@ -148,15 +120,17 @@ export function AnnotationsSection({ docId }: { docId: string }) {
   }, []);
 
   type AnnotData = { annotations: Annotation[]; viewerId: string | null };
-  const { data, isLoading: loading, refetch } = useQuery({
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
     queryKey: qk.libraryDocAnnotations(docId),
-    queryFn: () =>
-      apiGet<AnnotData>(`/api/library/docs/${docId}/annotations`),
+    queryFn: () => apiGet<AnnotData>(`/api/library/docs/${docId}/annotations`),
   });
   const annotations = data?.annotations ?? [];
   const viewerId = data?.viewerId ?? null;
 
-  // Phase 4 Step 3: broadcast cho preview cache overlay items khi list load/đổi.
   React.useEffect(() => {
     if (!data) return;
     const payload: AnnotationsLoadedDetail = {
@@ -168,9 +142,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
         selectionRect: a.selectionRect,
       })),
     };
-    window.dispatchEvent(
-      new CustomEvent(ANNOTATIONS_LOADED_EVENT, { detail: payload }),
-    );
+    window.dispatchEvent(new CustomEvent(ANNOTATIONS_LOADED_EVENT, { detail: payload }));
   }, [data]);
 
   const submit = async () => {
@@ -206,7 +178,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
         `/api/library/annotations/${annotationId}/vote`,
         'POST',
       );
-      // Cập nhật tại chỗ trong cache (không refetch cả list).
       qc.setQueryData<AnnotData>(qk.libraryDocAnnotations(docId), (old) =>
         old
           ? {
@@ -231,16 +202,13 @@ export function AnnotationsSection({ docId }: { docId: string }) {
       await apiSend(`/api/library/annotations/${annotationId}`, 'DELETE');
       toast.success(t('library.annot.deleted'));
       qc.setQueryData<AnnotData>(qk.libraryDocAnnotations(docId), (old) =>
-        old
-          ? { ...old, annotations: old.annotations.filter((a) => a.id !== annotationId) }
-          : old,
+        old ? { ...old, annotations: old.annotations.filter((a) => a.id !== annotationId) } : old,
       );
     } catch (err) {
       toast.error((err as Error).message);
     }
   };
 
-  // Group by page for organized display
   const byPage = new Map<number, Annotation[]>();
   for (const a of annotations) {
     if (!byPage.has(a.pageNum)) byPage.set(a.pageNum, []);
@@ -250,7 +218,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
 
   return (
     <section className="mt-8 space-y-4">
-      {/* Tiêu đề mục ghi chú + nút "Thêm ghi chú" slot action bên phải. */}
       <SectionHeading
         count={annotations.length}
         action={
@@ -258,7 +225,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
             <button
               type="button"
               onClick={() => setFormOpen(true)}
-              className="text-[11.5px] font-semibold text-primary hover:underline"
+              className="text-primary text-[11.5px] font-semibold hover:underline"
             >
               {t('library.annot.add_note')}
             </button>
@@ -266,13 +233,14 @@ export function AnnotationsSection({ docId }: { docId: string }) {
         }
       >
         <span className="inline-flex items-center gap-2">
-          <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
+          <MessageCircle className="text-muted-foreground h-3.5 w-3.5" />
           {t('library.annot.section_title')}
         </span>
       </SectionHeading>
       {!formOpen && annotations.length === 0 && (
-        <p className="rounded-lg border border-dashed border-divider bg-muted/30 px-3 py-2 text-[11.5px] text-muted-foreground">
-          {t('library.annot.tip')}<strong>{t('library.annot.tip_label')}</strong>
+        <p className="border-divider bg-muted/30 text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-[11.5px]">
+          {t('library.annot.tip')}
+          <strong>{t('library.annot.tip_label')}</strong>
           {t('library.annot.tip_body')}{' '}
           {fullAccess
             ? t('library.annot.tip_full').replace('{count}', String(visiblePageLimit))
@@ -280,7 +248,6 @@ export function AnnotationsSection({ docId }: { docId: string }) {
         </p>
       )}
 
-      {/* Form */}
       {formOpen && (
         <form
           id="annotation-form-section"
@@ -288,11 +255,11 @@ export function AnnotationsSection({ docId }: { docId: string }) {
             e.preventDefault();
             submit();
           }}
-          className="space-y-2.5 rounded-xl border border-primary/40 bg-card p-3.5 shadow-sm"
+          className="border-primary/40 bg-card space-y-2.5 rounded-xl border p-3.5 shadow-sm"
         >
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1 text-[12px] font-semibold">
-              <Pin className="h-3.5 w-3.5 text-primary" />
+              <Pin className="text-primary h-3.5 w-3.5" />
               {t('library.annot.add_heading')}
             </p>
             <button
@@ -303,21 +270,22 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                 setSelectedText(null);
               }}
               aria-label={t('library.annot.close_form_aria')}
-              className="rounded p-1 hover:bg-muted"
+              className="hover:bg-muted rounded p-1"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
           {selectedText && (
             <div className="flex items-start gap-2 rounded-md border-l-2 border-amber-500 bg-amber-500/5 px-2 py-1.5">
-              <p className="text-[11.5px] italic text-foreground/85">
-                &ldquo;{selectedText.length > 200 ? selectedText.slice(0, 200) + '…' : selectedText}&rdquo;
+              <p className="text-foreground/85 text-[11.5px] italic">
+                &ldquo;{selectedText.length > 200 ? selectedText.slice(0, 200) + '…' : selectedText}
+                &rdquo;
               </p>
               <button
                 type="button"
                 onClick={() => setSelectedText(null)}
                 aria-label={t('library.annot.clear_selection_aria')}
-                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground rounded p-0.5"
                 title={t('library.annot.clear_selection_title')}
               >
                 <X className="h-2.5 w-2.5" />
@@ -325,7 +293,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
               {t('library.annot.page')}
             </label>
             <input
@@ -335,20 +303,20 @@ export function AnnotationsSection({ docId }: { docId: string }) {
               value={pageNum}
               onChange={(e) => {
                 const n = Number(e.target.value) || 1;
-                // Clamp theo số trang đang xem được
                 setPageNum(Math.max(1, Math.min(visiblePageLimit, n)));
               }}
-              className="w-20 rounded-md border border-divider bg-background px-2 py-1 text-[12px]"
+              className="border-divider bg-background w-20 rounded-md border px-2 py-1 text-[12px]"
             />
-            <span className="text-[10.5px] text-muted-foreground">
-              / {visiblePageLimit} {fullAccess ? t('library.annot.page_unit') : t('library.annot.page_preview_unit')}
+            <span className="text-muted-foreground text-[10.5px]">
+              / {visiblePageLimit}{' '}
+              {fullAccess ? t('library.annot.page_unit') : t('library.annot.page_preview_unit')}
             </span>
-            <label className="ml-2 inline-flex items-center gap-1.5 text-[11px] cursor-pointer">
+            <label className="ml-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px]">
               <input
                 type="checkbox"
                 checked={visibility === 'private'}
                 onChange={(e) => setVisibility(e.target.checked ? 'private' : 'public')}
-                className="h-3.5 w-3.5 accent-discovery-600"
+                className="accent-discovery-600 h-3.5 w-3.5"
               />
               <EyeOff className="h-3 w-3" />
               {t('library.annot.private')}
@@ -363,9 +331,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
             className="resize-none text-[12.5px]"
           />
           <div className="flex items-center justify-between">
-            <span className="text-[10.5px] text-muted-foreground">
-              {note.length}/2000
-            </span>
+            <span className="text-muted-foreground text-[10.5px]">{note.length}/2000</span>
             <Button type="submit" size="sm" disabled={submitting || note.trim().length < 2}>
               {submitting && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
               {t('library.annot.post_note')}
@@ -375,15 +341,17 @@ export function AnnotationsSection({ docId }: { docId: string }) {
       )}
 
       {loading ? (
-        <p className="py-4 text-center text-xs text-muted-foreground">{t('library.annot.loading')}</p>
+        <p className="text-muted-foreground py-4 text-center text-xs">
+          {t('library.annot.loading')}
+        </p>
       ) : annotations.length === 0 ? (
-        <p className="py-6 text-center text-[12.5px] text-muted-foreground">
+        <p className="text-muted-foreground py-6 text-center text-[12.5px]">
           {t('library.annot.empty')}{' '}
           {!formOpen && (
             <button
               type="button"
               onClick={() => setFormOpen(true)}
-              className="font-semibold text-primary hover:underline"
+              className="text-primary font-semibold hover:underline"
             >
               {t('library.annot.write_first')}
             </button>
@@ -393,7 +361,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
         <div className="space-y-3">
           {pageNums.map((pn) => (
             <div key={pn}>
-              <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-muted-foreground mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider">
                 {t('library.annot.page')} {pn} ({byPage.get(pn)!.length})
               </p>
               <ul className="space-y-2">
@@ -422,12 +390,10 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                         );
                       }}
                       className={cn(
-                        'rounded-xl border bg-card p-3 transition-all',
-                        a.visibility === 'private'
-                          ? 'border-amber-500/30'
-                          : 'border-divider',
-                        isHover && 'ring-2 ring-amber-500/50 shadow-md',
-                        isFlash && 'ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/30',
+                        'bg-card rounded-xl border p-3 transition-all',
+                        a.visibility === 'private' ? 'border-amber-500/30' : 'border-divider',
+                        isHover && 'shadow-md ring-2 ring-amber-500/50',
+                        isFlash && 'bg-amber-50 ring-2 ring-amber-500 dark:bg-amber-950/30',
                       )}
                     >
                       <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -438,16 +404,14 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                               {(a.authorName ?? '?')[0]?.toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="text-[11.5px] font-semibold">
-                            {a.authorName}
-                          </span>
+                          <span className="text-[11.5px] font-semibold">{a.authorName}</span>
                           {a.visibility === 'private' && (
                             <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9.5px] font-medium text-amber-700 dark:text-amber-300">
                               <EyeOff className="h-2.5 w-2.5" />
                               {t('library.annot.private_badge')}
                             </span>
                           )}
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-muted-foreground text-[10px]">
                             {new Date(a.createdAt).toLocaleDateString('vi-VN')}
                           </span>
                         </div>
@@ -456,7 +420,7 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                             type="button"
                             onClick={() => remove(a.id)}
                             aria-label={t('library.annot.delete_aria')}
-                            className="rounded p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600"
+                            className="text-muted-foreground rounded p-1 hover:bg-rose-500/10 hover:text-rose-600"
                             title={t('library.annot.delete_title')}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -465,12 +429,16 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                       </div>
                       {a.selectedText && (
                         <div className="my-1.5 rounded border-l-2 border-amber-500 bg-amber-500/5 px-2 py-1">
-                          <p className="text-[11px] italic text-foreground/80">
-                            &ldquo;{a.selectedText.length > 200 ? a.selectedText.slice(0, 200) + '…' : a.selectedText}&rdquo;
+                          <p className="text-foreground/80 text-[11px] italic">
+                            &ldquo;
+                            {a.selectedText.length > 200
+                              ? a.selectedText.slice(0, 200) + '…'
+                              : a.selectedText}
+                            &rdquo;
                           </p>
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-foreground/90">
+                      <p className="text-foreground/90 whitespace-pre-wrap text-[12.5px] leading-relaxed">
                         {a.note}
                       </p>
                       <button
@@ -485,7 +453,8 @@ export function AnnotationsSection({ docId }: { docId: string }) {
                         )}
                       >
                         <ThumbsUp className="h-2.5 w-2.5" />
-                        {a.hasVoted ? t('library.annot.voted') : t('library.annot.vote')} ({a.helpfulCount})
+                        {a.hasVoted ? t('library.annot.voted') : t('library.annot.vote')} (
+                        {a.helpfulCount})
                       </button>
                     </li>
                   );
@@ -498,4 +467,3 @@ export function AnnotationsSection({ docId }: { docId: string }) {
     </section>
   );
 }
-

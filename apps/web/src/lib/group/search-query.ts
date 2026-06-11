@@ -1,23 +1,3 @@
-/**
- * search-query — V2 G6.1 (2026-05-21).
- *
- * Parse query string user nhập trong SearchDialog ra (textQuery, filters).
- *
- * Cú pháp Discord-inspired:
- *   - "react hook"                → text query
- *   - "react from:abc123"         → text + filter from
- *   - "in:general has:image"      → chỉ filter
- *   - "before:2026-05-01 hello"   → text + filter before
- *
- * Supported keys: from, in, has, before, after, mentions.
- * Value: token tới space gần nhất (không support quoted token).
- *
- * Server-side dùng cùng parser để build SQL — share giữa client (preview) và
- * server (execute) để tránh divergence.
- *
- * Spec: docs/plans/study-group-v2.md §G6.
- */
-
 export type SearchFilters = {
   from?: string;
   in?: string;
@@ -41,7 +21,6 @@ export function parseSearch(input: string): ParsedSearch {
   const filters: SearchFilters = {};
   const textParts: string[] = [];
 
-  // Tokenize theo whitespace (single pass — không xử lý quoted strings để gọn)
   const tokens = input.trim().split(/\s+/).filter(Boolean);
 
   for (const tok of tokens) {
@@ -58,7 +37,7 @@ export function parseSearch(input: string): ParsedSearch {
     }
     if (key === 'has') {
       if (!(HAS_VALUES as readonly string[]).includes(value)) {
-        textParts.push(tok); // invalid → treat as plain text
+        textParts.push(tok);
         continue;
       }
       filters.has = value as SearchFilters['has'];
@@ -73,10 +52,6 @@ export function parseSearch(input: string): ParsedSearch {
   };
 }
 
-/**
- * Stringify filters lại thành chip-form display (đảo ngược parseSearch).
- * Dùng để render preview chip list trong dialog.
- */
 export function stringifySearch(parsed: ParsedSearch): string {
   const parts: string[] = [];
   if (parsed.text) parts.push(parsed.text);
@@ -87,14 +62,6 @@ export function stringifySearch(parsed: ParsedSearch): string {
   return parts.join(' ');
 }
 
-/**
- * Convert text query → Postgres tsquery format:
- *   - Words connected with ` & ` (AND)
- *   - Escape ký tự đặc biệt (& | ! ( ) :) → space
- *   - Append :* để wildcard prefix match
- *
- * Ví dụ: "react hook" → "react:* & hook:*"
- */
 export function toTsQuery(text: string): string {
   const cleaned = text
     .replace(/[&|!():*<>]/g, ' ')

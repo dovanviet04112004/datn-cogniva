@@ -1,8 +1,3 @@
-/**
- * UsageClient — table per-user usage với filter date range + provider + feature.
- *
- * Export CSV: download URL fetch /api/admin/ai/usage?format=csv với cùng filter.
- */
 'use client';
 
 import * as React from 'react';
@@ -63,7 +58,6 @@ export function UsageClient() {
 
   const buildQuery = (format: 'json' | 'csv' = 'json') => {
     const p = new URLSearchParams();
-    // Convert YYYY-MM-DD → ISO ở Z midnight UTC
     if (filter.from) p.set('from', new Date(filter.from + 'T00:00:00Z').toISOString());
     if (filter.to) p.set('to', new Date(filter.to + 'T23:59:59Z').toISOString());
     if (filter.provider) p.set('provider', filter.provider);
@@ -114,12 +108,11 @@ export function UsageClient() {
           </button>
         </div>
         <p className="text-sm text-slate-400">
-          Cost + token breakdown per user. Filter theo date / provider / feature rồi
-          xuất CSV để phân tích offline.
+          Cost + token breakdown per user. Filter theo date / provider / feature rồi xuất CSV để
+          phân tích offline.
         </p>
       </header>
 
-      {/* Filter bar */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <DateInput
           label="Từ"
@@ -152,7 +145,6 @@ export function UsageClient() {
         />
       </div>
 
-      {/* Summary line */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md border border-slate-800/60 bg-slate-900/30 px-4 py-2 text-[12px]">
         <span>
           <span className="text-slate-500">Total cost: </span>
@@ -168,13 +160,10 @@ export function UsageClient() {
         </span>
         <span>
           <span className="text-slate-500">Users: </span>
-          <span className="font-mono font-semibold tabular-nums text-slate-100">
-            {rows.length}
-          </span>
+          <span className="font-mono font-semibold tabular-nums text-slate-100">{rows.length}</span>
         </span>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900/30">
         <table className="w-full text-[12.5px]">
           <thead className="bg-slate-900/60">
@@ -221,9 +210,7 @@ function UserRow({ u }: { u: Row }) {
           className="flex flex-col leading-tight text-slate-100 hover:text-red-300"
         >
           <span className="truncate text-[12px]">{u.name ?? '—'}</span>
-          <span className="truncate font-mono text-[10px] text-slate-500">
-            {u.email}
-          </span>
+          <span className="truncate font-mono text-[10px] text-slate-500">{u.email}</span>
         </Link>
       </td>
       <td className="px-3 py-2">

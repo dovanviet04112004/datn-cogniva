@@ -1,9 +1,3 @@
-/**
- * Sign-in screen — email + password.
- *
- * Sử dụng react-hook-form + zod schema từ @cogniva/shared (consistency với web).
- * Submit → useAuth.signIn() → router auto redirect qua (app) khi user state set.
- */
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,10 +29,7 @@ export default function SignInScreen() {
     try {
       await signIn(email, password);
     } catch (err) {
-      Alert.alert(
-        'Đăng nhập thất bại',
-        err instanceof Error ? err.message : 'Có lỗi xảy ra.',
-      );
+      Alert.alert('Đăng nhập thất bại', err instanceof Error ? err.message : 'Có lỗi xảy ra.');
     }
   };
 

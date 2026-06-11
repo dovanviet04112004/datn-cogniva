@@ -1,18 +1,3 @@
-/**
- * Settings screen — profile + GDPR rights + sign out.
- *
- * Sections:
- *   - Account info (email, name, plan, COPPA status)
- *   - GDPR Article 20: Export data (request JSON file)
- *   - GDPR Article 17: Delete account (30-day grace + cancel)
- *   - Sign out
- *
- * Backend endpoints (đã wire Stage 1):
- *   - POST /api/account/export → trả URL JSON dump
- *   - POST /api/account/delete → đánh dấu PENDING + scheduledFor (now + 30d)
- *   - DELETE /api/account/delete → cancel pending request
- *   - Cron Inngest 03:00 UTC pickup PENDING + hard delete
- */
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -38,7 +23,6 @@ export default function SettingsScreen() {
   const signOut = useAuth((s) => s.signOut);
   const qc = useQueryClient();
 
-  // Poll deletion status — nếu user trong grace period sẽ thấy banner cancel
   const deleteStatusQuery = useQuery({
     queryKey: ['account', 'delete-status'],
     queryFn: async () => {
@@ -92,7 +76,6 @@ export default function SettingsScreen() {
         'Đã yêu cầu xoá account',
         `Account sẽ bị xoá vĩnh viễn vào ${scheduledDate} (30 ngày grace period).\n\nHủy bằng cách sign-in lại trong vòng 30 ngày → vào Settings → Cancel deletion.`,
       );
-      // Sign out để user không tiếp tục dùng account đang chờ xoá
       void signOut();
     },
     onError: (err) => {
@@ -135,13 +118,12 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      {/* Pending deletion banner — ưu tiên top, action confirm */}
       {pendingDeletion && (
         <View style={styles.pendingBanner}>
           <Text style={styles.pendingTitle}>⚠ Account đang chờ xoá</Text>
           <Text style={styles.pendingText}>
-            Còn {pendingDeletion.daysRemaining} ngày trước khi xoá vĩnh viễn.
-            Lịch xoá: {new Date(pendingDeletion.scheduledFor).toLocaleDateString('vi-VN')}.
+            Còn {pendingDeletion.daysRemaining} ngày trước khi xoá vĩnh viễn. Lịch xoá:{' '}
+            {new Date(pendingDeletion.scheduledFor).toLocaleDateString('vi-VN')}.
           </Text>
           {pendingDeletion.canCancel && (
             <Pressable
@@ -155,18 +137,19 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      {/* Account info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tài khoản</Text>
         <Row label="Email" value={user?.email ?? '—'} />
         {user?.name && <Row label="Tên" value={user.name} />}
         <Row label="Plan" value={PLAN_LABEL[user?.plan ?? 'FREE'] ?? 'FREE'} />
         {user?.parentalConsentStatus && user.parentalConsentStatus !== 'NOT_REQUIRED' && (
-          <Row label="COPPA" value={COPPA_LABEL[user.parentalConsentStatus] ?? user.parentalConsentStatus} />
+          <Row
+            label="COPPA"
+            value={COPPA_LABEL[user.parentalConsentStatus] ?? user.parentalConsentStatus}
+          />
         )}
       </View>
 
-      {/* GDPR Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quyền dữ liệu (GDPR)</Text>
         <Pressable
@@ -176,25 +159,21 @@ export default function SettingsScreen() {
         >
           <View style={styles.actionTextWrap}>
             <Text style={styles.actionTitle}>Export dữ liệu</Text>
-            <Text style={styles.actionSub}>
-              Article 20 — tải toàn bộ data (JSON)
-            </Text>
+            <Text style={styles.actionSub}>Article 20 — tải toàn bộ data (JSON)</Text>
           </View>
           <Text style={styles.chevron}>›</Text>
         </Pressable>
       </View>
 
-      {/* Sign out */}
       <Pressable style={styles.signOutBtn} onPress={confirmSignOut}>
         <Text style={styles.signOutText}>Đăng xuất</Text>
       </Pressable>
 
-      {/* Danger zone */}
       <View style={[styles.section, styles.danger]}>
         <Text style={styles.dangerTitle}>Vùng nguy hiểm</Text>
         <Text style={styles.dangerHint}>
-          Yêu cầu xoá account vĩnh viễn theo GDPR Article 17. Có 30 ngày grace period để
-          khôi phục bằng cách sign-in lại.
+          Yêu cầu xoá account vĩnh viễn theo GDPR Article 17. Có 30 ngày grace period để khôi phục
+          bằng cách sign-in lại.
         </Text>
         <Pressable
           style={[styles.dangerBtn, deleteMutation.isPending && styles.actionBtnBusy]}
@@ -241,7 +220,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowLabel: { color: '#666', fontSize: 14 },
-  // flex: 1 + textAlign right → value chiếm width còn lại, ellipsis nếu quá dài
   rowValue: { color: '#111', fontSize: 14, fontWeight: '500', flex: 1, textAlign: 'right' },
 
   actionBtn: {

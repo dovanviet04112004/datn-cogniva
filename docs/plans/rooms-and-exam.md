@@ -28,12 +28,14 @@
 **Quyết định:** Tự host **LiveKit Open Source** + tự build toàn bộ application layer.
 
 **Lý do KHÔNG viết SFU from scratch:**
+
 - mediasoup/Pion from scratch = 6+ tháng = không justify được effort.
 - LiveKit OSS = production-grade SFU (Go, Apache 2.0). Spotify/ClickUp đã dùng.
 - Self-host LiveKit = vẫn "tự host" về data/business logic.
 - Recruiter nhìn vào = quyết định kỹ thuật khôn ngoan, không reinvent the wheel.
 
 **Cái mình SẼ tự build 100%:**
+
 - Application layer (Next.js, business logic).
 - Signaling logic (room creation, permissions, JWT tokens).
 - Real-time chat (WebSocket via Socket.IO self-hosted, gateway `apps/realtime`).
@@ -45,6 +47,7 @@
 - Analytics & dashboards.
 
 **Cái mình deploy nhưng không viết:**
+
 - LiveKit Server (Docker binary).
 - TURN server (coturn).
 - Socket.IO gateway `apps/realtime` (self-host, dùng `@socket.io/redis-adapter`).
@@ -74,12 +77,12 @@
 └────────────┘ └────────────┘ └──────────┘ └────────────┘
 ```
 
-| Service     | Lý do tách           | Scale pattern                  |
-|-------------|----------------------|--------------------------------|
-| LiveKit     | CPU-bound, UDP-heavy | Vertical, geo-distributed      |
-| Socket.IO   | I/O-bound, nhiều conn| Horizontal, Redis adapter      |
-| Hocuspocus  | I/O-bound, document  | Horizontal, doc affinity       |
-| Next.js     | Request-response     | Horizontal, stateless          |
+| Service    | Lý do tách            | Scale pattern             |
+| ---------- | --------------------- | ------------------------- |
+| LiveKit    | CPU-bound, UDP-heavy  | Vertical, geo-distributed |
+| Socket.IO  | I/O-bound, nhiều conn | Horizontal, Redis adapter |
+| Hocuspocus | I/O-bound, document   | Horizontal, doc affinity  |
+| Next.js    | Request-response      | Horizontal, stateless     |
 
 Monolith sẽ fail ở scale — tách từ đầu tiết kiệm refactor sau.
 
@@ -109,6 +112,7 @@ Monolith sẽ fail ở scale — tách từ đầu tiết kiệm refactor sau.
 ### 12.2. Infra files
 
 **`infrastructure/livekit/docker-compose.yml`**
+
 ```yaml
 # LiveKit OSS Server — SFU chính
 services:
@@ -116,13 +120,13 @@ services:
     image: livekit/livekit-server:latest
     command: --config /etc/livekit.yaml
     ports:
-      - "7880:7880"     # WebSocket signaling
-      - "7881:7881"     # WebRTC over TCP (fallback)
-      - "50000-60000:50000-60000/udp"  # WebRTC media
+      - '7880:7880' # WebSocket signaling
+      - '7881:7881' # WebRTC over TCP (fallback)
+      - '50000-60000:50000-60000/udp' # WebRTC media
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml
     restart: unless-stopped
-    network_mode: host  # quan trọng cho UDP, đừng bridge
+    network_mode: host # quan trọng cho UDP, đừng bridge
 
   redis:
     image: redis:7-alpine
@@ -135,6 +139,7 @@ volumes:
 ```
 
 **`infrastructure/livekit/livekit.yaml`**
+
 ```yaml
 # Config production cho LiveKit — chú ý use_external_ip
 port: 7880
@@ -142,7 +147,7 @@ rtc:
   tcp_port: 7881
   port_range_start: 50000
   port_range_end: 60000
-  use_external_ip: true   # Cần thiết khi sau NAT
+  use_external_ip: true # Cần thiết khi sau NAT
 
 redis:
   address: localhost:6379
@@ -171,6 +176,7 @@ egress:
 ```
 
 **`infrastructure/coturn/docker-compose.yml`**
+
 ```yaml
 # TURN server — cần cho ~10-15% user behind symmetric NAT / corp firewall
 services:
@@ -184,6 +190,7 @@ services:
 ```
 
 **`infrastructure/coturn/turnserver.conf`**
+
 ```conf
 listening-port=3478
 tls-listening-port=5349
@@ -208,28 +215,30 @@ verbose
 ```
 
 **`infrastructure/docker-compose.*.yml` — service `realtime`** (thay container `soketi` cũ)
+
 ```yaml
 # Socket.IO gateway cho chat/realtime app events (apps/realtime)
 services:
   realtime:
     build: ../apps/realtime
     ports:
-      - "6002:6002"
+      - '6002:6002'
     environment:
-      REDIS_URL: ${REDIS_URL}   # @socket.io/redis-adapter pub/sub
+      REDIS_URL: ${REDIS_URL} # @socket.io/redis-adapter pub/sub
       PORT: 6002
     depends_on: [redis]
     restart: unless-stopped
 ```
 
 **`infrastructure/hocuspocus/docker-compose.yml`**
+
 ```yaml
 # Yjs server tự host — phục vụ whiteboard/notes/code editor collab
 services:
   hocuspocus:
     build: .
     ports:
-      - "1234:1234"
+      - '1234:1234'
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379
@@ -238,6 +247,7 @@ services:
 ```
 
 **`infrastructure/hocuspocus/server.ts`** (build image này từ source)
+
 ```typescript
 /**
  * Hocuspocus server — Yjs WebSocket gateway.
@@ -285,6 +295,7 @@ server.listen();
 ### 12.3. Reverse proxy (Caddy)
 
 **`infrastructure/caddy/Caddyfile`**
+
 ```
 # Socket.IO gateway và Hocuspocus có WS gateway cần TLS termination
 realtime.cogniva.com {
@@ -302,6 +313,7 @@ hocus.cogniva.com {
 ### 12.4. Env vars chuẩn hoá
 
 Thêm vào `apps/web/.env.local` + `.env.example`:
+
 ```bash
 # LiveKit
 NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.cogniva.com
@@ -352,6 +364,7 @@ R2_ACCOUNT=...
 Day 1-2 phải làm thủ công nhưng có script để tái dùng / disaster recovery.
 
 **`infrastructure/scripts/provision-server.sh`** — chạy 1 lần per server
+
 ```bash
 #!/usr/bin/env bash
 # Provision Hetzner Ubuntu 22.04 server cho Cogniva V2.
@@ -425,18 +438,19 @@ echo "Tiếp theo: clone infrastructure/ repo, set .env, docker compose up -d"
 
 **`infrastructure/scripts/dns-records.md`** — Cloudflare DNS bảng
 
-| Type | Name              | Content       | Proxy | TTL  | Note                           |
-|------|-------------------|---------------|-------|------|--------------------------------|
-| A    | app               | <APP_IP>      | ✓     | Auto | Next.js qua Cloudflare CDN     |
-| A    | livekit           | <MEDIA_IP>    | ✗     | Auto | WS signaling — KHÔNG proxy     |
-| A    | turn              | <MEDIA_IP>    | ✗     | Auto | TURN qua TCP/UDP — KHÔNG proxy |
-| A    | realtime          | <APP_IP>      | ✓     | Auto | WS qua Caddy → Cloudflare OK   |
-| A    | hocus             | <APP_IP>      | ✓     | Auto | WS qua Caddy → Cloudflare OK   |
-| AAAA | (same)            | <IPv6>        | match | Auto | Dual-stack                     |
+| Type | Name     | Content    | Proxy | TTL  | Note                           |
+| ---- | -------- | ---------- | ----- | ---- | ------------------------------ |
+| A    | app      | <APP_IP>   | ✓     | Auto | Next.js qua Cloudflare CDN     |
+| A    | livekit  | <MEDIA_IP> | ✗     | Auto | WS signaling — KHÔNG proxy     |
+| A    | turn     | <MEDIA_IP> | ✗     | Auto | TURN qua TCP/UDP — KHÔNG proxy |
+| A    | realtime | <APP_IP>   | ✓     | Auto | WS qua Caddy → Cloudflare OK   |
+| A    | hocus    | <APP_IP>   | ✓     | Auto | WS qua Caddy → Cloudflare OK   |
+| AAAA | (same)   | <IPv6>     | match | Auto | Dual-stack                     |
 
 **Quan trọng:** LiveKit + coturn KHÔNG được proxy qua Cloudflare (Cloudflare không hỗ trợ WebRTC UDP relay). Socket.IO gateway/Hocuspocus có thể proxy vì là pure WS over 443.
 
 **`infrastructure/scripts/health-check.sh`** — chạy cron mỗi 5 phút
+
 ```bash
 #!/usr/bin/env bash
 # Smoke test toàn bộ stack, alert qua webhook nếu fail.
@@ -456,6 +470,7 @@ echo "OK $(date -Iseconds)"
 ```
 
 Crontab:
+
 ```
 */5 * * * * /opt/cogniva/health-check.sh >> /var/log/cogniva-health.log 2>&1
 ```
@@ -477,6 +492,7 @@ Crontab:
 ### 13.2. Schema delta
 
 **`packages/db/src/schema.ts`** (append vào schema hiện có)
+
 ```typescript
 /**
  * Phase 13: Study Rooms schema.
@@ -488,63 +504,90 @@ Crontab:
  * - collab_docs: Yjs binary state cho whiteboard/notes.
  */
 export const rooms = pgTable('rooms', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  ownerId: text('owner_id').notNull().references(() => user.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => user.id),
   name: text('name').notNull(),
   description: text('description'),
-  type: text('type').notNull(),       // STUDY | CLASSROOM | EXAM | OFFICE_HOURS
-  visibility: text('visibility').notNull().default('PRIVATE'),  // PRIVATE | UNLISTED | PUBLIC
-  joinCode: text('join_code').unique(),  // 6-digit ngẫu nhiên cho link-only
+  type: text('type').notNull(), // STUDY | CLASSROOM | EXAM | OFFICE_HOURS
+  visibility: text('visibility').notNull().default('PRIVATE'), // PRIVATE | UNLISTED | PUBLIC
+  joinCode: text('join_code').unique(), // 6-digit ngẫu nhiên cho link-only
   maxMembers: integer('max_members').default(10),
   requireApproval: boolean('require_approval').default(false),
   features: jsonb('features').notNull().default({
-    video: true, chat: true, whiteboard: true,
-    notes: true, aiTutor: true, pomodoro: true, recording: false,
+    video: true,
+    chat: true,
+    whiteboard: true,
+    notes: true,
+    aiTutor: true,
+    pomodoro: true,
+    recording: false,
   }),
-  livekitRoomName: text('livekit_room_name'),   // = id, redundant nhưng dễ debug
+  livekitRoomName: text('livekit_room_name'), // = id, redundant nhưng dễ debug
   yjsDocId: text('yjs_doc_id'),
   scheduledStart: timestamp('scheduled_start'),
   scheduledEnd: timestamp('scheduled_end'),
-  recurringPattern: jsonb('recurring_pattern'),  // {freq, days, until}
-  status: text('status').default('IDLE'),        // IDLE | ACTIVE | ENDED
+  recurringPattern: jsonb('recurring_pattern'), // {freq, days, until}
+  status: text('status').default('IDLE'), // IDLE | ACTIVE | ENDED
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const roomMembers = pgTable('room_members', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => user.id),
-  role: text('role').notNull().default('MEMBER'),    // OWNER | MODERATOR | MEMBER
-  status: text('status').notNull().default('ACTIVE'),// ACTIVE | KICKED | BANNED | PENDING
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  roomId: text('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id),
+  role: text('role').notNull().default('MEMBER'), // OWNER | MODERATOR | MEMBER
+  status: text('status').notNull().default('ACTIVE'), // ACTIVE | KICKED | BANNED | PENDING
   joinedAt: timestamp('joined_at').defaultNow(),
   lastSeenAt: timestamp('last_seen_at'),
 });
 
 export const roomMessages = pgTable('room_messages', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull(),     // có thể là 'AI_TUTOR'
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  roomId: text('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull(), // có thể là 'AI_TUTOR'
   content: text('content').notNull(),
-  type: text('type').notNull().default('TEXT'),  // TEXT | FILE | SYSTEM | AI | POLL
+  type: text('type').notNull().default('TEXT'), // TEXT | FILE | SYSTEM | AI | POLL
   metadata: jsonb('metadata'),
   replyToId: text('reply_to_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const roomEvents = pgTable('room_events', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  roomId: text('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
   userId: text('user_id'),
-  type: text('type').notNull(),    // JOINED | LEFT | KICKED | SCREEN_SHARE_STARTED…
+  type: text('type').notNull(), // JOINED | LEFT | KICKED | SCREEN_SHARE_STARTED…
   metadata: jsonb('metadata'),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
 });
 
 export const recordings = pgTable('recordings', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  roomId: text('room_id').notNull().references(() => rooms.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  roomId: text('room_id')
+    .notNull()
+    .references(() => rooms.id),
   egressId: text('egress_id').unique(),
   fileUrl: text('file_url'),
   duration: integer('duration_seconds'),
@@ -560,7 +603,7 @@ export const recordings = pgTable('recordings', {
 
 export const collabDocs = pgTable('collab_docs', {
   id: text('id').primaryKey(),
-  type: text('type').notNull(),  // WHITEBOARD | NOTES | CODE
+  type: text('type').notNull(), // WHITEBOARD | NOTES | CODE
   state: text('state').notNull(), // base64 Yjs binary
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -578,6 +621,7 @@ Tạo migration: `pnpm drizzle-kit generate` → tên `0014_rooms.sql`.
 ### 13.3. Token endpoint
 
 **`apps/web/src/app/api/rooms/token/route.ts`**
+
 ```typescript
 /**
  * POST /api/rooms/token — issue LiveKit JWT cho session join room.
@@ -604,7 +648,7 @@ export async function POST(req: Request) {
   });
   if (!room) return Response.json({ error: 'Not found' }, { status: 404 });
 
-  const member = room.members.find(m => m.userId === session.user.id);
+  const member = room.members.find((m) => m.userId === session.user.id);
   if (!member && room.visibility === 'PRIVATE') {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -619,20 +663,16 @@ export async function POST(req: Request) {
   const isMod = member?.role === 'OWNER' || member?.role === 'MODERATOR';
 
   // 4. JWT
-  const at = new AccessToken(
-    process.env.LIVEKIT_API_KEY!,
-    process.env.LIVEKIT_API_SECRET!,
-    {
-      identity: session.user.id,
-      name,
-      ttl: '2h',
-      metadata: JSON.stringify({
-        userId: session.user.id,
-        avatarUrl: session.user.image,
-        role: member?.role ?? 'GUEST',
-      }),
-    }
-  );
+  const at = new AccessToken(process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!, {
+    identity: session.user.id,
+    name,
+    ttl: '2h',
+    metadata: JSON.stringify({
+      userId: session.user.id,
+      avatarUrl: session.user.image,
+      role: member?.role ?? 'GUEST',
+    }),
+  });
   at.addGrant({
     room: roomId,
     roomJoin: true,
@@ -650,6 +690,7 @@ export async function POST(req: Request) {
 ### 13.4. Webhook receiver
 
 **`apps/web/src/app/api/webhooks/livekit/route.ts`**
+
 ```typescript
 /**
  * Webhook từ LiveKit — sync event vào DB + trigger downstream job.
@@ -660,10 +701,7 @@ import { db } from '@/db';
 import { rooms, roomEvents } from '@cogniva/db/schema';
 import { eq } from 'drizzle-orm';
 
-const receiver = new WebhookReceiver(
-  process.env.LIVEKIT_API_KEY!,
-  process.env.LIVEKIT_API_SECRET!,
-);
+const receiver = new WebhookReceiver(process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!);
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -671,11 +709,15 @@ export async function POST(req: Request) {
 
   switch (event.event) {
     case 'room_started':
-      await db.update(rooms).set({ startedAt: new Date(), status: 'ACTIVE' })
+      await db
+        .update(rooms)
+        .set({ startedAt: new Date(), status: 'ACTIVE' })
         .where(eq(rooms.id, event.room!.name));
       break;
     case 'room_finished':
-      await db.update(rooms).set({ endedAt: new Date(), status: 'ENDED' })
+      await db
+        .update(rooms)
+        .set({ endedAt: new Date(), status: 'ENDED' })
         .where(eq(rooms.id, event.room!.name));
       // Phase 15 sẽ enqueue BullMQ job AI summary ở đây
       break;
@@ -705,6 +747,7 @@ export async function POST(req: Request) {
 ### 13.5. Pre-join lobby + Main room
 
 **`apps/web/src/app/(app)/rooms/[roomId]/lobby/page.tsx`**
+
 ```typescript
 /**
  * Pre-join lobby — user test mic/cam, chọn device trước khi vào room.
@@ -741,6 +784,7 @@ export default function LobbyPage({ params }: { params: { roomId: string } }) {
 ```
 
 **`apps/web/src/app/(app)/rooms/[roomId]/page.tsx`**
+
 ```typescript
 /**
  * Main room page — wrap LiveKitRoom + Sidebar Tabs (chat/participants/notes/AI).
@@ -802,6 +846,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
 ```
 
 **`apps/web/src/components/rooms/VideoGrid.tsx`**
+
 ```typescript
 /**
  * VideoGrid — adaptive grid layout theo số participant.
@@ -844,6 +889,7 @@ export function VideoGrid() {
 ```
 
 **`apps/web/src/components/rooms/ControlBar.tsx`**
+
 ```typescript
 /**
  * ControlBar — toggle mic/cam/screen + raise hand + leave.
@@ -927,6 +973,7 @@ export function ControlBar() {
 Schema có sẵn `requireApproval` + `scheduledStart` + `recurringPattern` nhưng flow chưa rõ. Bổ sung:
 
 **Flow waiting room:**
+
 ```
 1. User click "Join" → token endpoint check `requireApproval`
 2. Nếu TRUE + chưa là member ACTIVE → insert roomMembers.status = 'PENDING' (KHÔNG cấp token)
@@ -937,26 +984,35 @@ Schema có sẵn `requireApproval` + `scheduledStart` + `recurringPattern` nhưn
 ```
 
 **`apps/web/src/app/api/rooms/token/route.ts`** — bổ sung logic
+
 ```typescript
 // (trong handler — sau "Verify user + member" block)
 if (room.requireApproval && (!member || member.status !== 'ACTIVE')) {
   // Insert PENDING nếu chưa có
   if (!member) {
     await db.insert(roomMembers).values({
-      roomId, userId: session.user.id, role: 'MEMBER', status: 'PENDING',
+      roomId,
+      userId: session.user.id,
+      role: 'MEMBER',
+      status: 'PENDING',
     });
   }
   // Notify mod qua Soketi
-  const mods = room.members.filter(m => m.role === 'OWNER' || m.role === 'MODERATOR');
-  await Promise.all(mods.map(m => pusherServer.trigger(
-    `presence-user-${m.userId}`, 'room:pending-approval',
-    { roomId, applicant: { id: session.user.id, name: session.user.name } },
-  )));
+  const mods = room.members.filter((m) => m.role === 'OWNER' || m.role === 'MODERATOR');
+  await Promise.all(
+    mods.map((m) =>
+      pusherServer.trigger(`presence-user-${m.userId}`, 'room:pending-approval', {
+        roomId,
+        applicant: { id: session.user.id, name: session.user.name },
+      }),
+    ),
+  );
   return Response.json({ pending: true }, { status: 202 });
 }
 ```
 
 **`apps/web/src/app/api/rooms/[roomId]/approve/route.ts`**
+
 ```typescript
 /**
  * Mod approve/reject waiting room request.
@@ -982,20 +1038,28 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
   }
 
   if (action === 'APPROVE') {
-    await db.update(roomMembers)
+    await db
+      .update(roomMembers)
       .set({ status: 'ACTIVE', joinedAt: new Date() })
       .where(and(eq(roomMembers.roomId, params.roomId), eq(roomMembers.userId, userId)));
-    await pusherServer.trigger(`presence-user-${userId}`, 'room:approved', { roomId: params.roomId });
+    await pusherServer.trigger(`presence-user-${userId}`, 'room:approved', {
+      roomId: params.roomId,
+    });
   } else {
-    await db.update(roomMembers).set({ status: 'BANNED' })
+    await db
+      .update(roomMembers)
+      .set({ status: 'BANNED' })
       .where(and(eq(roomMembers.roomId, params.roomId), eq(roomMembers.userId, userId)));
-    await pusherServer.trigger(`presence-user-${userId}`, 'room:rejected', { roomId: params.roomId });
+    await pusherServer.trigger(`presence-user-${userId}`, 'room:rejected', {
+      roomId: params.roomId,
+    });
   }
   return Response.json({ ok: true });
 }
 ```
 
 **`apps/web/src/app/(app)/rooms/[roomId]/waiting/page.tsx`**
+
 ```typescript
 /**
  * Waiting room page — subscribe room:approved, auto-redirect.
@@ -1040,6 +1104,7 @@ export default function WaitingPage({ params }: { params: { roomId: string } }) 
 **Scheduled rooms cron** — auto-start room ở `scheduledStart`, notify member.
 
 **`apps/web/src/inngest/functions/scheduled-rooms.ts`**
+
 ```typescript
 /**
  * Cron mỗi 1 phút: tìm room có scheduledStart <= now + 5min + status IDLE.
@@ -1054,28 +1119,27 @@ import { sendPushNotification } from '@/lib/notifications';
 
 export const scheduledRoomsCron = inngest.createFunction(
   { id: 'scheduled-rooms-poller' },
-  { cron: '* * * * *' },   // mỗi phút
+  { cron: '* * * * *' }, // mỗi phút
   async ({ step }) => {
     const upcoming = await step.run('find-upcoming', async () => {
       const fiveMinFromNow = new Date(Date.now() + 5 * 60 * 1000);
       return db.query.rooms.findMany({
-        where: and(
-          eq(rooms.status, 'IDLE'),
-          lte(rooms.scheduledStart!, fiveMinFromNow),
-        ),
+        where: and(eq(rooms.status, 'IDLE'), lte(rooms.scheduledStart!, fiveMinFromNow)),
         with: { members: { with: { user: true } } },
       });
     });
 
     for (const room of upcoming) {
       await step.run(`notify-${room.id}`, async () => {
-        await Promise.all(room.members.map(m =>
-          sendPushNotification(m.userId, {
-            title: `"${room.name}" bắt đầu sau 5 phút`,
-            body: 'Click để vào lobby',
-            url: `/rooms/${room.id}/lobby`,
-          }),
-        ));
+        await Promise.all(
+          room.members.map((m) =>
+            sendPushNotification(m.userId, {
+              title: `"${room.name}" bắt đầu sau 5 phút`,
+              body: 'Click để vào lobby',
+              url: `/rooms/${room.id}/lobby`,
+            }),
+          ),
+        );
       });
     }
   },
@@ -1088,7 +1152,11 @@ export const scheduledRoomEnded = inngest.createFunction(
     const room = await db.query.rooms.findFirst({ where: eq(rooms.id, event.data.roomId) });
     if (!room?.recurringPattern) return;
 
-    const pattern = room.recurringPattern as { freq: 'WEEKLY' | 'DAILY'; days?: number[]; until?: string };
+    const pattern = room.recurringPattern as {
+      freq: 'WEEKLY' | 'DAILY';
+      days?: number[];
+      until?: string;
+    };
     const nextStart = computeNextOccurrence(pattern, room.scheduledStart!);
     if (pattern.until && nextStart > new Date(pattern.until)) return;
 
@@ -1096,7 +1164,7 @@ export const scheduledRoomEnded = inngest.createFunction(
     await step.run('clone-recurring', async () => {
       await db.insert(rooms).values({
         ...room,
-        id: undefined,                // sinh id mới
+        id: undefined, // sinh id mới
         status: 'IDLE',
         scheduledStart: nextStart,
         startedAt: null,
@@ -1128,6 +1196,7 @@ export const scheduledRoomEnded = inngest.createFunction(
 > ⚠️ **Sau migration:** lớp realtime nay là **Socket.IO self-host** (gateway `apps/realtime`). Web không còn `pusher-js`/`new Pusher()` — client subscribe qua `useRealtimeEvent()`/`useRealtimePresence()` trong `realtime-client.ts`, server emit qua `triggerEvent()` trong `realtime-server.ts` (dùng `@socket.io/redis-emitter`). Các code block Pusher dưới đây giữ làm lịch sử; chi tiết tại `docs/plans/socketio-migration.md`.
 
 **`apps/web/src/lib/realtime.ts`**
+
 ```typescript
 /**
  * Pusher-js client point vào Soketi self-hosted.
@@ -1146,6 +1215,7 @@ export const pusher = new Pusher(process.env.NEXT_PUBLIC_SOKETI_KEY!, {
 ```
 
 **`apps/web/src/lib/realtime-server.ts`**
+
 ```typescript
 /**
  * Pusher server SDK — trigger event từ route handler.
@@ -1163,6 +1233,7 @@ export const pusherServer = new Pusher({
 ```
 
 **`apps/web/src/app/api/realtime/auth/route.ts`**
+
 ```typescript
 /**
  * Soketi auth endpoint — sign presence/private channel.
@@ -1202,6 +1273,7 @@ export async function POST(req: Request) {
 ### 14.3. Chat panel
 
 **`apps/web/src/app/api/rooms/[roomId]/chat/route.ts`**
+
 ```typescript
 /**
  * POST /api/rooms/[roomId]/chat — gửi message + broadcast qua Soketi.
@@ -1217,13 +1289,16 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
   if (!session) return Response.json({ error: 'Unauthenticated' }, { status: 401 });
   const { message, type = 'TEXT', metadata } = await req.json();
 
-  const [saved] = await db.insert(roomMessages).values({
-    roomId: params.roomId,
-    userId: session.user.id,
-    content: message,
-    type,
-    metadata,
-  }).returning();
+  const [saved] = await db
+    .insert(roomMessages)
+    .values({
+      roomId: params.roomId,
+      userId: session.user.id,
+      content: message,
+      type,
+      metadata,
+    })
+    .returning();
 
   await pusherServer.trigger(`presence-room-${params.roomId}`, 'chat:message', {
     id: saved.id,
@@ -1240,6 +1315,7 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 ```
 
 **`apps/web/src/components/rooms/ChatPanel.tsx`**
+
 ```typescript
 /**
  * ChatPanel — subscribe Soketi presence channel, render message list.
@@ -1298,6 +1374,7 @@ export function ChatPanel({ roomId }: { roomId: string }) {
 ### 14.4. Whiteboard cộng tác
 
 **`apps/web/src/components/rooms/WhiteboardPanel.tsx`**
+
 ```typescript
 /**
  * WhiteboardPanel — Excalidraw + Yjs CRDT.
@@ -1349,6 +1426,7 @@ export function WhiteboardPanel({ roomId, jwtToken }: { roomId: string; jwtToken
 ### 14.5. Shared notes (TipTap + Yjs)
 
 **`apps/web/src/components/rooms/NotesPanel.tsx`**
+
 ```typescript
 /**
  * NotesPanel — TipTap editor sync qua Yjs.
@@ -1393,6 +1471,7 @@ export function NotesPanel({ roomId, jwtToken, userName }: { roomId: string; jwt
 ### 14.6. Pomodoro đồng bộ
 
 **`apps/web/src/components/rooms/PomodoroTimer.tsx`**
+
 ```typescript
 /**
  * Pomodoro đồng bộ — state share qua LiveKit data channel (lightweight, không cần Socket.IO).
@@ -1460,6 +1539,7 @@ export function PomodoroTimer({ isMod }: { isMod: boolean }) {
 ### 14.7. Reactions floating
 
 **`apps/web/src/components/rooms/ReactionsLayer.tsx`**
+
 ```typescript
 /**
  * ReactionsLayer — emoji bay từ dưới lên khi user click button trên control bar.
@@ -1507,17 +1587,27 @@ export function ReactionsLayer() {
 ```
 
 Thêm vào `globals.css`:
+
 ```css
 @keyframes float-up {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-300px); opacity: 0; }
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-300px);
+    opacity: 0;
+  }
 }
-.animate-float-up { animation: float-up 2s ease-out forwards; }
+.animate-float-up {
+  animation: float-up 2s ease-out forwards;
+}
 ```
 
 ### 14.8. Mod actions
 
 **`apps/web/src/app/api/rooms/[roomId]/moderate/route.ts`**
+
 ```typescript
 /**
  * Mod actions: kick, mute force, lock, approve waiting room.
@@ -1602,6 +1692,7 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 ### 15.2. Mastra agent
 
 **`apps/web/src/mastra/agents/room-tutor.ts`**
+
 ```typescript
 /**
  * roomTutor — Mastra agent dành cho in-room AI assistant.
@@ -1624,6 +1715,7 @@ Không trả lời câu hỏi về thông tin nhạy cảm/bạo lực/spam.`,
 ```
 
 **`apps/web/src/app/api/rooms/[roomId]/ai-message/route.ts`**
+
 ```typescript
 /**
  * POST /api/rooms/[roomId]/ai-message — user trigger AI response.
@@ -1653,14 +1745,23 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 
   // Save message stub trước (placeholder), update content khi stream xong
   await db.insert(roomMessages).values({
-    id: messageId, roomId: params.roomId, userId: 'AI_TUTOR', content: '', type: 'AI',
+    id: messageId,
+    roomId: params.roomId,
+    userId: 'AI_TUTOR',
+    content: '',
+    type: 'AI',
   });
 
   let full = '';
   const stream = await agent.stream({
     messages: [
-      { role: 'system', content: `Topic phòng: ${room?.name ?? 'Học tự do'}. ${recent.length} message gần đây.` },
-      ...recent.reverse().map(m => ({ role: m.userId === 'AI_TUTOR' ? 'assistant' : 'user', content: m.content })),
+      {
+        role: 'system',
+        content: `Topic phòng: ${room?.name ?? 'Học tự do'}. ${recent.length} message gần đây.`,
+      },
+      ...recent
+        .reverse()
+        .map((m) => ({ role: m.userId === 'AI_TUTOR' ? 'assistant' : 'user', content: m.content })),
       { role: 'user', content: message },
     ],
   });
@@ -1668,11 +1769,14 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
   for await (const chunk of stream.textStream) {
     full += chunk;
     await pusherServer.trigger(`presence-room-${params.roomId}`, 'ai:streaming', {
-      messageId, delta: chunk,
+      messageId,
+      delta: chunk,
     });
   }
 
-  await db.update(roomMessages).set({ content: full, metadata: { isAI: true, model: 'claude-sonnet-4-6' } })
+  await db
+    .update(roomMessages)
+    .set({ content: full, metadata: { isAI: true, model: 'claude-sonnet-4-6' } })
     .where(eq(roomMessages.id, messageId));
 
   await pusherServer.trigger(`presence-room-${params.roomId}`, 'ai:complete', { messageId });
@@ -1683,6 +1787,7 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 ### 15.3. Recording trigger + egress config
 
 **`infrastructure/livekit-egress/docker-compose.yml`**
+
 ```yaml
 # Egress service tự host — render composite video lên R2
 services:
@@ -1693,11 +1798,12 @@ services:
     volumes:
       - ./egress.yaml:/etc/egress.yaml
     cap_add:
-      - SYS_ADMIN   # headless Chrome cần
+      - SYS_ADMIN # headless Chrome cần
     network_mode: host
 ```
 
 **`infrastructure/livekit-egress/egress.yaml`**
+
 ```yaml
 api_key: ${LIVEKIT_API_KEY}
 api_secret: ${LIVEKIT_API_SECRET}
@@ -1713,6 +1819,7 @@ s3:
 ```
 
 **`apps/web/src/app/api/rooms/[roomId]/record/route.ts`**
+
 ```typescript
 /**
  * POST /api/rooms/[roomId]/record — start composite recording.
@@ -1740,7 +1847,7 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 
   const info = await egressClient.startRoomCompositeEgress(params.roomId, {
     file: output,
-    layout: 'speaker',   // hoặc 'grid' | 'single-speaker'
+    layout: 'speaker', // hoặc 'grid' | 'single-speaker'
   });
 
   await db.insert(recordings).values({
@@ -1756,6 +1863,7 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
 ### 15.4. Post-processing pipeline (BullMQ)
 
 **`apps/web/src/inngest/functions/process-recording.ts`**
+
 ```typescript
 /**
  * Inngest: recording/finished event → pipeline xử lý.
@@ -1780,7 +1888,9 @@ export const processRecording = inngest.createFunction(
     const summary = await step.run('summarize', async () => {
       const agent = mastra.getAgent('summarizer');
       const out = await agent.generate({
-        messages: [{ role: 'user', content: `Tóm tắt buổi học sau (≤300 từ, tiếng Việt):\n\n${transcript}` }],
+        messages: [
+          { role: 'user', content: `Tóm tắt buổi học sau (≤300 từ, tiếng Việt):\n\n${transcript}` },
+        ],
       });
       return out.text;
     });
@@ -1793,15 +1903,23 @@ export const processRecording = inngest.createFunction(
     const flashcards = await step.run('generate-cards', async () => {
       const agent = mastra.getAgent('cardGenerator');
       const out = await agent.generate({
-        messages: [{ role: 'user', content: `Tạo 10 flashcard cloze từ transcript:\n${transcript}` }],
+        messages: [
+          { role: 'user', content: `Tạo 10 flashcard cloze từ transcript:\n${transcript}` },
+        ],
       });
       return JSON.parse(out.text);
     });
 
     await step.run('save', async () => {
-      await db.update(recordings).set({
-        transcript, summary, chapters, status: 'PROCESSED',
-      }).where(eq(recordings.id, recordingId));
+      await db
+        .update(recordings)
+        .set({
+          transcript,
+          summary,
+          chapters,
+          status: 'PROCESSED',
+        })
+        .where(eq(recordings.id, recordingId));
     });
 
     await step.run('notify', () => notifyParticipants(recordingId));
@@ -1810,6 +1928,7 @@ export const processRecording = inngest.createFunction(
 ```
 
 **`apps/web/src/lib/media/ffmpeg.ts`** (tách audio)
+
 ```typescript
 /**
  * Extract audio dùng ffmpeg subprocess.
@@ -1824,13 +1943,27 @@ export async function extractAudio(videoUrl: string): Promise<string> {
   // Download trước nếu là URL (R2 presigned)
   const videoPath = videoUrl.startsWith('http') ? await downloadToTmp(videoUrl) : videoUrl;
   return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', ['-i', videoPath, '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', tmp]);
-    ff.on('close', code => code === 0 ? resolve(tmp) : reject(new Error(`ffmpeg exit ${code}`)));
+    const ff = spawn('ffmpeg', [
+      '-i',
+      videoPath,
+      '-vn',
+      '-ar',
+      '16000',
+      '-ac',
+      '1',
+      '-c:a',
+      'pcm_s16le',
+      tmp,
+    ]);
+    ff.on('close', (code) =>
+      code === 0 ? resolve(tmp) : reject(new Error(`ffmpeg exit ${code}`)),
+    );
   });
 }
 ```
 
 **`apps/web/src/lib/media/whisper.ts`** (transcribe)
+
 ```typescript
 /**
  * Whisper transcribe — dùng OpenAI Whisper API hoặc self-host whisper.cpp.
@@ -1855,6 +1988,7 @@ export async function whisperTranscribe(audioPath: string): Promise<string> {
 ### 15.5. Replay UI
 
 **`apps/web/src/app/(app)/rooms/[roomId]/recordings/[recId]/page.tsx`**
+
 ```typescript
 /**
  * Replay page — video player + transcript timeline + chapter markers + summary.
@@ -1938,6 +2072,7 @@ export default async function ReplayPage({ params }: { params: { recId: string }
 ### 16.2. Schema delta
 
 **`packages/db/src/schema.ts`** (append)
+
 ```typescript
 /**
  * Phase 16: Exam System.
@@ -1945,12 +2080,16 @@ export default async function ReplayPage({ params }: { params: { recId: string }
  * Hỗ trợ 12 question type — không phải tất cả thực thi ngay, schema sẵn sàng.
  */
 export const exams = pgTable('exams', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  ownerId: text('owner_id').notNull().references(() => user.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => user.id),
   title: text('title').notNull(),
   description: text('description'),
-  mode: text('mode').notNull(),  // PRACTICE | TIMED | LIVE | ASYNC | ADAPTIVE | TOURNAMENT
-  status: text('status').notNull().default('DRAFT'),  // DRAFT | PUBLISHED | IN_PROGRESS | ENDED
+  mode: text('mode').notNull(), // PRACTICE | TIMED | LIVE | ASYNC | ADAPTIVE | TOURNAMENT
+  status: text('status').notNull().default('DRAFT'), // DRAFT | PUBLISHED | IN_PROGRESS | ENDED
 
   durationSeconds: integer('duration_seconds'),
   startsAt: timestamp('starts_at'),
@@ -1958,7 +2097,7 @@ export const exams = pgTable('exams', {
 
   passingScore: real('passing_score'),
   maxScore: real('max_score'),
-  showResults: text('show_results').notNull().default('IMMEDIATE'),  // IMMEDIATE | AFTER_SUBMIT | AFTER_ALL_DONE
+  showResults: text('show_results').notNull().default('IMMEDIATE'), // IMMEDIATE | AFTER_SUBMIT | AFTER_ALL_DONE
 
   shuffleQuestions: boolean('shuffle_questions').default(true),
   shuffleOptions: boolean('shuffle_options').default(true),
@@ -1992,20 +2131,22 @@ export const exams = pgTable('exams', {
 });
 
 export const questions = pgTable('questions', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
   examId: text('exam_id').references(() => exams.id, { onDelete: 'cascade' }),
   type: text('type').notNull(),
   // MCQ_SINGLE | MCQ_MULTI | TRUE_FALSE | SHORT | ESSAY | FILL_BLANK | MATCHING | ORDERING | CODE | MATH | DRAWING
 
   prompt: text('prompt').notNull(),
   promptHtml: text('prompt_html'),
-  attachments: jsonb('attachments'),    // [{type, url}]
+  attachments: jsonb('attachments'), // [{type, url}]
 
   options: jsonb('options'),
   correctAnswer: jsonb('correct_answer'),
   acceptableAnswers: jsonb('acceptable_answers'),
   rubric: jsonb('rubric'),
-  testCases: jsonb('test_cases'),       // Phase 18
+  testCases: jsonb('test_cases'), // Phase 18
 
   points: real('points').default(1),
   partialCredit: boolean('partial_credit').default(false),
@@ -2024,9 +2165,15 @@ export const questions = pgTable('questions', {
 });
 
 export const examAttempts = pgTable('exam_attempts', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  examId: text('exam_id').notNull().references(() => exams.id),
-  userId: text('user_id').notNull().references(() => user.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  examId: text('exam_id')
+    .notNull()
+    .references(() => exams.id),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id),
   status: text('status').notNull().default('IN_PROGRESS'),
   // IN_PROGRESS | SUBMITTED | TIMED_OUT | AUTO_SUBMITTED | DISQUALIFIED
 
@@ -2059,9 +2206,15 @@ export const examAttempts = pgTable('exam_attempts', {
 });
 
 export const examResponses = pgTable('exam_responses', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  attemptId: text('attempt_id').notNull().references(() => examAttempts.id, { onDelete: 'cascade' }),
-  questionId: text('question_id').notNull().references(() => questions.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  attemptId: text('attempt_id')
+    .notNull()
+    .references(() => examAttempts.id, { onDelete: 'cascade' }),
+  questionId: text('question_id')
+    .notNull()
+    .references(() => questions.id),
   answer: jsonb('answer'),
   isCorrect: boolean('is_correct'),
   pointsEarned: real('points_earned').default(0),
@@ -2080,10 +2233,14 @@ export const examResponses = pgTable('exam_responses', {
 });
 
 export const examViolations = pgTable('exam_violations', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  attemptId: text('attempt_id').notNull().references(() => examAttempts.id),
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  attemptId: text('attempt_id')
+    .notNull()
+    .references(() => examAttempts.id),
   type: text('type').notNull(),
-  severity: text('severity').notNull(),   // low | medium | high
+  severity: text('severity').notNull(), // low | medium | high
   metadata: jsonb('metadata'),
   timestamp: timestamp('timestamp').defaultNow(),
 });
@@ -2098,6 +2255,7 @@ export const examsRelations = relations(exams, ({ one, many }) => ({
 ### 16.3. Exam builder API
 
 **`apps/web/src/app/api/exams/route.ts`** (CRUD + AI generate)
+
 ```typescript
 /**
  * GET /api/exams — list của user.
@@ -2119,18 +2277,22 @@ export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return Response.json({ error: 'Unauthenticated' }, { status: 401 });
   const body = await req.json();
-  const [created] = await db.insert(exams).values({
-    ownerId: session.user.id,
-    title: body.title,
-    description: body.description,
-    mode: body.mode ?? 'PRACTICE',
-    durationSeconds: body.durationSeconds,
-  }).returning();
+  const [created] = await db
+    .insert(exams)
+    .values({
+      ownerId: session.user.id,
+      title: body.title,
+      description: body.description,
+      mode: body.mode ?? 'PRACTICE',
+      durationSeconds: body.durationSeconds,
+    })
+    .returning();
   return Response.json({ exam: created });
 }
 ```
 
 **`apps/web/src/app/api/exams/[id]/generate/route.ts`** (AI gen questions)
+
 ```typescript
 /**
  * AI sinh câu hỏi từ document. Reuse logic Phase 6 (quiz generation), thay nhiệt độ + format.
@@ -2147,25 +2309,29 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const agent = mastra.getAgent('examQuestionGenerator');
   const out = await agent.generate({
-    messages: [{
-      role: 'user',
-      content: `Sinh ${count} câu hỏi dạng ${types.join(', ')} độ khó ${difficulty} từ docId=${sourceDocId}. Output JSON array {type, prompt, options?, correctAnswer, explanation, conceptId?, rubric?}.`,
-    }],
+    messages: [
+      {
+        role: 'user',
+        content: `Sinh ${count} câu hỏi dạng ${types.join(', ')} độ khó ${difficulty} từ docId=${sourceDocId}. Output JSON array {type, prompt, options?, correctAnswer, explanation, conceptId?, rubric?}.`,
+      },
+    ],
   });
 
   const parsed = JSON.parse(out.text) as Array<any>;
-  await db.insert(questions).values(parsed.map((q, i) => ({
-    examId: params.id,
-    type: q.type,
-    prompt: q.prompt,
-    options: q.options,
-    correctAnswer: q.correctAnswer,
-    explanation: q.explanation,
-    rubric: q.rubric,
-    points: q.points ?? 1,
-    conceptId: q.conceptId,
-    orderIndex: i,
-  })));
+  await db.insert(questions).values(
+    parsed.map((q, i) => ({
+      examId: params.id,
+      type: q.type,
+      prompt: q.prompt,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      rubric: q.rubric,
+      points: q.points ?? 1,
+      conceptId: q.conceptId,
+      orderIndex: i,
+    })),
+  );
 
   return Response.json({ ok: true, count: parsed.length });
 }
@@ -2174,6 +2340,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 ### 16.4. Attempt + grading logic
 
 **`apps/web/src/lib/exam/grade.ts`**
+
 ```typescript
 /**
  * Grading dispatcher theo question type.
@@ -2186,28 +2353,35 @@ import { gradeShortAnswer } from './ai-grade';
 export async function gradeResponse(question: any, answer: any) {
   switch (question.type) {
     case 'MCQ_SINGLE':
-      return { isCorrect: answer === question.correctAnswer, points: answer === question.correctAnswer ? question.points : 0 };
+      return {
+        isCorrect: answer === question.correctAnswer,
+        points: answer === question.correctAnswer ? question.points : 0,
+      };
 
     case 'MCQ_MULTI': {
       const correct = new Set(question.correctAnswer as number[]);
       const submitted = new Set(answer as number[]);
-      const allMatch = correct.size === submitted.size && [...correct].every(x => submitted.has(x));
+      const allMatch =
+        correct.size === submitted.size && [...correct].every((x) => submitted.has(x));
       if (allMatch) return { isCorrect: true, points: question.points };
       if (!question.partialCredit) return { isCorrect: false, points: 0 };
       // Partial credit: TP/total - FP/total
-      const tp = [...submitted].filter(x => correct.has(x)).length;
-      const fp = [...submitted].filter(x => !correct.has(x)).length;
+      const tp = [...submitted].filter((x) => correct.has(x)).length;
+      const fp = [...submitted].filter((x) => !correct.has(x)).length;
       const score = Math.max(0, (tp - fp) / correct.size) * question.points;
       return { isCorrect: false, points: score };
     }
 
     case 'TRUE_FALSE':
-      return { isCorrect: answer === question.correctAnswer, points: answer === question.correctAnswer ? question.points : 0 };
+      return {
+        isCorrect: answer === question.correctAnswer,
+        points: answer === question.correctAnswer ? question.points : 0,
+      };
 
     case 'FILL_BLANK': {
       const accept: string[] = [question.correctAnswer, ...(question.acceptableAnswers ?? [])];
       const normalized = String(answer).trim().toLowerCase();
-      const ok = accept.some(a => String(a).trim().toLowerCase() === normalized);
+      const ok = accept.some((a) => String(a).trim().toLowerCase() === normalized);
       return { isCorrect: ok, points: ok ? question.points : 0 };
     }
 
@@ -2244,6 +2418,7 @@ export async function gradeResponse(question: any, answer: any) {
 ```
 
 **`apps/web/src/lib/exam/ai-grade.ts`**
+
 ```typescript
 /**
  * AI grade short answer/essay với Claude + rubric.
@@ -2254,7 +2429,10 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function gradeShortAnswer(opts: {
-  question: string; studentAnswer: string; modelAnswer: string; rubric: any;
+  question: string;
+  studentAnswer: string;
+  modelAnswer: string;
+  rubric: any;
 }) {
   const prompt = `Bạn là giáo viên chấm bài. Chấm câu trả lời ngắn sau theo rubric.
 
@@ -2300,6 +2478,7 @@ export async function gradeEssay(opts: any) {
 ### 16.5. Practice/Timed flow
 
 **`apps/web/src/app/(app)/exams/[examId]/attempt/page.tsx`**
+
 ```typescript
 /**
  * Trang làm exam — Practice + Timed unified.
@@ -2465,6 +2644,7 @@ export default function AttemptPage({ params }: { params: { examId: string } }) 
 ### 17.2. Live exam APIs
 
 **`apps/web/src/app/api/live-exam/[examId]/start/route.ts`**
+
 ```typescript
 /**
  * Host start exam → mark IN_PROGRESS + broadcast exam:started.
@@ -2484,7 +2664,9 @@ export async function POST(req: Request, { params }: { params: { examId: string 
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  await db.update(exams).set({ status: 'IN_PROGRESS', startedAt: new Date() })
+  await db
+    .update(exams)
+    .set({ status: 'IN_PROGRESS', startedAt: new Date() })
     .where(eq(exams.id, params.examId));
 
   await pusherServer.trigger(`exam-${params.examId}`, 'exam:started', { timestamp: Date.now() });
@@ -2493,6 +2675,7 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 ```
 
 **`apps/web/src/app/api/live-exam/[examId]/next-question/route.ts`**
+
 ```typescript
 /**
  * Host next-question → save state Redis, broadcast (KHÔNG kèm correctAnswer!), schedule timeout.
@@ -2531,15 +2714,21 @@ export async function POST(req: Request, { params }: { params: { examId: string 
   };
 
   // Lưu trạng thái server-side
-  await redis.set(`exam:${params.examId}:current`, JSON.stringify({
-    questionIndex,
-    questionId: question.id,
-    startedAt: Date.now(),
-    timeLimit: question.timeLimit ?? 30,
-    correctAnswer: question.correctAnswer,
-  }), { EX: (question.timeLimit ?? 30) + 5 });
+  await redis.set(
+    `exam:${params.examId}:current`,
+    JSON.stringify({
+      questionIndex,
+      questionId: question.id,
+      startedAt: Date.now(),
+      timeLimit: question.timeLimit ?? 30,
+      correctAnswer: question.correctAnswer,
+    }),
+    { EX: (question.timeLimit ?? 30) + 5 },
+  );
 
-  await db.update(exams).set({ currentQuestionIndex: questionIndex })
+  await db
+    .update(exams)
+    .set({ currentQuestionIndex: questionIndex })
     .where(eq(exams.id, params.examId));
 
   await pusherServer.trigger(`exam-${params.examId}`, 'question:show', sanitized);
@@ -2556,6 +2745,7 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 ```
 
 **`apps/web/src/app/api/live-exam/[examId]/answer/route.ts`**
+
 ```typescript
 /**
  * Student submit answer — check live state, calculate speed bonus, update leaderboard.
@@ -2583,16 +2773,16 @@ export async function POST(req: Request, { params }: { params: { examId: string 
   // Duplicate guard — đã trả lời rồi thì không cho submit lại
   const dup = await redis.get(`exam:${params.examId}:answered:${session.user.id}:${questionId}`);
   if (dup) return Response.json({ error: 'Already answered' }, { status: 400 });
-  await redis.set(`exam:${params.examId}:answered:${session.user.id}:${questionId}`, '1', { EX: 60 });
+  await redis.set(`exam:${params.examId}:answered:${session.user.id}:${questionId}`, '1', {
+    EX: 60,
+  });
 
   const responseTime = Date.now() - state.startedAt;
   const isCorrect = JSON.stringify(answer) === JSON.stringify(state.correctAnswer);
 
   // Speed bonus: nhanh hơn → điểm cao hơn
   const basePoints = 1000;
-  const timeBonus = isCorrect
-    ? Math.max(0, 1 - responseTime / (state.timeLimit * 1000)) * 500
-    : 0;
+  const timeBonus = isCorrect ? Math.max(0, 1 - responseTime / (state.timeLimit * 1000)) * 500 : 0;
   const points = isCorrect ? Math.round(basePoints + timeBonus) : 0;
 
   // Find/create attempt
@@ -2600,9 +2790,14 @@ export async function POST(req: Request, { params }: { params: { examId: string 
     where: and(eq(examAttempts.examId, params.examId), eq(examAttempts.userId, session.user.id)),
   });
   if (!attempt) {
-    [attempt] = await db.insert(examAttempts).values({
-      examId: params.examId, userId: session.user.id, status: 'IN_PROGRESS',
-    }).returning();
+    [attempt] = await db
+      .insert(examAttempts)
+      .values({
+        examId: params.examId,
+        userId: session.user.id,
+        status: 'IN_PROGRESS',
+      })
+      .returning();
   }
 
   await db.insert(examResponses).values({
@@ -2619,7 +2814,9 @@ export async function POST(req: Request, { params }: { params: { examId: string 
   const rank = await redis.zRevRank(`exam:${params.examId}:leaderboard`, session.user.id);
 
   await pusherServer.trigger(`presence-user-${session.user.id}`, 'exam:rank-updated', {
-    examId: params.examId, rank: (rank ?? 0) + 1, points,
+    examId: params.examId,
+    rank: (rank ?? 0) + 1,
+    points,
   });
 
   return Response.json({ isCorrect, points, rank: (rank ?? 0) + 1 });
@@ -2629,6 +2826,7 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 ### 17.3. Question timeout handler
 
 **`apps/web/src/inngest/functions/exam-question-timeout.ts`**
+
 ```typescript
 /**
  * Khi hết giờ câu hỏi → broadcast results + leaderboard top 10.
@@ -2652,11 +2850,13 @@ export const questionTimeout = inngest.createFunction(
 
     // Top 10 leaderboard
     const lbRaw = await redis.zRangeWithScores(`exam:${examId}:leaderboard`, 0, 9, { REV: true });
-    const userIds = lbRaw.map(e => e.value);
-    const users = await db.query.user.findMany({ where: (u, { inArray }) => inArray(u.id, userIds) });
-    const leaderboard = lbRaw.map(e => ({
+    const userIds = lbRaw.map((e) => e.value);
+    const users = await db.query.user.findMany({
+      where: (u, { inArray }) => inArray(u.id, userIds),
+    });
+    const leaderboard = lbRaw.map((e) => ({
       userId: e.value,
-      name: users.find(u => u.id === e.value)?.name ?? 'Anonymous',
+      name: users.find((u) => u.id === e.value)?.name ?? 'Anonymous',
       points: e.score,
     }));
 
@@ -2673,6 +2873,7 @@ export const questionTimeout = inngest.createFunction(
 ### 17.4. Student client UI
 
 **`apps/web/src/app/(public)/live-exam/[code]/page.tsx`**
+
 ```typescript
 /**
  * Student live exam UI — colored buttons, real-time rank.
@@ -2806,6 +3007,7 @@ export default function LiveExamPage({ params }: { params: { code: string } }) {
 Mode `TOURNAMENT` — N user (power of 2) đấu 1v1 theo vòng cho tới chung kết.
 
 **Schema delta:**
+
 ```typescript
 /**
  * Bảng phụ cho tournament: bracket tree + match state.
@@ -2813,29 +3015,34 @@ Mode `TOURNAMENT` — N user (power of 2) đấu 1v1 theo vòng cho tới chung 
  */
 export const tournamentMatches = pgTable('tournament_matches', {
   id: text('id').primaryKey(),
-  examId: text('exam_id').notNull().references(() => exams.id, { onDelete: 'cascade' }),
-  round: integer('round').notNull(),      // 1 = round of N, log2(N) = final
+  examId: text('exam_id')
+    .notNull()
+    .references(() => exams.id, { onDelete: 'cascade' }),
+  round: integer('round').notNull(), // 1 = round of N, log2(N) = final
   matchIndex: integer('match_index').notNull(),
   player1Id: text('player1_id'),
   player2Id: text('player2_id'),
   winnerId: text('winner_id'),
   player1Score: real('player1_score'),
   player2Score: real('player2_score'),
-  status: text('status').notNull().default('PENDING'),  // PENDING | ACTIVE | DONE
-  questionId: text('question_id'),        // câu được dùng cho match này
+  status: text('status').notNull().default('PENDING'), // PENDING | ACTIVE | DONE
+  questionId: text('question_id'), // câu được dùng cho match này
   startedAt: timestamp('started_at'),
   endedAt: timestamp('ended_at'),
 });
 ```
 
 **`apps/web/src/lib/exam/tournament.ts`**
+
 ```typescript
 /**
  * Tournament bracket logic.
  * Seed: random shuffle hoặc theo Elo rating (V2).
  * Round 1: N/2 match, winner advance round 2…
  */
-export function buildBracket(playerIds: string[]): { round: number; matchIndex: number; p1: string | null; p2: string | null }[] {
+export function buildBracket(
+  playerIds: string[],
+): { round: number; matchIndex: number; p1: string | null; p2: string | null }[] {
   // Pad lên power of 2 với 'BYE'
   const n = playerIds.length;
   const target = Math.pow(2, Math.ceil(Math.log2(n)));
@@ -2850,7 +3057,8 @@ export function buildBracket(playerIds: string[]): { round: number; matchIndex: 
   const matches = [];
   for (let i = 0; i < padded.length; i += 2) {
     matches.push({
-      round: 1, matchIndex: i / 2,
+      round: 1,
+      matchIndex: i / 2,
       p1: padded[i] === 'BYE' ? null : padded[i]!,
       p2: padded[i + 1] === 'BYE' ? null : padded[i + 1]!,
     });
@@ -2862,7 +3070,10 @@ export function buildBracket(playerIds: string[]): { round: number; matchIndex: 
  * Sau khi match xong, advance winner tới match round kế.
  * Bracket binary tree: round R match M → round R+1 match floor(M/2).
  */
-export function advanceWinner(round: number, matchIndex: number): { nextRound: number; nextMatchIndex: number; slot: 'p1' | 'p2' } {
+export function advanceWinner(
+  round: number,
+  matchIndex: number,
+): { nextRound: number; nextMatchIndex: number; slot: 'p1' | 'p2' } {
   return {
     nextRound: round + 1,
     nextMatchIndex: Math.floor(matchIndex / 2),
@@ -2872,6 +3083,7 @@ export function advanceWinner(round: number, matchIndex: number): { nextRound: n
 ```
 
 **`apps/web/src/app/api/tournament/[examId]/start/route.ts`**
+
 ```typescript
 /**
  * Host start tournament — build bracket, insert round 1 matches, broadcast bracket.
@@ -2888,25 +3100,28 @@ export async function POST(req: Request, { params }: { params: { examId: string 
   if (!session) return Response.json({ error: 'Unauthenticated' }, { status: 401 });
 
   const exam = await db.query.exams.findFirst({ where: eq(exams.id, params.examId) });
-  if (exam!.ownerId !== session.user.id) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  if (exam!.ownerId !== session.user.id)
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   // Lấy danh sách đã join (qua examAttempts với status WAITING)
   const players = await db.query.examAttempts.findMany({
     where: eq(examAttempts.examId, params.examId),
   });
-  const playerIds = players.map(p => p.userId);
+  const playerIds = players.map((p) => p.userId);
 
   const bracket = buildBracket(playerIds);
-  await db.insert(tournamentMatches).values(bracket.map(m => ({
-    id: `${params.examId}-r${m.round}-m${m.matchIndex}`,
-    examId: params.examId,
-    round: m.round,
-    matchIndex: m.matchIndex,
-    player1Id: m.p1,
-    player2Id: m.p2,
-    status: m.p1 && m.p2 ? 'ACTIVE' as const : 'DONE' as const,
-    winnerId: !m.p2 ? m.p1 : !m.p1 ? m.p2 : null,  // BYE = auto win
-  })));
+  await db.insert(tournamentMatches).values(
+    bracket.map((m) => ({
+      id: `${params.examId}-r${m.round}-m${m.matchIndex}`,
+      examId: params.examId,
+      round: m.round,
+      matchIndex: m.matchIndex,
+      player1Id: m.p1,
+      player2Id: m.p2,
+      status: m.p1 && m.p2 ? ('ACTIVE' as const) : ('DONE' as const),
+      winnerId: !m.p2 ? m.p1 : !m.p1 ? m.p2 : null, // BYE = auto win
+    })),
+  );
 
   await pusherServer.trigger(`tournament-${params.examId}`, 'tournament:started', { bracket });
   return Response.json({ ok: true, bracket });
@@ -2914,6 +3129,7 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 ```
 
 **`apps/web/src/components/exam/tournament-bracket.tsx`**
+
 ```typescript
 /**
  * Visualize bracket — render columns mỗi round, lines giữa các match.
@@ -2979,6 +3195,7 @@ export function TournamentBracket({ examId, initialMatches }: { examId: string; 
 ### 18.2. IRT module
 
 **`apps/web/src/lib/exam/cat.ts`**
+
 ```typescript
 /**
  * Computerized Adaptive Testing (CAT) dùng IRT 3PL.
@@ -2990,9 +3207,9 @@ export function TournamentBracket({ examId, initialMatches }: { examId: string; 
  */
 export interface IRTQuestion {
   id: string;
-  difficulty: number;       // -3..+3
-  discrimination: number;   // 0.5..2.5
-  guessing: number;         // 0 cho short, 0.25 cho MCQ 4 options
+  difficulty: number; // -3..+3
+  discrimination: number; // 0.5..2.5
+  guessing: number; // 0 cho short, 0.25 cho MCQ 4 options
 }
 
 export function probabilityOfCorrect(theta: number, q: IRTQuestion): number {
@@ -3010,7 +3227,8 @@ export function information(theta: number, q: IRTQuestion): number {
 export function estimateTheta(responses: { question: IRTQuestion; correct: boolean }[]): number {
   let theta = 0;
   for (let iter = 0; iter < 20; iter++) {
-    let d1 = 0, d2 = 0;
+    let d1 = 0,
+      d2 = 0;
     for (const { question, correct } of responses) {
       const p = probabilityOfCorrect(theta, question);
       const factor = (correct ? 1 : 0) - p;
@@ -3025,7 +3243,10 @@ export function estimateTheta(responses: { question: IRTQuestion; correct: boole
   return Math.max(-4, Math.min(4, theta));
 }
 
-export function standardError(theta: number, responses: { question: IRTQuestion; correct: boolean }[]): number {
+export function standardError(
+  theta: number,
+  responses: { question: IRTQuestion; correct: boolean }[],
+): number {
   const totalInfo = responses.reduce((s, r) => s + information(theta, r.question), 0);
   return totalInfo > 0 ? 1 / Math.sqrt(totalInfo) : Infinity;
 }
@@ -3037,8 +3258,8 @@ export function pickNextQuestion(
 ): IRTQuestion {
   const theta = estimateTheta(responses);
   return pool
-    .filter(q => !excludeIds.includes(q.id))
-    .map(q => ({ q, info: information(theta, q) }))
+    .filter((q) => !excludeIds.includes(q.id))
+    .map((q) => ({ q, info: information(theta, q) }))
     .sort((a, b) => b.info - a.info)[0].q;
 }
 
@@ -3059,18 +3280,21 @@ export function thetaToScore(theta: number, scale = 100): number {
 ```
 
 **`apps/web/src/lib/exam/cat.test.ts`** (unit tests)
+
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { probabilityOfCorrect, estimateTheta, pickNextQuestion, shouldStop } from './cat';
 
 describe('IRT 3PL', () => {
   it('P(correct) = guessing khi theta = -∞', () => {
-    expect(probabilityOfCorrect(-10, { id: 'q', difficulty: 0, discrimination: 1, guessing: 0.25 }))
-      .toBeCloseTo(0.25, 2);
+    expect(
+      probabilityOfCorrect(-10, { id: 'q', difficulty: 0, discrimination: 1, guessing: 0.25 }),
+    ).toBeCloseTo(0.25, 2);
   });
   it('P(correct) → 1 khi theta = +∞', () => {
-    expect(probabilityOfCorrect(10, { id: 'q', difficulty: 0, discrimination: 1, guessing: 0.25 }))
-      .toBeCloseTo(1, 2);
+    expect(
+      probabilityOfCorrect(10, { id: 'q', difficulty: 0, discrimination: 1, guessing: 0.25 }),
+    ).toBeCloseTo(1, 2);
   });
   it('estimateTheta hội tụ với 10 response', () => {
     const responses = Array.from({ length: 10 }, (_, i) => ({
@@ -3087,6 +3311,7 @@ describe('IRT 3PL', () => {
 ### 18.3. Adaptive endpoint
 
 **`apps/web/src/app/api/adaptive-exam/[examId]/next/route.ts`**
+
 ```typescript
 /**
  * POST /api/adaptive-exam/[examId]/next — submit previous response, get next question hoặc done.
@@ -3094,7 +3319,13 @@ describe('IRT 3PL', () => {
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { examAttempts, examResponses, questions } from '@cogniva/db/schema';
-import { pickNextQuestion, shouldStop, estimateTheta, standardError, thetaToScore } from '@/lib/exam/cat';
+import {
+  pickNextQuestion,
+  shouldStop,
+  estimateTheta,
+  standardError,
+  thetaToScore,
+} from '@/lib/exam/cat';
 import { gradeResponse } from '@/lib/exam/grade';
 import { and, eq } from 'drizzle-orm';
 
@@ -3111,13 +3342,20 @@ export async function POST(req: Request, { params }: { params: { examId: string 
     ),
   });
   if (!attempt) {
-    [attempt] = await db.insert(examAttempts).values({
-      examId: params.examId, userId: session.user.id, status: 'IN_PROGRESS',
-    }).returning();
+    [attempt] = await db
+      .insert(examAttempts)
+      .values({
+        examId: params.examId,
+        userId: session.user.id,
+        status: 'IN_PROGRESS',
+      })
+      .returning();
   }
 
   if (previousResponse) {
-    const q = await db.query.questions.findFirst({ where: eq(questions.id, previousResponse.questionId) });
+    const q = await db.query.questions.findFirst({
+      where: eq(questions.id, previousResponse.questionId),
+    });
     const grading = await gradeResponse(q, previousResponse.answer);
     await db.insert(examResponses).values({
       attemptId: attempt.id,
@@ -3136,37 +3374,52 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 
   const exam = await db.query.exams.findFirst({ where: eq(exams.id, params.examId) });
 
-  if (shouldStop(
-    responses.map(r => ({ question: r.question as any, correct: r.isCorrect ?? false })),
-    {
-      minQuestions: exam!.minQuestions ?? 10,
-      maxQuestions: exam!.maxQuestions ?? 30,
-      targetSE: exam!.targetSE ?? 0.3,
-    },
-  )) {
-    const finalTheta = estimateTheta(responses.map(r => ({ question: r.question as any, correct: r.isCorrect ?? false })));
-    const se = standardError(finalTheta, responses.map(r => ({ question: r.question as any, correct: r.isCorrect ?? false })));
+  if (
+    shouldStop(
+      responses.map((r) => ({ question: r.question as any, correct: r.isCorrect ?? false })),
+      {
+        minQuestions: exam!.minQuestions ?? 10,
+        maxQuestions: exam!.maxQuestions ?? 30,
+        targetSE: exam!.targetSE ?? 0.3,
+      },
+    )
+  ) {
+    const finalTheta = estimateTheta(
+      responses.map((r) => ({ question: r.question as any, correct: r.isCorrect ?? false })),
+    );
+    const se = standardError(
+      finalTheta,
+      responses.map((r) => ({ question: r.question as any, correct: r.isCorrect ?? false })),
+    );
     const score = thetaToScore(finalTheta);
-    await db.update(examAttempts).set({
-      status: 'SUBMITTED',
-      submittedAt: new Date(),
-      estimatedTheta: finalTheta,
-      thetaSE: se,
-      score,
-      percentage: score,
-    }).where(eq(examAttempts.id, attempt.id));
+    await db
+      .update(examAttempts)
+      .set({
+        status: 'SUBMITTED',
+        submittedAt: new Date(),
+        estimatedTheta: finalTheta,
+        thetaSE: se,
+        score,
+        percentage: score,
+      })
+      .where(eq(examAttempts.id, attempt.id));
     return Response.json({ done: true, score, theta: finalTheta, se });
   }
 
   const pool = await db.query.questions.findMany({ where: eq(questions.examId, params.examId) });
   const next = pickNextQuestion(
     pool as any,
-    responses.map(r => ({ question: r.question as any, correct: r.isCorrect ?? false })),
-    responses.map(r => r.questionId),
+    responses.map((r) => ({ question: r.question as any, correct: r.isCorrect ?? false })),
+    responses.map((r) => r.questionId),
   );
 
   return Response.json({
-    question: { id: next.id, type: (next as any).type, prompt: (next as any).prompt, options: (next as any).options },
+    question: {
+      id: next.id,
+      type: (next as any).type,
+      prompt: (next as any).prompt,
+      options: (next as any).options,
+    },
     progress: { answered: responses.length },
   });
 }
@@ -3175,6 +3428,7 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 ### 18.4. Code grading sandbox
 
 **`apps/web/src/lib/exam/code-grade.ts`**
+
 ```typescript
 /**
  * Code grading — chạy student code trong Docker sandbox.
@@ -3184,7 +3438,11 @@ export async function POST(req: Request, { params }: { params: { examId: string 
 import { spawn } from 'child_process';
 import { mastra } from '@/mastra';
 
-export interface TestCase { id: string; input: string; expectedOutput: string }
+export interface TestCase {
+  id: string;
+  input: string;
+  expectedOutput: string;
+}
 
 export async function gradeCode(opts: {
   language: 'python' | 'javascript' | 'cpp' | 'java';
@@ -3199,29 +3457,43 @@ export async function gradeCode(opts: {
 
   for (const test of opts.testCases) {
     const result = await runInSandbox({
-      language: opts.language, code: opts.studentCode,
-      stdin: test.input, timeLimit, memoryLimit,
+      language: opts.language,
+      code: opts.studentCode,
+      stdin: test.input,
+      timeLimit,
+      memoryLimit,
     });
-    const passed = !result.error && result.exitCode === 0
-      && normalize(result.stdout) === normalize(test.expectedOutput);
+    const passed =
+      !result.error &&
+      result.exitCode === 0 &&
+      normalize(result.stdout) === normalize(test.expectedOutput);
     results.push({
-      testCaseId: test.id, passed,
-      actualOutput: result.stdout, expectedOutput: test.expectedOutput,
-      executionTime: result.duration, error: result.error,
+      testCaseId: test.id,
+      passed,
+      actualOutput: result.stdout,
+      expectedOutput: test.expectedOutput,
+      executionTime: result.duration,
+      error: result.error,
     });
   }
 
-  const passed = results.filter(r => r.passed).length;
+  const passed = results.filter((r) => r.passed).length;
   const score = (passed / results.length) * 100;
 
   let aiFeedback = null;
   if (passed < results.length) {
     const agent = mastra.getAgent('codeReviewer');
     const out = await agent.generate({
-      messages: [{
-        role: 'user',
-        content: `Review code ${opts.language} sau, giải thích vì sao fail test cases:\n${opts.studentCode}\n\nFailed:\n${JSON.stringify(results.filter(r => !r.passed), null, 2)}`,
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: `Review code ${opts.language} sau, giải thích vì sao fail test cases:\n${opts.studentCode}\n\nFailed:\n${JSON.stringify(
+            results.filter((r) => !r.passed),
+            null,
+            2,
+          )}`,
+        },
+      ],
     });
     aiFeedback = out.text;
   }
@@ -3237,19 +3509,29 @@ async function runInSandbox(opts: any): Promise<any> {
   return new Promise((resolve) => {
     const start = Date.now();
     const proc = spawn('docker', [
-      'run', '--rm', '-i',
+      'run',
+      '--rm',
+      '-i',
       `--memory=${opts.memoryLimit}m`,
       '--cpus=1',
       '--network=none',
       `cogniva/sandbox-${opts.language}`,
     ]);
-    let stdout = '', stderr = '';
-    proc.stdout.on('data', d => { stdout += d; });
-    proc.stderr.on('data', d => { stderr += d; });
+    let stdout = '',
+      stderr = '';
+    proc.stdout.on('data', (d) => {
+      stdout += d;
+    });
+    proc.stderr.on('data', (d) => {
+      stderr += d;
+    });
     proc.stdin.write(opts.code + '\n---INPUT---\n' + opts.stdin);
     proc.stdin.end();
-    const timer = setTimeout(() => { proc.kill('SIGKILL'); resolve({ error: 'TIMEOUT', duration: opts.timeLimit }); }, opts.timeLimit);
-    proc.on('close', code => {
+    const timer = setTimeout(() => {
+      proc.kill('SIGKILL');
+      resolve({ error: 'TIMEOUT', duration: opts.timeLimit });
+    }, opts.timeLimit);
+    proc.on('close', (code) => {
       clearTimeout(timer);
       resolve({ exitCode: code, stdout, stderr, duration: Date.now() - start });
     });
@@ -3258,6 +3540,7 @@ async function runInSandbox(opts: any): Promise<any> {
 ```
 
 **`infrastructure/sandbox/Dockerfile.python`**
+
 ```dockerfile
 # Minimal Python 3.12 sandbox — no network, restricted user
 FROM python:3.12-alpine
@@ -3270,6 +3553,7 @@ CMD ["python", "-c", "import sys; code, stdin = sys.stdin.read().split('---INPUT
 ### 18.5. Essay grade with plagiarism check
 
 **`apps/web/src/lib/exam/essay-grade.ts`**
+
 ```typescript
 /**
  * Essay grade 2 stage: AI rubric grade + plagiarism vs corpus.
@@ -3279,7 +3563,10 @@ import { gradeShortAnswer } from './ai-grade';
 import { checkPlagiarism } from './plagiarism';
 
 export async function gradeEssay(opts: {
-  prompt: string; studentEssay: string; rubric: any; wordLimit?: number;
+  prompt: string;
+  studentEssay: string;
+  rubric: any;
+  wordLimit?: number;
 }) {
   const [grade, plag] = await Promise.all([
     gradeShortAnswer({
@@ -3297,6 +3584,7 @@ export async function gradeEssay(opts: {
 ```
 
 **`apps/web/src/lib/exam/plagiarism.ts`**
+
 ```typescript
 /**
  * Plagiarism check — cosine similarity vs corpus (existing essays + user's own docs).
@@ -3316,9 +3604,8 @@ export async function checkPlagiarism(text: string) {
     ORDER BY sim DESC
     LIMIT 5
   `);
-  const matchPercent = matches.rows.length > 0
-    ? Math.max(...matches.rows.map((r: any) => r.sim)) * 100
-    : 0;
+  const matchPercent =
+    matches.rows.length > 0 ? Math.max(...matches.rows.map((r: any) => r.sim)) * 100 : 0;
   return { matchPercent, matches: matches.rows };
 }
 ```
@@ -3365,6 +3652,7 @@ export async function checkPlagiarism(text: string) {
 ### 19.2. Proctoring hook
 
 **`apps/web/src/hooks/use-exam-proctoring.ts`**
+
 ```typescript
 /**
  * Proctoring hook — gắn vào trang làm exam.
@@ -3378,7 +3666,10 @@ import { useRouter } from 'next/navigation';
 
 export type Severity = 'low' | 'medium' | 'high';
 export interface Violation {
-  type: string; severity: Severity; timestamp: number; metadata?: any;
+  type: string;
+  severity: Severity;
+  timestamp: number;
+  metadata?: any;
 }
 export interface ProctoringSettings {
   requireFullscreen?: boolean;
@@ -3387,7 +3678,11 @@ export interface ProctoringSettings {
   detectDevtools?: boolean;
 }
 
-export function useExamProctoring(examId: string, settings: ProctoringSettings, onAutoSubmit: (reason: string) => void) {
+export function useExamProctoring(
+  examId: string,
+  settings: ProctoringSettings,
+  onAutoSubmit: (reason: string) => void,
+) {
   const violations = useRef<Violation[]>([]);
   const warningCount = useRef(0);
   const router = useRouter();
@@ -3427,17 +3722,28 @@ export function useExamProctoring(examId: string, settings: ProctoringSettings, 
 
     // 3. Window blur
     let blurStart = 0;
-    const onBlur = () => { blurStart = Date.now(); record('WINDOW_BLUR', 'medium'); };
-    const onFocus = () => { if (blurStart > 0) record('WINDOW_FOCUS', 'low', { blurDurationMs: Date.now() - blurStart }); };
+    const onBlur = () => {
+      blurStart = Date.now();
+      record('WINDOW_BLUR', 'medium');
+    };
+    const onFocus = () => {
+      if (blurStart > 0) record('WINDOW_FOCUS', 'low', { blurDurationMs: Date.now() - blurStart });
+    };
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
 
     // 4. Context menu
-    const onCtx = (e: MouseEvent) => { e.preventDefault(); record('CONTEXT_MENU', 'low'); };
+    const onCtx = (e: MouseEvent) => {
+      e.preventDefault();
+      record('CONTEXT_MENU', 'low');
+    };
     if (settings.blockContextMenu) document.addEventListener('contextmenu', onCtx);
 
     // 5. Clipboard
-    const onClip = (e: ClipboardEvent) => { e.preventDefault(); record(`CLIPBOARD_${e.type.toUpperCase()}`, 'medium'); };
+    const onClip = (e: ClipboardEvent) => {
+      e.preventDefault();
+      record(`CLIPBOARD_${e.type.toUpperCase()}`, 'medium');
+    };
     if (settings.blockCopyPaste) {
       document.addEventListener('copy', onClip);
       document.addEventListener('cut', onClip);
@@ -3446,7 +3752,10 @@ export function useExamProctoring(examId: string, settings: ProctoringSettings, 
 
     // 6. Devtools (heuristic — không 100% reliable)
     const devtoolsTimer = setInterval(() => {
-      if (window.outerWidth - window.innerWidth > 200 || window.outerHeight - window.innerHeight > 200) {
+      if (
+        window.outerWidth - window.innerWidth > 200 ||
+        window.outerHeight - window.innerHeight > 200
+      ) {
         record('DEVTOOLS_SUSPECTED', 'high');
       }
     }, 1000);
@@ -3455,21 +3764,27 @@ export function useExamProctoring(examId: string, settings: ProctoringSettings, 
     if (window.screen.availWidth > 3000) record('MULTIPLE_MONITORS_DETECTED', 'low');
 
     // 8. Browser fingerprint
-    captureFingerprint().then(fp => {
+    captureFingerprint().then((fp) => {
       navigator.sendBeacon('/api/exam/fingerprint', JSON.stringify({ examId, fingerprint: fp }));
     });
 
     // 9. Heartbeat
     const hbTimer = setInterval(() => {
-      navigator.sendBeacon('/api/exam/heartbeat', JSON.stringify({
-        examId, timestamp: Date.now(), violationCount: violations.current.length,
-      }));
+      navigator.sendBeacon(
+        '/api/exam/heartbeat',
+        JSON.stringify({
+          examId,
+          timestamp: Date.now(),
+          violationCount: violations.current.length,
+        }),
+      );
     }, 5000);
 
     // 10. Shortcuts
     const onKey = (e: KeyboardEvent) => {
       const isCtrlBlocked = e.ctrlKey && ['c', 'v', 'p', 'u', 's'].includes(e.key.toLowerCase());
-      const isDevtoolsShortcut = e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key));
+      const isDevtoolsShortcut =
+        e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I', 'J', 'C'].includes(e.key));
       if (isCtrlBlocked || isDevtoolsShortcut) {
         e.preventDefault();
         record('SHORTCUT_BLOCKED', 'low', { key: e.key });
@@ -3503,7 +3818,9 @@ async function captureFingerprint(): Promise<string> {
     canvasFingerprint(),
   ];
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(parts.join('|')));
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function canvasFingerprint(): string {
@@ -3519,6 +3836,7 @@ function canvasFingerprint(): string {
 ### 19.3. Webcam proctoring (optional, opt-in)
 
 **`apps/web/src/hooks/use-webcam-proctoring.ts`**
+
 ```typescript
 /**
  * Webcam proctoring với MediaPipe Tasks Vision — chạy local, không upload frame.
@@ -3539,11 +3857,22 @@ export function useWebcamProctoring(examId: string) {
     let timer: number | null = null;
 
     async function init() {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+        audio: false,
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm',
+      );
       detector = await FaceDetector.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite' },
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+        },
         runningMode: 'VIDEO',
       });
       timer = window.setInterval(check, 2000);
@@ -3560,26 +3889,34 @@ export function useWebcamProctoring(examId: string) {
 
     function record(type: string, severity: 'low' | 'medium' | 'high') {
       const v = { type, severity, timestamp: Date.now() };
-      setViolations(prev => [...prev, v]);
+      setViolations((prev) => [...prev, v]);
       navigator.sendBeacon('/api/exam/violation', JSON.stringify({ examId, violation: v }));
     }
 
     async function snapshotAndUpload() {
-      const video = videoRef.current; if (!video) return;
+      const video = videoRef.current;
+      if (!video) return;
       const c = document.createElement('canvas');
-      c.width = video.videoWidth; c.height = video.videoHeight;
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
       c.getContext('2d')!.drawImage(video, 0, 0);
-      c.toBlob(blob => {
-        if (!blob) return;
-        const fd = new FormData(); fd.append('snapshot', blob); fd.append('examId', examId);
-        fetch('/api/exam/proctor-snapshot', { method: 'POST', body: fd });
-      }, 'image/jpeg', 0.6);
+      c.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const fd = new FormData();
+          fd.append('snapshot', blob);
+          fd.append('examId', examId);
+          fetch('/api/exam/proctor-snapshot', { method: 'POST', body: fd });
+        },
+        'image/jpeg',
+        0.6,
+      );
     }
 
     init();
     return () => {
       if (timer) clearInterval(timer);
-      stream?.getTracks().forEach(t => t.stop());
+      stream?.getTracks().forEach((t) => t.stop());
       detector?.close();
     };
   }, [examId]);
@@ -3591,6 +3928,7 @@ export function useWebcamProctoring(examId: string) {
 ### 19.4. Cheat risk aggregation
 
 **`apps/web/src/lib/exam/cheat-risk.ts`**
+
 ```typescript
 /**
  * Tính cheat risk score 0-100 từ violations.
@@ -3604,8 +3942,12 @@ export function calcCheatRiskScore(violations: { severity: keyof typeof WEIGHTS 
   return Math.min(100, sum);
 }
 
-export function shouldFlag(score: number): boolean { return score >= 50; }
-export function shouldDisqualify(score: number): boolean { return score >= 75; }
+export function shouldFlag(score: number): boolean {
+  return score >= 50;
+}
+export function shouldDisqualify(score: number): boolean {
+  return score >= 75;
+}
 ```
 
 ### 19.5. Item analysis dashboard
@@ -3613,6 +3955,7 @@ export function shouldDisqualify(score: number): boolean { return score >= 75; }
 Classical Test Theory metrics + IRT calibration. Output 4 chỉ số chính cho mỗi câu hỏi.
 
 **`apps/web/src/lib/exam/item-analysis.ts`**
+
 ```typescript
 /**
  * Item analysis — Classical Test Theory.
@@ -3637,10 +3980,10 @@ Classical Test Theory metrics + IRT calibration. Output 4 chỉ số chính cho 
 export interface QuestionStat {
   questionId: string;
   prompt: string;
-  difficulty: number;        // 0..1
-  discrimination: number;    // -1..1 (typically -0.3..0.7)
+  difficulty: number; // 0..1
+  discrimination: number; // -1..1 (typically -0.3..0.7)
   attempts: number;
-  distractors?: Record<string, number>;  // option → % chosen
+  distractors?: Record<string, number>; // option → % chosen
   flag: 'too_easy' | 'too_hard' | 'low_discrimination' | 'negative_discrimination' | 'ok';
 }
 
@@ -3677,25 +4020,29 @@ export function cronbachAlpha(itemScoresPerAttempt: number[][]): number {
   // Variance của mỗi item
   const itemVariances: number[] = [];
   for (let i = 0; i < n; i++) {
-    const col = itemScoresPerAttempt.map(row => row[i] ?? 0);
+    const col = itemScoresPerAttempt.map((row) => row[i] ?? 0);
     itemVariances.push(variance(col));
   }
   const sumItemVar = itemVariances.reduce((a, b) => a + b, 0);
 
   // Variance của total score
-  const totals = itemScoresPerAttempt.map(row => row.reduce((a, b) => a + b, 0));
+  const totals = itemScoresPerAttempt.map((row) => row.reduce((a, b) => a + b, 0));
   const totalVar = variance(totals);
   if (totalVar === 0) return 0;
 
   return (n / (n - 1)) * (1 - sumItemVar / totalVar);
 }
 
-function mean(a: number[]): number { return a.reduce((s, x) => s + x, 0) / a.length; }
+function mean(a: number[]): number {
+  return a.reduce((s, x) => s + x, 0) / a.length;
+}
 function variance(a: number[]): number {
   const m = mean(a);
   return a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length;
 }
-function stdDev(a: number[]): number { return Math.sqrt(variance(a)); }
+function stdDev(a: number[]): number {
+  return Math.sqrt(variance(a));
+}
 
 /**
  * Tổng hợp stats cho 1 exam.
@@ -3706,24 +4053,25 @@ export async function computeExamStats(examId: string) {
   const { eq, and } = await import('drizzle-orm');
 
   const qs = await db.query.questions.findMany({ where: eq(questions.examId, examId) });
-  const submittedAttempts = await db.query.examAttempts.findMany({
+  const submittedAttempts = (await db.query.examAttempts.findMany({
     where: and(eq(examAttempts.examId, examId), eq(examAttempts.status, 'SUBMITTED')),
     with: { responses: true } as any,
-  }) as any[];
+  })) as any[];
 
   // Matrix [attempt][question] = pointsEarned
-  const matrix: number[][] = submittedAttempts.map(a =>
-    qs.map(q => {
+  const matrix: number[][] = submittedAttempts.map((a) =>
+    qs.map((q) => {
       const r = a.responses.find((r: any) => r.questionId === q.id);
       return r?.pointsEarned ?? 0;
     }),
   );
 
   // Total score per attempt
-  const totals = matrix.map(row => row.reduce((s, x) => s + x, 0));
+  const totals = matrix.map((row) => row.reduce((s, x) => s + x, 0));
 
   const perQuestion: QuestionStat[] = qs.map((q, qIdx) => {
-    const correct: number[] = [], incorrect: number[] = [];
+    const correct: number[] = [],
+      incorrect: number[] = [];
     matrix.forEach((row, aIdx) => {
       const earned = row[qIdx] ?? 0;
       const max = (q as any).points ?? 1;
@@ -3737,7 +4085,7 @@ export async function computeExamStats(examId: string) {
     let distractors: Record<string, number> | undefined;
     if ((q as any).type === 'MCQ_SINGLE') {
       const counts = new Map<number, number>();
-      submittedAttempts.forEach(a => {
+      submittedAttempts.forEach((a) => {
         const r = a.responses.find((r: any) => r.questionId === q.id);
         if (r) counts.set(r.answer, (counts.get(r.answer) ?? 0) + 1);
       });
@@ -3748,11 +4096,15 @@ export async function computeExamStats(examId: string) {
     }
 
     const flag: QuestionStat['flag'] =
-      discrimination < 0 ? 'negative_discrimination'
-      : difficulty > 0.9 ? 'too_easy'
-      : difficulty < 0.2 ? 'too_hard'
-      : discrimination < 0.15 ? 'low_discrimination'
-      : 'ok';
+      discrimination < 0
+        ? 'negative_discrimination'
+        : difficulty > 0.9
+          ? 'too_easy'
+          : difficulty < 0.2
+            ? 'too_hard'
+            : discrimination < 0.15
+              ? 'low_discrimination'
+              : 'ok';
 
     return {
       questionId: q.id,
@@ -3780,6 +4132,7 @@ export async function computeExamStats(examId: string) {
 ```
 
 **`apps/web/src/app/(app)/exams/[examId]/analytics/page.tsx`**
+
 ```typescript
 /**
  * Item Analysis dashboard — hiển thị metrics + flag câu hỏi cần revise.
@@ -3861,6 +4214,7 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
 ```
 
 **Cách dùng output:**
+
 - `flag === 'negative_discrimination'` → ưu tiên kiểm tra đáp án (90% là câu lỗi).
 - `flag === 'too_easy' || 'too_hard'` → revise độ khó hoặc drop câu khỏi adaptive pool.
 - `flag === 'low_discrimination'` → distractor yếu, viết lại options.
@@ -3868,14 +4222,19 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
 
 **Calibrate IRT params từ data:**
 Sau khi đủ 100+ attempts, có thể fit IRT params (difficulty, discrimination, guessing) từ response matrix dùng MML (Marginal Maximum Likelihood). Phase 19 v1 dùng heuristic mapping:
+
 ```typescript
-function calibrateIRT(stat: QuestionStat): { difficulty: number; discrimination: number; guessing: number } {
+function calibrateIRT(stat: QuestionStat): {
+  difficulty: number;
+  discrimination: number;
+  guessing: number;
+} {
   // Difficulty CTT (0-1) → theta scale (-3 to +3): 1 - p mapped via probit
-  const difficultyTheta = -Math.log(stat.difficulty / (1 - stat.difficulty));   // logit
+  const difficultyTheta = -Math.log(stat.difficulty / (1 - stat.difficulty)); // logit
   return {
     difficulty: Math.max(-3, Math.min(3, difficultyTheta)),
     discrimination: Math.max(0.3, Math.min(2.5, stat.discrimination * 3)),
-    guessing: 0.25,  // MCQ 4 options → 25% guess
+    guessing: 0.25, // MCQ 4 options → 25% guess
   };
 }
 ```
@@ -3885,6 +4244,7 @@ function calibrateIRT(stat: QuestionStat): { difficulty: number; discrimination:
 Bắt buộc cho compliance EU. Endpoint export + delete user data.
 
 **`apps/web/src/app/api/me/export/route.ts`**
+
 ```typescript
 /**
  * GET /api/me/export — trả toàn bộ data user dạng ZIP (JSON files).
@@ -3902,7 +4262,14 @@ export async function GET(req: Request) {
   const zip = new JSZip();
 
   // Profile
-  zip.file('profile.json', JSON.stringify(await db.query.user.findFirst({ where: (u, { eq }) => eq(u.id, userId) }), null, 2));
+  zip.file(
+    'profile.json',
+    JSON.stringify(
+      await db.query.user.findFirst({ where: (u, { eq }) => eq(u.id, userId) }),
+      null,
+      2,
+    ),
+  );
 
   // Documents + chunks (chỉ metadata, không file binary — quá lớn)
   const docs = await db.query.document.findMany({ where: (d, { eq }) => eq(d.userId, userId) });
@@ -3913,7 +4280,9 @@ export async function GET(req: Request) {
   zip.file('chats.json', JSON.stringify(chats, null, 2));
 
   // Flashcards + reviews
-  const flashcards = await db.query.flashcard.findMany({ where: (f, { eq }) => eq(f.userId, userId) });
+  const flashcards = await db.query.flashcard.findMany({
+    where: (f, { eq }) => eq(f.userId, userId),
+  });
   zip.file('flashcards.json', JSON.stringify(flashcards, null, 2));
 
   // Notes
@@ -3925,11 +4294,16 @@ export async function GET(req: Request) {
   zip.file('rooms.json', JSON.stringify(rooms, null, 2));
 
   // Exam attempts
-  const attempts = await db.query.examAttempts.findMany({ where: (a, { eq }) => eq(a.userId, userId) });
+  const attempts = await db.query.examAttempts.findMany({
+    where: (a, { eq }) => eq(a.userId, userId),
+  });
   zip.file('exam_attempts.json', JSON.stringify(attempts, null, 2));
 
   // README explain format
-  zip.file('README.md', `# Cogniva Data Export\nUser: ${session.user.email}\nExported: ${new Date().toISOString()}\n\nFiles trong ZIP này là JSON dump của data thuộc về bạn.`);
+  zip.file(
+    'README.md',
+    `# Cogniva Data Export\nUser: ${session.user.email}\nExported: ${new Date().toISOString()}\n\nFiles trong ZIP này là JSON dump của data thuộc về bạn.`,
+  );
 
   const buffer = await zip.generateAsync({ type: 'nodebuffer' });
   return new Response(buffer, {
@@ -3942,6 +4316,7 @@ export async function GET(req: Request) {
 ```
 
 **`apps/web/src/app/api/me/delete/route.ts`**
+
 ```typescript
 /**
  * DELETE /api/me/delete — xoá vĩnh viễn user + cascade data.
@@ -3955,7 +4330,7 @@ export async function GET(req: Request) {
  */
 import { auth } from '@/lib/auth';
 import { db } from '@/db';
-import { user, roomMessages, /* … */ } from '@cogniva/db/schema';
+import { user, roomMessages /* … */ } from '@cogniva/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function DELETE(req: Request) {
@@ -3970,17 +4345,21 @@ export async function DELETE(req: Request) {
   if (!ok) return Response.json({ error: 'Invalid password' }, { status: 401 });
 
   // 2. Anonymize messages trong room/exam mà user không own
-  await db.update(roomMessages).set({ userId: 'DELETED_USER', content: '[đã xoá]' })
+  await db
+    .update(roomMessages)
+    .set({ userId: 'DELETED_USER', content: '[đã xoá]' })
     .where(eq(roomMessages.userId, session.user.id));
 
   // 3. Cascade delete — ON DELETE CASCADE đã setup ở schema
   // Audit log trước khi xoá
-  console.log(JSON.stringify({
-    event: 'user.deleted',
-    userId: session.user.id,
-    email: session.user.email,
-    timestamp: new Date().toISOString(),
-  }));
+  console.log(
+    JSON.stringify({
+      event: 'user.deleted',
+      userId: session.user.id,
+      email: session.user.email,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   await db.delete(user).where(eq(user.id, session.user.id));
 
@@ -3992,6 +4371,7 @@ export async function DELETE(req: Request) {
 ```
 
 UI bổ sung vào `/settings` Danger zone (Phase 11 deferred → Phase 19 ship được):
+
 ```typescript
 // Trong /settings/page.tsx — replace nút "Sẽ ra mắt"
 const handleDelete = async () => {
@@ -4010,6 +4390,7 @@ const handleDelete = async () => {
 ### 19.6. Testing strategy
 
 **Unit (Vitest):**
+
 ```typescript
 // src/lib/exam/cat.test.ts — đã viết Phase 18
 // src/lib/exam/grade.test.ts
@@ -4019,7 +4400,8 @@ import { gradeResponse } from './grade';
 describe('gradeResponse', () => {
   it('MCQ_SINGLE đúng → full points', async () => {
     const r = await gradeResponse({ type: 'MCQ_SINGLE', correctAnswer: 2, points: 1 }, 2);
-    expect(r.isCorrect).toBe(true); expect(r.points).toBe(1);
+    expect(r.isCorrect).toBe(true);
+    expect(r.points).toBe(1);
   });
   it('MCQ_MULTI partial credit', async () => {
     const r = await gradeResponse(
@@ -4032,6 +4414,7 @@ describe('gradeResponse', () => {
 ```
 
 **E2E (Playwright):**
+
 ```typescript
 // apps/web/e2e/rooms.spec.ts
 import { test, expect, chromium } from '@playwright/test';
@@ -4053,7 +4436,8 @@ test('2 user join room thấy nhau', async () => {
   await expect(page1.locator('text=User2')).toBeVisible({ timeout: 10_000 });
   await expect(page2.locator('text=User1')).toBeVisible({ timeout: 10_000 });
 
-  await browser1.close(); await browser2.close();
+  await browser1.close();
+  await browser2.close();
 });
 
 test('live exam 5 user', async () => {
@@ -4062,6 +4446,7 @@ test('live exam 5 user', async () => {
 ```
 
 **Load (k6):**
+
 ```javascript
 // load-test/live-exam.js
 import http from 'k6/http';
@@ -4070,17 +4455,23 @@ import { check, sleep } from 'k6';
 
 export const options = {
   scenarios: {
-    live_exam: { executor: 'ramping-vus', stages: [
-      { duration: '30s', target: 50 },
-      { duration: '2m', target: 50 },
-      { duration: '30s', target: 0 },
-    ]},
+    live_exam: {
+      executor: 'ramping-vus',
+      stages: [
+        { duration: '30s', target: 50 },
+        { duration: '2m', target: 50 },
+        { duration: '30s', target: 0 },
+      ],
+    },
   },
 };
 
 export default function () {
-  const res = http.post('https://app.cogniva.com/api/live-exam/join', JSON.stringify({ code: 'A3K9P2' }));
-  check(res, { 'joined': r => r.status === 200 });
+  const res = http.post(
+    'https://app.cogniva.com/api/live-exam/join',
+    JSON.stringify({ code: 'A3K9P2' }),
+  );
+  check(res, { joined: (r) => r.status === 200 });
   const examId = res.json('examId');
   // subscribe Socket.IO WS + answer questions
   sleep(30);
@@ -4133,17 +4524,18 @@ export default function () {
 
 **Threat model toàn hệ thống:**
 
-| Threat | Mitigation |
-|--------|-----------|
-| Unauthorized room join | JWT TTL 2h, server-verify membership |
-| DDoS signaling | Cloudflare proxy + rate limit |
-| Media hijacking | DTLS-SRTP encryption (LiveKit default) |
-| Exam cheating | 10+ client detection + server heuristics + manual review |
-| AI prompt injection chat | Sanitize input, strip system prompts |
-| Recording leak | R2 presigned URL TTL 1h, member-only |
-| Identity spoofing | Browser fingerprint + IP + better-auth session |
+| Threat                   | Mitigation                                               |
+| ------------------------ | -------------------------------------------------------- |
+| Unauthorized room join   | JWT TTL 2h, server-verify membership                     |
+| DDoS signaling           | Cloudflare proxy + rate limit                            |
+| Media hijacking          | DTLS-SRTP encryption (LiveKit default)                   |
+| Exam cheating            | 10+ client detection + server heuristics + manual review |
+| AI prompt injection chat | Sanitize input, strip system prompts                     |
+| Recording leak           | R2 presigned URL TTL 1h, member-only                     |
+| Identity spoofing        | Browser fingerprint + IP + better-auth session           |
 
 **Compliance:**
+
 - GDPR: data export endpoint `/api/me/export`, deletion `/api/me/delete` (V2).
 - COPPA: signup gate < 13 (parent consent V2).
 - FERPA: exam data marked education record, retention policy 7 năm.
@@ -4156,6 +4548,7 @@ export default function () {
 ### Cost analysis (1000 active users)
 
 **Self-hosted Hetzner:**
+
 ```
 Hetzner CCX23 (4 vCPU, 16GB) × 4 servers       = $120/mo
   ├ 2 cho LiveKit
@@ -4171,6 +4564,7 @@ TOTAL                                          ≈ $210/mo
 ```
 
 **Managed equivalent:**
+
 - LiveKit Cloud: 1000 user × 60min/day × 30 = 1.8M phút × $0.0003 = $540
 - Pusher Channels: 100K conn × $0.01 = $1000
 - Total managed ≈ $1540+/mo
@@ -4179,17 +4573,18 @@ TOTAL                                          ≈ $210/mo
 
 ### Scale milestones
 
-| Users     | Architecture changes                                       |
-|-----------|------------------------------------------------------------|
-| 0-100     | Single VPS, all-in-one Docker Compose                      |
-| 100-1K    | Tách media + app tiers, Caddy reverse proxy                |
-| 1K-10K    | Multi-region LiveKit, DB read replicas, Redis cluster      |
-| 10K-100K  | Kubernetes, HPA autoscale, Postgres sharding (Citus)       |
-| 100K+     | Custom SFU tuning, dedicated CDN (Cloudflare Enterprise)   |
+| Users    | Architecture changes                                     |
+| -------- | -------------------------------------------------------- |
+| 0-100    | Single VPS, all-in-one Docker Compose                    |
+| 100-1K   | Tách media + app tiers, Caddy reverse proxy              |
+| 1K-10K   | Multi-region LiveKit, DB read replicas, Redis cluster    |
+| 10K-100K | Kubernetes, HPA autoscale, Postgres sharding (Citus)     |
+| 100K+    | Custom SFU tuning, dedicated CDN (Cloudflare Enterprise) |
 
 ### V2 Bonus features (sau Phase 19)
 
 **Rooms V2:**
+
 - **Live streaming**: room → public stream (Twitch-style học).
 - **Breakout rooms**: tách phòng nhỏ trong phòng lớn (LiveKit native).
 - **Polls in room**: realtime voting + chart.
@@ -4200,6 +4595,7 @@ TOTAL                                          ≈ $210/mo
 - **Recording editor**: trim + clip share trong browser.
 
 **Exam V2:**
+
 - **Tournament mode**: bracket elimination 1v1 theo vòng.
 - **Certificates**: auto PDF với verify URL (Ed25519 sign).
 - **Question marketplace**: teacher bán question bank, revenue share.
@@ -4229,4 +4625,4 @@ Khi pitch project cho recruiter:
 
 ---
 
-*Plan v2.0 — Phase 12-19 nối tiếp Cogniva master.md (Phase 0-11). Update khi build thực tế.*
+_Plan v2.0 — Phase 12-19 nối tiếp Cogniva master.md (Phase 0-11). Update khi build thực tế._

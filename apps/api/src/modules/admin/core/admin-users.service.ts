@@ -1,13 +1,3 @@
-/**
- * AdminUsersService — port /api/admin/users/** (list/detail/patch/suspend/
- * unsuspend/force-signout). Lỗi business bên trong withAudit giữ `throw Error`
- * thường → 500 y route cũ (cố tình KHÔNG nâng thành 404/409 để diff khớp).
- *
- * KHÁC route cũ (JWT stack mới): suspend + force-signout ngoài DELETE session
- * (bảng session legacy) còn revoke TOÀN BỘ refresh_token của user — access
- * token sống tối đa 15 phút nên signout có hiệu lực thật, không như Better
- * Auth cũ (Redis copy không bị xoá).
- */
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { onProfileChanged } from '@cogniva/server-core/cache/invalidate';
@@ -25,7 +15,6 @@ export class AdminUsersService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  /** Revoke mọi refresh token còn sống của user — phần JWT mới của force signout. */
   private async revokeRefreshTokens(userId: string): Promise<void> {
     await this.prisma.refresh_token.updateMany({
       where: { user_id: userId, revoked_at: null },
@@ -82,11 +71,8 @@ export class AdminUsersService {
     const hasMore = rows.length > limit;
     const trimmed = hasMore ? rows.slice(0, limit) : rows;
     const nextCursor =
-      hasMore && trimmed.length > 0
-        ? trimmed[trimmed.length - 1]!.created_at.toISOString()
-        : null;
+      hasMore && trimmed.length > 0 ? trimmed[trimmed.length - 1]!.created_at.toISOString() : null;
 
-    // total chỉ COUNT khi không có filter — y route cũ (UI cache).
     let total: number | null = null;
     if (conditions.length === 0) total = await this.prisma.user.count();
 
@@ -216,7 +202,6 @@ export class AdminUsersService {
       });
       const after = { name: updated.name, plan: updated.plan, isPublic: updated.is_public };
 
-      // Admin đổi name/plan/isPublic → bust cache profile (me + public) của user đó.
       await onProfileChanged(id);
       return { before, after, reason, result: { ok: true, after } };
     });
@@ -241,7 +226,6 @@ export class AdminUsersService {
         data: { suspended_at: now, suspend_reason: reason, updated_at: now },
       });
 
-      // Force sign-out: xoá session legacy + revoke refresh family (JWT mới).
       await this.prisma.session.deleteMany({ where: { user_id: id } });
       await this.revokeRefreshTokens(id);
 

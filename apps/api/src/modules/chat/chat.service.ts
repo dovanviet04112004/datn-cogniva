@@ -1,19 +1,3 @@
-/**
- * ChatService — DB side của POST /api/chat (port từ apps/web/src/app/api/chat/route.ts)
- * + 2 route đọc /api/chat/conversations (port từ apps/web/src/app/api/chat/conversations/**).
- *
- * Giữ nguyên semantics web:
- *   - Conversation auto-create (title = query 60 ký tự đầu) bust onDashboardChanged
- *     + onConversationsChanged; verify ownership → 404.
- *   - INSERT user message TRƯỚC stream — stream fail thì user message vẫn persist
- *     (orphan risk đã chấp nhận từ bản web).
- *   - Atom pin context (Phase D): load concept + chunk gốc qua chunk_concept,
- *     prepend block "ATOM USER ĐANG FOCUS" — fail-safe try/catch.
- *   - Persist ASSISTANT message (citations + metadata cost/model/provider/tokens/
- *     cacheHit) rồi bust onAnalyticsChanged + onConversationsChanged — cùng
- *     choke-point ghi message như web.
- *   - List conversations cache-aside 60s key ck.conversationsList(userId).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -33,7 +17,6 @@ import type { RetrievedChunk } from './retrieval/retrieval.service';
 export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Tạo conversation mới + bust dashboard/conversations cache. Trả id. */
   async createConversation(
     userId: string,
     workspaceId: string | undefined,
@@ -48,15 +31,11 @@ export class ChatService {
       },
       select: { id: true },
     });
-    // Conversation mới → dashboard totalConv đổi. (Message thêm vào conv cũ
-    // KHÔNG đổi count nên chỉ bust ở đây.)
     await onDashboardChanged(userId);
-    // Conversations list (sidebar chat) có thêm 1 dòng mới → bust để list tươi.
     await onConversationsChanged(userId);
     return created.id;
   }
 
-  /** Verify ownership (chống IDOR) — true nếu conversation thuộc user. */
   async isConversationOwned(userId: string, convId: string): Promise<boolean> {
     const owned = await this.prisma.conversation.findFirst({
       where: { id: convId, user_id: userId },
@@ -65,7 +44,6 @@ export class ChatService {
     return owned !== null;
   }
 
-  /** INSERT user message TRƯỚC stream — giữ nguyên orphan risk như web. */
   async insertUserMessage(convId: string, content: string): Promise<void> {
     await this.prisma.message.create({
       data: {
@@ -79,12 +57,6 @@ export class ChatService {
     });
   }
 
-  /**
-   * Phase D (atom-centric): pinned atom context. Load atom info + chunks gốc
-   * (qua chunk_concept pivot) → build block PREPEND vào system prompt như
-   * "must-include context" (luôn-có, không phụ thuộc retrieval similarity).
-   * Fail-safe: lỗi → trả '' + log warn, không chặn chat.
-   */
   async buildAtomContext(userId: string, atomIds: string[]): Promise<string> {
     if (atomIds.length === 0) return '';
     try {
@@ -101,8 +73,6 @@ export class ChatService {
         },
       });
 
-      // Lấy 1-2 chunk gốc cho mỗi atom (qua pivot) để có nguồn cụ thể.
-      // `page` không phải column rời — nằm trong chunk.metadata jsonb.
       const pivotRows = await this.prisma.chunk_concept.findMany({
         where: {
           concept_id: { in: atomIds },
@@ -127,7 +97,6 @@ export class ChatService {
         metadata: r.chunk.metadata,
       }));
 
-      // Build prepend block — template giữ NGUYÊN byte từ web
       const sections: string[] = [];
       for (const atom of atoms) {
         const examples =
@@ -165,11 +134,6 @@ export class ChatService {
     }
   }
 
-  /**
-   * Persist ASSISTANT message sau khi stream xong (gọi từ finishPromise) +
-   * bust analytics/conversations cache. Cost đã được router record — đây
-   * chỉ là DB message + cache bust.
-   */
   async persistAssistantMessage(args: {
     userId: string;
     convId: string;
@@ -206,20 +170,10 @@ export class ChatService {
       },
     });
 
-    // ASSISTANT message mới (có cost trong metadata) → analytics 30 ngày của
-    // user đã cũ. Bust cache (fail-open). Co-located tại đúng điểm ghi message.
     await onAnalyticsChanged(args.userId);
-    // messageCount + thứ tự "mới nhất" của conversations list cũng đổi theo
-    // message mới → bust list (sidebar chat).
     await onConversationsChanged(args.userId);
   }
 
-  /**
-   * GET /chat/conversations — list id/title/createdAt/messageCount, desc
-   * createdAt, limit 50. Cache-aside 60s key ck.conversationsList(userId),
-   * invalidate qua onConversationsChanged. LEFT JOIN subquery count →
-   * conversation 0 message có messages = null (giữ nguyên shape Drizzle cũ).
-   */
   async listConversations(userId: string) {
     const conversations = await cached(ck.conversationsList(userId), 60, async () => {
       const rows = await this.prisma.$queryRaw<
@@ -246,11 +200,6 @@ export class ChatService {
     return { conversations };
   }
 
-  /**
-   * GET /chat/conversations/:id — 1 conversation + toàn bộ messages asc
-   * createdAt để hydrate useChat. IDOR check → 404 {error:'Not found'}.
-   * Wire shape = full row Drizzle cũ (camelCase, role UPPERCASE).
-   */
   async getConversation(userId: string, id: string) {
     const conv = await this.prisma.conversation.findFirst({
       where: { id, user_id: userId },

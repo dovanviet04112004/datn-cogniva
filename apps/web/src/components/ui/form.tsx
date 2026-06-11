@@ -1,26 +1,3 @@
-/**
- * Form primitives — tích hợp react-hook-form với shadcn/ui.
- *
- * API tương đương shadcn template:
- *   <Form {...form}>
- *     <form onSubmit={form.handleSubmit(onSubmit)}>
- *       <FormField name="email" render={({ field }) => (
- *         <FormItem>
- *           <FormLabel>Email</FormLabel>
- *           <FormControl><Input {...field} /></FormControl>
- *           <FormDescription>Nhập email của bạn.</FormDescription>
- *           <FormMessage />   // tự render lỗi từ zod resolver
- *         </FormItem>
- *       )} />
- *     </form>
- *   </Form>
- *
- * Cách hoạt động bên trong:
- *  - FormField đặt context (tên field) cho các con bên dưới.
- *  - FormItem tạo id duy nhất qua React.useId() để liên kết label-input-message.
- *  - useFormField hook đọc 2 context để biết id + state lỗi của field hiện tại.
- *  - FormControl forward `aria-describedby` + `aria-invalid` cho a11y.
- */
 'use client';
 
 import * as React from 'react';
@@ -32,10 +9,8 @@ import type { ControllerProps, FieldPath, FieldValues } from 'react-hook-form';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 
-// Form re-export FormProvider để bọc react-hook-form context
 const Form = FormProvider;
 
-// ── Context lưu tên field hiện tại — FormItem con đọc để liên kết id ──
 type FormFieldContextValue<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
@@ -43,10 +18,6 @@ type FormFieldContextValue<
 
 const FormFieldContext = React.createContext<FormFieldContextValue>({} as FormFieldContextValue);
 
-/**
- * FormField — wrap Controller của react-hook-form, đồng thời cung cấp
- * context để các sub-component (Label, Message…) biết tên field.
- */
 const FormField = <
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
@@ -60,10 +31,6 @@ const FormField = <
   );
 };
 
-/**
- * Hook nội bộ — trả về id, name + trạng thái lỗi của field hiện tại.
- * Dùng trong các sub-component (FormLabel, FormMessage, FormControl).
- */
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext);
   const itemContext = React.useContext(FormItemContext);
@@ -87,14 +54,11 @@ const useFormField = () => {
   };
 };
 
-// ── Context cấp id duy nhất cho mỗi FormItem ───────────────────
 type FormItemContextValue = { id: string };
 const FormItemContext = React.createContext<FormItemContextValue>({} as FormItemContextValue);
 
-/** Wrapper bọc 1 trường — cung cấp id cho label/control/message liên kết. */
 const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    // useId sinh id ổn định giữa SSR + client để tránh hydration mismatch
     const id = React.useId();
     return (
       <FormItemContext.Provider value={{ id }}>
@@ -105,7 +69,6 @@ const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
 );
 FormItem.displayName = 'FormItem';
 
-/** Label tự gắn htmlFor đúng input + đổi màu khi có lỗi. */
 const FormLabel = React.forwardRef<
   React.ComponentRef<typeof LabelPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
@@ -122,11 +85,6 @@ const FormLabel = React.forwardRef<
 });
 FormLabel.displayName = 'FormLabel';
 
-/**
- * Slot bọc input thật — gắn id, aria-describedby, aria-invalid.
- * Dùng asChild của Slot để các thuộc tính được forward xuống <Input/Select/...>
- * mà không phát sinh element thừa.
- */
 const FormControl = React.forwardRef<
   React.ComponentRef<typeof Slot>,
   React.ComponentPropsWithoutRef<typeof Slot>
@@ -144,7 +102,6 @@ const FormControl = React.forwardRef<
 });
 FormControl.displayName = 'FormControl';
 
-/** Mô tả phụ dưới input — luôn hiện, dùng cho hint hoặc giải thích thêm. */
 const FormDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
@@ -154,18 +111,13 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-muted-foreground text-sm', className)}
       {...props}
     />
   );
 });
 FormDescription.displayName = 'FormDescription';
 
-/**
- * Hiện thông điệp lỗi từ zod resolver. Nếu có error → hiện `error.message`,
- * không có lỗi mà có children → hiện children (message custom). Cả 2 cùng
- * không có → return null (không render thẻ thừa).
- */
 const FormMessage = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
@@ -177,7 +129,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn('text-sm font-medium text-destructive', className)}
+      className={cn('text-destructive text-sm font-medium', className)}
       {...props}
     >
       {body}

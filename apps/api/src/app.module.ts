@@ -1,7 +1,3 @@
-/**
- * Root module — gom config + infra (Prisma/Redis) + guard/filter toàn cục
- * + các domain module (thêm dần theo wave).
- */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -32,9 +28,9 @@ import { GraphModule } from './modules/graph/graph.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { HealthModule } from './modules/health/health.module';
 import { LearningModule } from './modules/learning/learning.module';
-import { LibraryAnnotationsModule } from './modules/library/library-annotations.module';
-import { LibraryContentModule } from './modules/library/library-content.module';
-import { LibrarySearchModule } from './modules/library/library-search.module';
+import { LibraryAnnotationsModule } from './modules/library/annotations/annotations.module';
+import { LibraryContentModule } from './modules/library/content/content.module';
+import { LibrarySearchModule } from './modules/library/search/search.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { QuizModule } from './modules/quiz/quiz.module';
@@ -86,8 +82,6 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     NotificationsModule,
     RealtimeModule,
     PaymentsModule,
-    // Tutoring: 4 module riêng cùng mount 'tutoring' (+ 'tutors') — path tĩnh
-    // (bookings/requests/concierge/...) không đè nhau nên thứ tự không nhạy cảm.
     TutorsModule,
     TutoringBookingsModule,
     TutoringMarketModule,
@@ -97,15 +91,12 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     AdminCoreModule,
     AdminDomainModule,
     AccountModule,
-    // Library: Content (route tĩnh docs/upload-init|finalize) ĐỨNG TRƯỚC
-    // Search (có GET docs/:id catch-all) — Express match theo thứ tự đăng ký.
     LibraryContentModule,
     LibrarySearchModule,
     LibraryAnnotationsModule,
     HealthModule,
   ],
   providers: [
-    // Mọi route mặc định yêu cầu đăng nhập — mở public bằng @Public().
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: AppExceptionFilter },
   ],

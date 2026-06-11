@@ -1,15 +1,3 @@
-/**
- * /admin/sign-in — form đăng nhập riêng cho admin.
- *
- * Dùng JWT sign-in mới (NestJS /api/auth/sign-in qua lib/auth-api) — UI
- * dark theme, banner cảnh báo, không gợi ý sign-up. Sau khi sign-in thành
- * công + có adminRole, /admin/(authed) layout sẽ pass; nếu không có role,
- * /admin redirect lại đây với toast.
- *
- * 2FA: server trả {twoFactorRequired, challengeToken} → giữ challengeToken
- * trong sessionStorage (key dùng chung với trang two-factor) rồi điều hướng
- * sang /admin/sign-in/two-factor.
- */
 'use client';
 
 import * as React from 'react';
@@ -39,15 +27,10 @@ export default function AdminSignInPage() {
       const result = await signIn(email.trim(), password);
       if (!result.ok) throw new Error(result.error);
       if (result.twoFactorRequired) {
-        // Bước 2: challenge token sống 5' — trang two-factor đọc rồi xoá.
         sessionStorage.setItem(TWO_FACTOR_CHALLENGE_KEY, result.challengeToken);
-        router.push(
-          `/admin/sign-in/two-factor?redirect=${encodeURIComponent(redirectTo)}`,
-        );
+        router.push(`/admin/sign-in/two-factor?redirect=${encodeURIComponent(redirectTo)}`);
         return;
       }
-      // Authorization sẽ check ở /admin layout — nếu user không có adminRole
-      // sẽ redirect lại đây. Toast guide.
       router.replace(redirectTo);
     } catch (err) {
       toast.error((err as Error).message);
@@ -73,8 +56,7 @@ export default function AdminSignInPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
             <span>
-              Mọi hành động trong admin console được ghi audit log. Đăng nhập
-              chỉ khi được uỷ quyền.
+              Mọi hành động trong admin console được ghi audit log. Đăng nhập chỉ khi được uỷ quyền.
             </span>
           </div>
         </div>

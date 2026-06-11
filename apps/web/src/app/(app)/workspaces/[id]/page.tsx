@@ -1,15 +1,3 @@
-/**
- * /workspaces/[id] — workspace detail page V5.
- *
- * Spec: docs/plans/v5-notebooklm-layout.md.
- *
- * V5 layout: 3 cột Sources · Chat · Studio (thay vì tabs). Server chỉ
- * fetch workspace meta + documents — phần atoms/notes Sources panel tự
- * fetch client-side qua API.
- *
- * Backward-compat: query string `?view=session|flashcard|quiz|...` deep
- * link vào recipe.
- */
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { and, count, desc, eq, sql } from 'drizzle-orm';
@@ -19,7 +7,6 @@ import { chunk, db, document, workspace } from '@cogniva/db';
 import { getServerSession } from '@/lib/auth-server';
 import { WorkspaceNotebook } from '@/components/workspaces/v5/workspace-notebook';
 
-/** Cookie persist trạng thái panel — đọc SSR tránh flicker (V6). */
 const SOURCES_COOKIE = 'cogniva.ws-sources-open';
 const STUDIO_COOKIE = 'cogniva.ws-studio-open';
 
@@ -34,7 +21,6 @@ export default async function WorkspaceDetailPage({ params }: Props) {
 
   const { id } = await params;
 
-  // Workspace + ownership
   const [ws] = await db
     .select()
     .from(workspace)
@@ -42,8 +28,6 @@ export default async function WorkspaceDetailPage({ params }: Props) {
     .limit(1);
   if (!ws) notFound();
 
-  // Documents trong workspace + chunkCount (cần cho Sources panel hiển thị
-  // metadata page count + chunks)
   const chunkCount = db
     .select({ documentId: chunk.documentId, n: count(chunk.id).as('n') })
     .from(chunk)
@@ -66,8 +50,6 @@ export default async function WorkspaceDetailPage({ params }: Props) {
     .where(eq(document.workspaceId, id))
     .orderBy(desc(document.createdAt));
 
-  // V6: cookie-persist panel state — đọc server-side tránh flicker khi reload.
-  // Default cả 2 đều OPEN cho user mới (cookie chưa set).
   const cookieStore = await cookies();
   const sourcesCookie = cookieStore.get(SOURCES_COOKIE)?.value;
   const studioCookie = cookieStore.get(STUDIO_COOKIE)?.value;

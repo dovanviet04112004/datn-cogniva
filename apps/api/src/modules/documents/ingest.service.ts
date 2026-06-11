@@ -1,12 +1,3 @@
-/**
- * IngestService — pipeline parse PDF → chunk → embed → save, port từ
- * apps/web/src/lib/ingest/{parse,chunk,pipeline}.ts. Thuật toán chunker +
- * thông điệp lỗi + flow enqueue/fallback GIỮ NGUYÊN để golden-diff khớp.
- *
- * chunk.embedding là Unsupported("vector") trong Prisma → insert qua
- * $executeRaw `::vector` (xem prisma/NOTES.md), batch nhiều row 1 query
- * như Drizzle insert cũ (tránh N+1).
- */
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -20,36 +11,24 @@ import { PrismaService } from '../../infra/database/prisma.service';
 import { StorageService } from '../../infra/storage/storage.service';
 import { ConceptsService } from './concepts.service';
 
-/* ── Parse (port lib/ingest/parse.ts) ────────────────────────────────────── */
-
 export type ParsedDocument = {
-  /** Text từng trang (1-indexed: pages[0] là page 1). */
   pages: string[];
   totalPages: number;
 };
 
-/** Trích text từ PDF buffer qua unpdf (PDF.js compiled cho Node, có dist CJS). */
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
-  // unpdf cần Uint8Array, không nhận Buffer trực tiếp ở một số phiên bản
   const data = new Uint8Array(buffer);
   const { text, totalPages } = await extractText(data, { mergePages: false });
 
-  // unpdf trả `text` có thể là string (mergePages=true) hoặc string[]
-  // (mergePages=false). Force về string[] để xử lý đồng nhất.
   const pages = Array.isArray(text) ? text : [text];
 
   return { pages, totalPages };
 }
 
-/* ── Chunker (port NGUYÊN thuật toán lib/ingest/chunk.ts) ────────────────── */
-
 export type ChunkInput = {
   content: string;
-  /** Trang gốc (1-indexed như PDF reader). */
   page: number;
-  /** Vị trí trong tài liệu (0-based). */
   chunkIndex: number;
-  /** Ước lượng số token (~4 chars/token). */
   tokens: number;
 };
 
@@ -61,15 +40,10 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/**
- * Recursive character splitter: cắt theo ranh giới ngữ nghĩa ưu tiên
- * (\n\n → \n → ". " → " " → ký tự đơn), gom part nhỏ gần TARGET_CHARS.
- */
 function recursiveSplit(text: string, separators: readonly string[] = SEPARATORS): string[] {
   if (text.length <= TARGET_CHARS) return [text];
 
   const sep = separators.find((s) => s === '' || text.includes(s)) ?? '';
-  // sep === '' tương đương cắt cứng theo độ dài (fallback cuối cùng)
   const parts = sep === '' ? sliceByLength(text, TARGET_CHARS) : text.split(sep);
 
   const chunks: string[] = [];
@@ -80,7 +54,6 @@ function recursiveSplit(text: string, separators: readonly string[] = SEPARATORS
       buffer += piece;
     } else {
       if (buffer) chunks.push(buffer);
-      // 1 part đơn lẻ vẫn quá dài → split tiếp với separators ít cấu trúc hơn
       if (part.length > TARGET_CHARS) {
         chunks.push(...recursiveSplit(part, separators.slice(1)));
         buffer = '';
@@ -99,7 +72,6 @@ function sliceByLength(text: string, size: number): string[] {
   return out;
 }
 
-/** Overlap 200 ký tự giữa chunks liên tiếp — phòng câu trả lời nằm giữa biên. */
 function addOverlap(chunks: string[]): string[] {
   if (chunks.length <= 1) return chunks;
   return chunks.map((chunk, i) => {
@@ -110,14 +82,13 @@ function addOverlap(chunks: string[]): string[] {
   });
 }
 
-/** Cắt nguyên tài liệu theo từng trang, gắn metadata page + chunkIndex. */
 export function chunkPages(pages: string[]): ChunkInput[] {
   const result: ChunkInput[] = [];
   let globalIndex = 0;
 
   pages.forEach((pageText, pageIdx) => {
     const cleaned = pageText.trim();
-    if (!cleaned) return; // bỏ qua trang trắng
+    if (!cleaned) return;
 
     const split = recursiveSplit(cleaned);
     const withOverlap = addOverlap(split);
@@ -137,9 +108,6 @@ export function chunkPages(pages: string[]): ChunkInput[] {
   return result;
 }
 
-/* ── Pipeline orchestrator (port lib/ingest/pipeline.ts) ─────────────────── */
-
-/** Batch size insert chunk — mỗi row 6 param, giữ xa limit 32k param của PG. */
 const INSERT_BATCH = 100;
 
 @Injectable()
@@ -152,21 +120,13 @@ export class IngestService {
     @InjectQueue(DOCUMENT_QUEUE) private readonly documentQueue: Queue,
   ) {}
 
-  /**
-   * Chạy ingest end-to-end cho 1 document đã có record (status PROCESSING).
-   * Bất kỳ exception → đặt status=FAILED rồi rethrow để caller xử lý (route
-   * upload trả 207).
-   */
   async ingestDocument(documentId: string): Promise<void> {
     try {
-      // ── 1. Load document record ─────────────────────────
       const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
       if (!doc) throw new Error(`Document ${documentId} not found`);
 
-      // ── 2. Tải file từ storage ──────────────────────────
       const buffer = await this.storage.get(doc.storage_key);
 
-      // ── 3. Parse PDF ────────────────────────────────────
       if (doc.mime_type !== 'application/pdf') {
         throw new Error(
           `Unsupported mimeType: ${doc.mime_type}. Phase 1 chỉ hỗ trợ PDF; DOCX/URL/YouTube sẽ thêm sau.`,
@@ -174,7 +134,6 @@ export class IngestService {
       }
       const parsed = await parsePdf(buffer);
 
-      // ── 4. Chunk theo trang ─────────────────────────────
       const inputs = chunkPages(parsed.pages);
       if (inputs.length === 0) {
         throw new Error(
@@ -182,10 +141,8 @@ export class IngestService {
         );
       }
 
-      // ── 5. Embed batch ──────────────────────────────────
       const embeddings = await this.embedding.embedBatch(inputs.map((c) => c.content));
 
-      // ── 6. Insert chunks (multi-row, vector qua raw SQL) ─
       for (let i = 0; i < inputs.length; i += INSERT_BATCH) {
         const slice = inputs.slice(i, i + INSERT_BATCH);
         const rows = slice.map((input, j) => {
@@ -199,7 +156,6 @@ export class IngestService {
         `);
       }
 
-      // ── 7. Mark READY + cập nhật metadata ───────────────
       await this.prisma.document.update({
         where: { id: documentId },
         data: {
@@ -211,15 +167,13 @@ export class IngestService {
         },
       });
 
-      // ── 8. Enqueue BullMQ job extract-document-concepts ──
-      // jobId=documentId dedup; retry 3 lần exponential nếu LLM/Voyage fail.
       try {
         await this.documentQueue.add(
           'extract-document-concepts',
           {
             documentId,
             userId: doc.user_id,
-            plan: 'FREE' as const, // Phase A: hardcode FREE; sau wire user.plan field
+            plan: 'FREE' as const,
           },
           {
             jobId: documentId,
@@ -230,9 +184,6 @@ export class IngestService {
           },
         );
       } catch (err) {
-        // Enqueue lỗi (vd Redis chết lúc upload) → fallback extract NGAY
-        // (đồng bộ, best-effort) để document không kẹt READY mà không có atom.
-        // Lỗi extract cũng không kéo cả ingest fail (chunks đã READY).
         console.warn(
           '[ingest] enqueue concept extraction lỗi → chạy inline fallback:',
           (err as Error).message,
@@ -247,7 +198,6 @@ export class IngestService {
         }
       }
     } catch (error) {
-      // Đánh dấu FAILED rồi rethrow để caller log + xử lý
       await this.prisma.document.updateMany({
         where: { id: documentId },
         data: { status: 'FAILED' },

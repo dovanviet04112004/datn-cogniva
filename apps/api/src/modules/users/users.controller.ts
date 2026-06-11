@@ -1,7 +1,3 @@
-/**
- * /api/profile/* + /api/user/status — port từ route Next (Wave 2 pilot).
- * achievementMeta ghép NGOÀI cache (hằng số @cogniva/shared) như cũ.
- */
 import { Body, Controller, Get, NotFoundException, Param, Patch, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ACHIEVEMENT_META } from '@cogniva/server-core';

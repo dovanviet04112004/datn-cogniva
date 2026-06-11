@@ -1,13 +1,3 @@
-/**
- * ChannelsService — view phụ của channel: thread list (V2 G6.3), forum list
- * (V3), pinned, read state + notification setting (V2 G4). Port từ
- * apps/web/src/app/api/channels/[id]/{threads,forum,pinned,read,notification-setting}.
- *
- * threads/forum sort COALESCE(thread_last_at, created_at) DESC → $queryRaw
- * (Prisma orderBy không biểu diễn được); alias camelCase đặt ngay trong SQL
- * như Drizzle cũ. Route cũ dùng query builder (trả Date) nên timestamp giữ
- * Date — KHÔNG cast ::text (bẫy Wave 3 chỉ áp dụng route cũ db.execute raw).
- */
 import { HttpException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { onGroupReadChanged } from '@cogniva/server-core/cache/invalidate';
@@ -52,7 +42,6 @@ type ForumPostRow = {
 export class ChannelsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Channel → groupId + memberId của user. null = channel không tồn tại / không member. */
   private async verifyMember(channelId: string, userId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -65,10 +54,6 @@ export class ChannelsService {
     });
     return m ? { groupId: ch.group_id, memberId: m.id } : null;
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /channels/:id/threads — active threads (thread_count > 0)
-  // ──────────────────────────────────────────────────────────
 
   async listThreads(
     uid: string,
@@ -127,10 +112,6 @@ export class ChannelsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET /channels/:id/forum — forum posts (pinned ưu tiên đầu)
-  // ──────────────────────────────────────────────────────────
-
   async listForum(
     uid: string,
     channelId: string,
@@ -160,16 +141,13 @@ export class ChannelsService {
     if (q.before && sort === 'latest') {
       const beforeDate = new Date(q.before);
       if (!Number.isNaN(beforeDate.getTime())) {
-        // Cursor chỉ hỗ trợ sort='latest' để pagination đơn giản & ổn định
         conditions.push(Prisma.sql`COALESCE(m.thread_last_at, m.created_at) < ${beforeDate}`);
       }
     }
     if (q.tag) {
-      // jsonb contains operator — param string phải cast ::jsonb tường minh
       conditions.push(Prisma.sql`m.tags @> ${JSON.stringify([q.tag.toLowerCase()])}::jsonb`);
     }
 
-    // Sort order — pinned luôn ưu tiên đầu, sau đó áp dụng sort option
     const orderBy =
       sort === 'newest'
         ? Prisma.sql`m.pinned DESC, m.created_at DESC`
@@ -177,7 +155,6 @@ export class ChannelsService {
           ? Prisma.sql`m.pinned DESC, m.thread_count DESC, m.created_at DESC`
           : Prisma.sql`m.pinned DESC, COALESCE(m.thread_last_at, m.created_at) DESC`;
 
-    // V2 G5.4: EXISTS subquery — thread có reply is_solution=true không
     const rows = await this.prisma.$queryRaw<ForumPostRow[]>(Prisma.sql`
       SELECT m.id, m.title, m.content,
              m.author_id AS "authorId", u.name AS "authorName", u.image AS "authorImage",
@@ -198,7 +175,6 @@ export class ChannelsService {
     return {
       posts: rows.map((r) => ({
         ...r,
-        // Preview content (200 chars)
         content: r.content.length > 200 ? r.content.slice(0, 200) + '…' : r.content,
       })),
       hasMore: rows.length === limit,
@@ -206,10 +182,6 @@ export class ChannelsService {
       sort,
     };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET /channels/:id/pinned
-  // ──────────────────────────────────────────────────────────
 
   async listPinned(uid: string, channelId: string) {
     const ch = await this.prisma.study_group_channel.findUnique({
@@ -250,11 +222,6 @@ export class ChannelsService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────
-  // GET/POST /channels/:id/read — unread divider + mark-read
-  // ──────────────────────────────────────────────────────────
-
-  /** Route cũ GET KHÔNG check member — chỉ đọc read state của chính user. */
   async getReadState(uid: string, channelId: string) {
     const row = await this.prisma.study_group_read_state.findUnique({
       where: { user_id_channel_id: { user_id: uid, channel_id: channelId } },
@@ -293,15 +260,10 @@ export class ChannelsService {
       },
     });
 
-    // Mark-read → unread badge của user ở group này đổi → bust ck.groupUnread
     await onGroupReadChanged(ch.group_id, uid);
 
     return { ok: true };
   }
-
-  // ──────────────────────────────────────────────────────────
-  // GET/PUT /channels/:id/notification-setting — V2 G4.1
-  // ──────────────────────────────────────────────────────────
 
   async getNotificationSetting(uid: string, channelId: string) {
     const ok = await this.verifyMember(channelId, uid);
@@ -322,7 +284,6 @@ export class ChannelsService {
     const parsed = notificationSettingSchema.safeParse(raw);
     if (!parsed.success) throw new HttpException({ error: parsed.error.flatten() }, 400);
 
-    // Backward-compat: cột `muted` true nếu setting='none'
     const muted = parsed.data.setting === 'none';
 
     await this.prisma.study_group_read_state.upsert({
@@ -341,7 +302,6 @@ export class ChannelsService {
       },
     });
 
-    // `muted` đổi → unread query lọc theo rs.muted → bust ck.groupUnread
     await onGroupReadChanged(ok.groupId, uid);
 
     return { setting: parsed.data.setting };

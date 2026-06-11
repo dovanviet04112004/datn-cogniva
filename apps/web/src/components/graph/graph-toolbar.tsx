@@ -1,15 +1,3 @@
-/**
- * GraphToolbar — thanh toolbar trên Knowledge Graph canvas.
- *
- * 4 nhóm chính (trái → phải):
- *   1. Search box — gõ tên concept để filter (fuzzy substring match), `/` focus
- *   2. Domain filter chips — toggle 1 domain để chỉ hiện node cùng domain
- *   3. Stats — số concept / edge / domain
- *   4. Mine prereq button — POST /api/graph/mine, refresh khi xong
- *
- * Toolbar sticky top: luôn hiện kể cả khi pan/zoom canvas. Layout flex
- * wrap → mobile vẫn dùng được, mỗi nhóm xuống dòng nếu hẹp.
- */
 'use client';
 
 import * as React from 'react';
@@ -19,7 +7,6 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/** Friendly label cho domain — đồng bộ với graph-view.tsx. */
 const DOMAIN_LABELS: Record<string, string> = {
   math: 'Toán',
   cs: 'Khoa học máy tính',
@@ -33,7 +20,6 @@ const DOMAIN_LABELS: Record<string, string> = {
   unknown: 'Chưa phân loại',
 };
 
-/** Domain → dot color cho chip — đồng bộ với MiniMap palette. */
 const DOMAIN_DOT_COLOR: Record<string, string> = {
   math: 'bg-blue-500',
   cs: 'bg-purple-500',
@@ -48,18 +34,13 @@ const DOMAIN_DOT_COLOR: Record<string, string> = {
 type DomainCount = { domain: string; count: number };
 
 type Props = {
-  /** Domain → count, sort theo count giảm dần. */
   domainCounts: DomainCount[];
-  /** Domain đang active (null = hiển thị tất cả). */
   activeDomain: string | null;
   onDomainChange: (domain: string | null) => void;
-  /** Search query — controlled. */
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  /** Stats để hiện ngắn gọn ở giữa. */
   totalConcepts: number;
   totalEdges: number;
-  /** Callback re-fetch graph sau khi mine xong. */
   onMined: () => void;
 };
 
@@ -76,14 +57,11 @@ export function GraphToolbar({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [mining, setMining] = React.useState(false);
 
-  // Keyboard: `/` focus search; `Escape` blur + clear
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const isTyping =
-        target?.tagName === 'INPUT' ||
-        target?.tagName === 'TEXTAREA' ||
-        target?.isContentEditable;
+        target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
       if (e.key === '/' && !isTyping) {
         e.preventDefault();
         inputRef.current?.focus();
@@ -100,9 +78,10 @@ export function GraphToolbar({
     setMining(true);
     try {
       const res = await fetch('/api/graph/mine', { method: 'POST' });
-      const data = (await res.json().catch(() => null)) as
-        | { inserted?: number; error?: string }
-        | null;
+      const data = (await res.json().catch(() => null)) as {
+        inserted?: number;
+        error?: string;
+      } | null;
       if (!res.ok) {
         throw new Error(data?.error ?? `Status ${res.status}`);
       }
@@ -121,22 +100,21 @@ export function GraphToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-divider bg-surface/40 px-3 py-2 backdrop-blur-sm sm:px-4">
-      {/* ── Search ─────────────────────────────────── */}
-      <div className="relative min-w-[200px] flex-1 sm:flex-initial sm:min-w-[260px]">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+    <div className="border-divider bg-surface/40 flex flex-wrap items-center gap-2 border-b px-3 py-2 backdrop-blur-sm sm:px-4">
+      <div className="relative min-w-[200px] flex-1 sm:min-w-[260px] sm:flex-initial">
+        <Search className="text-muted-foreground pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
         <input
           ref={inputRef}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Tìm khái niệm... (/)"
-          className="h-8 w-full rounded-md border border-divider bg-background pl-8 pr-7 text-sm shadow-sm transition-colors placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+          className="border-divider bg-background placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:ring-primary/20 h-8 w-full rounded-md border pl-8 pr-7 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => onSearchChange('')}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-1"
             aria-label="Xóa tìm kiếm"
           >
             <X className="h-3 w-3" />
@@ -144,7 +122,6 @@ export function GraphToolbar({
         )}
       </div>
 
-      {/* ── Domain filter chips ───────────────────── */}
       <div className="flex max-w-full items-center gap-1 overflow-x-auto">
         <Chip
           active={activeDomain === null}
@@ -157,9 +134,7 @@ export function GraphToolbar({
           <Chip
             key={d.domain}
             active={activeDomain === d.domain}
-            onClick={() =>
-              onDomainChange(activeDomain === d.domain ? null : d.domain)
-            }
+            onClick={() => onDomainChange(activeDomain === d.domain ? null : d.domain)}
             dotClass={DOMAIN_DOT_COLOR[d.domain] ?? 'bg-slate-500'}
           >
             {DOMAIN_LABELS[d.domain] ?? d.domain} · {d.count}
@@ -167,9 +142,8 @@ export function GraphToolbar({
         ))}
       </div>
 
-      {/* ── Spacer + Stats + Mine button ─────────── */}
       <div className="ml-auto flex items-center gap-2">
-        <span className="hidden font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground md:inline">
+        <span className="text-muted-foreground hidden font-mono text-[11px] uppercase tracking-[0.1em] md:inline">
           {totalEdges} liên kết
         </span>
         <Button

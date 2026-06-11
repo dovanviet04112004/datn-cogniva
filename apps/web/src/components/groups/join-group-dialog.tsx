@@ -1,9 +1,3 @@
-/**
- * JoinGroupDialog — dialog modal nhập invite code để vào group.
- *
- * Thay thế card inline "Vào group bằng invite code" trên /groups. Sau khi join
- * thành công, redirect vào trang group detail.
- */
 'use client';
 
 import * as React from 'react';
@@ -27,7 +21,6 @@ import { Label } from '@/components/ui/label';
 type Props = {
   onJoined?: () => void;
   trigger?: React.ReactNode;
-  /** Code điền sẵn (mở từ link mời `/groups?invite=CODE`) → tự mở dialog. */
   initialCode?: string;
 };
 
@@ -37,7 +30,6 @@ export function JoinGroupDialog({ onJoined, trigger, initialCode }: Props) {
   const [code, setCode] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Đến từ link mời → điền code + tự mở dialog (user chỉ cần bấm "Vào group").
   React.useEffect(() => {
     if (initialCode) {
       setCode(initialCode.toUpperCase());

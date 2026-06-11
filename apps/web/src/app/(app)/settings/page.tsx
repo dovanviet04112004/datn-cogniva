@@ -1,20 +1,3 @@
-/**
- * /settings — trang cài đặt thống nhất với layout tabbed (Claude-style).
- *
- * Layout:
- *   - Hero band trên: title + breadcrumb-like description.
- *   - Body 2 cột: tab nav trái (vertical, sticky) + content panel phải.
- *   - Mobile (<md): tabs thành chip row trên, content phía dưới.
- *
- * Tabs (đầy đủ profile + setting trong 1 trang, KHÔNG cần /profile riêng):
- *   1. general   — name, email, plan, theme, pomodoro toggle
- *   2. profile   — XP, streak, achievements grid (từ /profile cũ)
- *   3. privacy   — toggle isPublic, link leaderboard
- *   4. usage     — AI usage card + Analytics shortcut
- *   5. account   — sign out, delete account (danger zone)
- *
- * Deep-link: ?tab=usage → mở thẳng tab usage (dùng từ UserMenuButton).
- */
 'use client';
 
 import * as React from 'react';
@@ -54,7 +37,6 @@ import { AiUsageCard } from '@/components/settings/ai-usage-card';
 import { DeleteAccountCard } from '@/components/settings/delete-account-card';
 import { PomodoroToggleCard } from '@/components/settings/pomodoro-toggle-card';
 import { PageShell } from '@/components/layout/page-shell';
-// Hero band CHUNG — thay header user-identity tự-chế để đồng bộ ngôn ngữ hero toàn app.
 import { PageHero } from '@/components/layout/page-hero';
 import { PageLoading } from '@/components/layout/page-loading';
 import { cn } from '@/lib/utils';
@@ -66,7 +48,6 @@ type Tab = 'general' | 'profile' | 'privacy' | 'usage' | 'account';
 type TabMeta = {
   id: Tab;
   icon: typeof UserIcon;
-  /** Key prefix trong dictionary — `${labelKey}` + `${labelKey}_desc`. */
   labelKey: string;
 };
 
@@ -117,7 +98,6 @@ export default function SettingsPage() {
   const [name, setName] = React.useState('');
   const [saving, setSaving] = React.useState(false);
 
-  // Tab từ URL ?tab=X — fallback 'general'. Update khi URL đổi.
   const urlTab = search.get('tab');
   const activeTab: Tab = isTab(urlTab) ? urlTab : 'general';
   const setActiveTab = React.useCallback(
@@ -168,11 +148,7 @@ export default function SettingsPage() {
       });
       if (!res.ok) throw new Error(`status ${res.status}`);
       setData((d) => (d ? { ...d, user: { ...d.user, isPublic: next } } : d));
-      toast.success(
-        next
-          ? t('settings.public_badge')
-          : t('settings.private_badge'),
-      );
+      toast.success(next ? t('settings.public_badge') : t('settings.private_badge'));
     } catch (err) {
       toast.error('Lỗi: ' + (err as Error).message);
     }
@@ -195,21 +171,18 @@ export default function SettingsPage() {
 
   return (
     <PageShell size="wide" padded className="space-y-6">
-      {/* ── Hero band CHUNG — user identity (title = tên, description = email) ── */}
       <PageHero
         eyebrow={t('settings.user_default')}
         eyebrowIcon={Settings}
         title={user.name ?? t('settings.user_default')}
         description={<span className="font-mono">{user.email}</span>}
       >
-        {/* Slot phải GIỮ nguyên: avatar + badge plan/công-khai (identity chips). */}
         <div className="flex items-center gap-4">
           <div className="flex flex-wrap justify-end gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary">
+            <span className="border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium">
               <Crown className="h-2.5 w-2.5" />
               {user.plan}
             </span>
-            {/* Badge công khai = trạng thái positive → token success */}
             <span
               className={cn(
                 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
@@ -231,18 +204,16 @@ export default function SettingsPage() {
               )}
             </span>
           </div>
-          <Avatar className="h-16 w-16 ring-2 ring-primary/30 ring-offset-4 ring-offset-card">
+          <Avatar className="ring-primary/30 ring-offset-card h-16 w-16 ring-2 ring-offset-4">
             <AvatarImage src={user.image ?? undefined} alt={user.name ?? user.email} />
-            <AvatarFallback className="bg-gradient-to-br from-primary to-primary-hover text-lg font-semibold text-primary-foreground">
+            <AvatarFallback className="from-primary to-primary-hover text-primary-foreground bg-gradient-to-br text-lg font-semibold">
               {(user.name ?? user.email)[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </div>
       </PageHero>
 
-      {/* ── Body: tab nav (vertical desktop / chip row mobile) + content ── */}
       <div className="grid gap-6 md:grid-cols-[220px_1fr] md:gap-8">
-        {/* Tab nav */}
         <nav
           aria-label="Settings sections"
           className="flex shrink-0 gap-1 overflow-x-auto md:sticky md:top-4 md:h-fit md:flex-col md:overflow-visible"
@@ -265,21 +236,16 @@ export default function SettingsPage() {
                 {active && (
                   <span
                     aria-hidden
-                    className="absolute -left-1 top-1/2 hidden h-4 w-[2px] -translate-y-1/2 rounded-full bg-primary md:block"
+                    className="bg-primary absolute -left-1 top-1/2 hidden h-4 w-[2px] -translate-y-1/2 rounded-full md:block"
                   />
                 )}
                 <Icon
-                  className={cn(
-                    'h-4 w-4 shrink-0',
-                    active ? 'text-primary' : 'text-text-muted',
-                  )}
+                  className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-text-muted')}
                   strokeWidth={active ? 2.25 : 1.75}
                 />
                 <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium tracking-tight">
-                    {t(tab.labelKey)}
-                  </span>
-                  <span className="hidden truncate text-[11px] text-muted-foreground/80 md:inline">
+                  <span className="truncate font-medium tracking-tight">{t(tab.labelKey)}</span>
+                  <span className="text-muted-foreground/80 hidden truncate text-[11px] md:inline">
                     {t(`${tab.labelKey}_desc`)}
                   </span>
                 </span>
@@ -288,7 +254,6 @@ export default function SettingsPage() {
           })}
         </nav>
 
-        {/* Content panel */}
         <div className="min-w-0 space-y-6">
           {activeTab === 'general' && (
             <GeneralTab
@@ -317,10 +282,6 @@ export default function SettingsPage() {
     </PageShell>
   );
 }
-
-// ────────────────────────────────────────────────────────────
-// Tab content components — gọn để page-level dễ đọc
-// ────────────────────────────────────────────────────────────
 
 function GeneralTab({
   user,
@@ -381,7 +342,7 @@ function GeneralTab({
         </div>
         <div className="grid gap-1.5">
           <Label>{t('settings.email')}</Label>
-          <p className="rounded-md border border-divider bg-surface-secondary/40 px-3 py-2 font-mono text-xs text-muted-foreground">
+          <p className="border-divider bg-surface-secondary/40 text-muted-foreground rounded-md border px-3 py-2 font-mono text-xs">
             {user.email}
           </p>
         </div>
@@ -389,7 +350,7 @@ function GeneralTab({
 
       <Card className="space-y-3 p-6">
         <SectionLabel icon={Palette}>{t('settings.section.appearance')}</SectionLabel>
-        <p className="text-xs text-muted-foreground">{t('settings.appearance.hint')}</p>
+        <p className="text-muted-foreground text-xs">{t('settings.appearance.hint')}</p>
         <div className="grid grid-cols-3 gap-2">
           {(['light', 'dark', 'system'] as const).map((mode) => (
             <Button
@@ -408,7 +369,7 @@ function GeneralTab({
 
       <Card className="space-y-3 p-6">
         <SectionLabel icon={Languages}>{t('settings.section.language')}</SectionLabel>
-        <p className="text-xs text-muted-foreground">{t('settings.language.hint')}</p>
+        <p className="text-muted-foreground text-xs">{t('settings.language.hint')}</p>
         <div className="grid grid-cols-2 gap-2">
           {LOCALES.map((opt) => (
             <Button
@@ -472,7 +433,7 @@ function ProfileTab({
       <Card className="space-y-4 p-6">
         <div className="flex items-center justify-between">
           <SectionLabel icon={Trophy}>Huy hiệu</SectionLabel>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
             {unlocked.size} / {achievementMeta.length}
           </span>
         </div>
@@ -483,24 +444,22 @@ function ProfileTab({
               <div
                 key={a.id}
                 className={cn(
-                  'group/ach relative flex flex-col items-center gap-1.5 overflow-hidden rounded-xl border p-3 text-center transition-all duration-base',
+                  'group/ach duration-base relative flex flex-col items-center gap-1.5 overflow-hidden rounded-xl border p-3 text-center transition-all',
                   got
-                    ? 'border-divider bg-card shadow-soft hover:-translate-y-0.5 hover:shadow-elevated'
-                    : 'border-dashed border-border bg-surface-secondary/30 opacity-60 grayscale',
+                    ? 'border-divider bg-card shadow-soft hover:shadow-elevated hover:-translate-y-0.5'
+                    : 'border-border bg-surface-secondary/30 border-dashed opacity-60 grayscale',
                 )}
                 title={a.description}
               >
                 {got && (
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute -top-6 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full bg-amber-500/10 blur-2xl transition-opacity duration-base group-hover/ach:bg-amber-500/20"
+                    className="duration-base pointer-events-none absolute -top-6 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full bg-amber-500/10 blur-2xl transition-opacity group-hover/ach:bg-amber-500/20"
                   />
                 )}
                 <span className="relative text-2xl">{a.icon}</span>
-                <p className="relative text-xs font-semibold tracking-tight">
-                  {a.label}
-                </p>
-                <p className="relative text-[10px] leading-snug text-muted-foreground">
+                <p className="relative text-xs font-semibold tracking-tight">{a.label}</p>
+                <p className="text-muted-foreground relative text-[10px] leading-snug">
                   {a.description}
                 </p>
               </div>
@@ -512,7 +471,7 @@ function ProfileTab({
       <Card className="flex items-center justify-between gap-3 p-6">
         <div>
           <p className="text-sm font-medium tracking-tight">So tài với người khác</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mt-0.5 text-xs">
             Bảng xếp hạng theo XP, streak — chỉ user công khai mới hiển thị.
           </p>
         </div>
@@ -544,8 +503,8 @@ function PrivacyTab({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <p className="text-sm font-medium">{t('settings.public_profile')}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            <code className="rounded bg-muted px-1 text-[10px]">
+          <p className="text-muted-foreground mt-0.5 text-xs">
+            <code className="bg-muted rounded px-1 text-[10px]">
               /profile/{userId.slice(0, 6)}…
             </code>
           </p>
@@ -566,37 +525,31 @@ function UsageTab() {
         <SectionLabel icon={LineChart}>Insights</SectionLabel>
         <Link
           href="/analytics"
-          className="mt-3 flex items-center gap-4 rounded-lg border border-divider bg-surface-secondary/30 p-4 transition-colors hover:bg-muted/40"
+          className="border-divider bg-surface-secondary/30 hover:bg-muted/40 mt-3 flex items-center gap-4 rounded-lg border p-4 transition-colors"
         >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/15 to-indigo-500/15 text-blue-600 ring-1 ring-inset ring-blue-500/20 dark:text-blue-400">
             <LineChart className="h-5 w-5" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium tracking-tight">Analytics chi tiết</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-0.5 text-xs">
               Tổng thời gian học, mastery theo domain, biểu đồ tiến trình.
             </p>
           </div>
-          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ArrowRight className="text-muted-foreground h-4 w-4 shrink-0" />
         </Link>
       </Card>
     </>
   );
 }
 
-function AccountTab({
-  onSignOut,
-  t,
-}: {
-  onSignOut: () => void;
-  t: (key: string) => string;
-}) {
+function AccountTab({ onSignOut, t }: { onSignOut: () => void; t: (key: string) => string }) {
   return (
     <>
       <Card className="flex items-center justify-between gap-3 p-6">
         <div className="flex-1">
           <p className="text-sm font-semibold tracking-tight">{t('settings.sign_out')}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('settings.sign_out_hint')}</p>
+          <p className="text-muted-foreground mt-0.5 text-xs">{t('settings.sign_out_hint')}</p>
         </div>
         <Button onClick={onSignOut} variant="outline" size="sm">
           <LogOut className="mr-1 h-3.5 w-3.5" />
@@ -608,10 +561,6 @@ function AccountTab({
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// Sub-primitives
-// ────────────────────────────────────────────────────────────
-
 function SectionLabel({
   icon: Icon,
   children,
@@ -621,9 +570,9 @@ function SectionLabel({
 }) {
   return (
     <h2 className="flex items-center gap-2.5 pb-1">
-      <span className="h-px w-6 bg-gradient-to-r from-primary/60 to-transparent" />
-      <Icon className="h-3.5 w-3.5 text-primary" />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/80">
+      <span className="from-primary/60 h-px w-6 bg-gradient-to-r to-transparent" />
+      <Icon className="text-primary h-3.5 w-3.5" />
+      <span className="text-foreground/80 text-[11px] font-semibold uppercase tracking-[0.16em]">
         {children}
       </span>
     </h2>
@@ -649,17 +598,14 @@ function StatTile({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <span className={cn('h-1.5 w-1.5 rounded-full', accent)} />
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.14em]">
           {label}
         </p>
         <Icon className={cn('h-3 w-3', iconColor)} />
       </div>
       <div className="flex items-baseline gap-1.5">
-        {/* Số liệu thống kê to: dùng sans Geist (bỏ font-mono cho bớt khô), giữ tabular-nums canh cột. */}
-        <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight">
-          {value}
-        </p>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight">{value}</p>
+        {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
       </div>
     </div>
   );

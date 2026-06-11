@@ -1,6 +1,3 @@
-/**
- * /admin/tutoring/bookings — list bookings.
- */
 import { BookingsListClient } from '@/components/admin/tutoring/bookings-list-client';
 
 export const dynamic = 'force-dynamic';

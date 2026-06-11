@@ -1,14 +1,3 @@
-/**
- * /exams/[id]/proctor — owner review attempts với cheatRiskScore + violations.
- *
- * Bảng list mọi attempt thuộc exam này (chỉ owner thấy). Mỗi row:
- *   - Student name + start/end time
- *   - cheatRiskScore + visual bar (xanh < 0.3, vàng 0.3-0.7, đỏ > 0.7)
- *   - flagged badge nếu auto-flag
- *   - Click → mở dialog violation timeline
- *
- * Action: owner có thể "Disqualify" attempt → set status = DISQUALIFIED.
- */
 'use client';
 
 import * as React from 'react';
@@ -45,7 +34,6 @@ type Violation = {
 
 export default function ProctorReviewPage() {
   const { id } = useParams<{ id: string }>();
-  // Hook confirm styled — hoist ở đầu component
   const confirm = useConfirm();
   const [attempts, setAttempts] = React.useState<AttemptRow[] | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -100,21 +88,21 @@ export default function ProctorReviewPage() {
   }
 
   if (!attempts) {
-    return <div className="p-6 text-muted-foreground">Đang tải...</div>;
+    return <div className="text-muted-foreground p-6">Đang tải...</div>;
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-6">
       <div>
         <h1 className="text-2xl font-semibold">Proctor Review</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Xem cheat risk score + violation timeline của từng attempt.
         </p>
       </div>
 
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="border-b bg-muted/30 text-left">
+          <thead className="bg-muted/30 border-b text-left">
             <tr>
               <th className="px-3 py-2 font-medium">Student</th>
               <th className="px-3 py-2 font-medium">Bắt đầu</th>
@@ -128,16 +116,16 @@ export default function ProctorReviewPage() {
           <tbody>
             {attempts.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                <td colSpan={7} className="text-muted-foreground py-8 text-center">
                   Chưa có attempt nào.
                 </td>
               </tr>
             )}
             {attempts.map((a) => (
-              <tr key={a.id} className="border-t hover:bg-accent/30">
+              <tr key={a.id} className="hover:bg-accent/30 border-t">
                 <td className="px-3 py-2">
                   <div className="font-medium">{a.userName}</div>
-                  <div className="text-xs text-muted-foreground">{a.userId.slice(0, 8)}…</div>
+                  <div className="text-muted-foreground text-xs">{a.userId.slice(0, 8)}…</div>
                 </td>
                 <td className="px-3 py-2 text-xs">
                   {new Date(a.startedAt).toLocaleString('vi-VN')}
@@ -174,12 +162,8 @@ export default function ProctorReviewPage() {
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
                     {a.status !== 'DISQUALIFIED' && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => disqualify(a.id)}
-                      >
-                        <Ban className="h-3.5 w-3.5 text-destructive" />
+                      <Button size="sm" variant="ghost" onClick={() => disqualify(a.id)}>
+                        <Ban className="text-destructive h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>
@@ -190,7 +174,6 @@ export default function ProctorReviewPage() {
         </table>
       </Card>
 
-      {/* Violation timeline modal */}
       {selectedId && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -207,7 +190,7 @@ export default function ProctorReviewPage() {
               </Button>
             </div>
             {selectedViolations.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Không có violation.</p>
+              <p className="text-muted-foreground text-sm">Không có violation.</p>
             ) : (
               <ul className="space-y-2">
                 {selectedViolations.map((v) => (
@@ -224,11 +207,11 @@ export default function ProctorReviewPage() {
                       <span className="font-mono">{v.type}</span>
                       <span className="text-xs uppercase opacity-60">{v.severity}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-muted-foreground text-xs">
                       {new Date(v.timestamp).toLocaleString('vi-VN')}
                     </div>
                     {v.metadata && Object.keys(v.metadata).length > 0 && (
-                      <pre className="mt-1 overflow-x-auto rounded bg-background/50 p-1 text-[10px]">
+                      <pre className="bg-background/50 mt-1 overflow-x-auto rounded p-1 text-[10px]">
                         {JSON.stringify(v.metadata, null, 2)}
                       </pre>
                     )}
@@ -245,15 +228,13 @@ export default function ProctorReviewPage() {
 
 function CheatRiskBar({ score, flagged }: { score: number | null; flagged: boolean }) {
   if (score === null) {
-    return <span className="text-xs text-muted-foreground">—</span>;
+    return <span className="text-muted-foreground text-xs">—</span>;
   }
   const pct = Math.round(score * 100);
-  // Thang rủi ro: cao → destructive, trung bình → cam, thấp → success
-  const color =
-    score > 0.7 ? 'bg-destructive' : score > 0.3 ? 'bg-orange-500' : 'bg-success';
+  const color = score > 0.7 ? 'bg-destructive' : score > 0.3 ? 'bg-orange-500' : 'bg-success';
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 w-20 overflow-hidden rounded-full bg-muted">
+      <div className="bg-muted h-2 w-20 overflow-hidden rounded-full">
         <div className={cn('h-full', color)} style={{ width: `${pct}%` }} />
       </div>
       <span className="font-mono text-xs">{pct}%</span>

@@ -1,9 +1,3 @@
-/**
- * ReactionPicker — popover chọn emoji react. Click → publish REACTION qua
- * LiveKit data channel → ReactionsLayer (mọi participant) render float.
- *
- * Set emoji giới hạn để tránh keyboard chiếm chỗ. Customize sau nếu cần.
- */
 'use client';
 
 import * as React from 'react';
@@ -24,10 +18,8 @@ export function ReactionPicker() {
   const send = (emoji: string) => {
     localParticipant.publishData(
       new TextEncoder().encode(JSON.stringify({ type: 'REACTION', emoji })),
-      { reliable: false },  // unreliable OK cho reaction (mất 1-2 OK)
+      { reliable: false },
     );
-    // LiveKit KHÔNG loopback data về local → bắn window event để CHÍNH người gửi
-    // cũng thấy emoji của mình bay (ReactionsLayer nghe cả 2 nguồn).
     window.dispatchEvent(new CustomEvent(REACTION_SELF_EVENT, { detail: { emoji } }));
     setOpen(false);
   };
@@ -45,7 +37,7 @@ export function ReactionPicker() {
             <button
               key={e}
               onClick={() => send(e)}
-              className="rounded-md p-2 text-xl transition-transform hover:scale-125 hover:bg-muted"
+              className="hover:bg-muted rounded-md p-2 text-xl transition-transform hover:scale-125"
               aria-label={`React ${e}`}
             >
               {e}

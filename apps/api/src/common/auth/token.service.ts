@@ -1,8 +1,3 @@
-/**
- * TokenService — JWT của hệ auth mới (plan §3): access token 15 phút, ký
- * ES256 (asymmetric) để gateway/realtime/hocuspocus verify cục bộ bằng public
- * key (JWKS), không round-trip. Keypair từ env (scripts/setup-env.mjs sinh).
- */
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -30,7 +25,6 @@ export interface AccessTokenPayload {
   email: string;
   role: string | null;
   plan: string | null;
-  /** Claims OIDC name/picture — gateway realtime verify cục bộ là có đủ Identity, không round-trip DB. */
   name: string | null;
   picture: string | null;
 }
@@ -57,7 +51,6 @@ export class TokenService {
     return { privateKey: this.privateKey, publicKey: this.publicKey };
   }
 
-  /** Public key dạng JWK (kid = RFC 7638 thumbprint) — serve tại /auth/jwks. */
   async getJwks(): Promise<{ keys: JWK[] }> {
     if (!this.jwk) {
       const { publicKey } = await this.keys();
@@ -87,7 +80,6 @@ export class TokenService {
       .sign(privateKey);
   }
 
-  /** Challenge token bước 2FA — chứng minh đã qua bước mật khẩu, sống 5 phút. */
   async signChallengeToken(userId: string): Promise<string> {
     const { privateKey } = await this.keys();
     return new SignJWT({})
@@ -113,7 +105,6 @@ export class TokenService {
     }
   }
 
-  /** Verify chữ ký + iss/aud/exp. Token hỏng/hết hạn → null (caller quyết 401). */
   async verifyAccessToken(token: string): Promise<AccessTokenPayload | null> {
     try {
       const { publicKey } = await this.keys();
@@ -127,7 +118,6 @@ export class TokenService {
         email: String(payload.email ?? ''),
         role: (payload.role as string | null) ?? null,
         plan: (payload.plan as string | null) ?? null,
-        // Token cũ (phát trước khi thêm claims) chưa có name/picture → fallback null.
         name: typeof payload.name === 'string' ? payload.name : null,
         picture: typeof payload.picture === 'string' ? payload.picture : null,
       };

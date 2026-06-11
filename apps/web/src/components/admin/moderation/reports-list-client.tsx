@@ -1,12 +1,3 @@
-/**
- * ReportsListClient — queue content reports, click row để mở action panel.
- *
- * UX:
- *   - Toggle PENDING / RESOLVED
- *   - Filter target type chip
- *   - Click row → expand inline panel với 4 action button (dismiss/takedown/warn/ban)
- *   - Mỗi action mở ConfirmDialog yêu cầu reason
- */
 'use client';
 
 import * as React from 'react';
@@ -83,17 +74,12 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
   } = useInfiniteQuery({
     queryKey: qk.adminReports(status, targetType),
     queryFn: ({ pageParam }) =>
-      apiGet<Page>(
-        `/api/admin/moderation/reports?${buildQuery(pageParam ?? undefined)}`,
-      ),
+      apiGet<Page>(`/api/admin/moderation/reports?${buildQuery(pageParam ?? undefined)}`),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
   });
 
-  const reports = React.useMemo(
-    () => data?.pages.flatMap((p) => p.reports) ?? [],
-    [data],
-  );
+  const reports = React.useMemo(() => data?.pages.flatMap((p) => p.reports) ?? [], [data]);
   const pendingCount = data?.pages[0]?.pendingCount ?? 0;
   const loadMore = () => {
     if (hasNextPage && !loadingMore) void fetchNextPage();
@@ -108,14 +94,11 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
     if (!activeReport || !activeResolution) return;
     setActionLoading(true);
     try {
-      const res = await fetch(
-        `/api/admin/moderation/reports/${activeReport.id}/resolve`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ resolution: activeResolution, reason }),
-        },
-      );
+      const res = await fetch(`/api/admin/moderation/reports/${activeReport.id}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ resolution: activeResolution, reason }),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error?.formErrors?.[0] ?? err?.error ?? 'Action thất bại');
@@ -143,12 +126,11 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
           </span>
         </div>
         <p className="text-sm text-slate-400">
-          Reports do user gửi qua nút &quot;Report&quot; trên message / user / document. Resolve
-          để đóng case + ghi audit.
+          Reports do user gửi qua nút &quot;Report&quot; trên message / user / document. Resolve để
+          đóng case + ghi audit.
         </p>
       </header>
 
-      {/* Filter chips */}
       <div className="flex flex-wrap items-center gap-1.5">
         <FilterChip active={status === 'PENDING'} onClick={() => setStatus('PENDING')}>
           Pending ({pendingCount})
@@ -161,17 +143,12 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
           Mọi target
         </FilterChip>
         {['message', 'user', 'document', 'conversation', 'group'].map((t) => (
-          <FilterChip
-            key={t}
-            active={targetType === t}
-            onClick={() => setTargetType(t)}
-          >
+          <FilterChip key={t} active={targetType === t} onClick={() => setTargetType(t)}>
             {t}
           </FilterChip>
         ))}
       </div>
 
-      {/* List */}
       <div className="space-y-2">
         {loading ? (
           <div className="py-12 text-center text-slate-500">
@@ -179,7 +156,9 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
           </div>
         ) : reports.length === 0 ? (
           <div className="rounded-lg border border-slate-800/60 bg-slate-900/30 py-12 text-center text-xs text-slate-500">
-            {status === 'PENDING' ? 'Không có report nào đang chờ xử lý.' : 'Chưa có report đã resolve.'}
+            {status === 'PENDING'
+              ? 'Không có report nào đang chờ xử lý.'
+              : 'Chưa có report đã resolve.'}
           </div>
         ) : (
           reports.map((r) => (
@@ -211,7 +190,6 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
         </div>
       )}
 
-      {/* Confirm dialog */}
       <ConfirmDialog
         open={!!activeReport && !!activeResolution}
         onOpenChange={(o) => {
@@ -220,11 +198,7 @@ export function ReportsListClient({ adminRole }: { adminRole: AdminRole }) {
             setActiveResolution(null);
           }
         }}
-        title={
-          activeResolution
-            ? `${resolutionLabel(activeResolution)} report?`
-            : ''
-        }
+        title={activeResolution ? `${resolutionLabel(activeResolution)} report?` : ''}
         description={
           activeReport && activeResolution ? (
             <span>
@@ -310,20 +284,15 @@ function ReportCard({
 
       {expanded && (
         <div className="space-y-3 border-t border-slate-800/60 px-4 py-3">
-          {/* Target detail link */}
           <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-400">
             <span>Target detail:</span>
             <TargetLink type={r.targetType} id={r.targetId} />
           </div>
 
-          {/* Context window cho message type */}
           {(r.targetType === 'message' ||
             r.targetType === 'group_message' ||
-            r.targetType === 'ai_message') && (
-            <ContextWindow type={r.targetType} id={r.targetId} />
-          )}
+            r.targetType === 'ai_message') && <ContextWindow type={r.targetType} id={r.targetId} />}
 
-          {/* Resolution info if resolved */}
           {isResolved && (
             <div className="rounded-md bg-slate-950/50 p-2.5 text-[12px]">
               <p className="text-slate-400">
@@ -348,7 +317,6 @@ function ReportCard({
             </div>
           )}
 
-          {/* Actions */}
           {!isResolved && canMutate && (
             <div className="flex flex-wrap gap-2">
               <ActionBtn icon={X} label="Dismiss" onClick={() => onAction('dismiss')} />
@@ -495,12 +463,6 @@ function FilterChip({
   );
 }
 
-/**
- * ContextWindow — lazy-load 5 messages quanh report target.
- *
- * Fetch khi mount (mỗi lần expand). Cache trong component state để re-render
- * không re-fetch trừ khi user collapse rồi expand lại.
- */
 function ContextWindow({ type, id }: { type: string; id: string }) {
   type ContextItem = {
     id: string;
@@ -518,14 +480,13 @@ function ContextWindow({ type, id }: { type: string; id: string }) {
     items: ContextItem[];
   };
 
-  // Lazy-load qua React Query — component chỉ mount khi user expand report nên
-  // fetch on-mount; cache theo (type,id) để collapse→expand lại không gọi lại.
-  const { data, isLoading: loading, error } = useQuery({
+  const {
+    data,
+    isLoading: loading,
+    error,
+  } = useQuery({
     queryKey: qk.adminModerationContext(type, id),
-    queryFn: () =>
-      apiGet<ContextData>(
-        `/api/admin/moderation/context?type=${type}&id=${id}`,
-      ),
+    queryFn: () => apiGet<ContextData>(`/api/admin/moderation/context?type=${type}&id=${id}`),
   });
 
   if (loading) {

@@ -1,16 +1,3 @@
-/**
- * AI Usage Card — hiển thị quota AI hôm nay cho user.
- *
- * Plan v2 §15.1 W6 — visibility cho cost guardrail.
- *
- * UI:
- *   - Progress bar: spent / quota theo plan
- *   - Color: success < 70%, warning 70-90%, destructive > 90%
- *   - Reset time (00:00 UTC kế)
- *   - Upgrade CTA nếu FREE và spent > 50%
- *
- * Data nguồn: GET /api/account/usage (Stage 1 W2).
- */
 'use client';
 
 import * as React from 'react';
@@ -34,7 +21,6 @@ type Usage = {
 };
 
 export function AiUsageCard() {
-  // Poll 30s qua refetchInterval — quota update sau mỗi AI call.
   const { data: usage, error } = useQuery({
     queryKey: qk.accountUsage(),
     queryFn: () => apiGet<Usage>('/api/account/usage'),
@@ -44,9 +30,7 @@ export function AiUsageCard() {
   if (error) {
     return (
       <Card className="p-4">
-        <p className="text-sm text-destructive">
-          Không tải được quota: {(error as Error).message}
-        </p>
+        <p className="text-destructive text-sm">Không tải được quota: {(error as Error).message}</p>
       </Card>
     );
   }
@@ -54,7 +38,7 @@ export function AiUsageCard() {
   if (!usage) {
     return (
       <Card className="p-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           Đang tải quota AI...
         </div>
@@ -62,14 +46,8 @@ export function AiUsageCard() {
     );
   }
 
-  // Color theo mức tiêu thụ — map sang token trạng thái:
-  //   >90% quá tải → destructive, 70-90% cảnh báo → warning, còn lại ổn → success
   const barColor =
-    usage.spentPct >= 90
-      ? 'bg-destructive'
-      : usage.spentPct >= 70
-        ? 'bg-warning'
-        : 'bg-success';
+    usage.spentPct >= 90 ? 'bg-destructive' : usage.spentPct >= 70 ? 'bg-warning' : 'bg-success';
 
   const resetDate = new Date(usage.resetAt);
   const hoursUntilReset = Math.max(
@@ -83,15 +61,14 @@ export function AiUsageCard() {
     <Card className="p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="text-primary h-4 w-4" />
           <h3 className="text-sm font-semibold">Quota AI hôm nay</h3>
         </div>
-        <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium uppercase">
+        <span className="bg-muted rounded px-2 py-0.5 text-[10px] font-medium uppercase">
           {usage.plan}
         </span>
       </div>
 
-      {/* Progress bar */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
           <span className="font-mono text-sm">
@@ -111,7 +88,7 @@ export function AiUsageCard() {
             {usage.spentPct}%
           </span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className="bg-muted h-2 overflow-hidden rounded-full">
           <div
             className={cn('h-full transition-all duration-500', barColor)}
             style={{ width: `${Math.min(100, usage.spentPct)}%` }}
@@ -119,17 +96,17 @@ export function AiUsageCard() {
         </div>
       </div>
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="text-muted-foreground mt-2 text-[11px]">
         Còn lại: ${usage.remainingUsd.toFixed(4)} — reset sau {hoursUntilReset}h (00:00 UTC).
       </p>
 
       {showUpgradeCTA && (
-        <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+        <div className="border-primary/30 bg-primary/5 mt-3 rounded-md border p-3">
           <div className="flex items-start gap-2">
-            <TrendingUp className="mt-0.5 h-4 w-4 text-primary" />
+            <TrendingUp className="text-primary mt-0.5 h-4 w-4" />
             <div className="flex-1">
               <p className="text-xs font-medium">Nâng cấp Pro để có 10x quota</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              <p className="text-muted-foreground mt-0.5 text-[11px]">
                 $5/ngày AI + unlimited docs + priority support
               </p>
             </div>

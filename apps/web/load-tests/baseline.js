@@ -1,33 +1,3 @@
-/**
- * k6 baseline load test — Stage 1 §15.1 W8.
- *
- * Mục tiêu: thiết lập baseline performance trước khi optimize. Numbers này
- * sẽ là reference cho mỗi PR (regression > 10% block merge).
- *
- * Cách chạy:
- *   1. Cài k6: `winget install k6` (Windows) / `brew install k6` (Mac)
- *   2. Start dev server: `pnpm dev:web`
- *   3. Run: `k6 run apps/web/load-tests/baseline.js`
- *
- * Output:
- *   - Console summary với P50/P95/P99 + error rate
- *   - JSON file `summary.json` cho CI/CD compare
- *
- * Scenarios:
- *   1. health-ping     — không auth, 100 RPS, 30s
- *   2. anon-pages      — landing, sign-in, public pages
- *   3. authenticated   — Skip (cần real session, dùng manual)
- *
- * Profile:
- *   - "smoke"  — 1 VU 30s (verify scripts work)
- *   - "load"   — ramp 0→50 VU 2min, sustain 5min
- *   - "stress" — ramp 0→500 VU 3min, sustain 5min (find breaking point)
- *   - "spike"  — sudden 0→200 VU 10s (DoS simulation)
- *
- * Set scenario qua env:
- *   K6_PROFILE=smoke k6 run baseline.js
- *   K6_PROFILE=load k6 run baseline.js
- */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
@@ -35,14 +5,10 @@ import { Rate, Trend } from 'k6/metrics';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:3000';
 const PROFILE = __ENV.K6_PROFILE || 'smoke';
 
-// Custom metrics
 const errorRate = new Rate('errors');
 const healthLatency = new Trend('health_latency', true);
 const landingLatency = new Trend('landing_latency', true);
 
-// ────────────────────────────────────────────────────────────
-// Scenarios per profile
-// ────────────────────────────────────────────────────────────
 const profiles = {
   smoke: {
     stages: [
@@ -56,9 +22,9 @@ const profiles = {
   },
   load: {
     stages: [
-      { duration: '1m', target: 25 },   // ramp up
-      { duration: '5m', target: 50 },   // sustain 50 VU
-      { duration: '30s', target: 0 },   // ramp down
+      { duration: '1m', target: 25 },
+      { duration: '5m', target: 50 },
+      { duration: '30s', target: 0 },
     ],
     thresholds: {
       http_req_duration: ['p(95)<500', 'p(99)<1500'],
@@ -71,23 +37,21 @@ const profiles = {
     stages: [
       { duration: '2m', target: 100 },
       { duration: '3m', target: 300 },
-      { duration: '5m', target: 500 },  // find breaking point here
+      { duration: '5m', target: 500 },
       { duration: '1m', target: 0 },
     ],
     thresholds: {
-      // Looser ở stress — finding limit not asserting
       http_req_duration: ['p(95)<3000'],
       errors: ['rate<0.10'],
     },
   },
   spike: {
     stages: [
-      { duration: '10s', target: 200 },  // sudden spike
+      { duration: '10s', target: 200 },
       { duration: '30s', target: 200 },
       { duration: '10s', target: 0 },
     ],
     thresholds: {
-      // Spike: chỉ check không 5xx (graceful 429 OK)
       'http_req_failed{status:5xx}': ['rate<0.05'],
     },
   },
@@ -95,20 +59,13 @@ const profiles = {
 
 export const options = {
   ...profiles[PROFILE],
-  // Tags để dashboards filter
   tags: {
     profile: PROFILE,
     app: 'cogniva-web',
   },
-  // Default time để wait giữa iteration
-  // (k6 default tự sleep theo arrival rate)
 };
 
-// ────────────────────────────────────────────────────────────
-// Test scenarios
-// ────────────────────────────────────────────────────────────
 export default function () {
-  // Tỷ lệ traffic mỗi scenario (50/50 cho smoke, sẽ tinh hơn ở load)
   const r = Math.random();
   if (r < 0.6) {
     testHealthEndpoint();
@@ -152,11 +109,7 @@ function testLandingPage() {
   sleep(0.5 + Math.random() * 1.0);
 }
 
-// ────────────────────────────────────────────────────────────
-// Summary
-// ────────────────────────────────────────────────────────────
 export function handleSummary(data) {
-  // Console + JSON file (for CI)
   const summary = {
     profile: PROFILE,
     timestamp: new Date().toISOString(),
@@ -180,9 +133,7 @@ export function handleSummary(data) {
   };
 }
 
-// k6 built-in textSummary helper
 function textSummary(data, opts) {
-  // Minimal pretty print — k6 sẽ thêm default summary nếu trả null
   const i = opts.indent;
   let out = '\n';
   out += `${i}📊 Cogniva Load Test — ${PROFILE} profile\n\n`;

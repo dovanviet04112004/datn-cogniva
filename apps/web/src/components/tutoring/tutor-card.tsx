@@ -1,26 +1,8 @@
-/**
- * TutorCard — V4 (2026-05-22).
- *
- * Card preview tutor trong /tutors browse grid với:
- *   - Favorite heart icon (♥) — toggle qua /api/tutors/[id]/favorite
- *   - Compare checkbox — push tutor id vào compare cart (localStorage)
- *   - Trust badge row: instant book ⚡ / response time 💬 / verified ✓
- *   - Hover state lift + shadow elevated + photo zoom
- *
- * Spec: docs/plans/tutoring-v4.md §7.2 component spec.
- */
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import {
-  CheckCircle2,
-  Heart,
-  MessageCircle,
-  Star,
-  Verified,
-  Zap,
-} from 'lucide-react';
+import { CheckCircle2, Heart, MessageCircle, Star, Verified, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -38,7 +20,6 @@ export type TutorCardData = {
   ratingCount: number;
   sessionsCompleted: number;
   verificationStatus: string;
-  /** V4 T2 — Instant book + response metrics. Optional vì legacy data thiếu. */
   instantBookEnabled?: boolean;
   trialSessionEnabled?: boolean;
   avgResponseMinutes?: number | null;
@@ -51,7 +32,6 @@ export type TutorCardData = {
   }>;
 };
 
-/** Format response time màu theo độ nhanh — pattern Airbnb host quality. */
 function formatResponseTime(minutes: number): {
   text: string;
   classes: string;
@@ -78,7 +58,6 @@ function formatResponseTime(minutes: number): {
 const COMPARE_CART_KEY = 'cogniva.tutoring.compareCart';
 const COMPARE_CART_EVENT = 'cogniva:compare-cart-change';
 
-/** Helper read/write compare cart in localStorage. */
 function readCompareCart(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -95,19 +74,14 @@ function writeCompareCart(ids: string[]) {
   try {
     localStorage.setItem(COMPARE_CART_KEY, JSON.stringify(ids));
     window.dispatchEvent(new Event(COMPARE_CART_EVENT));
-  } catch {
-    /* ignore */
-  }
+  } catch {}
 }
 
-/** Public helpers cho compare cart (export để CompareFloatingBar dùng). */
 export { readCompareCart, writeCompareCart, COMPARE_CART_EVENT };
 
 export function TutorCard({
   tutor: t,
-  /** V4 T5: initial favorite state — server SSR có thể pass; default false. */
   initialFavorited = false,
-  /** Hide compare checkbox (vd: favorites tab — đã có rồi). */
   hideCompare = false,
 }: {
   tutor: TutorCardData;
@@ -121,7 +95,6 @@ export function TutorCard({
   const [favBusy, setFavBusy] = React.useState(false);
   const [compared, setCompared] = React.useState(false);
 
-  // Sync compare cart on mount + listen event from siblings
   React.useEffect(() => {
     const sync = () => setCompared(readCompareCart().includes(t.id));
     sync();
@@ -135,7 +108,7 @@ export function TutorCard({
     if (favBusy) return;
     setFavBusy(true);
     const prev = favorited;
-    setFavorited(!prev); // optimistic
+    setFavorited(!prev);
     try {
       const res = await fetch(`/api/tutors/${t.id}/favorite`, { method: 'POST' });
       if (!res.ok) throw new Error('Toggle lỗi');
@@ -170,9 +143,8 @@ export function TutorCard({
   return (
     <Link
       href={`/tutors/${t.id}`}
-      className="group/t relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-divider bg-card p-4 shadow-soft transition-all duration-base ease-expo-out hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated sm:p-5"
+      className="group/t border-divider bg-card shadow-soft duration-base ease-expo-out hover:border-primary/30 hover:shadow-elevated relative flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 transition-all hover:-translate-y-0.5 sm:p-5"
     >
-      {/* Top actions overlay */}
       <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
         {!hideCompare && (
           <button
@@ -180,7 +152,7 @@ export function TutorCard({
             onClick={toggleCompare}
             aria-label={compared ? 'Bỏ so sánh' : 'Thêm so sánh'}
             className={cn(
-              'group/cmp flex h-7 w-7 items-center justify-center rounded-full border bg-card/80 text-[10px] font-bold backdrop-blur-sm transition-all',
+              'group/cmp bg-card/80 flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-bold backdrop-blur-sm transition-all',
               compared
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-divider text-muted-foreground hover:border-primary/40 hover:text-primary',
@@ -196,7 +168,7 @@ export function TutorCard({
           disabled={favBusy}
           aria-label={favorited ? 'Bỏ yêu thích' : 'Thêm yêu thích'}
           className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-full border bg-card/80 backdrop-blur-sm transition-all',
+            'bg-card/80 flex h-7 w-7 items-center justify-center rounded-full border backdrop-blur-sm transition-all',
             favorited
               ? 'border-rose-500/40 text-rose-500'
               : 'border-divider text-muted-foreground hover:border-rose-500/40 hover:text-rose-500',
@@ -207,10 +179,9 @@ export function TutorCard({
         </button>
       </div>
 
-      {/* Header — avatar + name + price */}
       <div className="flex items-start gap-3 pr-16">
         <div className="relative shrink-0">
-          <Avatar className="h-14 w-14 ring-2 ring-primary/15 transition-transform group-hover/t:scale-105">
+          <Avatar className="ring-primary/15 h-14 w-14 ring-2 transition-transform group-hover/t:scale-105">
             <AvatarImage src={t.avatarUrl ?? undefined} alt={t.name ?? ''} />
             <AvatarFallback className="text-base font-semibold">
               {(t.name ?? '?')[0]?.toUpperCase()}
@@ -219,40 +190,37 @@ export function TutorCard({
           {isVerified && (
             <div
               title="Đã xác thực CCCD"
-              className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-card"
+              className="bg-card absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full"
             >
               <CheckCircle2
-                className="h-4 w-4 fill-primary text-primary-foreground"
+                className="fill-primary text-primary-foreground h-4 w-4"
                 strokeWidth={2}
               />
             </div>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold tracking-tight">
-            {t.name ?? 'Anonymous'}
-          </p>
-          <p className="mt-0.5 text-[11px] text-text-muted">
+          <p className="truncate text-sm font-semibold tracking-tight">{t.name ?? 'Anonymous'}</p>
+          <p className="text-text-muted mt-0.5 text-[11px]">
             {MODALITY_NAMES[t.modality] ?? t.modality}
           </p>
           {t.ratingAvg !== null && t.ratingCount > 0 ? (
             <p className="mt-1 inline-flex items-center gap-0.5 text-[11px]">
               <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />
-              <span className="font-mono font-semibold tabular-nums text-foreground/80">
+              <span className="text-foreground/80 font-mono font-semibold tabular-nums">
                 {t.ratingAvg.toFixed(1)}
               </span>
               <span className="text-muted-foreground">({t.ratingCount})</span>
             </p>
           ) : (
-            <p className="mt-1 text-[11px] italic text-text-muted">Mới</p>
+            <p className="text-text-muted mt-1 text-[11px] italic">Mới</p>
           )}
         </div>
       </div>
 
-      {/* Trust badge row — V4 T2 + V5 polish */}
       <div className="flex flex-wrap gap-1.5">
         {t.instantBookEnabled && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-discovery-500/10 px-2 py-0.5 text-[11px] font-semibold text-discovery-700 dark:text-discovery-300">
+          <span className="bg-discovery-500/10 text-discovery-700 dark:text-discovery-300 inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold">
             <Zap className="h-2.5 w-2.5" />
             Đặt ngay
           </span>
@@ -262,20 +230,21 @@ export function TutorCard({
             🎁 Buổi thử
           </span>
         )}
-        {t.avgResponseMinutes != null && (() => {
-          const r = formatResponseTime(t.avgResponseMinutes);
-          return (
-            <span
-              className={cn(
-                'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                r.classes,
-              )}
-            >
-              <MessageCircle className="h-2.5 w-2.5" />
-              {r.text}
-            </span>
-          );
-        })()}
+        {t.avgResponseMinutes != null &&
+          (() => {
+            const r = formatResponseTime(t.avgResponseMinutes);
+            return (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  r.classes,
+                )}
+              >
+                <MessageCircle className="h-2.5 w-2.5" />
+                {r.text}
+              </span>
+            );
+          })()}
         {t.sessionsCompleted >= 100 && (
           <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
             🏆 {t.sessionsCompleted}+ buổi
@@ -283,12 +252,8 @@ export function TutorCard({
         )}
       </div>
 
-      {/* Headline */}
-      <p className="line-clamp-2 text-[13px] leading-relaxed text-foreground/85">
-        {t.headline}
-      </p>
+      <p className="text-foreground/85 line-clamp-2 text-[13px] leading-relaxed">{t.headline}</p>
 
-      {/* Subject pills */}
       {t.subjects.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {t.subjects.slice(0, 3).map((s) => (
@@ -297,7 +262,7 @@ export function TutorCard({
               className={cn(
                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]',
                 s.verified
-                  ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20'
+                  ? 'bg-primary/10 text-primary ring-primary/20 ring-1 ring-inset'
                   : 'bg-muted text-muted-foreground',
               )}
             >
@@ -307,30 +272,27 @@ export function TutorCard({
             </span>
           ))}
           {t.subjects.length > 3 && (
-            <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground">
+            <span className="bg-muted/60 text-muted-foreground inline-flex items-center rounded-full px-2 py-0.5 text-[11px]">
               +{t.subjects.length - 3} môn
             </span>
           )}
         </div>
       )}
 
-      {/* Footer — giá + CTA */}
-      <div className="mt-auto flex items-center justify-between border-t border-divider pt-3">
+      <div className="border-divider mt-auto flex items-center justify-between border-t pt-3">
         <div>
           <p className="font-mono text-base font-semibold tabular-nums tracking-tight">
             {priceK}K
-            <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
-              /giờ
-            </span>
+            <span className="text-muted-foreground ml-0.5 text-[11px] font-normal">/giờ</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            <span className="font-mono tabular-nums font-semibold text-foreground/70">
+          <p className="text-muted-foreground text-[11px]">
+            <span className="text-foreground/70 font-mono font-semibold tabular-nums">
               {t.sessionsCompleted}
             </span>{' '}
             buổi đã dạy
           </p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary transition-colors group-hover/t:bg-primary group-hover/t:text-primary-foreground">
+        <span className="bg-primary/10 text-primary group-hover/t:bg-primary group-hover/t:text-primary-foreground inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors">
           Xem profile →
         </span>
       </div>

@@ -1,20 +1,9 @@
-/**
- * /admin/tutoring/kyc/[id] — review chi tiết KYC documents của 1 tutor.
- *
- * Migrate từ /admin/kyc/[id] cũ. Layout cha đã requireAdmin → page chỉ
- * fetch + render. id ở đây là tutorId (không phải doc id).
- */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
 import { ChevronLeft, FileText } from 'lucide-react';
 
-import {
-  db,
-  tutorKycDocument,
-  tutorProfile,
-  user as userTable,
-} from '@cogniva/db';
+import { db, tutorKycDocument, tutorProfile, user as userTable } from '@cogniva/db';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { KycDocActions } from '@/components/admin/kyc-doc-actions';
@@ -76,7 +65,6 @@ export default async function AdminKycDetailPage({ params }: Params) {
         Về queue
       </Link>
 
-      {/* Tutor card */}
       <header className="rounded-lg border border-slate-800 bg-slate-900/50 p-5">
         <div className="flex items-start gap-3">
           <Avatar className="h-14 w-14">
@@ -105,7 +93,6 @@ export default async function AdminKycDetailPage({ params }: Params) {
         </div>
       </header>
 
-      {/* Docs list */}
       <ul className="space-y-3">
         {docs.map((d) => (
           <li
@@ -119,16 +106,12 @@ export default async function AdminKycDetailPage({ params }: Params) {
               <p className="text-sm font-semibold tracking-tight text-slate-100">
                 {DOC_TYPE_LABEL[d.docType] ?? d.docType}
               </p>
-              <p className="truncate font-mono text-[11px] text-slate-400">
-                {d.originalName}
-              </p>
+              <p className="truncate font-mono text-[11px] text-slate-400">{d.originalName}</p>
               <p className="mt-0.5 font-mono text-[10.5px] tabular-nums text-slate-500">
                 {(d.sizeBytes / 1024).toFixed(0)} KB · uploaded{' '}
                 {d.createdAt.toLocaleString('vi-VN')}
               </p>
-              <p className="mt-1 font-mono text-[10px] text-slate-500">
-                storage: {d.storageKey}
-              </p>
+              <p className="mt-1 font-mono text-[10px] text-slate-500">storage: {d.storageKey}</p>
               {d.reviewNote && (
                 <p className="mt-1 text-[11.5px] text-amber-400">Note: {d.reviewNote}</p>
               )}

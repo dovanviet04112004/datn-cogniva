@@ -1,12 +1,3 @@
-/**
- * CancelProButton — Phase 5 (2026-05-27).
- *
- * Hủy PRO sớm + refund prorated phần thời gian chưa dùng.
- *
- * UX: dùng ConfirmDialog shared (Dialog-based, không phải Radix AlertDialog
- * vì project chưa có). Hiển thị số ngày còn lại + ước tính refund trước khi
- * gọi API. Sau khi cancel → router.refresh() reload state PRO active.
- */
 'use client';
 
 import * as React from 'react';
@@ -27,7 +18,6 @@ export function CancelProButton({ proUntilAt }: { proUntilAt: string | null }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
 
-  // Ước tính refund client-side (server tính authoritative)
   const now = Date.now();
   const remainingDays = proUntilAt
     ? Math.max(0, (new Date(proUntilAt).getTime() - now) / 86400_000)
@@ -52,7 +42,7 @@ export function CancelProButton({ proUntilAt }: { proUntilAt: string | null }) {
       router.refresh();
     } catch (err) {
       toast.error((err as Error).message);
-      throw err; // re-throw để ConfirmDialog biết thất bại (giữ dialog mở)
+      throw err;
     }
   };
 

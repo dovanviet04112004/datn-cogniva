@@ -1,17 +1,3 @@
-/**
- * i18n dictionaries — Cogniva V8.27 (2026-05-21).
- *
- * Lightweight i18n KHÔNG dùng thư viện (next-intl/react-i18next) — Cogniva
- * mặc định tiếng Việt, English chỉ là toggle option. Dictionary flat key-value
- * dễ search + extend. Sửa string → edit file này, build tự pick up.
- *
- * Convention key:
- *   `<area>.<section>.<label>` — vd `sidebar.nav.dashboard`, `settings.tabs.general`.
- *
- * Fallback: nếu locale không có key → trả `vi` (default). Nếu cả `vi` cũng
- * thiếu → trả key gốc (làm sáng tỏ string bị quên).
- */
-
 export type Locale = 'vi' | 'en';
 
 export const LOCALES: { value: Locale; label: string; flag: string }[] = [
@@ -21,14 +7,11 @@ export const LOCALES: { value: Locale; label: string; flag: string }[] = [
 
 export const DEFAULT_LOCALE: Locale = 'vi';
 
-/** Cookie name persist user-selected locale. */
 export const LOCALE_COOKIE = 'cogniva.locale';
 
-/** Flat dictionary, kebab-case-y keys grouped by area. */
 type Dict = Record<string, string>;
 
 const vi: Dict = {
-  // Sidebar nav
   'sidebar.group.overview': 'Tổng quan',
   'sidebar.group.learn': 'Học tập',
   'sidebar.group.collaborate': 'Cộng tác',
@@ -46,7 +29,6 @@ const vi: Dict = {
   'sidebar.nav.wallet': 'Ví của tôi',
   'sidebar.back_to_dashboard': 'Về Dashboard',
 
-  // Settings
   'settings.title': 'Cài đặt',
   'settings.tab.general': 'Chung',
   'settings.tab.general_desc': 'Tên, email, giao diện, ngôn ngữ',
@@ -82,7 +64,6 @@ const vi: Dict = {
   'settings.public_badge': 'Công khai',
   'settings.private_badge': 'Riêng tư',
 
-  // Workspace / Studio recipes
   'studio.title': 'Studio',
   'studio.group.today': 'Hôm nay',
   'studio.group.generate': 'Tạo mới',
@@ -102,7 +83,6 @@ const vi: Dict = {
   'recipe.briefing': 'Tóm tắt',
   'recipe.briefing.hint': '200-300 từ tóm tắt onboarding',
 
-  // Common
   'common.back': 'Quay lại',
   'common.close': 'Đóng',
   'common.loading': 'Đang tải…',
@@ -111,7 +91,6 @@ const vi: Dict = {
   'common.delete': 'Xoá',
   'common.edit': 'Sửa',
   'common.start': 'Bắt đầu',
-  // List/grid toolbar + pagination (shared tutoring + library)
   'common.sort': 'Sắp xếp',
   'common.filter': 'Lọc',
   'common.clear_all': 'Bỏ tất cả',
@@ -124,7 +103,6 @@ const vi: Dict = {
   'common.next': 'Sau',
   'common.card_unit': 'card',
 
-  // Library — hub
   'library.back': 'Quay lại kho tài liệu',
   'library.hub.title': 'Kho Tài Liệu',
   'library.hub.stats.docs': 'tài liệu',
@@ -148,18 +126,15 @@ const vi: Dict = {
   'library.hub.browse_by_university': 'Theo trường',
   'library.hub.browse_by_course': 'Theo môn học',
 
-  // Library — curated sections
   'library.curated.for_you': 'Dành cho bạn',
   'library.curated.trending': 'Phổ biến',
   'library.curated.see_all': 'Xem tất cả →',
   'library.recent.title': 'Đọc tiếp',
 
-  // Library — difficulty
   'library.difficulty.easy': 'Dễ',
   'library.difficulty.medium': 'Vừa',
   'library.difficulty.hard': 'Khó',
 
-  // Library — badges (label đầy đủ + short)
   'library.badge.outcome_verified': 'Đã kiểm chứng',
   'library.badge.outcome_verified.short': 'Kiểm chứng',
   'library.badge.educator_approved': 'Giáo viên duyệt',
@@ -169,7 +144,6 @@ const vi: Dict = {
   'library.badge.power_resource': 'Tài liệu chất lượng',
   'library.badge.power_resource.short': 'Chất lượng',
 
-  // Library — doc card / common labels
   'library.card.new': 'Mới',
   'library.card.pages': 'trang',
   'library.card.premium': 'Premium',
@@ -177,7 +151,6 @@ const vi: Dict = {
   'library.empty.clear_filter': 'Xóa tất cả filter',
   'library.empty.upload': 'Tải tài liệu lên',
 
-  // Library — doc type labels (dùng chung nhiều file)
   'library.doctype.lecture_notes': 'Bài giảng',
   'library.doctype.summary': 'Đề cương',
   'library.doctype.exam': 'Đề thi',
@@ -189,7 +162,6 @@ const vi: Dict = {
   'library.doctype.mind_map': 'Sơ đồ',
   'library.doctype.other': 'Khác',
 
-  // Library — detail page
   'library.detail.hidden': 'Tài liệu này đã bị ẩn.',
   'library.detail.processing': 'Đang xử lý (parse + embed). Refresh lại trang sau 30 giây.',
   'library.detail.remix_from': 'Tổng hợp từ',
@@ -212,10 +184,10 @@ const vi: Dict = {
   'library.detail.lang_en': 'English',
   'library.detail.buy_now': 'Mua xem ngay',
 
-  // Library — pro page
   'library.pro.badge': 'Cogniva Library PRO',
   'library.pro.hero_title': 'Học không giới hạn',
-  'library.pro.hero_sub': 'Truy cập toàn bộ tài liệu premium, import không giới hạn, ưu tiên AI Concierge — chỉ 199.000đ/tháng.',
+  'library.pro.hero_sub':
+    'Truy cập toàn bộ tài liệu premium, import không giới hạn, ưu tiên AI Concierge — chỉ 199.000đ/tháng.',
   'library.pro.member_active': 'Bạn đang là PRO member',
   'library.pro.expires_at': 'Hết hạn lúc',
   'library.pro.renew_hint': '· gia hạn để tích lũy thời gian',
@@ -230,7 +202,6 @@ const vi: Dict = {
   'library.pro.wallet_balance': 'Số dư ví',
   'library.pro.top_up': 'Nạp thêm →',
 
-  // Library — subscribe pro form
   'library.subscribe.month': 'tháng',
   'library.subscribe.save': 'Tiết kiệm 0%',
   'library.subscribe.popular': 'Phổ biến',
@@ -243,27 +214,28 @@ const vi: Dict = {
   'library.subscribe.success_prefix': '🎉 PRO active đến',
   'library.subscribe.cta': 'Subscribe PRO',
 
-  // Library — cancel pro
   'library.cancel.failed': 'Hủy thất bại',
   'library.cancel.refunded_prefix': 'Đã hủy PRO. Hoàn',
   'library.cancel.refunded_suffix': 'vào ví.',
   'library.cancel.no_refund': 'Đã hủy PRO (không có refund)',
   'library.cancel.button': 'Hủy PRO',
   'library.cancel.confirm_title': 'Hủy Cogniva PRO?',
-  'library.cancel.confirm_desc': 'Bạn còn {days} ngày PRO chưa dùng — hủy ngay sẽ hoàn ~{refund}đ vào ví (server tính lại số chính xác). Sau khi hủy: import giảm về 5/ngày, premium docs khóa lại trừ những doc đã mua.',
+  'library.cancel.confirm_desc':
+    'Bạn còn {days} ngày PRO chưa dùng — hủy ngay sẽ hoàn ~{refund}đ vào ví (server tính lại số chính xác). Sau khi hủy: import giảm về 5/ngày, premium docs khóa lại trừ những doc đã mua.',
   'library.cancel.confirm_label': 'Xác nhận hủy',
   'library.cancel.cancel_label': 'Giữ PRO',
 
-  // Library — karma page
   'library.karma.title': 'Karma Leaderboard',
-  'library.karma.subtitle': 'Top creator Library — karma từ doc được import / remix / endorse / quality cao.',
+  'library.karma.subtitle':
+    'Top creator Library — karma từ doc được import / remix / endorse / quality cao.',
   'library.karma.event.doc_imported': 'Doc được import',
   'library.karma.event.doc_remixed': 'Doc được remix',
   'library.karma.event.endorsed': 'Tutor endorse',
   'library.karma.event.high_quality': 'Quality ≥ 80',
   'library.karma.pts_total': 'pts total',
   'library.karma.top_contributors': 'Top contributors',
-  'library.karma.empty_leaderboard': 'Chưa có user nào có karma — share doc của bạn lên để bắt đầu earn.',
+  'library.karma.empty_leaderboard':
+    'Chưa có user nào có karma — share doc của bạn lên để bắt đầu earn.',
   'library.karma.anonymous': 'Anonymous',
   'library.karma.last_earn': 'Lần cuối earn:',
   'library.karma.pts': 'pts',
@@ -275,7 +247,6 @@ const vi: Dict = {
   'library.karma.earn_endorse': 'Tutor verified endorse doc của bạn',
   'library.karma.earn_quality': 'Doc đạt quality score ≥ 80 (1 lần / doc)',
 
-  // Library — me (creator dashboard)
   'library.me.status.published': 'Public',
   'library.me.status.processing': 'Processing',
   'library.me.status.hidden': 'Hidden',
@@ -301,7 +272,6 @@ const vi: Dict = {
   'library.me.avg_quality_prefix': 'Quality score trung bình:',
   'library.me.avg_quality_suffix': 'trên {count} doc',
 
-  // Library — upload wizard
   'library.upload.doctype.lecture_notes': 'Bài giảng / vở ghi',
   'library.upload.doctype.summary': 'Đề cương / tóm tắt',
   'library.upload.doctype.exam': 'Đề thi',
@@ -339,7 +309,8 @@ const vi: Dict = {
   'library.upload.formats': 'PDF · DOCX · PNG · JPG · Max 20MB',
   'library.upload.step2': '2. Metadata',
   'library.upload.title_placeholder': 'Tiêu đề tài liệu (≥ 5 ký tự)',
-  'library.upload.desc_placeholder': 'Mô tả ngắn (50-200 từ — giúp AI search hiểu nội dung tốt hơn)',
+  'library.upload.desc_placeholder':
+    'Mô tả ngắn (50-200 từ — giúp AI search hiểu nội dung tốt hơn)',
   'library.upload.subject': 'Lĩnh vực',
   'library.upload.level': 'Cấp học',
   'library.upload.grade': 'Lớp (1-12, optional)',
@@ -353,12 +324,13 @@ const vi: Dict = {
   'library.upload.license.cc': 'CC-BY 4.0 — Cho phép share + chỉnh sửa, ghi attribution',
   'library.upload.license.public': 'Public domain — Tự do dùng',
   'library.upload.license.mine': 'Mine only — Cấm clone/chỉnh sửa (chỉ xem)',
-  'library.upload.license_confirm': 'Tôi xác nhận có quyền chia sẻ tài liệu này (KHÔNG vi phạm bản quyền sách giáo khoa, sách tham khảo có copyright)',
+  'library.upload.license_confirm':
+    'Tôi xác nhận có quyền chia sẻ tài liệu này (KHÔNG vi phạm bản quyền sách giáo khoa, sách tham khảo có copyright)',
 
-  // Library — voice search
   'library.voice.demo_badge': '🎙️ Phase 5 Demo',
   'library.voice.title': 'Hỏi bằng giọng nói',
-  'library.voice.subtitle': 'Nói câu hỏi → Whisper transcribe → tìm tài liệu khớp trong Cogniva Library. Quota 30 lượt/giờ.',
+  'library.voice.subtitle':
+    'Nói câu hỏi → Whisper transcribe → tìm tài liệu khớp trong Cogniva Library. Quota 30 lượt/giờ.',
   'library.voice.mic_error': 'Không truy cập được mic:',
   'library.voice.search_failed': 'Voice search thất bại',
   'library.voice.no_match': 'Không tìm thấy tài liệu khớp',
@@ -377,7 +349,6 @@ const vi: Dict = {
   'library.voice.page': 'Trang',
   'library.voice.search_error': 'Search lỗi:',
 
-  // Library — saved search bar
   'library.saved.err_name': 'Đặt tên tìm kiếm',
   'library.saved.saved_prefix': 'Đã lưu',
   'library.saved.save_fail': 'Save fail',
@@ -394,7 +365,6 @@ const vi: Dict = {
   'library.saved.notify': 'Thông báo khi có doc mới phù hợp (Phase 4.5)',
   'library.saved.save': 'Lưu',
 
-  // Library — annotations
   'library.annot.note_short': 'Note quá ngắn',
   'library.annot.added': 'Đã thêm note',
   'library.annot.delete_confirm': 'Xoá note này?',
@@ -403,9 +373,11 @@ const vi: Dict = {
   'library.annot.add_note': '+ Thêm note',
   'library.annot.tip': '💡 ',
   'library.annot.tip_label': 'Tip',
-  'library.annot.tip_body': ': bôi đen đoạn text trên PDF ở trên → form ghi chú tự mở với đoạn đã chọn.',
+  'library.annot.tip_body':
+    ': bôi đen đoạn text trên PDF ở trên → form ghi chú tự mở với đoạn đã chọn.',
   'library.annot.tip_full': 'Bạn xem được toàn bộ {count} trang.',
-  'library.annot.tip_preview': 'Hiện tại preview {count} trang đầu — import vào workspace hoặc mua doc để annotate tất cả trang.',
+  'library.annot.tip_preview':
+    'Hiện tại preview {count} trang đầu — import vào workspace hoặc mua doc để annotate tất cả trang.',
   'library.annot.add_heading': 'Thêm ghi chú',
   'library.annot.close_form_aria': 'Đóng form ghi chú',
   'library.annot.page': 'Trang',
@@ -427,7 +399,6 @@ const vi: Dict = {
   'library.annot.overlay_aria': 'Ghi chú của {author}: {note}',
   'library.annot.anonymous': 'Ẩn danh',
 
-  // Library — premium purchase
   'library.purchase.need_prefix': 'Cần',
   'library.purchase.need_have': 'có',
   'library.purchase.failed': 'Mua thất bại',
@@ -445,7 +416,6 @@ const vi: Dict = {
   'library.purchase.upgrade_pro': 'nâng cấp PRO 199K/tháng',
   'library.purchase.upgrade_pro_suffix': 'để unlock toàn bộ premium docs.',
 
-  // Library — doc preview panel
   'library.preview.label_unlocked': '{count} trang (đã unlock)',
   'library.preview.label_first': '{count} trang đầu',
   'library.preview.loading_pdf': 'Đang tải PDF preview...',
@@ -458,7 +428,8 @@ const vi: Dict = {
   'library.preview.render_pdf': 'Render PDF...',
   'library.preview.render_failed': 'Không render được PDF — vui lòng tải về xem.',
   'library.preview.pdf_error': 'Lỗi PDF: {msg}',
-  'library.preview.page_count_info': 'Preview {shown}/{total} trang. Tải về để xem đầy đủ hoặc Import vào workspace để AI trợ giúp.',
+  'library.preview.page_count_info':
+    'Preview {shown}/{total} trang. Tải về để xem đầy đủ hoặc Import vào workspace để AI trợ giúp.',
   'library.preview.premium_need_buy': 'Premium doc — cần mua để xem',
   'library.preview.file_load_failed': 'Không tải được file',
   'library.preview.loading_docx': 'Đang tải DOCX...',
@@ -466,7 +437,6 @@ const vi: Dict = {
   'library.preview.open_docx': 'Mở DOCX trong tab mới',
   'library.preview.page': 'Trang',
 
-  // Library — related docs
   'library.related.role.prerequisite': 'Cần biết trước',
   'library.related.role.next_step': 'Mở rộng tiếp',
   'library.related.role.practice': 'Luyện tập',
@@ -492,7 +462,6 @@ const vi: Dict = {
   'library.related.no_ws': 'Bạn chưa có workspace nào — tạo trước rồi quay lại.',
   'library.related.bulk_import': 'Bulk import {count} doc',
 
-  // Library — reviews
   'library.review.load_failed': 'Load reviews thất bại',
   'library.review.choose_rating': 'Chọn rating từ 1-5 sao',
   'library.review.submit_failed': 'Submit thất bại',
@@ -503,7 +472,8 @@ const vi: Dict = {
   'library.review.rate_this': 'Đánh giá tài liệu này',
   'library.review.close_form': 'Đóng form',
   'library.review.star': '{n} sao',
-  'library.review.comment_placeholder': 'Chia sẻ trải nghiệm — điều gì tốt, điều gì cần cải thiện? (tuỳ chọn)',
+  'library.review.comment_placeholder':
+    'Chia sẻ trải nghiệm — điều gì tốt, điều gì cần cải thiện? (tuỳ chọn)',
   'library.review.submit': 'Gửi đánh giá',
   'library.review.loading': 'Đang tải…',
   'library.review.empty': 'Chưa có đánh giá.',
@@ -515,7 +485,6 @@ const vi: Dict = {
   'library.review.label.good': 'Tốt',
   'library.review.label.excellent': 'Xuất sắc',
 
-  // Library — endorse
   'library.endorse.thanks': 'Đã endorse — cảm ơn tutor!',
   'library.endorse.revoke_confirm': 'Bỏ endorse doc này?',
   'library.endorse.revoked': 'Đã bỏ endorse',
@@ -530,7 +499,6 @@ const vi: Dict = {
   'library.endorse.note_placeholder': 'Tại sao bạn endorse doc này? (tuỳ chọn)',
   'library.endorse.button': 'Endorse',
 
-  // Library — prereq warning
   'library.prereq.difficulty_label': 'Độ khó:',
   'library.prereq.need_before_count': '· cần biết trước {count} atom',
   'library.prereq.need_before': 'Cần biết trước',
@@ -538,7 +506,6 @@ const vi: Dict = {
   'library.prereq.missing_atom': 'Bạn chưa có atom này',
   'library.prereq.gap_warning': '⚠ Bạn thiếu {count} atom — nên ôn trước để học hiệu quả hơn.',
 
-  // Library — podcast
   'library.podcast.gen_fail': 'Generate podcast fail',
   'library.podcast.ended': 'Podcast hết — import doc về workspace để học sâu hơn!',
   'library.podcast.tts_error': 'Lỗi TTS — browser không hỗ trợ voice',
@@ -549,17 +516,15 @@ const vi: Dict = {
   'library.podcast.close': 'Đóng',
   'library.podcast.writing': 'AI đang viết kịch bản 2-voice...',
   'library.podcast.turn': 'Turn {current}/{total}',
-  'library.podcast.no_voice': '⚠ Browser thiếu voice tiếng Việt — install voice trong system settings.',
+  'library.podcast.no_voice':
+    '⚠ Browser thiếu voice tiếng Việt — install voice trong system settings.',
 
-  // Library — translate
   'library.translate.original': 'Bản gốc',
   'library.translate.translate_title': 'Dịch {from} → {to}',
 
-  // Library — duplicate warning
   'library.duplicate.found': 'Phát hiện {count} tài liệu tương tự',
   'library.duplicate.near': 'AI thấy nội dung gần trùng với:',
 
-  // Library — atom map
   'library.atommap.atoms': '🧩 Atoms',
   'library.atommap.analyzing': 'Đang phân tích atoms...',
   'library.atommap.empty': 'Doc này chưa có atom map. AI sẽ phân tích sau khi ingest xong.',
@@ -574,7 +539,6 @@ const vi: Dict = {
   'library.atommap.collapse': 'Thu gọn',
   'library.atommap.show_all': 'Xem hết {count} atoms',
 
-  // Library — import to workspace button
   'library.import.choose_ws': 'Chọn workspace để import',
   'library.import.failed': 'Import thất bại',
   'library.import.load_ws_failed': 'Load workspaces thất bại',
@@ -585,7 +549,6 @@ const vi: Dict = {
   'library.import.create_ws': '+ Tạo workspace mới',
   'library.import.add_button': 'Thêm vào workspace',
 
-  // Library — unified search
   'library.search.img_too_large': 'Ảnh max 5MB',
   'library.search.img_only': 'Chỉ accept ảnh',
   'library.search.type_keyword': 'Gõ từ khóa',
@@ -603,11 +566,13 @@ const vi: Dict = {
   'library.search.mode.reverse': 'Upload đề',
   'library.search.mode.reverse_desc': 'Tìm tài liệu giải tương tự',
   'library.search.free_placeholder': 'VD: đạo hàm hàm hợp, định lý Vi-et, IELTS speaking sample…',
-  'library.search.goal_placeholder': 'VD: "Ôn thi tốt nghiệp Toán THPT 2025 trong 4 tuần, hiện 7.5đ mục tiêu 9đ"',
+  'library.search.goal_placeholder':
+    'VD: "Ôn thi tốt nghiệp Toán THPT 2025 trong 4 tuần, hiện 7.5đ mục tiêu 9đ"',
   'library.search.img_alt': 'Đề',
   'library.search.remove_img_aria': 'Xoá ảnh',
   'library.search.upload_problem': 'Upload ảnh đề (PNG/JPG, max 5MB) — HOẶC gõ text bên dưới:',
-  'library.search.reverse_placeholder': 'Paste đề bài… (vd: Tìm GTNN của f(x) = x³ - 3x² + 2 trên [0,3])',
+  'library.search.reverse_placeholder':
+    'Paste đề bài… (vd: Tìm GTNN của f(x) = x³ - 3x² + 2 trên [0,3])',
   'library.search.btn_free': 'Tìm',
   'library.search.btn_goal': 'AI build kế hoạch',
   'library.search.btn_reverse': 'Tìm lời giải',
@@ -633,10 +598,10 @@ const vi: Dict = {
   'library.search.cluster_empty': 'Chưa có',
   'library.search.page': 'Trang',
 
-  // Library — remix builder
   'library.remix.back': 'Quay lại kho tài liệu',
   'library.remix.page_title': 'Tạo Tổng Hợp',
-  'library.remix.page_desc': 'Chọn 2-5 tài liệu nguồn → tổng hợp thành tài liệu mới. Tác giả gốc nhận +5 karma mỗi lần tài liệu được tổng hợp.',
+  'library.remix.page_desc':
+    'Chọn 2-5 tài liệu nguồn → tổng hợp thành tài liệu mới. Tác giả gốc nhận +5 karma mỗi lần tài liệu được tổng hợp.',
   'library.remix.max_docs': 'Tối đa 5 doc',
   'library.remix.min_docs': 'Chọn tối thiểu 2 doc',
   'library.remix.title_min': 'Title ≥ 5 ký tự',
@@ -661,7 +626,6 @@ const vi: Dict = {
   'library.remix.submitting': 'Đang remix...',
   'library.remix.submit': 'Tạo Tổng Hợp ({count}/5)',
 
-  // Library — reverse search
   'library.reverse.img_too_large': 'Ảnh quá lớn — max 5MB',
   'library.reverse.img_only': 'Chỉ accept ảnh PNG/JPG',
   'library.reverse.text_too_short': 'Đề bài ngắn quá — gõ ít nhất 10 ký tự',
@@ -691,7 +655,6 @@ const vi: Dict = {
   'library.reverse.empty_exam': 'Chưa có đề tương tự',
   'library.reverse.page': 'Trang {num}',
 
-  // Library — goal wizard
   'library.goal.describe_clearer': 'Mô tả mục tiêu rõ hơn nhé',
   'library.goal.ws_auto_desc': 'Auto-generated từ goal — {count} tuần',
   'library.goal.ws_create_failed': 'Tạo workspace thất bại',
@@ -710,7 +673,6 @@ const vi: Dict = {
   'library.goal.cluster_exam': '📝 Đề thi',
   'library.goal.cluster_empty': 'Chưa có',
 
-  // Library — University→Course picker
   'library.card.grade': 'Lớp',
   'library.upload.optional': 'tùy chọn',
   'library.picker.university_label': 'Trường / Tổ chức (tùy chọn)',
@@ -738,7 +700,6 @@ const vi: Dict = {
 };
 
 const en: Dict = {
-  // Sidebar nav
   'sidebar.group.overview': 'Overview',
   'sidebar.group.learn': 'Learn',
   'sidebar.group.collaborate': 'Collaborate',
@@ -756,7 +717,6 @@ const en: Dict = {
   'sidebar.nav.wallet': 'Wallet',
   'sidebar.back_to_dashboard': 'Back to Dashboard',
 
-  // Settings
   'settings.title': 'Settings',
   'settings.tab.general': 'General',
   'settings.tab.general_desc': 'Name, email, theme, language',
@@ -792,7 +752,6 @@ const en: Dict = {
   'settings.public_badge': 'Public',
   'settings.private_badge': 'Private',
 
-  // Workspace / Studio recipes
   'studio.title': 'Studio',
   'studio.group.today': 'Today',
   'studio.group.generate': 'Generate',
@@ -812,7 +771,6 @@ const en: Dict = {
   'recipe.briefing': 'Briefing doc',
   'recipe.briefing.hint': '200-300 word onboarding summary',
 
-  // Common
   'common.back': 'Back',
   'common.close': 'Close',
   'common.loading': 'Loading…',
@@ -833,7 +791,6 @@ const en: Dict = {
   'common.next': 'Next',
   'common.card_unit': 'cards',
 
-  // Library — hub
   'library.back': 'Back to library',
   'library.hub.title': 'Library',
   'library.hub.stats.docs': 'documents',
@@ -857,18 +814,15 @@ const en: Dict = {
   'library.hub.browse_by_university': 'By university',
   'library.hub.browse_by_course': 'By course',
 
-  // Library — curated sections
   'library.curated.for_you': 'For you',
   'library.curated.trending': 'Popular',
   'library.curated.see_all': 'See all →',
   'library.recent.title': 'Continue reading',
 
-  // Library — difficulty
   'library.difficulty.easy': 'Easy',
   'library.difficulty.medium': 'Medium',
   'library.difficulty.hard': 'Hard',
 
-  // Library — badges
   'library.badge.outcome_verified': 'Outcome Verified',
   'library.badge.outcome_verified.short': 'Verified',
   'library.badge.educator_approved': 'Educator Approved',
@@ -878,7 +832,6 @@ const en: Dict = {
   'library.badge.power_resource': 'Power Resource',
   'library.badge.power_resource.short': 'Power',
 
-  // Library — doc card / common labels
   'library.card.new': 'New',
   'library.card.pages': 'pages',
   'library.card.premium': 'Premium',
@@ -886,7 +839,6 @@ const en: Dict = {
   'library.empty.clear_filter': 'Clear all filters',
   'library.empty.upload': 'Upload a document',
 
-  // Library — doc type labels
   'library.doctype.lecture_notes': 'Lecture notes',
   'library.doctype.summary': 'Summary',
   'library.doctype.exam': 'Exam',
@@ -898,7 +850,6 @@ const en: Dict = {
   'library.doctype.mind_map': 'Mind map',
   'library.doctype.other': 'Other',
 
-  // Library — detail page
   'library.detail.hidden': 'This document has been hidden.',
   'library.detail.processing': 'Processing (parse + embed). Refresh the page in 30 seconds.',
   'library.detail.remix_from': 'Remixed from',
@@ -921,10 +872,10 @@ const en: Dict = {
   'library.detail.lang_en': 'English',
   'library.detail.buy_now': 'Buy now',
 
-  // Library — pro page
   'library.pro.badge': 'Cogniva Library PRO',
   'library.pro.hero_title': 'Learn without limits',
-  'library.pro.hero_sub': 'Access all premium docs, unlimited imports, priority AI Concierge — just 199,000đ/month.',
+  'library.pro.hero_sub':
+    'Access all premium docs, unlimited imports, priority AI Concierge — just 199,000đ/month.',
   'library.pro.member_active': 'You are a PRO member',
   'library.pro.expires_at': 'Expires at',
   'library.pro.renew_hint': '· renew to stack more time',
@@ -939,7 +890,6 @@ const en: Dict = {
   'library.pro.wallet_balance': 'Wallet balance',
   'library.pro.top_up': 'Top up →',
 
-  // Library — subscribe pro form
   'library.subscribe.month': 'month',
   'library.subscribe.save': 'Save 0%',
   'library.subscribe.popular': 'Popular',
@@ -952,20 +902,20 @@ const en: Dict = {
   'library.subscribe.success_prefix': '🎉 PRO active until',
   'library.subscribe.cta': 'Subscribe PRO',
 
-  // Library — cancel pro
   'library.cancel.failed': 'Cancel failed',
   'library.cancel.refunded_prefix': 'PRO cancelled. Refunded',
   'library.cancel.refunded_suffix': 'to your wallet.',
   'library.cancel.no_refund': 'PRO cancelled (no refund)',
   'library.cancel.button': 'Cancel PRO',
   'library.cancel.confirm_title': 'Cancel Cogniva PRO?',
-  'library.cancel.confirm_desc': 'You still have {days} PRO days unused — cancelling now refunds ~{refund}đ to your wallet (server computes the exact amount). After cancelling: imports drop to 5/day, premium docs re-lock except ones you purchased.',
+  'library.cancel.confirm_desc':
+    'You still have {days} PRO days unused — cancelling now refunds ~{refund}đ to your wallet (server computes the exact amount). After cancelling: imports drop to 5/day, premium docs re-lock except ones you purchased.',
   'library.cancel.confirm_label': 'Confirm cancel',
   'library.cancel.cancel_label': 'Keep PRO',
 
-  // Library — karma page
   'library.karma.title': 'Karma Leaderboard',
-  'library.karma.subtitle': 'Top Library creators — karma from docs imported / remixed / endorsed / high quality.',
+  'library.karma.subtitle':
+    'Top Library creators — karma from docs imported / remixed / endorsed / high quality.',
   'library.karma.event.doc_imported': 'Doc imported',
   'library.karma.event.doc_remixed': 'Doc remixed',
   'library.karma.event.endorsed': 'Tutor endorsed',
@@ -984,7 +934,6 @@ const en: Dict = {
   'library.karma.earn_endorse': 'A verified tutor endorses your doc',
   'library.karma.earn_quality': 'Your doc reaches quality score ≥ 80 (once / doc)',
 
-  // Library — me (creator dashboard)
   'library.me.status.published': 'Public',
   'library.me.status.processing': 'Processing',
   'library.me.status.hidden': 'Hidden',
@@ -1010,7 +959,6 @@ const en: Dict = {
   'library.me.avg_quality_prefix': 'Average quality score:',
   'library.me.avg_quality_suffix': 'across {count} docs',
 
-  // Library — upload wizard
   'library.upload.doctype.lecture_notes': 'Lecture notes / class notes',
   'library.upload.doctype.summary': 'Summary / outline',
   'library.upload.doctype.exam': 'Exam',
@@ -1048,7 +996,8 @@ const en: Dict = {
   'library.upload.formats': 'PDF · DOCX · PNG · JPG · Max 20MB',
   'library.upload.step2': '2. Metadata',
   'library.upload.title_placeholder': 'Document title (≥ 5 characters)',
-  'library.upload.desc_placeholder': 'Short description (50-200 words — helps AI search understand the content)',
+  'library.upload.desc_placeholder':
+    'Short description (50-200 words — helps AI search understand the content)',
   'library.upload.subject': 'Field',
   'library.upload.level': 'Level',
   'library.upload.grade': 'Grade (1-12, optional)',
@@ -1062,12 +1011,13 @@ const en: Dict = {
   'library.upload.license.cc': 'CC-BY 4.0 — Allows sharing + editing, with attribution',
   'library.upload.license.public': 'Public domain — Free to use',
   'library.upload.license.mine': 'Mine only — No cloning/editing (view only)',
-  'library.upload.license_confirm': 'I confirm I have the right to share this document (NOT violating copyright of textbooks or copyrighted reference books)',
+  'library.upload.license_confirm':
+    'I confirm I have the right to share this document (NOT violating copyright of textbooks or copyrighted reference books)',
 
-  // Library — voice search
   'library.voice.demo_badge': '🎙️ Phase 5 Demo',
   'library.voice.title': 'Ask by voice',
-  'library.voice.subtitle': 'Say a question → Whisper transcribes → find matching docs in the Cogniva Library. Quota 30/hour.',
+  'library.voice.subtitle':
+    'Say a question → Whisper transcribes → find matching docs in the Cogniva Library. Quota 30/hour.',
   'library.voice.mic_error': 'Could not access mic:',
   'library.voice.search_failed': 'Voice search failed',
   'library.voice.no_match': 'No matching documents found',
@@ -1086,7 +1036,6 @@ const en: Dict = {
   'library.voice.page': 'Page',
   'library.voice.search_error': 'Search error:',
 
-  // Library — saved search bar
   'library.saved.err_name': 'Name your search',
   'library.saved.saved_prefix': 'Saved',
   'library.saved.save_fail': 'Save fail',
@@ -1103,7 +1052,6 @@ const en: Dict = {
   'library.saved.notify': 'Notify me when new matching docs appear (Phase 4.5)',
   'library.saved.save': 'Save',
 
-  // Library — annotations
   'library.annot.note_short': 'Note too short',
   'library.annot.added': 'Note added',
   'library.annot.delete_confirm': 'Delete this note?',
@@ -1112,9 +1060,11 @@ const en: Dict = {
   'library.annot.add_note': '+ Add note',
   'library.annot.tip': '💡 ',
   'library.annot.tip_label': 'Tip',
-  'library.annot.tip_body': ': highlight text on the PDF above → the note form opens automatically with the selected text.',
+  'library.annot.tip_body':
+    ': highlight text on the PDF above → the note form opens automatically with the selected text.',
   'library.annot.tip_full': 'You can view all {count} pages.',
-  'library.annot.tip_preview': 'Currently previewing the first {count} pages — import to a workspace or buy the doc to annotate all pages.',
+  'library.annot.tip_preview':
+    'Currently previewing the first {count} pages — import to a workspace or buy the doc to annotate all pages.',
   'library.annot.add_heading': 'Add note',
   'library.annot.close_form_aria': 'Close note form',
   'library.annot.page': 'Page',
@@ -1136,7 +1086,6 @@ const en: Dict = {
   'library.annot.overlay_aria': 'Note by {author}: {note}',
   'library.annot.anonymous': 'Anonymous',
 
-  // Library — premium purchase
   'library.purchase.need_prefix': 'Need',
   'library.purchase.need_have': 'have',
   'library.purchase.failed': 'Purchase failed',
@@ -1154,7 +1103,6 @@ const en: Dict = {
   'library.purchase.upgrade_pro': 'upgrade to PRO 199K/month',
   'library.purchase.upgrade_pro_suffix': 'to unlock all premium docs.',
 
-  // Library — doc preview panel
   'library.preview.label_unlocked': '{count} pages (unlocked)',
   'library.preview.label_first': 'first {count} pages',
   'library.preview.loading_pdf': 'Loading PDF preview...',
@@ -1167,15 +1115,16 @@ const en: Dict = {
   'library.preview.render_pdf': 'Rendering PDF...',
   'library.preview.render_failed': 'Could not render PDF — please download to view.',
   'library.preview.pdf_error': 'PDF error: {msg}',
-  'library.preview.page_count_info': 'Preview {shown}/{total} pages. Download to view fully or Import to a workspace for AI help.',
+  'library.preview.page_count_info':
+    'Preview {shown}/{total} pages. Download to view fully or Import to a workspace for AI help.',
   'library.preview.premium_need_buy': 'Premium doc — purchase required to view',
   'library.preview.file_load_failed': 'Could not load file',
   'library.preview.loading_docx': 'Loading DOCX...',
-  'library.preview.office_blocked': 'Office Online could not open — please download to view details',
+  'library.preview.office_blocked':
+    'Office Online could not open — please download to view details',
   'library.preview.open_docx': 'Open DOCX in new tab',
   'library.preview.page': 'Page',
 
-  // Library — related docs
   'library.related.role.prerequisite': 'Prerequisite',
   'library.related.role.next_step': 'Next step',
   'library.related.role.practice': 'Practice',
@@ -1189,7 +1138,8 @@ const en: Dict = {
   'library.related.analyzing': 'Analyzing atoms + finding docs in the same subject...',
   'library.related.deselect_all': 'Deselect all',
   'library.related.select_all': 'Select all',
-  'library.related.subtitle': 'Learn more effectively by combining supporting docs that cover the same atoms.',
+  'library.related.subtitle':
+    'Learn more effectively by combining supporting docs that cover the same atoms.',
   'library.related.atom_overlap': '🧩 {count} overlapping atoms',
   'library.related.same_subject': 'Same subject',
   'library.related.page_unit': 'pages',
@@ -1201,7 +1151,6 @@ const en: Dict = {
   'library.related.no_ws': 'You have no workspaces yet — create one first then come back.',
   'library.related.bulk_import': 'Bulk import {count} docs',
 
-  // Library — reviews
   'library.review.load_failed': 'Failed to load reviews',
   'library.review.choose_rating': 'Choose a rating from 1-5 stars',
   'library.review.submit_failed': 'Submit failed',
@@ -1212,7 +1161,8 @@ const en: Dict = {
   'library.review.rate_this': 'Rate this document',
   'library.review.close_form': 'Close form',
   'library.review.star': '{n} stars',
-  'library.review.comment_placeholder': 'Share your experience — what was good, what could improve? (optional)',
+  'library.review.comment_placeholder':
+    'Share your experience — what was good, what could improve? (optional)',
   'library.review.submit': 'Submit review',
   'library.review.loading': 'Loading…',
   'library.review.empty': 'No reviews yet.',
@@ -1224,7 +1174,6 @@ const en: Dict = {
   'library.review.label.good': 'Good',
   'library.review.label.excellent': 'Excellent',
 
-  // Library — endorse
   'library.endorse.thanks': 'Endorsed — thank you tutor!',
   'library.endorse.revoke_confirm': 'Remove endorsement for this doc?',
   'library.endorse.revoked': 'Endorsement removed',
@@ -1239,15 +1188,14 @@ const en: Dict = {
   'library.endorse.note_placeholder': 'Why do you endorse this doc? (optional)',
   'library.endorse.button': 'Endorse',
 
-  // Library — prereq warning
   'library.prereq.difficulty_label': 'Difficulty:',
   'library.prereq.need_before_count': '· prerequisites: {count} atoms',
   'library.prereq.need_before': 'Prerequisites',
   'library.prereq.have_atom': 'You already have this atom',
   'library.prereq.missing_atom': 'You do not have this atom yet',
-  'library.prereq.gap_warning': '⚠ You are missing {count} atoms — review them first to learn more effectively.',
+  'library.prereq.gap_warning':
+    '⚠ You are missing {count} atoms — review them first to learn more effectively.',
 
-  // Library — podcast
   'library.podcast.gen_fail': 'Generate podcast fail',
   'library.podcast.ended': 'Podcast ended — import the doc into a workspace to learn deeper!',
   'library.podcast.tts_error': 'TTS error — browser does not support this voice',
@@ -1258,20 +1206,19 @@ const en: Dict = {
   'library.podcast.close': 'Close',
   'library.podcast.writing': 'AI is writing the 2-voice script...',
   'library.podcast.turn': 'Turn {current}/{total}',
-  'library.podcast.no_voice': '⚠ Browser is missing a Vietnamese voice — install one in system settings.',
+  'library.podcast.no_voice':
+    '⚠ Browser is missing a Vietnamese voice — install one in system settings.',
 
-  // Library — translate
   'library.translate.original': 'Original',
   'library.translate.translate_title': 'Translate {from} → {to}',
 
-  // Library — duplicate warning
   'library.duplicate.found': 'Detected {count} similar documents',
   'library.duplicate.near': 'AI found content nearly identical to:',
 
-  // Library — atom map
   'library.atommap.atoms': '🧩 Atoms',
   'library.atommap.analyzing': 'Analyzing atoms...',
-  'library.atommap.empty': 'This doc has no atom map yet. AI will analyze it after ingestion finishes.',
+  'library.atommap.empty':
+    'This doc has no atom map yet. AI will analyze it after ingestion finishes.',
   'library.atommap.mastered_count': 'Atoms ({mastered}/{total} mastered)',
   'library.atommap.time_saved': 'Saves ~{pct}% time',
   'library.atommap.smart_reading': 'Smart Reading',
@@ -1283,7 +1230,6 @@ const en: Dict = {
   'library.atommap.collapse': 'Collapse',
   'library.atommap.show_all': 'Show all {count} atoms',
 
-  // Library — import to workspace button
   'library.import.choose_ws': 'Choose a workspace to import',
   'library.import.failed': 'Import failed',
   'library.import.load_ws_failed': 'Failed to load workspaces',
@@ -1294,7 +1240,6 @@ const en: Dict = {
   'library.import.create_ws': '+ Create new workspace',
   'library.import.add_button': 'Add to workspace',
 
-  // Library — unified search
   'library.search.img_too_large': 'Image max 5MB',
   'library.search.img_only': 'Images only',
   'library.search.type_keyword': 'Type a keyword',
@@ -1311,12 +1256,16 @@ const en: Dict = {
   'library.search.mode.goal_desc': 'AI builds a study plan from your goal',
   'library.search.mode.reverse': 'Upload problem',
   'library.search.mode.reverse_desc': 'Find similar solution docs',
-  'library.search.free_placeholder': 'e.g. chain rule derivative, Vieta theorem, IELTS speaking sample…',
-  'library.search.goal_placeholder': 'e.g. "Prep for Math high school graduation 2025 in 4 weeks, currently 7.5 target 9"',
+  'library.search.free_placeholder':
+    'e.g. chain rule derivative, Vieta theorem, IELTS speaking sample…',
+  'library.search.goal_placeholder':
+    'e.g. "Prep for Math high school graduation 2025 in 4 weeks, currently 7.5 target 9"',
   'library.search.img_alt': 'Problem',
   'library.search.remove_img_aria': 'Remove image',
-  'library.search.upload_problem': 'Upload a problem image (PNG/JPG, max 5MB) — OR type text below:',
-  'library.search.reverse_placeholder': 'Paste the problem… (e.g. Find the minimum of f(x) = x³ - 3x² + 2 on [0,3])',
+  'library.search.upload_problem':
+    'Upload a problem image (PNG/JPG, max 5MB) — OR type text below:',
+  'library.search.reverse_placeholder':
+    'Paste the problem… (e.g. Find the minimum of f(x) = x³ - 3x² + 2 on [0,3])',
   'library.search.btn_free': 'Search',
   'library.search.btn_goal': 'AI build plan',
   'library.search.btn_reverse': 'Find solutions',
@@ -1342,10 +1291,10 @@ const en: Dict = {
   'library.search.cluster_empty': 'None yet',
   'library.search.page': 'Page',
 
-  // Library — remix builder
   'library.remix.back': 'Back to library',
   'library.remix.page_title': 'Create Synthesis',
-  'library.remix.page_desc': 'Pick 2-5 source docs → synthesize into a new document. Original authors get +5 karma each time their doc is remixed.',
+  'library.remix.page_desc':
+    'Pick 2-5 source docs → synthesize into a new document. Original authors get +5 karma each time their doc is remixed.',
   'library.remix.max_docs': 'Maximum 5 docs',
   'library.remix.min_docs': 'Pick at least 2 docs',
   'library.remix.title_min': 'Title ≥ 5 characters',
@@ -1370,7 +1319,6 @@ const en: Dict = {
   'library.remix.submitting': 'Remixing...',
   'library.remix.submit': 'Create compilation ({count}/5)',
 
-  // Library — reverse search
   'library.reverse.img_too_large': 'Image too large — max 5MB',
   'library.reverse.img_only': 'PNG/JPG images only',
   'library.reverse.text_too_short': 'Problem too short — type at least 10 characters',
@@ -1400,7 +1348,6 @@ const en: Dict = {
   'library.reverse.empty_exam': 'No similar exams yet',
   'library.reverse.page': 'Page {num}',
 
-  // Library — goal wizard
   'library.goal.describe_clearer': 'Describe your goal more clearly',
   'library.goal.ws_auto_desc': 'Auto-generated from goal — {count} weeks',
   'library.goal.ws_create_failed': 'Failed to create workspace',
@@ -1419,7 +1366,6 @@ const en: Dict = {
   'library.goal.cluster_exam': '📝 Exams',
   'library.goal.cluster_empty': 'None yet',
 
-  // Library — University→Course picker
   'library.card.grade': 'Grade',
   'library.upload.optional': 'optional',
   'library.picker.university_label': 'University / Institution (optional)',
@@ -1448,17 +1394,10 @@ const en: Dict = {
 
 const DICTS: Record<Locale, Dict> = { vi, en };
 
-/**
- * Lookup translation cho 1 key. Fallback chain:
- *   1. Key trong locale yêu cầu
- *   2. Key trong vi (default)
- *   3. Trả nguyên key (sẽ visible trong UI → dev biết cần thêm dictionary)
- */
 export function translate(locale: Locale, key: string): string {
   return DICTS[locale]?.[key] ?? DICTS.vi[key] ?? key;
 }
 
-/** Parse user input thành Locale hợp lệ, fallback DEFAULT_LOCALE. */
 export function parseLocale(raw: string | null | undefined): Locale {
   if (raw === 'vi' || raw === 'en') return raw;
   return DEFAULT_LOCALE;

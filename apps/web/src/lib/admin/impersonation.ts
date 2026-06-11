@@ -1,18 +1,3 @@
-/**
- * Impersonation marker — Phase 6 V1.
- *
- * Phase 6 V1 KHÔNG swap session. Cookie chỉ đánh dấu "admin X đang
- * impersonate user Y" để:
- *   1. Banner hiển thị nhắc nhở
- *   2. Middleware block mọi mutation (POST/PUT/PATCH/DELETE) → admin không
- *      vô tình thay đổi data của user khi impersonating
- *   3. Audit log ghi start + stop
- *
- * Phase 6.2+ sẽ swap session thật (tạo session mới cho target user, lưu admin
- * session ID để restore). Hiện tại đủ cho safety primitive.
- *
- * Format cookie: base64(JSON) + "." + base64(HMAC-SHA256). Tự verify khi đọc.
- */
 import { createHmac, randomUUID } from 'node:crypto';
 
 import { cookies } from 'next/headers';
@@ -20,23 +5,17 @@ import { cookies } from 'next/headers';
 const COOKIE_NAME = 'cogniva-imp';
 const MAX_DURATION_MIN = 60;
 
-/** Secret để sign cookie. Fall back về AUTH_SECRET nếu env riêng chưa set. */
 function getSecret(): string {
-  return (
-    process.env.IMPERSONATION_SECRET ?? process.env.BETTER_AUTH_SECRET ?? 'dev-only'
-  );
+  return process.env.IMPERSONATION_SECRET ?? process.env.BETTER_AUTH_SECRET ?? 'dev-only';
 }
 
 export type ImpersonationPayload = {
-  /** Random ID cho audit log correlate start↔stop. */
   sessionId: string;
   adminId: string;
   adminEmail: string;
   targetUserId: string;
   targetEmail: string;
-  /** Unix millis. Cookie hết hạn khi quá. */
   expiresAt: number;
-  /** 'readonly' V1; 'full' Phase 6.2+. */
   mode: 'readonly' | 'full';
 };
 
@@ -66,9 +45,6 @@ function decodeCookie(value: string): ImpersonationPayload | null {
   }
 }
 
-/**
- * Đọc cookie hiện tại từ request headers. Server component / route handler.
- */
 export async function getImpersonation(): Promise<ImpersonationPayload | null> {
   const c = await cookies();
   const raw = c.get(COOKIE_NAME)?.value;
@@ -76,9 +52,6 @@ export async function getImpersonation(): Promise<ImpersonationPayload | null> {
   return decodeCookie(raw);
 }
 
-/**
- * Đọc cookie từ NextRequest (dùng cho middleware).
- */
 export function getImpersonationFromRequest(
   cookieValue: string | undefined,
 ): ImpersonationPayload | null {
@@ -86,9 +59,6 @@ export function getImpersonationFromRequest(
   return decodeCookie(cookieValue);
 }
 
-/**
- * Set cookie impersonation. Caller route đã ghi audit log trước khi gọi.
- */
 export async function setImpersonationCookie(
   payload: Omit<ImpersonationPayload, 'sessionId' | 'expiresAt'> & {
     durationMin?: number;

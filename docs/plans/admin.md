@@ -30,14 +30,14 @@
 
 ### 1.2. Differentiators so với "Django admin" mặc định
 
-| | Generic admin | Cogniva admin |
-|---|---|---|
-| Auth | Reuse user session | Tách session, MFA bắt buộc, IP allowlist option |
-| Layout | Same sidebar | Riêng shell, dark-mode default |
-| Search | Per-table | Global command-K (user, doc, conversation, …) |
-| Charts | Static | Live metrics (PostHog + Sentry embed + chart riêng) |
-| Mutation | Direct DB | Qua API endpoint dedicated, audited |
-| Impersonation | Direct login | Read-only mode + banner overlay, kill-switch |
+|               | Generic admin      | Cogniva admin                                       |
+| ------------- | ------------------ | --------------------------------------------------- |
+| Auth          | Reuse user session | Tách session, MFA bắt buộc, IP allowlist option     |
+| Layout        | Same sidebar       | Riêng shell, dark-mode default                      |
+| Search        | Per-table          | Global command-K (user, doc, conversation, …)       |
+| Charts        | Static             | Live metrics (PostHog + Sentry embed + chart riêng) |
+| Mutation      | Direct DB          | Qua API endpoint dedicated, audited                 |
+| Impersonation | Direct login       | Read-only mode + banner overlay, kill-switch        |
 
 ### 1.3. Out of scope (không làm phase 1)
 
@@ -275,12 +275,14 @@ Mọi nút destructive (Suspend, Delete, Refund, Force sign-out) → modal:
 ### 5.1. Dashboard `/admin`
 
 **Hero metrics row** (4 tile):
+
 - DAU (Daily Active Users) — track qua PostHog session events
 - Total signups (all time, with delta % vs 7 ngày trước)
 - AI cost hôm nay (USD, all providers)
 - Sentry error rate 24h (errors / 1k requests)
 
 **Charts** (3 cột × 2 hàng):
+
 1. Signup trend 30 ngày (line chart, daily count)
 2. AI cost trend 30 ngày (stacked area per provider)
 3. Active conversations 24h (heatmap by hour)
@@ -289,6 +291,7 @@ Mọi nút destructive (Suspend, Delete, Refund, Force sign-out) → modal:
 6. Recent admin actions (5 latest từ audit log)
 
 **Quick actions** strip:
+
 - Resolve next KYC item (link `/admin/tutoring/kyc`)
 - View latest error in Sentry (deeplink)
 - Toggle maintenance mode
@@ -296,6 +299,7 @@ Mọi nút destructive (Suspend, Delete, Refund, Force sign-out) → modal:
 ### 5.2. Users `/admin/users`
 
 **List view**:
+
 - Table columns: avatar, name, email, plan, signup date, last active, status badge
 - Search: name/email substring
 - Filter: plan (FREE/PRO/TEAM), status (active/suspended), createdAt range
@@ -303,6 +307,7 @@ Mọi nút destructive (Suspend, Delete, Refund, Force sign-out) → modal:
 - Pagination: cursor-based, 50/page
 
 **Detail `/admin/users/[id]`**:
+
 - Header: avatar lớn + name + email + plan pill + status pill + admin role pill (nếu có)
 - Tabs:
   - **Overview**: stats card (docs, conversations, flashcards, XP, streak) + last 7 ngày activity sparkline + signup → last active timeline
@@ -325,11 +330,13 @@ Mọi nút destructive (Suspend, Delete, Refund, Force sign-out) → modal:
 ### 5.3. Documents `/admin/documents`
 
 **List**:
+
 - Columns: filename, owner email, workspace, size, status, chunks count, createdAt
 - Filter: status (READY/PROCESSING/FAILED), owner email, mime type
 - Bulk action: re-ingest selected (cho doc FAILED)
 
 **Detail** `/admin/documents/[id]`:
+
 - Metadata + workspace + owner
 - Chunks list (paginated, preview text)
 - Embedding stats (provider, dimensions, indexed at)
@@ -578,14 +585,14 @@ Mọi mutation handler wrap qua `withAudit` để log nhất quán, không sót.
 
 ### 7.1. Defense in depth
 
-| Layer | Cơ chế |
-|---|---|
-| Network | Vercel WAF (rate limit per IP, geo restriction option) |
-| Middleware | Check session + admin_role IS NOT NULL |
-| Layout server | `requireAdmin()` throw redirect — chặn render shell |
-| API handler | `requireAdminRole(['SUPER_ADMIN','ADMIN'])` guard |
-| DB | RLS policy: admin_role check trên `admin_*` tables |
-| Audit | Mọi mutation → row vào `admin_audit_log` |
+| Layer         | Cơ chế                                                 |
+| ------------- | ------------------------------------------------------ |
+| Network       | Vercel WAF (rate limit per IP, geo restriction option) |
+| Middleware    | Check session + admin_role IS NOT NULL                 |
+| Layout server | `requireAdmin()` throw redirect — chặn render shell    |
+| API handler   | `requireAdminRole(['SUPER_ADMIN','ADMIN'])` guard      |
+| DB            | RLS policy: admin*role check trên `admin*\*` tables    |
+| Audit         | Mọi mutation → row vào `admin_audit_log`               |
 
 ### 7.2. Session
 
@@ -618,19 +625,20 @@ Mọi mutation handler wrap qua `withAudit` để log nhất quán, không sót.
 
 ### 8.2. External embed (iframe / link out)
 
-| Tool | Mục đích | Trang admin |
-|---|---|---|
-| Sentry | Error tracking | /admin/system/errors (deeplink list) |
-| PostHog | Product analytics | /admin/dashboard embed graph |
-| Langfuse | LLM traces | /admin/ai/traces (deeplink) |
-| Vercel Logs | Edge function logs | /admin/system/logs (deeplink) |
-| BullMQ | Job runs | /admin/system/jobs (queue counts API) |
+| Tool        | Mục đích           | Trang admin                           |
+| ----------- | ------------------ | ------------------------------------- |
+| Sentry      | Error tracking     | /admin/system/errors (deeplink list)  |
+| PostHog     | Product analytics  | /admin/dashboard embed graph          |
+| Langfuse    | LLM traces         | /admin/ai/traces (deeplink)           |
+| Vercel Logs | Edge function logs | /admin/system/logs (deeplink)         |
+| BullMQ      | Job runs           | /admin/system/jobs (queue counts API) |
 
 Mỗi external link mở tab mới (`target="_blank" rel="noopener"`).
 
 ### 8.3. Alert routing
 
 Daily 8AM cron:
+
 - Top 5 users theo AI cost — Slack #admin-cogniva
 - Failed BullMQ jobs 24h — email super_admin
 - Error rate > 1% → Sentry already handles, mirror notify Slack
@@ -642,7 +650,7 @@ Daily 8AM cron:
 ### Phase 0 — Foundation (1 ngày)
 
 - DB migration: `admin_role`, `admin_audit_log`, `content_report`, `system_config`
-- `apps/web/src/middleware/admin.ts` — guard /admin/* + /api/admin/*
+- `apps/web/src/middleware/admin.ts` — guard /admin/_ + /api/admin/_
 - `apps/web/src/lib/admin/guard.ts` — server `requireAdmin()`, `requireAdminRole()`
 - `apps/web/src/app/admin/layout.tsx` — AdminShell skeleton
 - `apps/web/src/components/admin/admin-shell.tsx` — sidebar + topbar riêng
@@ -662,6 +670,7 @@ Daily 8AM cron:
 - Take-down flow
 
 **Đã ship**:
+
 - `/admin/documents` list + detail (chunks preview, stats, re-ingest, delete)
 - `/admin/conversations` list + thread viewer (read-only, citations, soft-delete)
 - `/admin/groups` list + detail (members table, suspend/unsuspend) — migration 0026 thêm `study_group.suspended_at` + `suspend_reason`
@@ -670,6 +679,7 @@ Daily 8AM cron:
 - 9 API endpoints under `/api/admin/{documents,conversations,groups,moderation}/*` — đều qua `withAudit()`
 
 **Phase 2.1 follow-up — SHIPPED cùng ngày 2026-05-20**:
+
 - ✅ Enforcement gate: POST `/api/channels/[id]/messages` check `studyGroup.suspendedAt` → trả 423 Locked khi suspended
 - ✅ Hard delete group: SUPER_ADMIN only, FK CASCADE channels/messages/members/recordings, kèm notify members
 - ✅ In-app notification (notification_log) khi admin suspend/unsuspend/delete group — `notifyGroupSuspend()` helper ở `lib/admin/notify.ts`
@@ -678,6 +688,7 @@ Daily 8AM cron:
 - ✅ Warn resolution → `notifyWarnUser()` insert notification_log với type='admin-warn'
 
 **Deferred xa hơn (Phase 2.2+ khi cần)**:
+
 - Email integration (Resend) — hiện notification chỉ in-app
 - "Report" button trong product UI — chưa có route POST `/api/reports` để user submit
 - Hard delete file recording trên R2 trực tiếp (hiện chỉ xoá DB row, R2 cleanup nightly)
@@ -689,12 +700,13 @@ Daily 8AM cron:
 - Circuit breaker UI
 
 **Đã ship**:
+
 - Migration 0028 `ai_usage_log` (userId/plan/provider/model/feature/tokens/cost/latency/cached) + 4 indexes
 - Wire `recordCost()` ở `lib/observability/cost-guardrail.ts` → fire-and-forget insert ai_usage_log (không block Redis counter path). Cập nhật call site ở `lib/ai/router.ts` truyền provider + tokensIn/Out.
 - `/admin/ai/cost` — 4 KPI tiles + inline SVG line chart by day/provider + provider bar + feature table + top 20 users (7/30/90 day window selector)
 - `/admin/ai/usage` — table per-user với date range + provider/feature/email filter + Export CSV (download text/csv)
 - `/admin/ai/circuits` — auto-refresh 10s, card per circuit (state/fail/TTL), Reset CLOSED action (SUPER_ADMIN/ADMIN, audit logged)
-- Helper `listCircuits()` SCAN Redis cb:* keys (Upstash + ioredis abstraction)
+- Helper `listCircuits()` SCAN Redis cb:\* keys (Upstash + ioredis abstraction)
 - 4 API endpoints under `/api/admin/ai/*` đều qua `requireAdminRole`
 
 ### Phase 4 — Tutoring marketplace admin (1.5 ngày) ✅ SHIPPED 2026-05-20
@@ -703,6 +715,7 @@ Daily 8AM cron:
 - Reviews moderation
 
 **Đã ship**:
+
 - Migration 0029 thêm `tutor_review.hidden_at` + `hidden_reason` + `hidden_by` + partial index
 - `/admin/tutoring/bookings` — list cross-marketplace với filter status + email search, table dense (slot/subject/tutor/student/rate/status/payment)
 - `/admin/tutoring/bookings/[id]` — detail với parties (tutor + student card), payment dl-grid, review preview, action menu: Force cancel (ADMIN+) + Refund partial/full (SUPER_ADMIN only)
@@ -721,6 +734,7 @@ Daily 8AM cron:
 - Maintenance mode toggle + banner
 
 **Đã ship**:
+
 - `lib/system/config.ts` — `getSystemConfig<T>`, `setSystemConfig`, `getFlag`, `listAllFlags`, `getMaintenanceConfig`. Cache 5s in-memory per-process.
 - `/admin/system/maintenance` — toggle + banner editor (max 500 chars) + dismissible checkbox + preview. Submit yêu cầu reason ≥10 (audit log). SUPER_ADMIN only.
 - `MaintenanceBanner` server component ở `(app)/layout.tsx` — amber banner top app khi enabled. Client component dismiss state lưu sessionStorage với hash banner text (banner mới → dismiss reset).
@@ -736,12 +750,14 @@ Daily 8AM cron:
 - 2FA TOTP (Phase 2 follow-up)
 
 **Đã ship**:
+
 - `/admin/audit` — full filter UI (date range / admin email / action / target type+id) + JSON before/after diff viewer + IP/UA. Distinct values cho datalist autocomplete.
 - ⌘K global search ở admin topbar — query 5 entity (user/document/conversation/group/booking) song song. Cmd+K / Ctrl+K toggle hydration-safe. Popover dropdown grouped by type.
 - Impersonation V1 marker cookie (signed HMAC, no session swap): POST/DELETE `/api/admin/impersonate` + banner đỏ countdown TTL ở `(app)/layout.tsx`. Middleware chặn POST/PUT/PATCH/DELETE khi cookie hiện diện (Edge-safe — chỉ check presence). Audit log full với sessionId correlate.
 - 2FA TOTP via better-auth twoFactor plugin: migration 0030 (`user.two_factor_enabled` + `two_factor` table). `/admin/security` enroll page với QR (api.qrserver.com) + backup codes + verify 6-digit. `/admin/sign-in/two-factor` challenge page với TOTP/backup toggle. Auto-redirect qua `onTwoFactorRedirect` ở auth-client.
 
 **Phase 6.1+ deferred**:
+
 - Impersonation full session swap (V1 chỉ marker) — cần better-auth admin plugin hoặc custom session row swap.
 - QR code self-host via `qrcode` package (V1 dùng api.qrserver.com).
 - Bull Board / run history chi tiết ở /admin/system/jobs (V1 chỉ queue counts).

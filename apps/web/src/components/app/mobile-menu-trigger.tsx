@@ -1,11 +1,3 @@
-/**
- * MobileMenuTrigger — hamburger button render INSIDE AppTopbar trên mobile.
- *
- * Pattern production: hamburger là flex child của topbar, KHÔNG fixed
- * floating. Click → open AppSidebar drawer qua context.
- *
- * Hidden md+ vì desktop có sidebar luôn visible (không cần hamburger).
- */
 'use client';
 
 import * as React from 'react';
@@ -20,7 +12,7 @@ export function MobileMenuTrigger() {
       type="button"
       onClick={() => setDrawerOpen(true)}
       aria-label="Mở menu"
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent md:hidden"
+      className="text-foreground hover:bg-accent inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors md:hidden"
     >
       <Menu className="h-5 w-5" />
     </button>

@@ -1,21 +1,7 @@
-/**
- * WalletClient — V4 T3 (2026-05-22).
- *
- * Client component fetch + render wallet state. Refetch sau topup/redeem.
- *
- * Spec: docs/plans/tutoring-v4.md §7.8.
- */
 'use client';
 
 import * as React from 'react';
-import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Gift,
-  Loader2,
-  Sparkles,
-  Wallet,
-} from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Gift, Loader2, Sparkles, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -64,7 +50,6 @@ const TXN_LABEL: Record<Txn['type'], { label: string; sign: '+' | '-' }> = {
 
 export function WalletClient() {
   const qc = useQueryClient();
-  // React Query: ví + giao dịch gần đây. Mutation topup/redeem → invalidate để refetch.
   const { data, isLoading: loading } = useQuery({
     queryKey: qk.wallet(),
     queryFn: () => apiGet<{ wallet: Wallet; recentTxn: Txn[] }>('/api/wallet'),
@@ -129,7 +114,7 @@ export function WalletClient() {
 
   if (loading || !wallet) {
     return (
-      <Card className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+      <Card className="text-muted-foreground flex items-center justify-center gap-2 p-12 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Đang tải ví…
       </Card>
@@ -138,22 +123,20 @@ export function WalletClient() {
 
   return (
     <div className="space-y-6">
-      {/* Balance card */}
-      <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/10 via-card to-discovery-500/5 p-6">
+      <Card className="border-primary/20 from-primary/10 via-card to-discovery-500/5 overflow-hidden bg-gradient-to-br p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <span className="bg-primary/15 text-primary flex h-10 w-10 items-center justify-center rounded-xl">
             <Wallet className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.14em]">
               Số dư khả dụng
             </p>
-            {/* Số dư metric to → dùng sans Geist (bỏ font-mono), giữ tabular-nums */}
             <p className="mt-0.5 text-3xl font-bold tabular-nums">
               {wallet.balanceVnd.toLocaleString('vi-VN')}đ
             </p>
             {wallet.promoBalanceVnd > 0 && (
-              <p className="mt-1 inline-flex items-center gap-1 text-[12px] text-discovery-700 dark:text-discovery-300">
+              <p className="text-discovery-700 dark:text-discovery-300 mt-1 inline-flex items-center gap-1 text-[12px]">
                 <Gift className="h-3 w-3" />+ {wallet.promoBalanceVnd.toLocaleString('vi-VN')}đ
                 promo credit
                 {wallet.promoExpiresAt && (
@@ -168,13 +151,12 @@ export function WalletClient() {
         </div>
       </Card>
 
-      {/* Topup section */}
       <Card className="space-y-3 p-5">
         <div className="flex items-center gap-2">
-          <ArrowDownToLine className="h-4 w-4 text-primary" />
+          <ArrowDownToLine className="text-primary h-4 w-4" />
           <h2 className="text-[13.5px] font-semibold tracking-tight">Nạp tiền</h2>
         </div>
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-muted-foreground text-[11.5px]">
           Nạp ≥ 1.000.000đ → tự động cashback 5% vào promo credit (hết hạn 90 ngày).
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -189,7 +171,7 @@ export function WalletClient() {
                   setTopupCustom('');
                 }}
                 className={cn(
-                  'rounded-xl border px-3 py-2 text-center text-sm font-mono font-semibold tabular-nums transition-all',
+                  'rounded-xl border px-3 py-2 text-center font-mono text-sm font-semibold tabular-nums transition-all',
                   active
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-divider hover:border-primary/40 hover:bg-muted/40',
@@ -197,7 +179,7 @@ export function WalletClient() {
               >
                 {(amt / 1000).toLocaleString('vi-VN')}k
                 {amt >= 1_000_000 && (
-                  <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-discovery-500">
+                  <span className="text-discovery-500 ml-1 inline-flex items-center gap-0.5 text-[10px]">
                     <Sparkles className="h-2 w-2" /> 5%
                   </span>
                 )}
@@ -225,10 +207,9 @@ export function WalletClient() {
         </div>
       </Card>
 
-      {/* Promo code */}
       <Card className="space-y-3 p-5">
         <div className="flex items-center gap-2">
-          <Gift className="h-4 w-4 text-discovery-500" />
+          <Gift className="text-discovery-500 h-4 w-4" />
           <h2 className="text-[13.5px] font-semibold tracking-tight">Mã giảm giá</h2>
         </div>
         <div className="flex gap-2">
@@ -239,30 +220,25 @@ export function WalletClient() {
             className="flex-1 uppercase"
             maxLength={50}
           />
-          <Button
-            onClick={redeem}
-            disabled={busy || !promoCode.trim()}
-            variant="outline"
-          >
+          <Button onClick={redeem} disabled={busy || !promoCode.trim()} variant="outline">
             Áp dụng
           </Button>
         </div>
       </Card>
 
-      {/* Recent activity */}
       <Card className="overflow-hidden p-0">
-        <div className="flex items-center justify-between border-b border-divider bg-muted/20 px-4 py-3">
+        <div className="border-divider bg-muted/20 flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
-            <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
+            <ArrowUpFromLine className="text-muted-foreground h-4 w-4" />
             <h2 className="text-[13.5px] font-semibold">Hoạt động gần đây</h2>
           </div>
         </div>
         {txns.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-muted-foreground">
+          <p className="text-muted-foreground px-4 py-8 text-center text-xs">
             Chưa có giao dịch. Nạp tiền lần đầu để bắt đầu.
           </p>
         ) : (
-          <ul className="divide-y divide-divider">
+          <ul className="divide-divider divide-y">
             {txns.map((t) => {
               const meta = TXN_LABEL[t.type];
               const isCredit = t.amountVnd > 0;
@@ -281,9 +257,7 @@ export function WalletClient() {
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-medium">{meta.label}</p>
                     {t.description && (
-                      <p className="truncate text-[11px] text-muted-foreground">
-                        {t.description}
-                      </p>
+                      <p className="text-muted-foreground truncate text-[11px]">{t.description}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -296,7 +270,7 @@ export function WalletClient() {
                       {isCredit ? '+' : ''}
                       {t.amountVnd.toLocaleString('vi-VN')}đ
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-muted-foreground text-[11px]">
                       {new Date(t.createdAt).toLocaleString('vi-VN', {
                         day: '2-digit',
                         month: '2-digit',

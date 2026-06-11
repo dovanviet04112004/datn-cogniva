@@ -1,10 +1,3 @@
-/**
- * WhiteboardPanel — Excalidraw shared canvas đồng bộ qua Yjs + Hocuspocus.
- *
- * Pattern giống NotesPanel: wait connection synced trước khi mount canvas.
- * Vì Yjs sync chưa xong → onChange Excalidraw push data vào Yjs sẽ sai
- * thứ tự với remote state.
- */
 'use client';
 
 import * as React from 'react';
@@ -12,28 +5,20 @@ import dynamic from 'next/dynamic';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { Loader2 } from 'lucide-react';
-// Type-only import — lấy đúng kiểu API & props của Excalidraw để tránh 'any'
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from '@excalidraw/excalidraw/types';
 
-/**
- * Kiểu phần tử (element) mà Excalidraw phát qua onChange.
- * Suy ra trực tiếp từ chữ ký prop onChange nên không cần import sâu
- * (OrderedExcalidrawElement nằm ở package con @excalidraw/element).
- */
 type WhiteboardElement = Parameters<NonNullable<ExcalidrawProps['onChange']>>[0][number];
 
-// CSS bundle của Excalidraw — BẮT BUỘC
 import '@excalidraw/excalidraw/index.css';
 
-// Dynamic import — Excalidraw KHÔNG hỗ trợ SSR
-const Excalidraw = dynamic(
-  () => import('@excalidraw/excalidraw').then((m) => m.Excalidraw),
-  { ssr: false, loading: () => <PanelLoading label="Đang tải canvas..." /> },
-);
+const Excalidraw = dynamic(() => import('@excalidraw/excalidraw').then((m) => m.Excalidraw), {
+  ssr: false,
+  loading: () => <PanelLoading label="Đang tải canvas..." />,
+});
 
 function PanelLoading({ label }: { label: string }) {
   return (
-    <div className="flex h-full items-center justify-center gap-2 text-muted-foreground">
+    <div className="text-muted-foreground flex h-full items-center justify-center gap-2">
       <Loader2 className="h-4 w-4 animate-spin" />
       <span className="text-sm">{label}</span>
     </div>
@@ -44,7 +29,6 @@ type Status = 'idle' | 'connecting' | 'synced' | 'error';
 
 type Props = {
   roomId: string;
-  /** Endpoint POST issue Hocuspocus token (xem NotesPanel JSDoc). */
   tokenEndpoint?: string;
 };
 
@@ -119,10 +103,11 @@ export function WhiteboardPanel({ roomId, tokenEndpoint }: Props) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-center">
         <div>
-          <p className="text-sm font-medium text-destructive">Không kết nối được</p>
-          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Check <code className="rounded bg-muted px-1">pnpm dev:hocus</code> + <code className="rounded bg-muted px-1">JWT_SECRET</code>.
+          <p className="text-destructive text-sm font-medium">Không kết nối được</p>
+          <p className="text-muted-foreground mt-1 text-xs">{error}</p>
+          <p className="text-muted-foreground mt-3 text-xs">
+            Check <code className="bg-muted rounded px-1">pnpm dev:hocus</code> +{' '}
+            <code className="bg-muted rounded px-1">JWT_SECRET</code>.
           </p>
         </div>
       </div>
@@ -136,10 +121,6 @@ export function WhiteboardPanel({ roomId, tokenEndpoint }: Props) {
   return <WhiteboardCanvas provider={provider} />;
 }
 
-/**
- * WhiteboardCanvas — render Excalidraw + bidirectional sync Yjs ↔ canvas.
- * Mount khi provider synced.
- */
 function WhiteboardCanvas({ provider }: { provider: HocuspocusProvider }) {
   const [excalidrawApi, setExcalidrawApi] = React.useState<ExcalidrawImperativeAPI | null>(null);
   const lastSerializedRef = React.useRef<string>('');
@@ -166,13 +147,12 @@ function WhiteboardCanvas({ provider }: { provider: HocuspocusProvider }) {
   const handleChange = React.useCallback(
     (elements: readonly WhiteboardElement[]) => {
       const serialized = JSON.stringify(elements);
-      if (serialized === lastSerializedRef.current) return; // remote loop guard
+      if (serialized === lastSerializedRef.current) return;
       lastSerializedRef.current = serialized;
 
       const yElements = provider.document.getArray<WhiteboardElement>('elements');
       provider.document.transact(() => {
         yElements.delete(0, yElements.length);
-        // Sao chép ra mảng khả biến vì Y.Array.push yêu cầu mảng không readonly
         yElements.push([...elements]);
       });
     },

@@ -1,9 +1,3 @@
-/**
- * /admin/users/[id] — detail user với stats + action menu.
- *
- * SSR fetch user + stats để render ngay không loading flash. Action buttons
- * (suspend, change-plan, force-signout) là client component để mở ConfirmDialog.
- */
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -21,8 +15,6 @@ export default async function AdminUserDetailPage({ params }: Params) {
   const admin = await requireAdmin();
   const { id } = await params;
 
-  // Re-use API handler bằng fetch trên cùng host — đỡ duplicate query logic.
-  // Forward cookie session để API auth được.
   const hdr = await headers();
   const cookie = hdr.get('cookie') ?? '';
   const host = hdr.get('host') ?? 'localhost:3000';

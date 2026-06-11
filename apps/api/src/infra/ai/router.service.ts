@@ -1,28 +1,5 @@
-/**
- * RouterService — port apps/web/src/lib/ai/router.ts (+ models pricing từ
- * lib/observability/cost.ts + prompt-cache helpers từ lib/ai/prompt-cache.ts).
- *
- * LLM router đa provider với fallback chain:
- *   1. Route theo use case (ROUTES map — copy nguyên bảng model của web).
- *   2. Mỗi provider call wrap CircuitBreakerService `llm:{provider}:{model}`
- *      (key Redis cb:* dùng chung admin dashboard) — CircuitOpenError HOẶC lỗi
- *      bất kỳ → thử fallback kế; hết chain → AllProvidersFailedError.
- *   3. Cost guardrail pre-check (CostGuardrailService 3 lớp) → CostGuardrailError.
- *   4. Semantic cache opt-in (exact-hash Redis) lookup TRƯỚC guardrail vì hit = free.
- *   5. Record actual cost sau onFinish (Redis counters + ai_usage_log).
- *
- * Provider qua AI SDK v4 (cùng package + version với web): @ai-sdk/anthropic,
- * @ai-sdk/openai (createOpenAI cho OpenRouter), @ai-sdk/groq, @ai-sdk/google.
- * isAvailable() check env key CÓ GIÁ TRỊ — thực tế ANTHROPIC_API_KEY rỗng →
- * ragChat chạy Groq Llama 3.3 70B free làm primary thực tế.
- */
 import { Injectable } from '@nestjs/common';
-import {
-  streamText,
-  generateText,
-  type LanguageModel,
-  type CoreMessage,
-} from 'ai';
+import { streamText, generateText, type LanguageModel, type CoreMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGroq } from '@ai-sdk/groq';
@@ -40,21 +17,14 @@ import {
 
 type StreamTextResult = ReturnType<typeof streamText>;
 
-// ────────────────────────────────────────────────────────────
-// Provider configs (copy nguyên bảng web)
-// ────────────────────────────────────────────────────────────
-
 type ProviderId = 'anthropic' | 'openrouter' | 'openai' | 'groq' | 'google';
 type ModelId = string;
 
 type ProviderModel = {
   provider: ProviderId;
   model: ModelId;
-  /** USD per 1M input tokens. */
   inputPerM: number;
-  /** USD per 1M output tokens. */
   outputPerM: number;
-  /** Available env check — provider chỉ usable nếu env có GIÁ TRỊ. */
   isAvailable: () => boolean;
 };
 
@@ -94,7 +64,6 @@ const PROVIDERS: Record<string, ProviderModel> = {
     outputPerM: 0,
     isAvailable: () => !!process.env.OPENROUTER_API_KEY,
   },
-  // ── Groq (free 30 req/min, ~800 tok/s) — free tier inputPerM=0 ──
   'groq:llama-3.3-70b': {
     provider: 'groq',
     model: 'llama-3.3-70b-versatile',
@@ -109,7 +78,6 @@ const PROVIDERS: Record<string, ProviderModel> = {
     outputPerM: 0,
     isAvailable: () => !!process.env.GROQ_API_KEY,
   },
-  // ── Gemini (free 15 req/min, 1M token/day) ──
   'google:gemini-2.5-flash': {
     provider: 'google',
     model: 'gemini-2.5-flash',
@@ -126,24 +94,19 @@ const PROVIDERS: Record<string, ProviderModel> = {
   },
 };
 
-// ────────────────────────────────────────────────────────────
-// Use case → route mapping
-// ────────────────────────────────────────────────────────────
-
 export type UseCase =
-  | 'ragChat' // user-facing RAG chat
-  | 'reasoning' // hard math / multi-step
-  | 'classify' // chunking metadata, intent classify
-  | 'roomTutor' // in-room AI streaming
-  | 'flashcardGen' // generate flashcards
-  | 'quizGen' // generate quiz
-  | 'noteComplete' // autocomplete in note editor
-  | 'summarize'; // recording summary
+  | 'ragChat'
+  | 'reasoning'
+  | 'classify'
+  | 'roomTutor'
+  | 'flashcardGen'
+  | 'quizGen'
+  | 'noteComplete'
+  | 'summarize';
 
 type Route = {
   primary: keyof typeof PROVIDERS;
   fallback: Array<keyof typeof PROVIDERS>;
-  /** Max output tokens cho route — guard against runaway. */
   maxOutputTokens: number;
 };
 
@@ -190,10 +153,6 @@ const ROUTES: Record<UseCase, Route> = {
   },
 };
 
-// ────────────────────────────────────────────────────────────
-// Client construction (lazy singleton như web)
-// ────────────────────────────────────────────────────────────
-
 let _openrouter: ReturnType<typeof createOpenAI> | undefined;
 function getOpenRouterFactory() {
   if (_openrouter) return _openrouter;
@@ -225,7 +184,6 @@ function getGoogleFactory() {
   return _google;
 }
 
-/** Resolve LanguageModel cho provider:model. Throw nếu provider thiếu env. */
 function getModel(pm: ProviderModel): LanguageModel {
   switch (pm.provider) {
     case 'anthropic':
@@ -243,16 +201,11 @@ function getModel(pm: ProviderModel): LanguageModel {
   }
 }
 
-/** Chain provider khả dụng cho use case — filter provider thiếu env key. */
 function getProviderChain(useCase: UseCase): ProviderModel[] {
   const route = ROUTES[useCase];
   const chain = [route.primary, ...route.fallback];
   return chain.map((id) => PROVIDERS[id]!).filter((p) => p.isAvailable());
 }
-
-// ────────────────────────────────────────────────────────────
-// Pricing — port từ lib/observability/cost.ts calcCostUsd
-// ────────────────────────────────────────────────────────────
 
 const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number }> = {
   'claude-sonnet-4-6': { inputPerM: 3, outputPerM: 15 },
@@ -264,7 +217,6 @@ const MODEL_PRICING: Record<string, { inputPerM: number; outputPerM: number }> =
   'voyage-3-large': { inputPerM: 0.18, outputPerM: 0 },
 };
 
-/** Tính cost USD từ model + token. Unknown model → 0 (free tier, không charge thừa). */
 function calcCostUsd(modelId: string, promptTokens: number, completionTokens: number): number {
   const pricing = MODEL_PRICING[modelId];
   if (!pricing) return 0;
@@ -273,11 +225,6 @@ function calcCostUsd(modelId: string, promptTokens: number, completionTokens: nu
   return Number(cost.toFixed(6));
 }
 
-/**
- * Estimate cost từ input tokens + max output cap — port từ web
- * cost-guardrail.estimateCostUsd. Conservative: dùng output cap thay vì
- * expected output (chống underestimate).
- */
 function estimateCostUsd(args: {
   inputTokens: number;
   maxOutputTokens: number;
@@ -285,31 +232,22 @@ function estimateCostUsd(args: {
   outputPerMUsd: number;
 }): number {
   return (
-    (args.inputTokens * args.inputPerMUsd + args.maxOutputTokens * args.outputPerMUsd) /
-    1_000_000
+    (args.inputTokens * args.inputPerMUsd + args.maxOutputTokens * args.outputPerMUsd) / 1_000_000
   );
 }
 
-// ────────────────────────────────────────────────────────────
-// Anthropic prompt cache helpers — port từ lib/ai/prompt-cache.ts
-// (chỉ router dùng nên inline ở đây thay vì file riêng)
-// ────────────────────────────────────────────────────────────
-
-/** Min char để cân nhắc cache (~1024 token với 3 char/token VN). */
 const MIN_CACHE_CHARS = 3_500;
 
 function estimateTokensFromChars(text: string): number {
   return Math.ceil(text.length / 3);
 }
 
-/** Chỉ Anthropic + system đủ dài (Anthropic reject cache < 1024 token). */
 function shouldEnableCache(provider: string, systemLength: number): boolean {
   if (provider !== 'anthropic') return false;
   if (systemLength < MIN_CACHE_CHARS) return false;
   return true;
 }
 
-/** System message với cacheControl ephemeral — null nếu system quá ngắn. */
 function buildCachedMessages(system: string, messages: CoreMessage[]): CoreMessage[] | null {
   if (estimateTokensFromChars(system) < 1024) {
     return null;
@@ -329,7 +267,6 @@ function buildCachedMessages(system: string, messages: CoreMessage[]): CoreMessa
 type PromptCacheStats = {
   cacheCreationTokens: number;
   cacheReadTokens: number;
-  /** True nếu có cache read (= cache hit ở previous request). */
   cacheHit: boolean;
 };
 
@@ -346,34 +283,19 @@ function extractCacheStats(providerMetadata: unknown): PromptCacheStats {
   };
 }
 
-// ────────────────────────────────────────────────────────────
-// Public types
-// ────────────────────────────────────────────────────────────
-
 export type RoutedStreamOptions = {
   useCase: UseCase;
   userId: string;
   plan: Plan;
-  /** Estimate input tokens — caller có thể đếm trước hoặc dùng heuristic. */
   estimatedInputTokens?: number;
   system?: string;
   messages: CoreMessage[];
-  /** Override maxOutputTokens từ route default. */
   maxOutputTokens?: number;
-  /** Feature tag cho cost breakdown analytics. */
   feature?: string;
-  /** Per-message timeout (ms). */
   timeoutMs?: number;
-  /** Anthropic prompt caching — default true cho Anthropic provider. */
   enablePromptCache?: boolean;
-  /**
-   * Semantic cache (Redis exact-hash). Default false — caller opt-in.
-   * KHÔNG bật cho conversational (mỗi msg depend prev).
-   */
   enableSemanticCache?: boolean;
-  /** Scope cache: 'user' (default, safe) hoặc 'shared' cho factual content. */
   cacheScope?: CacheScope;
-  /** TTL cache (sec). Default 300. */
   cacheTtlSec?: number;
 };
 
@@ -384,24 +306,15 @@ export type RoutedFinishInfo = {
   modelId: string;
   providerId: ProviderId;
   costUsd: number;
-  /** True nếu Anthropic prompt cache hit (hoặc semantic cache hit). */
   cacheHit: boolean;
-  /** Number of cached tokens read (for analytics). */
   cacheReadTokens: number;
 };
 
 export type RoutedStreamResult = {
   textStream: AsyncIterable<string>;
-  /** Resolve khi stream xong. Trả meta info. */
   finishPromise: Promise<RoutedFinishInfo>;
-  /** Provider thực sự được dùng (sau fallback). */
   providerUsed: ProviderId;
   modelUsed: ModelId;
-  /**
-   * Raw streamText result — caller dùng mergeIntoDataStream/pipeDataStream...
-   * Với semantic-cache hit đây là STUB (chỉ có textStream) — caller phải kiểm
-   * cacheHit trước khi dùng mergeIntoDataStream.
-   */
   result: StreamTextResult;
 };
 
@@ -413,10 +326,6 @@ export type RoutedGenerateResult = {
   providerId: ProviderId;
   costUsd: number;
 };
-
-// ────────────────────────────────────────────────────────────
-// Errors (shape giữ y web — chat route map status theo instanceof)
-// ────────────────────────────────────────────────────────────
 
 export class CostGuardrailError extends Error {
   override name = 'CostGuardrailError';
@@ -438,12 +347,11 @@ export class AllProvidersFailedError extends Error {
   }
 }
 
-/** Heuristic 3 ký tự/token (VN-safe) — chỉ để estimate cost, không cần chính xác. */
 function estimateInputTokens(opts: RoutedStreamOptions): number {
   const systemLen = opts.system?.length ?? 0;
   const messagesLen = opts.messages.reduce((sum, m) => {
     if (typeof m.content === 'string') return sum + m.content.length;
-    return sum + 100; // multimodal, estimate
+    return sum + 100;
   }, 0);
   return Math.ceil((systemLen + messagesLen) / 3);
 }
@@ -456,11 +364,6 @@ export class RouterService {
     private readonly semanticCache: SemanticCacheService,
   ) {}
 
-  /**
-   * Stream LLM response với fallback chain + guardrail tự động.
-   * Flow: chain → semantic cache lookup (opt-in, TRƯỚC guardrail vì hit=free)
-   * → guardrail → loop chain qua circuit breaker → executeStream.
-   */
   async routedStreamText(opts: RoutedStreamOptions): Promise<RoutedStreamResult> {
     const chain = getProviderChain(opts.useCase);
     if (chain.length === 0) {
@@ -473,7 +376,6 @@ export class RouterService {
     const route = ROUTES[opts.useCase];
     const maxOut = opts.maxOutputTokens ?? route.maxOutputTokens;
 
-    // Estimate cost với primary (worst case nếu fallback rẻ hơn)
     const primary = chain[0]!;
     const estimatedInput = opts.estimatedInputTokens ?? estimateInputTokens(opts);
     const estimatedCost = estimateCostUsd({
@@ -483,7 +385,6 @@ export class RouterService {
       outputPerMUsd: primary.outputPerM,
     });
 
-    // ── Semantic cache lookup (TRƯỚC guardrail vì hit = free) ─────────
     if (opts.enableSemanticCache && opts.system) {
       const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
       const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
@@ -497,13 +398,11 @@ export class RouterService {
         });
         await this.semanticCache.recordCacheStat(opts.useCase, !!cachedResp);
         if (cachedResp) {
-          // Hit — stream cached text mimic streamText. KHÔNG record cost.
           return buildCachedResult(cachedResp);
         }
       }
     }
 
-    // Cost guardrail — deny nếu vượt
     const guard = await this.guardrail.check({
       userId: opts.userId,
       plan: opts.plan,
@@ -519,7 +418,6 @@ export class RouterService {
       throw new CostGuardrailError(guard.message, guard.reason);
     }
 
-    // Try chain — primary trước, fallback nếu circuit OPEN hoặc lỗi
     let lastError: Error | undefined;
     for (const pm of chain) {
       const circuitName = `llm:${pm.provider}:${pm.model}`;
@@ -535,9 +433,8 @@ export class RouterService {
             circuit: circuitName,
             use_case: opts.useCase,
           });
-          continue; // try next fallback
+          continue;
         }
-        // Lỗi khác (rate limit provider, network, etc.) → cũng fallback
         logger.warn('ai-router.provider_failed', {
           circuit: circuitName,
           use_case: opts.useCase,
@@ -553,7 +450,6 @@ export class RouterService {
     );
   }
 
-  /** Non-streaming variant — cho task batch (classify, quick-gen, summarize). */
   async routedGenerateText(opts: RoutedStreamOptions): Promise<RoutedGenerateResult> {
     const chain = getProviderChain(opts.useCase);
     if (chain.length === 0) {
@@ -571,7 +467,6 @@ export class RouterService {
       outputPerMUsd: primary.outputPerM,
     });
 
-    // ── Semantic cache lookup — result trả full text 1 lần (không stream) ──
     if (opts.enableSemanticCache && opts.system) {
       const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
       const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
@@ -591,7 +486,7 @@ export class RouterService {
             completionTokens: cachedResp.completionTokens,
             modelId: cachedResp.modelId,
             providerId: cachedResp.providerId as ProviderId,
-            costUsd: 0, // cache hit = free
+            costUsd: 0,
           };
         }
       }
@@ -645,11 +540,9 @@ export class RouterService {
             user_id: opts.userId,
           });
 
-          // Save vào cache nếu opt-in. Best-effort, không block return.
           if (opts.enableSemanticCache && opts.system) {
             const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
-            const queryText =
-              typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+            const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
             if (queryText) {
               void this.semanticCache.setCachedResponse({
                 useCase: opts.useCase,
@@ -694,7 +587,6 @@ export class RouterService {
     throw new AllProvidersFailedError(`Tất cả ${chain.length} provider thất bại`, lastError);
   }
 
-  /** Helper: thực sự stream từ 1 provider — onFinish record cost + resolve finishPromise. */
   private executeStream(args: {
     model: LanguageModel;
     providerModel: ProviderModel;
@@ -703,20 +595,18 @@ export class RouterService {
   }): RoutedStreamResult {
     const { model, providerModel, opts, maxOut } = args;
 
-    // Decide prompt caching — default ON cho Anthropic + system đủ dài.
     const enableCache =
       (opts.enablePromptCache ?? true) &&
       !!opts.system &&
       shouldEnableCache(providerModel.provider, opts.system.length);
 
-    // Build messages: cached pattern (system in array với cacheControl) hoặc raw.
     let finalMessages: CoreMessage[];
     let finalSystem: string | undefined;
     if (enableCache && opts.system) {
       const cachedMsgs = buildCachedMessages(opts.system, opts.messages);
       if (cachedMsgs) {
         finalMessages = cachedMsgs;
-        finalSystem = undefined; // system trong messages array rồi
+        finalSystem = undefined;
       } else {
         finalMessages = opts.messages;
         finalSystem = opts.system;
@@ -743,12 +633,14 @@ export class RouterService {
       maxTokens: maxOut,
       abortSignal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
       onFinish: async ({ text, usage, providerMetadata }) => {
-        // Parse cache stats — chỉ Anthropic populate
         const cacheStats = extractCacheStats(providerMetadata);
 
-        const costUsd = calcCostUsd(providerModel.model, usage.promptTokens, usage.completionTokens);
+        const costUsd = calcCostUsd(
+          providerModel.model,
+          usage.promptTokens,
+          usage.completionTokens,
+        );
 
-        // Record actual cost — không block stream.
         await guardrail.record({
           userId: opts.userId,
           plan: opts.plan,
@@ -760,7 +652,6 @@ export class RouterService {
           tokensOut: usage.completionTokens,
         });
 
-        // Save vào semantic cache nếu enabled (best-effort)
         if (opts.enableSemanticCache && opts.system) {
           const lastUserMsg = [...opts.messages].reverse().find((m) => m.role === 'user');
           const queryText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
@@ -830,11 +721,6 @@ export class RouterService {
   }
 }
 
-/**
- * Build RoutedStreamResult từ cached response — mimic streamText interface.
- * costUsd=0 + cacheHit=true; result raw là STUB — caller phải kiểm cacheHit
- * trước khi dùng mergeIntoDataStream.
- */
 function buildCachedResult(cached: CachedResponse): RoutedStreamResult {
   const stream = streamCachedText(cached.text);
   const finish = Promise.resolve({
@@ -843,8 +729,8 @@ function buildCachedResult(cached: CachedResponse): RoutedStreamResult {
     completionTokens: cached.completionTokens,
     modelId: cached.modelId,
     providerId: cached.providerId as ProviderId,
-    costUsd: 0, // cache hit = free
-    cacheHit: true, // wire semantic hit qua field này (reuse Anthropic field)
+    costUsd: 0,
+    cacheHit: true,
     cacheReadTokens: cached.promptTokens,
   });
   return {
@@ -852,7 +738,6 @@ function buildCachedResult(cached: CachedResponse): RoutedStreamResult {
     finishPromise: finish,
     providerUsed: cached.providerId as ProviderId,
     modelUsed: cached.modelId,
-    // Stub result — caller phải check cacheHit trước khi dùng mergeIntoDataStream
     result: {
       textStream: stream,
     } as unknown as StreamTextResult,

@@ -1,9 +1,3 @@
-/**
- * /tutoring/requests/new — student post yêu cầu tìm gia sư.
- *
- * Form: title + description + subject + level + budget + modality + urgency.
- * Sau khi tạo → redirect /tutoring/requests/[id] để student thấy applications.
- */
 import { redirect } from 'next/navigation';
 
 import { getServerSession } from '@/lib/auth-server';

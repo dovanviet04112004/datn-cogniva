@@ -1,15 +1,3 @@
-/**
- * usePomodoroEnabled — hook đọc/ghi preference hiện Pomodoro widget trên topbar.
- *
- * Storage: localStorage key `cogniva.pomodoro-enabled`. Default false (off cho
- * user mới — feature opt-in, tránh clutter UI lần đầu vào).
- *
- * Cross-tab sync: lắng nghe `storage` event để khi user toggle ở Settings tab
- * → Topbar tab cũng update real-time.
- *
- * SSR: trả false trong render đầu tiên (chưa có localStorage), useEffect đọc
- * sau mount → tránh hydration mismatch.
- */
 'use client';
 
 import * as React from 'react';
@@ -20,18 +8,14 @@ export function usePomodoroEnabled(): [boolean, (next: boolean) => void] {
   const [enabled, setEnabled] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
 
-  // Đọc localStorage sau mount để tránh hydration mismatch
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       setEnabled(raw === 'true');
-    } catch {
-      /* ignore */
-    }
+    } catch {}
     setHydrated(true);
   }, []);
 
-  // Cross-tab sync — khi tab khác đổi → tab hiện tại update theo
   React.useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
@@ -46,11 +30,8 @@ export function usePomodoroEnabled(): [boolean, (next: boolean) => void] {
     setEnabled(next);
     try {
       localStorage.setItem(STORAGE_KEY, String(next));
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }, []);
 
-  // Pre-hydration: luôn trả false để SSR/CSR khớp
   return [hydrated && enabled, update];
 }

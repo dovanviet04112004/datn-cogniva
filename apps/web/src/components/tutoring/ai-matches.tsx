@@ -1,9 +1,3 @@
-/**
- * AiMatches — hiển thị top 5 gia sư AI suggest cho 1 request.
- *
- * Lazy fetch /api/tutoring/matches?requestId=... khi user click "Gợi ý AI".
- * Mỗi card có score 0-1, link tới tutor profile để book.
- */
 'use client';
 
 import * as React from 'react';
@@ -39,9 +33,7 @@ export function AiMatches({ requestId }: { requestId: string }) {
     setLoading(true);
     setOpen(true);
     try {
-      const res = await fetch(
-        `/api/tutoring/matches?requestId=${encodeURIComponent(requestId)}`,
-      );
+      const res = await fetch(`/api/tutoring/matches?requestId=${encodeURIComponent(requestId)}`);
       if (!res.ok) {
         const e = (await res.json().catch(() => null)) as { error?: unknown } | null;
         throw new Error(typeof e?.error === 'string' ? e.error : 'AI match lỗi');
@@ -57,14 +49,12 @@ export function AiMatches({ requestId }: { requestId: string }) {
 
   if (!open) {
     return (
-      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-5 text-center">
-        <Sparkles className="mx-auto mb-2 h-5 w-5 text-primary" />
-        <p className="text-sm font-semibold tracking-tight">
-          Tìm gia sư phù hợp bằng AI
-        </p>
-        <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-          AI sẽ match yêu cầu của bạn với gia sư có chuyên môn gần nhất (dùng
-          vector embedding cosine).
+      <div className="border-primary/20 from-primary/5 rounded-2xl border bg-gradient-to-br to-transparent p-5 text-center">
+        <Sparkles className="text-primary mx-auto mb-2 h-5 w-5" />
+        <p className="text-sm font-semibold tracking-tight">Tìm gia sư phù hợp bằng AI</p>
+        <p className="text-muted-foreground mx-auto mt-1 max-w-md text-xs">
+          AI sẽ match yêu cầu của bạn với gia sư có chuyên môn gần nhất (dùng vector embedding
+          cosine).
         </p>
         <div className="mt-3">
           <Button type="button" onClick={fetchMatches}>
@@ -78,16 +68,15 @@ export function AiMatches({ requestId }: { requestId: string }) {
 
   return (
     <div className="space-y-3">
-      {/* Tiêu đề mục dùng SectionHeading chung */}
       <SectionHeading className="mb-0">AI gợi ý</SectionHeading>
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
         </div>
       ) : !matches || matches.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-divider bg-card/40 p-6 text-center">
-          <p className="text-xs text-muted-foreground">
+        <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
+          <p className="text-muted-foreground text-xs">
             Chưa tìm thấy match phù hợp. Browse /tutoring để tìm thủ công nhé.
           </p>
         </div>
@@ -99,9 +88,9 @@ export function AiMatches({ requestId }: { requestId: string }) {
               <li key={m.tutorId}>
                 <Link
                   href={`/tutors/${m.tutorId}`}
-                  className="group/m flex items-center gap-3 rounded-xl bg-card p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+                  className="group/m bg-card shadow-soft hover:shadow-elevated flex items-center gap-3 rounded-xl p-4 transition-all hover:-translate-y-0.5"
                 >
-                  <Avatar className="h-11 w-11 ring-2 ring-primary/15">
+                  <Avatar className="ring-primary/15 h-11 w-11 ring-2">
                     <AvatarImage src={m.avatarUrl ?? undefined} />
                     <AvatarFallback>{(m.name ?? '?')[0]?.toUpperCase()}</AvatarFallback>
                   </Avatar>
@@ -123,16 +112,16 @@ export function AiMatches({ requestId }: { requestId: string }) {
                         {Math.round(m.score * 100)}% match
                       </span>
                     </div>
-                    <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                    <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[11px]">
                       {m.headline}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-text-muted">
-                      <span className="font-mono tabular-nums">{priceK}K/giờ</span>{' '}
-                      · {m.sessionsCompleted} buổi
+                    <p className="text-text-muted mt-0.5 text-[11px]">
+                      <span className="font-mono tabular-nums">{priceK}K/giờ</span> ·{' '}
+                      {m.sessionsCompleted} buổi
                       {m.ratingAvg !== null && ` · ★${m.ratingAvg.toFixed(1)}`}
                     </p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover/m:text-foreground" />
+                  <ChevronRight className="text-muted-foreground/40 group-hover/m:text-foreground h-4 w-4" />
                 </Link>
               </li>
             );

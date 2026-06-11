@@ -1,8 +1,3 @@
-/**
- * Kiểu session/user gắn vào request sau khi AuthGuard verify.
- * Trùng shape Better Auth lưu trong Redis `ba:<token>` = JSON {session, user}
- * — chỉ khai các field hệ thống thực sự dùng.
- */
 export interface AuthUser {
   id: string;
   email: string;

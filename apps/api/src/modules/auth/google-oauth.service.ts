@@ -1,9 +1,3 @@
-/**
- * GoogleOauthService — OAuth 2.0 authorization-code flow tự triển khai
- * (không passport): build URL → exchange code → verify id_token bằng JWKS
- * Google (jose) → upsert user/account. Conditional theo env như hệ cũ:
- * thiếu GOOGLE_CLIENT_ID/SECRET → endpoint trả 503.
- */
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
@@ -43,7 +37,6 @@ export class GoogleOauthService {
     }
   }
 
-  /** redirect_uri đi QUA proxy cùng origin (APP_URL) — đăng ký URI này ở Google console. */
   private redirectUri(): string {
     return `${this.config.get<string>('APP_URL')}/api/auth/google/callback`;
   }
@@ -94,7 +87,6 @@ export class GoogleOauthService {
     };
   }
 
-  /** Upsert theo thứ tự: account google đã link → user trùng email (link thêm) → user mới. */
   async upsertUser(profile: GoogleProfile) {
     const linked = await this.prisma.account.findFirst({
       where: { provider_id: PROVIDER, account_id: profile.sub },

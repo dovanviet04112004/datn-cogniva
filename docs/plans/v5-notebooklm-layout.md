@@ -30,6 +30,7 @@ User đã test Phase A-D, feedback (2026-05-20):
 > "nhìn rối phức tạp quá trời ơi... thao tác học đang quá phức tạp."
 
 Workflow hiện tại để học 1 vòng đầy đủ:
+
 1. Vào `/workspaces/[id]`
 2. Click tab Practice
 3. Click 1 atom
@@ -45,22 +46,24 @@ Workflow hiện tại để học 1 vòng đầy đủ:
 
 ## 2. Đối chiếu NotebookLM vs Cogniva
 
-| | NotebookLM | Cogniva hiện tại |
-|---|---|---|
-| Layout chính | 3 cột: Sources · Chat · Studio | 5 tab cùng cấp |
-| Chat | Trung tâm, full view | 1 trong 7 entry |
-| Sources scope | Checkbox inline | Pill ẩn trong chat |
-| Outputs | Recipes click 1 nút (Study Guide, Audio Overview) | Click "AI generate" nhiều bước |
-| SRS / mastery | ❌ | ✅ |
-| Exam | ❌ | ✅ |
-| Số click 1 task | 1-2 | 4-6 |
+|                 | NotebookLM                                        | Cogniva hiện tại               |
+| --------------- | ------------------------------------------------- | ------------------------------ |
+| Layout chính    | 3 cột: Sources · Chat · Studio                    | 5 tab cùng cấp                 |
+| Chat            | Trung tâm, full view                              | 1 trong 7 entry                |
+| Sources scope   | Checkbox inline                                   | Pill ẩn trong chat             |
+| Outputs         | Recipes click 1 nút (Study Guide, Audio Overview) | Click "AI generate" nhiều bước |
+| SRS / mastery   | ❌                                                | ✅                             |
+| Exam            | ❌                                                | ✅                             |
+| Số click 1 task | 1-2                                               | 4-6                            |
 
 **Học gì từ NotebookLM:**
+
 - Chat là **default view**, không phải sub-menu
 - Recipes pre-built thay vì "user tự chọn feature"
 - Sources panel có checkbox để scope inline
 
 **Giữ gì từ Cogniva:**
+
 - Atom + SRS + BKT mastery engine (Phase A-D backend đã ship)
 - Knowledge graph
 - Study plan SRS due
@@ -78,28 +81,28 @@ flashcard, mind map).
 
 ### 3.2. Bỏ những route nào trong workspace
 
-| Hiện tại | V5 | Lý do |
-|---|---|---|
-| Tab "Documents" trong workspace | → Sources panel | Inline luôn, có checkbox scope |
-| Tab "Notes" | → Sources panel (section dưới) | Cùng nhóm "user content" |
-| Tab "Practice" | → Studio recipes + Sources atom list | Không có khái niệm "tab Practice", chỉ có recipe "Flashcard" / "Quiz" |
-| Tab "Chats" | → Center panel (chat là default) | Chat là center, không cần tab riêng |
-| Tab "Overview" | → bỏ | Stats nhỏ ghép vào header workspace |
-| /workspaces/[id]/atoms/[atomId] | giữ làm deep link, embed trong main panel khi click atom | Atom detail vẫn cần |
+| Hiện tại                        | V5                                                       | Lý do                                                                 |
+| ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tab "Documents" trong workspace | → Sources panel                                          | Inline luôn, có checkbox scope                                        |
+| Tab "Notes"                     | → Sources panel (section dưới)                           | Cùng nhóm "user content"                                              |
+| Tab "Practice"                  | → Studio recipes + Sources atom list                     | Không có khái niệm "tab Practice", chỉ có recipe "Flashcard" / "Quiz" |
+| Tab "Chats"                     | → Center panel (chat là default)                         | Chat là center, không cần tab riêng                                   |
+| Tab "Overview"                  | → bỏ                                                     | Stats nhỏ ghép vào header workspace                                   |
+| /workspaces/[id]/atoms/[atomId] | giữ làm deep link, embed trong main panel khi click atom | Atom detail vẫn cần                                                   |
 
 ### 3.3. Standalone pages (ngoài workspace)
 
-| Page | Số phận |
-|---|---|
-| `/dashboard` | Giữ, summary cross-workspace |
-| `/workspaces` | Giữ, list cards |
-| `/study-plan` | Giữ — daily plan cross-workspace |
-| `/graph` | Giữ — global knowledge graph |
-| `/flashcards` review | Giữ — review cross-workspace queue |
-| `/quiz` | Giữ — quiz list/history |
-| `/exams` | Giữ — exam list (exam vốn cross-workspace) |
+| Page                  | Số phận                                         |
+| --------------------- | ----------------------------------------------- |
+| `/dashboard`          | Giữ, summary cross-workspace                    |
+| `/workspaces`         | Giữ, list cards                                 |
+| `/study-plan`         | Giữ — daily plan cross-workspace                |
+| `/graph`              | Giữ — global knowledge graph                    |
+| `/flashcards` review  | Giữ — review cross-workspace queue              |
+| `/quiz`               | Giữ — quiz list/history                         |
+| `/exams`              | Giữ — exam list (exam vốn cross-workspace)      |
 | `/chat`, `/chat/[id]` | Giữ — chat persisted full-page (link từ drawer) |
-| `/notes` | Giữ — global notes |
+| `/notes`              | Giữ — global notes                              |
 
 **Sidebar nav:** Workspaces · Study Plan · Documents (global) · Graph · Flashcards
 · Exams · Chats. Bỏ: `Quiz` standalone (vào workspace Studio thay), `Atoms`
@@ -203,6 +206,7 @@ all checked. User uncheck để focus.
 ```
 
 Mỗi recipe:
+
 - Icon + name + tooltip
 - Click → main panel swap sang recipe view
 - Estimated time / count nhỏ (vd "~15 phút", "12 atom")
@@ -232,6 +236,7 @@ Auto chain — user chỉ tap qua:
 ```
 
 Chain steps:
+
 1. **Warm-up** (1') — 1 atom đã master để build confidence
 2. **SRS review** (5') — 5 atom due, mỗi atom 1-2 FC
 3. **Atom mới** (5') — 2 atom new: đọc def 30s + 2 FC ngay
@@ -249,18 +254,21 @@ LLM gen markdown long-form dài ~500-800 từ:
 # Atom guide: HePhanTan workspace
 
 ## Lamport timestamp 🟢 (master 92%)
+
 **Định nghĩa:** ...
 **Ví dụ:** ...
 **Câu tự hỏi:** Khi nào dùng vector clock thay vì Lamport?
 
 ## Vector clock 🟡 (đang học 45%)
+
 ...
 
 ## So sánh
-| Concept | Pros | Cons |
-|---|---|---|
-| Lamport | đơn giản | không detect concurrent |
-| Vector | full causality | overhead O(n) |
+
+| Concept | Pros           | Cons                    |
+| ------- | -------------- | ----------------------- |
+| Lamport | đơn giản       | không detect concurrent |
+| Vector  | full causality | overhead O(n)           |
 ```
 
 Cached LLM call. Re-gen khi user thêm doc mới hoặc atom mới.
@@ -292,10 +300,11 @@ chuyển sang phiên 15 phút hoặc về chat.
 **V5.1.4** ✅ [main-panel.tsx](../../apps/web/src/components/workspaces/v5/main-panel.tsx) switcher + [views/chat-view.tsx](../../apps/web/src/components/workspaces/v5/views/chat-view.tsx) — ChatView dùng useChat, body forward `workspaceId` + `documentIds` (từ selectedDocs) + `atomIds` (từ selectedAtoms). Top strip show scope hint.
 **V5.1.5** ✅ [views/recipe-stub.tsx](../../apps/web/src/components/workspaces/v5/views/recipe-stub.tsx) — placeholder cho 6 view chưa ship (session/flashcard/quiz/atom-guide/mind-map/briefing) với eta + "Quay lại chat" button.
 **V5.1.6** ✅ [workspace-notebook.tsx](../../apps/web/src/components/workspaces/v5/workspace-notebook.tsx) — root layout 3 cột (Sources 280px · Main flex-1 · Studio 300px), header compact với edit/delete inline. Mobile (<lg): chỉ Main panel, banner thông báo V5.4.
-**V5.1.7** ✅ [workspaces/[id]/page.tsx](../../apps/web/src/app/(app)/workspaces/[id]/page.tsx) — replace `WorkspaceDetailClient` (V4 tabs) bằng `WorkspaceNotebook`. Server chỉ fetch documents (counts/notes Sources fetch client).
+**V5.1.7** ✅ [workspaces/[id]/page.tsx](<../../apps/web/src/app/(app)/workspaces/[id]/page.tsx>) — replace `WorkspaceDetailClient` (V4 tabs) bằng `WorkspaceNotebook`. Server chỉ fetch documents (counts/notes Sources fetch client).
 **V5.1.8** ✅ [upload-document-dialog.tsx](../../apps/web/src/components/documents/upload-document-dialog.tsx) — thêm controlled mode (`open` + `onOpenChange` + `onUploaded` callback) để Sources panel mở từ button "Upload" externally.
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test cần làm:
   1. Vào `/workspaces/<id>` → thấy 3 cột Sources / Chat / Studio thay vì tabs
@@ -306,6 +315,7 @@ chuyển sang phiên 15 phút hoặc về chat.
   6. URL deep link `?view=session` route đúng
 
 **Deferred Phase V5.1+:**
+
 - Mobile drawer toggle cho Sources/Studio (V5.4)
 - Workspace-scoped upload pin (hiện AI auto-route — user phải move manual nếu wrong)
 - Notes inline create (hiện link sang /notes/new)
@@ -316,27 +326,29 @@ chuyển sang phiên 15 phút hoặc về chat.
 **V5.2.0 (cleanup)** ✅ Xoá 10 file V4 unused: `workspace-detail-client.tsx`, `today-card.tsx`, toàn bộ `tabs/*.tsx` (overview/documents/notes/practice/flashcards/quizzes/exams/chats). Typecheck pass — không có file nào ngoài V4 self-reference.
 
 **V5.2.1** ✅ [session-view.tsx](../../apps/web/src/components/workspaces/v5/views/session-view.tsx) — SessionPlayer phiên 15p:
-  - Load `/api/study-plan/today` + `/api/flashcards/queue?workspaceId=` parallel
-  - State machine 3 step: review FC → new atom → summary (V5.2 MVP, defer warm-up + quiz step)
-  - Review: cycle qua queue, reveal answer, rating 1-4 → POST review API → applyAttempt tự fire
-  - New atom: show definition + previewQ/A, button "Đã nắm" để next
-  - Summary: stats (reviewed, accuracy, new atoms) + nút làm lại / quay chat
-  - Progress indicator step + %
-**V5.2.2** ✅ [flashcard-view.tsx](../../apps/web/src/components/workspaces/v5/views/flashcard-view.tsx) — embedded `<ReviewSession workspaceId={X}>`. Extend `/api/flashcards/queue?workspaceId=X` filter. Header có "Quay lại chat".
-**V5.2.3** ✅ [quick-quiz-view.tsx](../../apps/web/src/components/workspaces/v5/views/quick-quiz-view.tsx) — ephemeral quiz 5 câu:
-  - API [`GET /api/workspaces/[id]/quick-quiz`](../../apps/web/src/app/api/workspaces/[id]/quick-quiz/route.ts): RANDOM 5 question từ concept của workspace
-  - API [`POST /api/questions/[id]/grade`](../../apps/web/src/app/api/questions/[id]/grade/route.ts): grade single Q + applyAttempt — ephemeral, KHÔNG persist response
-  - UI: 1 câu/lần, options A/B/C, kiểm tra → reveal + explanation + next
-  - Summary: correct/total + %
-**V5.2.4** ✅ [atom-guide-view.tsx](../../apps/web/src/components/workspaces/v5/views/atom-guide-view.tsx) — LLM markdown study guide:
-  - API [`GET /api/workspaces/[id]/atom-guide`](../../apps/web/src/app/api/workspaces/[id]/atom-guide/route.ts): routedGenerateText useCase='summarize', load top 20 atom + mastery, prompt sinh markdown 500-800 từ
-  - In-memory cache 24h per (workspace × user); query `?regenerate=1` force refresh
-  - UI: `react-markdown` + `remark-gfm` render với inline Tailwind utility styles (project chưa bundle @tailwindcss/typography)
-  - Header có "Regenerate" button + cache age indicator
-**V5.2.5** ✅ [main-panel.tsx](../../apps/web/src/components/workspaces/v5/main-panel.tsx) switch case render 4 views; stub chỉ còn mind-map / briefing (V5.3).
-**V5.2.6** ✅ [studio-panel.tsx](../../apps/web/src/components/workspaces/v5/studio-panel.tsx) bỏ badge "Soon" cho atom-guide; còn lại mind-map / briefing.
+
+- Load `/api/study-plan/today` + `/api/flashcards/queue?workspaceId=` parallel
+- State machine 3 step: review FC → new atom → summary (V5.2 MVP, defer warm-up + quiz step)
+- Review: cycle qua queue, reveal answer, rating 1-4 → POST review API → applyAttempt tự fire
+- New atom: show definition + previewQ/A, button "Đã nắm" để next
+- Summary: stats (reviewed, accuracy, new atoms) + nút làm lại / quay chat
+- Progress indicator step + %
+  **V5.2.2** ✅ [flashcard-view.tsx](../../apps/web/src/components/workspaces/v5/views/flashcard-view.tsx) — embedded `<ReviewSession workspaceId={X}>`. Extend `/api/flashcards/queue?workspaceId=X` filter. Header có "Quay lại chat".
+  **V5.2.3** ✅ [quick-quiz-view.tsx](../../apps/web/src/components/workspaces/v5/views/quick-quiz-view.tsx) — ephemeral quiz 5 câu:
+- API [`GET /api/workspaces/[id]/quick-quiz`](../../apps/web/src/app/api/workspaces/[id]/quick-quiz/route.ts): RANDOM 5 question từ concept của workspace
+- API [`POST /api/questions/[id]/grade`](../../apps/web/src/app/api/questions/[id]/grade/route.ts): grade single Q + applyAttempt — ephemeral, KHÔNG persist response
+- UI: 1 câu/lần, options A/B/C, kiểm tra → reveal + explanation + next
+- Summary: correct/total + %
+  **V5.2.4** ✅ [atom-guide-view.tsx](../../apps/web/src/components/workspaces/v5/views/atom-guide-view.tsx) — LLM markdown study guide:
+- API [`GET /api/workspaces/[id]/atom-guide`](../../apps/web/src/app/api/workspaces/[id]/atom-guide/route.ts): routedGenerateText useCase='summarize', load top 20 atom + mastery, prompt sinh markdown 500-800 từ
+- In-memory cache 24h per (workspace × user); query `?regenerate=1` force refresh
+- UI: `react-markdown` + `remark-gfm` render với inline Tailwind utility styles (project chưa bundle @tailwindcss/typography)
+- Header có "Regenerate" button + cache age indicator
+  **V5.2.5** ✅ [main-panel.tsx](../../apps/web/src/components/workspaces/v5/main-panel.tsx) switch case render 4 views; stub chỉ còn mind-map / briefing (V5.3).
+  **V5.2.6** ✅ [studio-panel.tsx](../../apps/web/src/components/workspaces/v5/studio-panel.tsx) bỏ badge "Soon" cho atom-guide; còn lại mind-map / briefing.
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test cần làm:
   1. Vào `/workspaces/<id>` → bấm "Phiên 15 phút" → review FC → new atom → summary
@@ -346,6 +358,7 @@ chuyển sang phiên 15 phút hoặc về chat.
   5. Mind map / Briefing → vẫn stub "Coming soon"
 
 **Deferred Phase V5.2+:**
+
 - SessionPlayer step quiz check (3 câu sau review + new) — V5.2 MVP skip
 - SessionPlayer warm-up step (1 atom đã master) — defer
 - Atom-guide persistent cache (V5.2 in-memory; V5.3 migrate table hoặc Redis)
@@ -355,22 +368,26 @@ chuyển sang phiên 15 phút hoặc về chat.
 ### Phase V5.3 — Mind map + Briefing (~1 ngày) — ✅ SHIPPED 2026-05-20
 
 **V5.3.1** ✅ MindMap embedded:
-  - [`listConceptsForWorkspace`](../../apps/web/src/lib/concepts/dedup.ts) helper mới — SQL DISTINCT concept JOIN chunk_concept JOIN chunk JOIN document WHERE workspace_id
-  - [`/api/graph?workspaceId=X`](../../apps/web/src/app/api/graph/route.ts) extend — pass workspaceId chuyển sang scope helper
-  - [GraphView](../../apps/web/src/components/graph/graph-view.tsx) + GraphCanvas thêm `workspaceId?: string` prop, append vào fetch URL
-  - [mind-map-view.tsx](../../apps/web/src/components/workspaces/v5/views/mind-map-view.tsx) — wrap `<GraphView workspaceId={X}>` với header "Quay lại chat" + link "Full graph" sang /graph global
+
+- [`listConceptsForWorkspace`](../../apps/web/src/lib/concepts/dedup.ts) helper mới — SQL DISTINCT concept JOIN chunk_concept JOIN chunk JOIN document WHERE workspace_id
+- [`/api/graph?workspaceId=X`](../../apps/web/src/app/api/graph/route.ts) extend — pass workspaceId chuyển sang scope helper
+- [GraphView](../../apps/web/src/components/graph/graph-view.tsx) + GraphCanvas thêm `workspaceId?: string` prop, append vào fetch URL
+- [mind-map-view.tsx](../../apps/web/src/components/workspaces/v5/views/mind-map-view.tsx) — wrap `<GraphView workspaceId={X}>` với header "Quay lại chat" + link "Full graph" sang /graph global
 
 **V5.3.2** ✅ Briefing Doc:
-  - API [`/api/workspaces/[id]/briefing`](../../apps/web/src/app/api/workspaces/[id]/briefing/route.ts) — load 5 chunk/doc max 25 total → LLM gen 200-300 từ markdown (cấu trúc: Tổng quan / Các phần chính / Bắt đầu từ đâu)
-  - In-memory cache 24h per (workspace × user), `?regenerate=1` force refresh
-  - [briefing-view.tsx](../../apps/web/src/components/workspaces/v5/views/briefing-view.tsx) — render react-markdown + remark-gfm với inline Tailwind utility, header có Regenerate button + cache age indicator
+
+- API [`/api/workspaces/[id]/briefing`](../../apps/web/src/app/api/workspaces/[id]/briefing/route.ts) — load 5 chunk/doc max 25 total → LLM gen 200-300 từ markdown (cấu trúc: Tổng quan / Các phần chính / Bắt đầu từ đâu)
+- In-memory cache 24h per (workspace × user), `?regenerate=1` force refresh
+- [briefing-view.tsx](../../apps/web/src/components/workspaces/v5/views/briefing-view.tsx) — render react-markdown + remark-gfm với inline Tailwind utility, header có Regenerate button + cache age indicator
 
 **V5.3.3** ✅ Cleanup:
-  - [main-panel.tsx](../../apps/web/src/components/workspaces/v5/main-panel.tsx) switch case: mind-map → MindMapView, briefing → BriefingView (không còn fallback stub)
-  - [studio-panel.tsx](../../apps/web/src/components/workspaces/v5/studio-panel.tsx) bỏ "Soon" badge cho mind-map + briefing — toàn bộ 7 recipes đã live
-  - Xoá `views/recipe-stub.tsx` (không còn view nào dùng)
+
+- [main-panel.tsx](../../apps/web/src/components/workspaces/v5/main-panel.tsx) switch case: mind-map → MindMapView, briefing → BriefingView (không còn fallback stub)
+- [studio-panel.tsx](../../apps/web/src/components/workspaces/v5/studio-panel.tsx) bỏ "Soon" badge cho mind-map + briefing — toàn bộ 7 recipes đã live
+- Xoá `views/recipe-stub.tsx` (không còn view nào dùng)
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test cần làm:
   1. Workspace có ≥ 2 atom → Studio "Mind map" → React Flow graph chỉ atoms của workspace, ConceptNode mastery color
@@ -380,6 +397,7 @@ chuyển sang phiên 15 phút hoặc về chat.
   5. Regenerate → fresh từ LLM
 
 **Toàn bộ V5 design intent đã đạt:**
+
 - 7 recipes trong Studio: Phiên 15p · Ôn flashcard · Quick Quiz · Tạo Exam · Atom guide · Mind map · Briefing doc
 - 1-2 click cho mỗi hoạt động (không phải 7-8 thao tác nhảy trang như V4)
 - Chat ở center luôn sẵn sàng + scope theo Sources checkbox
@@ -389,21 +407,24 @@ chuyển sang phiên 15 phút hoặc về chat.
 **V5.4.1** ✅ Sidebar verification — Quiz / Flashcards / Exams standalone đã KHÔNG có trong sidebar từ trước (chỉ Dashboard / Graph / Study Plan / Workspaces / AI Tutor / Groups / Messages / Leaderboard / Tutoring). Routes vẫn hoạt động qua deep link + Studio recipes.
 
 **V5.4.2** ✅ Atom detail page UX:
-  - [atom-detail-client.tsx](../../apps/web/src/components/atoms/atom-detail-client.tsx) header thêm button **"Mở trong workspace"** (Primary, prominent) → `Link` sang `/workspaces/[id]?view=chat`
-  - User deep-link tới atom detail có route quay về workspace notebook chính (Sources · Chat · Studio) thay vì chỉ breadcrumb back
-  - Icon `ArrowLeftRight` để indicate context switch
+
+- [atom-detail-client.tsx](../../apps/web/src/components/atoms/atom-detail-client.tsx) header thêm button **"Mở trong workspace"** (Primary, prominent) → `Link` sang `/workspaces/[id]?view=chat`
+- User deep-link tới atom detail có route quay về workspace notebook chính (Sources · Chat · Studio) thay vì chỉ breadcrumb back
+- Icon `ArrowLeftRight` để indicate context switch
 
 **V5.4.3** ✅ Mobile drawer toggle (deferred từ V5.1):
-  - [workspace-notebook.tsx](../../apps/web/src/components/workspaces/v5/workspace-notebook.tsx) thêm state `mobileSourcesOpen` + `mobileStudioOpen`
-  - Header có 2 button mobile-only: `PanelLeft` (trái, mở Sources) + `PanelRight` (phải, mở Studio)
-  - Drawer slide từ trái/phái với overlay backdrop `bg-black/50`, tap để đóng
-  - Width `85vw max-w-[320px]` — chiếm phần lớn mobile screen
-  - Desktop `>= lg`: drawer state ignored, panel inline (no change)
-  - Upload click trong mobile Sources tự đóng drawer trước khi mở dialog upload
+
+- [workspace-notebook.tsx](../../apps/web/src/components/workspaces/v5/workspace-notebook.tsx) thêm state `mobileSourcesOpen` + `mobileStudioOpen`
+- Header có 2 button mobile-only: `PanelLeft` (trái, mở Sources) + `PanelRight` (phải, mở Studio)
+- Drawer slide từ trái/phái với overlay backdrop `bg-black/50`, tap để đóng
+- Width `85vw max-w-[320px]` — chiếm phần lớn mobile screen
+- Desktop `>= lg`: drawer state ignored, panel inline (no change)
+- Upload click trong mobile Sources tự đóng drawer trước khi mở dialog upload
 
 **V5.4.4** ✅ Plan + memory cập nhật mark V5 done.
 
 **Verify:**
+
 - Typecheck `@cogniva/web` pass
 - Manual test mobile (< 1024px):
   1. Thấy 2 button PanelLeft/PanelRight ở header
@@ -422,44 +443,51 @@ chuyển sang phiên 15 phút hoặc về chat.
 User feedback sau V5.4: "nhìn rối phức tạp" + UI requests cụ thể. V6 ship 6 mục:
 
 **V6.1** ✅ Compact workspace header:
-  - Trước: header card to (~70px) với name + description + meta + edit/delete buttons
-  - Sau: 1 dòng 44px với breadcrumb inline + title + description + relative time + dropdown menu (MoreHorizontal) chứa Edit/Delete
-  - File: [workspace-notebook.tsx](../../apps/web/src/components/workspaces/v5/workspace-notebook.tsx)
+
+- Trước: header card to (~70px) với name + description + meta + edit/delete buttons
+- Sau: 1 dòng 44px với breadcrumb inline + title + description + relative time + dropdown menu (MoreHorizontal) chứa Edit/Delete
+- File: [workspace-notebook.tsx](../../apps/web/src/components/workspaces/v5/workspace-notebook.tsx)
 
 **V6.2** ✅ Xoá AI Tutor drawer global (Cmd+J từ Phase D):
-  - Workspace chat ở center thay thế hoàn toàn — drawer redundant
-  - Xoá 3 file: `ai-tutor-drawer.tsx`, `ai-tutor-context.tsx`, `ai-tutor-trigger.tsx`
-  - Bỏ AiTutorProvider khỏi `(app)/layout.tsx`, bỏ Sparkles button khỏi topbar
-  - Atom detail page giữ "Mở trong workspace" Primary button — bỏ "Hỏi AI Tutor" button (redundant)
+
+- Workspace chat ở center thay thế hoàn toàn — drawer redundant
+- Xoá 3 file: `ai-tutor-drawer.tsx`, `ai-tutor-context.tsx`, `ai-tutor-trigger.tsx`
+- Bỏ AiTutorProvider khỏi `(app)/layout.tsx`, bỏ Sparkles button khỏi topbar
+- Atom detail page giữ "Mở trong workspace" Primary button — bỏ "Hỏi AI Tutor" button (redundant)
 
 **V6.3** ✅ Desktop panel collapse no flicker:
-  - 2 panel toggle button (PanelLeft + PanelRight) ở compact header hoạt động CẢ desktop + mobile
-  - Desktop: `width transition` với cookie-persist `cogniva.ws-sources-open` + `.ws-studio-open` đọc server-side (page.tsx) tránh flicker khi reload
-  - Mobile: drawer slide pattern (cũ từ V5.4)
-  - Single state cho cả 2 viewport
+
+- 2 panel toggle button (PanelLeft + PanelRight) ở compact header hoạt động CẢ desktop + mobile
+- Desktop: `width transition` với cookie-persist `cogniva.ws-sources-open` + `.ws-studio-open` đọc server-side (page.tsx) tránh flicker khi reload
+- Mobile: drawer slide pattern (cũ từ V5.4)
+- Single state cho cả 2 viewport
 
 **V6.4** ✅ Multiple conversations per workspace:
-  - Migration không cần (conversation table đã có `workspaceId`)
-  - API [`GET /api/workspaces/[id]/conversations`](../../apps/web/src/app/api/workspaces/[id]/conversations/route.ts) — list conv với title + lastMessageAt + messageCount
-  - API [`GET /api/conversations/[id]/messages`](../../apps/web/src/app/api/conversations/[id]/messages/route.ts) — load messages của conv + hydrate citations
-  - [chat-view.tsx](../../apps/web/src/components/workspaces/v5/views/chat-view.tsx) rewrite:
-    - ConversationSwitcher dropdown ở top với "Hội thoại mới" + list conv
-    - ChatBody remount khi switch conv (key={sessionKey})
-    - useChat capture `meta.conversationId` từ data stream → cập nhật activeConvId khi tạo conv mới
-    - Link "Full" → /chat/[convId] persist full-page
+
+- Migration không cần (conversation table đã có `workspaceId`)
+- API [`GET /api/workspaces/[id]/conversations`](../../apps/web/src/app/api/workspaces/[id]/conversations/route.ts) — list conv với title + lastMessageAt + messageCount
+- API [`GET /api/conversations/[id]/messages`](../../apps/web/src/app/api/conversations/[id]/messages/route.ts) — load messages của conv + hydrate citations
+- [chat-view.tsx](../../apps/web/src/components/workspaces/v5/views/chat-view.tsx) rewrite:
+  - ConversationSwitcher dropdown ở top với "Hội thoại mới" + list conv
+  - ChatBody remount khi switch conv (key={sessionKey})
+  - useChat capture `meta.conversationId` từ data stream → cập nhật activeConvId khi tạo conv mới
+  - Link "Full" → /chat/[convId] persist full-page
 
 **V6.5** ✅ Persistent cache cho atom-guide + briefing:
-  - Migration 0035 — table `workspace_cached_output` (workspace × user × kind unique)
-  - Enum `workspace_cached_kind`: 'atom-guide' | 'briefing'
-  - 2 API ([atom-guide](../../apps/web/src/app/api/workspaces/[id]/atom-guide/route.ts), [briefing](../../apps/web/src/app/api/workspaces/[id]/briefing/route.ts)) swap in-memory Map → DB upsert
-  - Survive server restart, không bị reset khi dev refresh
+
+- Migration 0035 — table `workspace_cached_output` (workspace × user × kind unique)
+- Enum `workspace_cached_kind`: 'atom-guide' | 'briefing'
+- 2 API ([atom-guide](../../apps/web/src/app/api/workspaces/[id]/atom-guide/route.ts), [briefing](../../apps/web/src/app/api/workspaces/[id]/briefing/route.ts)) swap in-memory Map → DB upsert
+- Survive server restart, không bị reset khi dev refresh
 
 **V6.6** ✅ Cross-workspace mind map scope toggle:
-  - [mind-map-view.tsx](../../apps/web/src/components/workspaces/v5/views/mind-map-view.tsx) thêm toggle 2 option: "Workspace này" / "Tất cả workspaces"
-  - Remount GraphView khi scope đổi (key={scope}) → /api/graph?workspaceId= hoặc không có param
-  - User không phải nhảy `/graph` full để xem cross-workspace
+
+- [mind-map-view.tsx](../../apps/web/src/components/workspaces/v5/views/mind-map-view.tsx) thêm toggle 2 option: "Workspace này" / "Tất cả workspaces"
+- Remount GraphView khi scope đổi (key={scope}) → /api/graph?workspaceId= hoặc không có param
+- User không phải nhảy `/graph` full để xem cross-workspace
 
 **Verify:**
+
 - Typecheck pass
 - Migration 0035 applied vào docker postgres
 - Manual test:
@@ -475,29 +503,34 @@ User feedback sau V5.4: "nhìn rối phức tạp" + UI requests cụ thể. V6 
 User feedback sau V6: "trang /chat/new còn cần nữa ko vậy???". Workspace chat đã thay thế → cleanup redundant `/chat/new` + ChatShell + 13 component V4.
 
 **V7.1** ✅ Xoá route:
-  - `apps/web/src/app/(app)/chat/page.tsx` (redirect /chat/new)
-  - `apps/web/src/app/(app)/chat/new/page.tsx`
-  - `apps/web/src/app/(app)/chat/layout.tsx` (ChatShell wrapper)
+
+- `apps/web/src/app/(app)/chat/page.tsx` (redirect /chat/new)
+- `apps/web/src/app/(app)/chat/new/page.tsx`
+- `apps/web/src/app/(app)/chat/layout.tsx` (ChatShell wrapper)
 
 **V7.2** ✅ Xoá 13 component `apps/web/src/components/chat/*`:
-  - chat-interface.tsx (875 dòng) · chat-shell.tsx · conversation-sidebar.tsx · workspaces-context.tsx
-  - chat-context-panel.tsx · doc-preview-panel.tsx · resizable-panel.tsx
-  - math-canvas-dialog.tsx · voice-input-button.tsx · message-bubble.tsx
-  - tts-button.tsx · citation.tsx · markdown-message.tsx
+
+- chat-interface.tsx (875 dòng) · chat-shell.tsx · conversation-sidebar.tsx · workspaces-context.tsx
+- chat-context-panel.tsx · doc-preview-panel.tsx · resizable-panel.tsx
+- math-canvas-dialog.tsx · voice-input-button.tsx · message-bubble.tsx
+- tts-button.tsx · citation.tsx · markdown-message.tsx
 
 **V7.3** ✅ Rewrite `/chat/[id]/page.tsx`:
-  - Server: load conv + workspace name + messages (simpler than V5 — bỏ citation hydration)
-  - Client [chat-detail-client.tsx](../../apps/web/src/components/chat/chat-detail-client.tsx) minimal: useChat + composer + "Mở trong workspace" link (nếu conv có workspaceId)
-  - KHÔNG có: workspace pill, attach, voice, context panel, conversation sidebar
+
+- Server: load conv + workspace name + messages (simpler than V5 — bỏ citation hydration)
+- Client [chat-detail-client.tsx](../../apps/web/src/components/chat/chat-detail-client.tsx) minimal: useChat + composer + "Mở trong workspace" link (nếu conv có workspaceId)
+- KHÔNG có: workspace pill, attach, voice, context panel, conversation sidebar
 
 **V7.4** ✅ Fix external links:
-  - [dashboard](../../apps/web/src/app/(app)/dashboard/page.tsx) "Hỏi AI Tutor" → `/workspaces`
-  - [command-palette](../../apps/web/src/components/app/command-palette.tsx) bỏ /chat/new → "Workspaces (chat + Studio)"
-  - [document-detail-actions](../../apps/web/src/components/documents/document-detail-actions.tsx) "Hỏi AI" → `/workspaces/[wsId]?view=chat` (chỉ show nếu doc có workspaceId)
+
+- [dashboard](<../../apps/web/src/app/(app)/dashboard/page.tsx>) "Hỏi AI Tutor" → `/workspaces`
+- [command-palette](../../apps/web/src/components/app/command-palette.tsx) bỏ /chat/new → "Workspaces (chat + Studio)"
+- [document-detail-actions](../../apps/web/src/components/documents/document-detail-actions.tsx) "Hỏi AI" → `/workspaces/[wsId]?view=chat` (chỉ show nếu doc có workspaceId)
 
 **V7.5** ✅ [sidebar.tsx](../../apps/web/src/components/app/sidebar.tsx) bỏ entry "AI Tutor" + Bot icon import. Workspaces là entry duy nhất, `match: ['/workspaces', '/documents', '/notes', '/chat']` để /chat/[id] vẫn highlight Workspaces.
 
 **Verify:**
+
 - Typecheck pass
 - Manual test:
   1. Sidebar không còn "AI Tutor"
@@ -506,6 +539,7 @@ User feedback sau V6: "trang /chat/new còn cần nữa ko vậy???". Workspace 
   4. Dashboard / command palette / document detail link đều sang workspace
 
 **Còn deferred (V8+):**
+
 - Audio overview podcast (NotebookLM signature) — cần TTS API + storage R2 + 2-speaker script + playback UI. Effort ~3 ngày.
 - Real-time collaboration trên notebook — cần Yjs + Hocuspocus + presence + cursor sync. Effort ~5+ ngày.
 
@@ -513,13 +547,13 @@ User feedback sau V6: "trang /chat/new còn cần nữa ko vậy???". Workspace 
 
 ## 7. Effort estimate
 
-| Phase | Mô tả | Effort |
-|-------|-------|--------|
-| V5.1 | Layout shell + 3 panel | 1.5 ngày |
-| V5.2 | 4 recipes core (Session, Flashcard, Quiz, Atom guide) | 2 ngày |
-| V5.3 | Mind map + Briefing | 1 ngày |
-| V5.4 | Cleanup + sidebar | 0.5 ngày |
-| | **Tổng** | **~5 ngày** |
+| Phase | Mô tả                                                 | Effort      |
+| ----- | ----------------------------------------------------- | ----------- |
+| V5.1  | Layout shell + 3 panel                                | 1.5 ngày    |
+| V5.2  | 4 recipes core (Session, Flashcard, Quiz, Atom guide) | 2 ngày      |
+| V5.3  | Mind map + Briefing                                   | 1 ngày      |
+| V5.4  | Cleanup + sidebar                                     | 0.5 ngày    |
+|       | **Tổng**                                              | **~5 ngày** |
 
 → 1 dev full-time ~5 ngày làm việc.
 
@@ -540,13 +574,13 @@ V5 **KHÔNG bao gồm**:
 
 ## 9. Đổi gì so với strategy doc atom-centric.md?
 
-| Aspect | atom-centric.md (Phase A-D shipped) | V5 |
-|---|---|---|
-| Backend wiring | ✅ Phase A-D — không đổi | Reuse |
-| Workspace tabs | Gộp 3 tab → "Practice" + atom detail | **Bỏ tabs hoàn toàn**, 3-cột layout |
-| Chat entry | Drawer Cmd+J (Phase D) | Trở thành **center default**, drawer chỉ là backup từ ngoài workspace |
-| Study plan | `/study-plan` AI proposal | Giữ standalone + recipe "Phiên 15 phút" trong workspace Studio |
-| Practice flow | List atom → click → atom detail → /flashcards | **1 click "Phiên 15 phút"** → auto chain |
+| Aspect         | atom-centric.md (Phase A-D shipped)           | V5                                                                    |
+| -------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| Backend wiring | ✅ Phase A-D — không đổi                      | Reuse                                                                 |
+| Workspace tabs | Gộp 3 tab → "Practice" + atom detail          | **Bỏ tabs hoàn toàn**, 3-cột layout                                   |
+| Chat entry     | Drawer Cmd+J (Phase D)                        | Trở thành **center default**, drawer chỉ là backup từ ngoài workspace |
+| Study plan     | `/study-plan` AI proposal                     | Giữ standalone + recipe "Phiên 15 phút" trong workspace Studio        |
+| Practice flow  | List atom → click → atom detail → /flashcards | **1 click "Phiên 15 phút"** → auto chain                              |
 
 → V5 là **UX rewrite trên top atom-centric backend**. Không touch
 schema, không touch lib/. Chỉ thay components workspace.
@@ -567,9 +601,8 @@ V5 coi như xong khi:
 
 ---
 
-*Plan v1.0 — viết 2026-05-20 sau khi user critique UX phức tạp Phase A-D.
-Update khi build từng phase V5.x.*
-
+_Plan v1.0 — viết 2026-05-20 sau khi user critique UX phức tạp Phase A-D.
+Update khi build từng phase V5.x._
 
 ---
 
@@ -578,10 +611,12 @@ Update khi build từng phase V5.x.*
 User feedback: "exam chỗ để vào làm bài đâu nhập code đâu... check kĩ từng cái ở bên studio một". V8.23 đã merge "Bài thi" thành 1 recipe nhưng chưa có entry point JOIN code + start làm bài inline. V8.24 đóng full loop.
 
 **V8.24.1** ✅ `StudioExamManager` — 2 tab:
+
 - **Của tôi**: list exam workspace owner + "+ Tạo bài thi mới"
 - **Nhập code**: input 6 ký tự → POST `/api/exams/join` → open inline preview (không navigate /join page cũ nữa)
 
 **V8.24.2** ✅ `StudioExamInlinePreview` mở rộng:
+
 - Owner PUBLISHED: prominent share code panel (copy code + copy share link)
 - PUBLISHED (cả owner và student): nút **"Bắt đầu làm bài"** → POST `/api/exams/[id]/attempts` → navigate `/take/[attemptId]`. Detect `resumed` → toast "Tiếp tục"
 - List **lịch sử attempts** (max 10, score + status + click → results page hoặc resume)
@@ -591,20 +626,24 @@ User feedback: "exam chỗ để vào làm bài đâu nhập code đâu... check
 **V8.24.3** ✅ `GET /api/exams/[id]/attempts` — endpoint mới list attempts của session user (history cho inline preview). DRAFT + non-owner → empty.
 
 **V8.24.4** ✅ `/exams/[id]/page.tsx` chuyển từ builder full-page → **smart redirect-only**:
+
 - Owner → `/workspaces/[wsid]?examPreview=[id]` (smart param auto-open inline)
 - Student PUBLISHED → workspace nếu có; else fallback resume IN_PROGRESS attempt
 - Mọi link legacy (atom-detail, rich-content, join-form, results back-link) đều smart-redirect đúng nơi
 
 **V8.24.5** ✅ `ExamUrlBridge` component trong WorkspaceNotebook:
+
 - Đọc `?examPreview=<id>` từ URL → `examPreview.open(id)` → clear param
 - Bridge cho mọi entry point external (legacy /exams/[id] redirect, /join, atom-detail link)
 
 **V8.24.6** ✅ Cleanup:
+
 - ExamEditorDialog bỏ link "Mở full page" (full page đã thành redirect, không còn builder)
 - Thêm nút "Proctor" cho owner PUBLISHED exam trong editor footer (navigate `/exams/[id]/proctor`)
 - CreateExamDialog success state: nếu không có `onCreated` callback (gọi ngoài workspace), dùng `window.location.href` → smart redirect
 
 **Routes còn lại:**
+
 - `/exams/[id]/take/[attemptId]` — full-page TAKE (fullscreen + anti-cheat + proctor cam → KHÔNG embed sidebar được)
 - `/exams/[id]/results/[attemptId]` — full breakdown từng câu (back link → workspace via smart redirect)
 - `/exams/[id]/proctor` — admin monitor (owner only)
@@ -612,19 +651,20 @@ User feedback: "exam chỗ để vào làm bài đâu nhập code đâu... check
 
 **Studio recipe summary V8.24:**
 
-| Recipe | Action | Status |
-|---|---|---|
-| Phiên 15 phút | `session` view + CTA gen FC nếu empty | ✅ V8.20 |
-| Ôn flashcard | `flashcard` view full-screen FSRS | ✅ V5.2 |
-| Quiz check | `quiz` view + CTA gen 5 câu nếu empty | ✅ V8.20 |
-| **Bài thi** | **Manager 2 tab (own + join) → inline preview → take/results** | ✅ V8.24 |
-| Atom guide | `atom-guide` view markdown cache 24h | ✅ V5.2 |
-| Mind map | `mind-map` view + scope toggle workspace/all | ✅ V6.6 |
-| Briefing doc | `briefing` view 200-300 từ | ✅ V5.3 |
+| Recipe        | Action                                                         | Status   |
+| ------------- | -------------------------------------------------------------- | -------- |
+| Phiên 15 phút | `session` view + CTA gen FC nếu empty                          | ✅ V8.20 |
+| Ôn flashcard  | `flashcard` view full-screen FSRS                              | ✅ V5.2  |
+| Quiz check    | `quiz` view + CTA gen 5 câu nếu empty                          | ✅ V8.20 |
+| **Bài thi**   | **Manager 2 tab (own + join) → inline preview → take/results** | ✅ V8.24 |
+| Atom guide    | `atom-guide` view markdown cache 24h                           | ✅ V5.2  |
+| Mind map      | `mind-map` view + scope toggle workspace/all                   | ✅ V6.6  |
+| Briefing doc  | `briefing` view 200-300 từ                                     | ✅ V5.3  |
 
 → Tất cả 7 recipes đều có flow end-to-end trong workspace, không còn dead-end "Vào Practice tab" hay link ra trang cũ.
 
 **Files changed V8.24:**
+
 - `studio-exam-manager.tsx` — 2 tab JoinTab + OwnExamsTab
 - `studio-exam-inline-preview.tsx` — share code panel + Bắt đầu làm + attempts list
 - `workspace-notebook.tsx` — ExamUrlBridge component
@@ -634,7 +674,6 @@ User feedback: "exam chỗ để vào làm bài đâu nhập code đâu... check
 - `app/(app)/exams/[id]/results/[attemptId]/page.tsx` — back-link "Về workspace"
 - `app/api/exams/[id]/attempts/route.ts` — thêm GET handler
 
-
 ---
 
 ## V8.25 — All recipes render as modal overlay (not main-panel swap) (2026-05-20)
@@ -642,11 +681,13 @@ User feedback: "exam chỗ để vào làm bài đâu nhập code đâu... check
 User feedback sau V8.24: "vẫn chưa đâu. vẫn hiển thị cách cũ kìa, fix hết toàn bộ" — 6 recipes còn lại (Phiên 15p, Flashcard, Quiz, Atom guide, Mind map, Briefing) vẫn dùng pattern cũ là **swap main panel** (làm mất chat). User muốn cách mới giống Bài thi: chat **luôn visible**, recipe content nổi trên top.
 
 **Phân tích pattern cũ:**
+
 - Click recipe → `setMainView('session' | 'flashcard' | …)` → `MainPanel` switch case render view tương ứng, **xoá ChatView**
 - User mất context chat đang dở → phải back về mới hỏi tiếp được
 - Trái với NotebookLM (chat = pin center, không bao giờ disappears)
 
 **Pattern mới V8.25:**
+
 - `MainPanel` LUÔN render `<ChatView>` (không switch case nữa)
 - `<RecipeOverlay>` mount ở root workspace-notebook, đọc `mainView` từ context:
   - `mainView === 'chat'` → modal đóng
@@ -656,6 +697,7 @@ User feedback sau V8.24: "vẫn chưa đâu. vẫn hiển thị cách cũ kìa, 
 - Bài thi GIỮ pattern riêng (Studio sidebar swap) — không dùng RecipeOverlay
 
 **Files thay đổi V8.25:**
+
 - `main-panel.tsx` — rút gọn từ switch case 7 view xuống chỉ render `<ChatView>` (ChatView luôn ở vị trí center)
 - `recipe-overlay.tsx` (NEW) — Radix Dialog wrap 6 views, controlled bởi mainView context
 - `workspace-notebook.tsx` — mount `<RecipeOverlay workspaceId={workspace.id}/>` sau ExamUrlBridge
@@ -667,29 +709,30 @@ User feedback sau V8.24: "vẫn chưa đâu. vẫn hiển thị cách cũ kìa, 
 - `views/briefing-view.tsx` — bỏ button "Quay lại chat", pr-14
 
 **Backward compat:**
+
 - `setMainView('chat')` từ inner components (vd SummaryView "Quay lại chat", EmptyState "Quay lại chat") VẪN work — RecipeOverlay listen state, set 'chat' = đóng modal. Không cần refactor inner buttons.
 - Deep link `?view=session` qua NotebookProvider parse URL vẫn auto-open modal khi mount.
 
 **Studio recipes summary V8.25:**
 
-| Recipe | Pattern | View render |
-|---|---|---|
-| Phiên 15 phút | Modal overlay 92vw×92vh | SessionView |
-| Ôn flashcard | Modal overlay 92vw×92vh | FlashcardView (FlashcardSessionV8) |
-| Quiz check | Modal overlay 92vw×92vh | QuickQuizView |
-| **Bài thi** | **Studio sidebar swap (V8.24)** | ExamManager → InlinePreview ↔ ExamEditorDialog modal |
-| Atom guide | Modal overlay 92vw×92vh | AtomGuideView (markdown) |
-| Mind map | Modal overlay 92vw×92vh | MindMapView (graph) |
-| Briefing doc | Modal overlay 92vw×92vh | BriefingView (markdown) |
+| Recipe        | Pattern                         | View render                                          |
+| ------------- | ------------------------------- | ---------------------------------------------------- |
+| Phiên 15 phút | Modal overlay 92vw×92vh         | SessionView                                          |
+| Ôn flashcard  | Modal overlay 92vw×92vh         | FlashcardView (FlashcardSessionV8)                   |
+| Quiz check    | Modal overlay 92vw×92vh         | QuickQuizView                                        |
+| **Bài thi**   | **Studio sidebar swap (V8.24)** | ExamManager → InlinePreview ↔ ExamEditorDialog modal |
+| Atom guide    | Modal overlay 92vw×92vh         | AtomGuideView (markdown)                             |
+| Mind map      | Modal overlay 92vw×92vh         | MindMapView (graph)                                  |
+| Briefing doc  | Modal overlay 92vw×92vh         | BriefingView (markdown)                              |
 
 → Chat KHÔNG còn disappears khi click recipe. Click recipe → overlay modal nổi trên top, đóng → chat instant.
 
 **Verify:**
+
 - ✅ Typecheck pass
 - ✅ Click bất kỳ recipe non-exam → modal 92vw mở trên top chat
 - ✅ Esc / X → đóng modal về `mainView='chat'`
 - ✅ ChatView không re-mount khi click recipe (state preserved)
-
 
 ---
 
@@ -698,6 +741,7 @@ User feedback sau V8.24: "vẫn chưa đâu. vẫn hiển thị cách cũ kìa, 
 User feedback sau V8.25: "đã bảo hiện ở sidebar thôi đừng hiện form ra nữa nào ấn zoom to mới hiện" — V8.25 mở modal ngay khi click recipe. User muốn pattern giống Bài thi (V8.24): inline sidebar mặc định, zoom button mới mở modal.
 
 **Pattern V8.26 (consistent với Bài thi):**
+
 1. Click recipe trong Studio → `setMainView(view)` + recipeMode='inline' (mặc định)
 2. Studio sidebar swap sang **recipe-specific preview** (compact, ~360px)
 3. Preview hiện stats / management info / CTA primary
@@ -706,32 +750,36 @@ User feedback sau V8.25: "đã bảo hiện ở sidebar thôi đừng hiện for
 6. Sidebar X → setMainView('chat') (về recipes list)
 
 **NotebookContext additions:**
+
 ```ts
 recipeMode: 'inline' | 'modal';
 setRecipeMode: (m) => void;
 ```
+
 `setMainView` reset recipeMode='inline' mỗi khi đổi view — modal CHỈ kích hoạt explicit.
 
 **6 sidebar preview component (mỗi cái full management):**
 
-| Recipe | Sidebar shows | CTA |
-|---|---|---|
-| **Phiên 15 phút** | Stats: thẻ due, atom mới, ước tính phút. Phiên gồm 3 bước. | "Bắt đầu phiên" |
-| **Ôn flashcard** | Stats: due, total, byState (NEW/LEARNING/REVIEW/RELEARNING) chip. Button gen 10 thẻ mới. | "Bắt đầu ôn" |
-| **Quick Quiz** | Stats: câu hỏi sẵn sàng. Button gen 5 câu mới. Cơ chế bullet list. | "Bắt đầu quiz" |
-| **Atom Guide** | Stats: atom count, cache status. Preview snippet 220 ký tự. Button Regenerate. | "Đọc full guide" |
-| **Mind map** | Stats: atom (node), cạnh. Mô tả modal features. | "Mở graph full" |
-| **Briefing Doc** | Stats: doc count, cache status. Preview snippet 240 ký tự. Button Regenerate. | "Đọc full briefing" |
+| Recipe            | Sidebar shows                                                                            | CTA                 |
+| ----------------- | ---------------------------------------------------------------------------------------- | ------------------- |
+| **Phiên 15 phút** | Stats: thẻ due, atom mới, ước tính phút. Phiên gồm 3 bước.                               | "Bắt đầu phiên"     |
+| **Ôn flashcard**  | Stats: due, total, byState (NEW/LEARNING/REVIEW/RELEARNING) chip. Button gen 10 thẻ mới. | "Bắt đầu ôn"        |
+| **Quick Quiz**    | Stats: câu hỏi sẵn sàng. Button gen 5 câu mới. Cơ chế bullet list.                       | "Bắt đầu quiz"      |
+| **Atom Guide**    | Stats: atom count, cache status. Preview snippet 220 ký tự. Button Regenerate.           | "Đọc full guide"    |
+| **Mind map**      | Stats: atom (node), cạnh. Mô tả modal features.                                          | "Mở graph full"     |
+| **Briefing Doc**  | Stats: doc count, cache status. Preview snippet 240 ký tự. Button Regenerate.            | "Đọc full briefing" |
 
 **Shared shell:** `StudioPreviewShell` component (header với title + Maximize2 + X close, body scroll, footer sticky CTA). Mỗi recipe import shell + custom body content.
 
 **Files V8.26:**
+
 - `notebook-context.tsx` — add `recipeMode` + `setRecipeMode` (auto reset 'inline' khi `setMainView`)
 - `studio-recipe-previews.tsx` (NEW, ~650 dòng) — 6 preview + shared shell + StatCard + PrimaryCta helpers
 - `studio-panel.tsx` — thêm switch case render preview khi `mainView != 'chat'`
 - `recipe-overlay.tsx` — `open = mainView != 'chat' && recipeMode === 'modal'` + close = setRecipeMode('inline')
 
 **Verify:**
+
 - ✅ Typecheck pass
 - ✅ Click recipe → sidebar preview hiện (KHÔNG modal nhảy ra)
 - ✅ Zoom button → modal mở
@@ -740,13 +788,12 @@ setRecipeMode: (m) => void;
 
 **Consistency với Bài thi (V8.24):**
 
-| State | Bài thi | Recipes V8.26 |
-|---|---|---|
-| Click recipe | Studio → ExamManager | Studio → SidebarPreview |
-| Click row / Bắt đầu | Inline preview | Sidebar preview hiện CTA |
-| Zoom | examPreview.setMode('modal') | setRecipeMode('modal') |
-| Modal close | setMode('inline') | setRecipeMode('inline') |
-| Full close | examPreview.close() | setMainView('chat') |
+| State               | Bài thi                      | Recipes V8.26            |
+| ------------------- | ---------------------------- | ------------------------ |
+| Click recipe        | Studio → ExamManager         | Studio → SidebarPreview  |
+| Click row / Bắt đầu | Inline preview               | Sidebar preview hiện CTA |
+| Zoom                | examPreview.setMode('modal') | setRecipeMode('modal')   |
+| Modal close         | setMode('inline')            | setRecipeMode('inline')  |
+| Full close          | examPreview.close()          | setMainView('chat')      |
 
 → Cùng 1 pattern conceptually: 3 lớp (list → inline preview → modal zoom). Toàn bộ Studio đồng nhất.
-

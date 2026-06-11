@@ -1,10 +1,3 @@
-/**
- * CreateGroupDialog — dialog modal tạo study group mới.
- *
- * Thay thế pattern `showCreate` toggle inline trên /groups. Sau khi tạo thành
- * công, redirect vào trang group detail (UX của Discord style — nhảy thẳng vào
- * server vừa tạo).
- */
 'use client';
 
 import * as React from 'react';
@@ -26,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Props = {
-  /** Callback sau khi tạo thành công — parent gọi refresh list. */
   onCreated?: () => void;
   trigger?: React.ReactNode;
 };
@@ -87,7 +79,8 @@ export function CreateGroupDialog({ onCreated, trigger }: Props) {
           <DialogHeader>
             <DialogTitle>Tạo study group mới</DialogTitle>
             <DialogDescription>
-              Group có channels chat, voice, forum. Bạn sẽ là OWNER có toàn quyền invite + kick + xoá.
+              Group có channels chat, voice, forum. Bạn sẽ là OWNER có toàn quyền invite + kick +
+              xoá.
             </DialogDescription>
           </DialogHeader>
 

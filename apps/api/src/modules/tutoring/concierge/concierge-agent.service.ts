@@ -1,26 +1,9 @@
-/**
- * ConciergeAgentService — port từ apps/web/src/lib/tutoring/concierge-agent.ts.
- *
- * AI Concierge cho marketplace gia sư, flow 2 bước:
- *   1. PLANNER (LLM 'classify', ~300 tok): phân tích last user message +
- *      history → JSON action (clarify/search/tutor_detail/faq/library_search)
- *      + deterministic override khi LLM trả clarify dù đã infer được subject.
- *   2. generateMatchReasons: batch viết 1 câu lý do/tutor (format "idx|reason").
- *
- * LLM gọi qua LlmService + CostGuardrailService theo pattern
- * LibraryLlmService: check guardrail TRƯỚC, record cost SAU, ước token
- * 1 ≈ 3 chars. Feature tags: tutoring.concierge.planner / match-reason.
- */
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CostGuardrailService, type Plan } from '../../../infra/ai/cost-guardrail.service';
 import { LlmService } from '../../../infra/ai/llm.service';
-import {
-  ALL_SUBJECTS,
-  SUBJECT_BY_SLUG,
-  type SubjectLevel,
-} from '../../library/subject-taxonomy';
+import { ALL_SUBJECTS, SUBJECT_BY_SLUG, type SubjectLevel } from '../../../common/subject-taxonomy';
 import type { HybridSearchResult } from './tutor-search.service';
 import { inferLevelFromText, inferSubjectFromText } from './subject-infer';
 
@@ -34,11 +17,6 @@ export type ConciergeFilters = {
   keywords?: string[];
 };
 
-/**
- * Role detect từ user message:
- *   - student: muốn HỌC → search tutor_profile (default)
- *   - tutor: là gia sư, muốn TÌM HỌC SINH → search tutoring_request
- */
 export type ConciergeRole = 'student' | 'tutor';
 
 export type ConciergeAction =
@@ -57,31 +35,20 @@ export type ConciergeAction =
       filters: ConciergeFilters;
     }
   | {
-      // V5.1: Deep Q&A về 1 tutor đã shown trong thread.
-      // "review về cô Mai" / "thầy có dạy lớp tối ko" / "chi tiết cô X" …
       type: 'tutor_detail';
       role: ConciergeRole;
-      /** Tutor ref do planner extract — tên hoặc 1 phần tên. */
       tutorRef: string;
-      /** Loại câu hỏi user hỏi — quyết định payload trả về. */
       askAbout: 'reviews' | 'availability' | 'price' | 'profile' | 'other';
     }
   | {
-      // V5.2: Platform-level FAQ — refund, KYC, commission, pricing range, …
-      // KHÔNG về 1 tutor cụ thể.
       type: 'faq';
       role: ConciergeRole;
-      /** Câu hỏi user (full string) — backend match với FAQ KB. */
       query: string;
     }
   | {
-      // V6 Library: search tài liệu trong kho cộng đồng.
-      // User hỏi: "tìm tài liệu Toán 12 đạo hàm" / "có đề thi IELTS không"
       type: 'library_search';
       role: ConciergeRole;
-      /** Free-text query → hybrid + cross-doc semantic. */
       query: string;
-      /** Filter hints. */
       filters: {
         subjectSlug?: string;
         level?: string;
@@ -110,24 +77,14 @@ const PLANNER_SCHEMA = z.object({
     })
     .optional(),
   reason: z.string().optional(),
-  // V5.1 deep Q&A
   tutorRef: z.string().optional(),
-  askAbout: z
-    .enum(['reviews', 'availability', 'price', 'profile', 'other'])
-    .optional(),
-  // V5.2 FAQ
+  askAbout: z.enum(['reviews', 'availability', 'price', 'profile', 'other']).optional(),
   faqQuery: z.string().optional(),
-  // V6 Library
   libraryQuery: z.string().optional(),
   libraryGrade: z.number().optional(),
   libraryDocType: z.array(z.string()).optional(),
 });
 
-/**
- * Infer role từ history khi planner không trả `role` field hoặc trả undefined.
- * Pattern tutor: "tôi là gia sư", "tôi muốn dạy", "tìm học sinh/ứng viên/lead".
- * Mặc định student nếu không match.
- */
 function inferRoleFromHistory(history: ConciergeHistory): ConciergeRole {
   const tutorPatterns = [
     /tôi\s*(là|đang là)\s*(gia\s*sư|tutor|giáo\s*viên)/i,
@@ -145,7 +102,6 @@ function inferRoleFromHistory(history: ConciergeHistory): ConciergeRole {
   return 'student';
 }
 
-/** Subject slug list compact cho planner prompt (tránh dump 80 subject). */
 function compactSubjectList(): string {
   return ALL_SUBJECTS.slice(0, 40)
     .map((s) => `${s.slug}=${s.name}`)
@@ -310,13 +266,10 @@ User: "giá Toán THPT trung bình bao nhiêu"
 → {"role":"student","action":"faq","faqQuery":"giá Toán THPT trung bình"}
 `;
 
-/**
- * Helper: validate subjectSlug + level từ planner output.
- * Chống planner hallucinate slug không có trong taxonomy.
- */
-export function validateFilters(
-  filters: ConciergeFilters,
-): { valid: boolean; cleaned: ConciergeFilters } {
+export function validateFilters(filters: ConciergeFilters): {
+  valid: boolean;
+  cleaned: ConciergeFilters;
+} {
   const cleaned: ConciergeFilters = {};
   if (filters.subjectSlug && SUBJECT_BY_SLUG[filters.subjectSlug]) {
     cleaned.subjectSlug = filters.subjectSlug;
@@ -341,7 +294,6 @@ export function validateFilters(
     cleaned.keywords = filters.keywords.slice(0, 5);
   }
 
-  // subjectSlug đủ để search — level optional (browse intent "top gia sư X")
   return {
     valid: !!cleaned.subjectSlug,
     cleaned,
@@ -355,14 +307,6 @@ export class ConciergeAgentService {
     private readonly guardrail: CostGuardrailService,
   ) {}
 
-  /**
-   * Plan next step — quyết định clarify vs search.
-   *
-   * @param history toàn bộ message history (max 8 msg gần nhất pass vào)
-   * @param currentFilters filter đã extract từ turn trước (cache)
-   * @param userId for cost tracking
-   * @param plan user subscription plan
-   */
   async planConciergeStep({
     history,
     currentFilters,
@@ -384,7 +328,6 @@ export class ConciergeAgentService {
       };
     }
 
-    // Truncate history 8 msg gần nhất để giảm token
     const recent = history.slice(-8);
     const historyText = recent
       .map((m) => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
@@ -405,7 +348,6 @@ export class ConciergeAgentService {
       feature: 'tutoring.concierge.planner',
     });
 
-    // Parse — strip markdown fences nếu model thêm vào
     const cleaned = text
       .trim()
       .replace(/^```(?:json)?\s*/, '')
@@ -416,19 +358,10 @@ export class ConciergeAgentService {
       const role: ConciergeRole = parsed.role ?? inferRoleFromHistory(history);
       const searchTarget = role === 'tutor' ? 'request' : 'tutor';
 
-      // ── DETERMINISTIC OVERRIDE — V5.2 ─────────────────────────────────
-      // Lý do: model nhỏ không follow rule "có subject thì search" 100%. Khi
-      // planner trả clarify dù user message hoặc filter cũ ĐÃ có subject →
-      // override sang action=search. Áp dụng cho cả student + tutor side.
       if (parsed.action === 'clarify') {
         const inferredSubject =
-          inferSubjectFromText(lastUser.content) ??
-          currentFilters?.subjectSlug ??
-          null;
-        const inferredLevel =
-          inferLevelFromText(lastUser.content) ??
-          currentFilters?.level ??
-          null;
+          inferSubjectFromText(lastUser.content) ?? currentFilters?.subjectSlug ?? null;
+        const inferredLevel = inferLevelFromText(lastUser.content) ?? currentFilters?.level ?? null;
         if (inferredSubject) {
           return {
             type: 'search',
@@ -466,9 +399,7 @@ export class ConciergeAgentService {
         };
       }
       if (parsed.action === 'faq') {
-        // Pass user message làm query nếu planner không extract
-        const lastUserMsg =
-          [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
+        const lastUserMsg = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
         return {
           type: 'faq',
           role,
@@ -476,8 +407,7 @@ export class ConciergeAgentService {
         };
       }
       if (parsed.action === 'library_search') {
-        const lastUserMsg =
-          [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
+        const lastUserMsg = [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
         return {
           type: 'library_search',
           role,
@@ -498,7 +428,6 @@ export class ConciergeAgentService {
         reason: parsed.reason,
       };
     } catch {
-      // Fallback: hỏi lại
       return {
         type: 'clarify',
         question: 'Bạn cho mình biết môn học + cấp độ cụ thể nhé?',
@@ -508,10 +437,6 @@ export class ConciergeAgentService {
     }
   }
 
-  /**
-   * Generate match reason cho mỗi tutor — 1 câu giải thích vì sao match query.
-   * Batch 5 tutor / call.
-   */
   async generateMatchReasons({
     tutors,
     userQuery,
@@ -528,7 +453,7 @@ export class ConciergeAgentService {
     if (tutors.length === 0) return new Map();
 
     const subjectName = filters.subjectSlug
-      ? SUBJECT_BY_SLUG[filters.subjectSlug]?.name ?? filters.subjectSlug
+      ? (SUBJECT_BY_SLUG[filters.subjectSlug]?.name ?? filters.subjectSlug)
       : '';
 
     const tutorList = tutors
@@ -571,11 +496,6 @@ KHÔNG markdown, KHÔNG header, KHÔNG line thừa.`;
     return reasons;
   }
 
-  /**
-   * Guarded LLM call — pattern LibraryLlmService: check guardrail trước,
-   * record cost sau. Throw Error(guard.message) khi bị chặn (caller fail-soft
-   * như CostGuardrailError cũ).
-   */
   private async guardedComplete(args: {
     userId: string;
     plan: Plan;
@@ -585,7 +505,6 @@ KHÔNG markdown, KHÔNG header, KHÔNG line thừa.`;
     feature: string;
   }): Promise<string> {
     const pm = this.pickModelForCost();
-    // Heuristic estimateInputTokens cũ: 1 token ≈ 3 chars (an toàn cho tiếng Việt).
     const inputTokens = Math.ceil((args.system.length + args.prompt.length) / 3);
     const estimatedCostUsd =
       (inputTokens * pm.inputPerM + args.maxTokens * pm.outputPerM) / 1_000_000;
@@ -603,7 +522,6 @@ KHÔNG markdown, KHÔNG header, KHÔNG line thừa.`;
       maxTokens: args.maxTokens,
     });
 
-    // LlmService không expose usage → xấp xỉ output bằng độ dài text.
     const outputTokens = Math.ceil(text.length / 3);
     const costUsd = (inputTokens * pm.inputPerM + outputTokens * pm.outputPerM) / 1_000_000;
     await this.guardrail.record({
@@ -621,11 +539,6 @@ KHÔNG markdown, KHÔNG header, KHÔNG line thừa.`;
     return text;
   }
 
-  /**
-   * Model + giá ($/1M tokens) ứng với provider LlmService sẽ pick.
-   * NGUỒN CHUẨN pick order ở src/infra/ai/llm.service.ts — đổi thì sửa cả 2.
-   * Giá free-tier (groq/google/openrouter) = 0 như bảng PROVIDERS router cũ.
-   */
   private pickModelForCost(): {
     provider: string;
     model: string;
@@ -652,7 +565,12 @@ KHÔNG markdown, KHÔNG header, KHÔNG line thừa.`;
       case 'google':
         return { provider, model: 'gemini-2.5-flash', inputPerM: 0, outputPerM: 0 };
       default:
-        return { provider: 'openrouter', model: 'openai/gpt-oss-20b:free', inputPerM: 0, outputPerM: 0 };
+        return {
+          provider: 'openrouter',
+          model: 'openai/gpt-oss-20b:free',
+          inputPerM: 0,
+          outputPerM: 0,
+        };
     }
   }
 }

@@ -1,11 +1,3 @@
-/**
- * AdminCoreModule — admin console core (Wave 7): users / moderation / system /
- * groups / audit / search / impersonate. Port từ apps/web/src/app/api/admin/**
- * (trừ cụm ai/kyc/documents/conversations/recordings/tutoring — module khác).
- *
- * AdminGuard + AdminAuditService provide tại đây (chạy SAU AuthGuard global);
- * QueueModule cho /system/jobs đọc BullMQ counts.
- */
 import { Module } from '@nestjs/common';
 
 import { QueueModule } from '../../../infra/queue/queue.module';

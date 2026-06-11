@@ -1,8 +1,3 @@
-/**
- * Job `reconcile-leaderboard` (mỗi 30') — rebuild ZSET LB_XP từ user_stats
- * chống drift (lbIncr là best-effort fail-open). Idempotent: DEL + ZADD batch
- * atomic qua Lua, chạy lại cho cùng kết quả. Port từ apps/web jobs.
- */
 import { Injectable } from '@nestjs/common';
 import { lbBackfill } from '@cogniva/server-core/cache/leaderboard';
 

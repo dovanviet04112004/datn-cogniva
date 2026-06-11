@@ -1,13 +1,3 @@
-/**
- * ImageOcclusionViewer — hiển thị ảnh + masks trong review.
- *
- * Front: tất cả masks đang che (rectangles solid)
- * Back: masks trong → reveal (chỉ vẽ border) cho user thấy nội dung
- *
- * Dùng <img> + absolute div overlay thay vì canvas vì:
- *   - Đơn giản, không cần useEffect/canvas resize
- *   - Image responsive với layout thẻ
- */
 'use client';
 
 import * as React from 'react';
@@ -35,7 +25,6 @@ export function ImageOcclusionViewer({ imageUrl, masks, revealed }: Props) {
           setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
         }}
       />
-      {/* Mask overlay — scale theo ảnh real-time qua percentage */}
       {naturalSize &&
         masks.map((m, i) => {
           const style: React.CSSProperties = {
@@ -52,7 +41,7 @@ export function ImageOcclusionViewer({ imageUrl, masks, revealed }: Props) {
               className={cn(
                 'rounded transition-all',
                 revealed
-                  ? 'border-2 border-primary bg-primary/0'
+                  ? 'border-primary bg-primary/0 border-2'
                   : 'bg-primary/85 backdrop-blur-sm',
               )}
             />

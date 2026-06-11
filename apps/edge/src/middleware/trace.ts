@@ -1,7 +1,3 @@
-/**
- * Trace middleware — set trace id vào Hono context + response header,
- * forward sang origin để correlate edge log ↔ Next.js log ↔ Sentry.
- */
 import type { MiddlewareHandler } from 'hono';
 
 import type { HonoEnv } from '../env';

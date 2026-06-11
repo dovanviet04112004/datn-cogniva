@@ -9,12 +9,6 @@ import { ExamGradeService } from './exam-grade.service';
 import { ExamsController } from './exams.controller';
 import { ExamsService } from './exams.service';
 
-/**
- * ExamsModule — exam + attempt (Wave 3, GĐ3 → learning-service).
- * LearningModule: MasteryUpdateService (submit propagate mastery);
- * LibraryModule: OutcomeTrackerService (submit ghi outcome Pillar #5).
- * AiModule/PrismaModule @Global nên LlmService/CostGuardrail inject thẳng.
- */
 @Module({
   imports: [LearningModule, LibraryModule],
   controllers: [ExamsController, AttemptsController],

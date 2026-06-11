@@ -1,8 +1,3 @@
-/**
- * /api/quiz/* — port từ route Next (apps/web/src/app/api/quiz/**).
- * Tất cả route đều cần session (guard mặc định lo 401 {error:'Unauthorized'}).
- * Route cũ trả 200 cho POST → @HttpCode(200) (Nest POST mặc định 201).
- */
 import {
   BadRequestException,
   Body,
@@ -35,7 +30,6 @@ export class QuizController {
     private readonly attempt: QuizAttemptService,
   ) {}
 
-  /** GET /quiz?limit=50&offset=0&workspaceId=X — parse query y route cũ (cap 200). */
   @Get()
   list(
     @CurrentUser() user: AuthUser,
@@ -48,11 +42,6 @@ export class QuizController {
     return this.quiz.listQuizzes(user.id, limit, offset, workspaceParam ?? null);
   }
 
-  /**
-   * POST /quiz/generate — AI sinh quiz từ document/chunks/atom.
-   * Rate-limit chạy TRƯỚC validate body (đúng thứ tự route cũ: 429 ưu tiên 400)
-   * nên parse zod thủ công thay vì qua pipe.
-   */
   @Post('generate')
   @HttpCode(200)
   async generate(
@@ -72,7 +61,6 @@ export class QuizController {
     return this.quiz.generateQuiz(user, parsed.data);
   }
 
-  /** GET /quiz/:id?withAnswers=1 — đáp án chỉ trả khi withAnswers=1 (sau attempt). */
   @Get(':id')
   get(
     @CurrentUser() user: AuthUser,
@@ -87,7 +75,6 @@ export class QuizController {
     return this.quiz.deleteQuiz(user.id, id);
   }
 
-  /** POST /quiz/:id/attempt — submit + chấm + BKT + XP (route cũ trả 200). */
   @Post(':id/attempt')
   @HttpCode(200)
   submitAttempt(

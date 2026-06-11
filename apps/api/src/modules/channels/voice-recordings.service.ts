@@ -1,14 +1,3 @@
-/**
- * VoiceRecordingsService — recording VOICE channel qua LiveKit Egress (Phase 20 V3).
- *
- * Port từ apps/web/src/app/api/channels/[id]/record/** + helpers:
- *   - buildR2PublicUrl/resolveEgressFileUrl — NGUỒN CHUẨN ở apps/web/src/lib/r2-url.ts
- *   - deleteR2Object — NGUỒN CHUẨN ở apps/web/src/lib/r2-client.ts (bucket
- *     recordings R2_BUCKET_NAME, KHÁC StorageService dùng bucket library)
- *
- * Egress client lazy-init per service (không qua LivekitService vì message
- * lỗi env-thiếu phải GIỮ NGUYÊN VĂN từng route cũ — start vs stop/sync khác nhau).
- */
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -36,21 +25,18 @@ import { PermissionsService, type GroupRole } from '../groups/permissions.servic
 import type { AuthUser } from '../../common/auth/session.types';
 import { RecordingPipelineService } from './recording-pipeline.service';
 
-/** Build public URL từ R2 key — NGUỒN CHUẨN ở apps/web/src/lib/r2-url.ts. */
 function buildR2PublicUrl(filename: string): string {
   if (!filename) return '';
   const publicUrl = process.env.R2_PUBLIC_URL;
   if (publicUrl) {
     return `${publicUrl.replace(/\/+$/, '')}/${filename.replace(/^\/+/, '')}`;
   }
-  // Fallback: internal endpoint — chỉ download được nếu có credentials
   const accountId = process.env.R2_ACCOUNT_ID;
   const bucket = process.env.R2_BUCKET_NAME ?? 'cogniva-recordings';
   if (!accountId) return filename;
   return `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${filename}`;
 }
 
-/** Ưu tiên filename (URL public play được) → location → null nếu egress fail thật. */
 function resolveEgressFileUrl(input: {
   filename?: string | null;
   location?: string | null;
@@ -71,11 +57,6 @@ export class VoiceRecordingsService {
     private readonly pipeline: RecordingPipelineService,
   ) {}
 
-  /**
-   * Lazy EgressClient. `missingEnvMsg` truyền theo call-site vì route cũ
-   * mỗi file 1 message khác nhau ('LiveKit env chưa cấu hình' vs 'LiveKit
-   * env missing') — caller catch nên message lên wire phải khớp.
-   */
   private egressClient(missingEnvMsg: string): EgressClient {
     if (this.egress) return this.egress;
     const url = process.env.NEXT_PUBLIC_LIVEKIT_URL;
@@ -86,7 +67,6 @@ export class VoiceRecordingsService {
     return this.egress;
   }
 
-  /** Build R2 upload cho egress — fail-fast nếu thiếu env. */
   private buildR2Upload(): S3Upload {
     const accessKey = process.env.R2_ACCESS_KEY_ID;
     const secret = process.env.R2_SECRET_ACCESS_KEY;
@@ -107,7 +87,6 @@ export class VoiceRecordingsService {
     });
   }
 
-  /** Xoá object trên bucket recordings — idempotent (R2 trả 204 cả khi key không tồn tại). */
   private async deleteR2Object(storageKey: string): Promise<void> {
     if (!this.s3) {
       const accessKey = process.env.R2_ACCESS_KEY_ID;
@@ -133,7 +112,6 @@ export class VoiceRecordingsService {
     );
   }
 
-  /** Channel + member; null nếu không tồn tại / không phải member (→ 403). */
   private async loadContext(channelId: string, userId: string) {
     const channel = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -146,7 +124,6 @@ export class VoiceRecordingsService {
     return { channel, member };
   }
 
-  /** Verify channel tồn tại + member có quyền voice.record; trả 404/403 theo message từng route. */
   private async requireRecordMod(channelId: string, userId: string, denyMsg: string) {
     const ch = await this.prisma.study_group_channel.findUnique({
       where: { id: channelId },
@@ -163,7 +140,6 @@ export class VoiceRecordingsService {
     }
   }
 
-  /** POST :id/record — mod start composite recording (egress → R2). */
   async startRecording(user: AuthUser, channelId: string) {
     const ctx = await this.loadContext(channelId, user.id);
     if (!ctx) throw new ForbiddenException({ error: 'Forbidden' });
@@ -183,7 +159,6 @@ export class VoiceRecordingsService {
       });
     }
 
-    // Tránh tạo 2 recording song song cho cùng channel
     const existing = await this.prisma.recording.findFirst({
       where: { study_group_channel_id: channelId, status: 'RECORDING' },
       select: { id: true },
@@ -195,8 +170,6 @@ export class VoiceRecordingsService {
       });
     }
 
-    // storageKey lưu sẵn vào DB vì LiveKit listEgress không reliable trả
-    // filename sau vài phút (ephemeral metadata).
     let output: EncodedFileOutput;
     const storageKey = `recordings/group/${channelId}/${Date.now()}.mp4`;
     try {
@@ -229,7 +202,6 @@ export class VoiceRecordingsService {
 
     const rec = await this.prisma.recording.create({
       data: {
-        // id sinh app-side (Drizzle cũ $defaultFn cuid2 — DB không có default)
         id: randomUUID(),
         study_group_channel_id: channelId,
         egress_id: info.egressId,
@@ -239,7 +211,6 @@ export class VoiceRecordingsService {
       },
     });
 
-    // Broadcast để mọi participant thấy banner "Đang ghi"
     await triggerEvent(`presence-voice-${channelId}`, 'recording:started', {
       recordingId: rec.id,
       egressId: info.egressId,
@@ -250,7 +221,6 @@ export class VoiceRecordingsService {
     return { ok: true, recordingId: rec.id, egressId: info.egressId };
   }
 
-  /** GET :id/record — list recordings (mới nhất trước, ẩn row không egressId). */
   async listRecordings(userId: string, channelId: string) {
     const ctx = await this.loadContext(channelId, userId);
     if (!ctx) throw new ForbiddenException({ error: 'Forbidden' });
@@ -285,10 +255,6 @@ export class VoiceRecordingsService {
     };
   }
 
-  /**
-   * DELETE :id/record/:recordingId — xoá R2 object (best-effort) + row DB.
-   * Đang RECORDING thì bắt stop trước (egress còn upload).
-   */
   async deleteRecording(channelId: string, recordingId: string, userId: string) {
     await this.requireRecordMod(channelId, userId, 'Chỉ mod/admin/owner mới được xoá recording');
 
@@ -307,7 +273,6 @@ export class VoiceRecordingsService {
         await this.deleteR2Object(rec.storage_key);
       } catch (err) {
         console.error('[record/delete] R2 delete fail:', err);
-        // tiếp tục xoá DB row — R2 file mồ côi sẽ được cron sweep V2
       }
     }
 
@@ -318,10 +283,6 @@ export class VoiceRecordingsService {
     return { ok: true };
   }
 
-  /**
-   * POST :id/record/:recordingId/stop — idempotent (LiveKit 404 lần 2 swallow,
-   * status đã đổi → alreadyStopped). Webhook/sync sẽ pickup sau khi PROCESSING.
-   */
   async stopRecording(user: AuthUser, channelId: string, recordingId: string) {
     await this.requireRecordMod(channelId, user.id, 'Chỉ mod/admin/owner mới được stop record');
 
@@ -361,12 +322,6 @@ export class VoiceRecordingsService {
     return { ok: true };
   }
 
-  /**
-   * POST :id/record/:recordingId/sync — force-poll egress status (workaround
-   * webhook không gọi được localhost). Egress COMPLETE → update DB + chạy
-   * inline pipeline NGAY trong request (user thấy progress qua poll).
-   * ?force=1 → re-process recording đã PROCESSED/FAILED.
-   */
   async syncRecording(user: AuthUser, channelId: string, recordingId: string, force: boolean) {
     await this.requireRecordMod(channelId, user.id, 'Forbidden');
 
@@ -398,8 +353,6 @@ export class VoiceRecordingsService {
       });
     }
 
-    // Mapping EgressStatus → DB status:
-    // STARTING/ACTIVE/ENDING = còn chạy; COMPLETE = upload xong; FAILED/ABORTED = fail
     const lkStatus = info.status;
     let newDbStatus = rec.status as 'RECORDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
     let fileUrl: string | null = rec.file_url;
@@ -408,8 +361,6 @@ export class VoiceRecordingsService {
 
     if (lkStatus === EgressStatus.EGRESS_COMPLETE) {
       const fileResult = info.fileResults?.[0];
-      // Ưu tiên storageKey lưu lúc start (reliable nhất); fallback resolve từ
-      // LiveKit info cho recording cũ chưa có storageKey.
       fileUrl = rec.storage_key
         ? buildR2PublicUrl(rec.storage_key)
         : resolveEgressFileUrl({
@@ -431,7 +382,6 @@ export class VoiceRecordingsService {
       lkStatus === EgressStatus.EGRESS_ACTIVE ||
       lkStatus === EgressStatus.EGRESS_STARTING
     ) {
-      // Egress còn chạy — không đổi DB, báo client retry
       return {
         status: rec.status,
         egressStatus: lkStatus,
@@ -456,8 +406,6 @@ export class VoiceRecordingsService {
       },
     });
 
-    // Vừa chuyển PROCESSING + có fileUrl → chạy pipeline await sync trong
-    // request (1-3 phút Whisper) — trả response sau khi pipeline xong.
     if (newDbStatus === 'PROCESSING' && fileUrl) {
       await triggerEvent(`presence-voice-${channelId}`, 'recording:ended', {
         recordingId: rec.id,

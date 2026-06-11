@@ -1,17 +1,3 @@
-/**
- * Document detail screen — show metadata + chunks browser.
- *
- * Stage 2 M6 W4 scope:
- *   - Fetch document detail từ /api/documents/{id}
- *   - Show metadata (filename, size, pages, status, chunks count)
- *   - Tab "Chunks" list extracted text chunks (read-only)
- *   - Button "Mở web" → open trên browser (PDF viewer thật)
- *
- * Pending W4+:
- *   - Native PDF render qua react-native-pdf (cần EAS dev client, không work
- *     trong Expo Go vì native module)
- *   - Highlight + note inline trên chunk
- */
 import { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -55,8 +41,6 @@ export default function DocumentDetailScreen() {
     enabled: !!id,
   });
 
-  // Backend `/api/documents/{id}/chunks` (chưa wire shared API) — fetch trực tiếp.
-  // Stage 3 thêm vào shared client.
   const chunksQuery = useQuery({
     queryKey: ['documents', 'chunks', id],
     queryFn: async () => {
@@ -95,9 +79,7 @@ export default function DocumentDetailScreen() {
   if (detailQuery.error || !doc) {
     return (
       <View style={styles.center}>
-        <Text style={styles.error}>
-          {detailQuery.error?.message ?? 'Không load được document'}
-        </Text>
+        <Text style={styles.error}>{detailQuery.error?.message ?? 'Không load được document'}</Text>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backLink}>← Quay lại</Text>
         </TouchableOpacity>
@@ -192,7 +174,9 @@ export default function DocumentDetailScreen() {
           </View>
         ) : (
           <Text style={styles.emptyChunks}>
-            {doc.status === 'READY' ? 'Document chưa có chunks (ingest fail?)' : 'Chunks sẽ xuất hiện khi ingest xong'}
+            {doc.status === 'READY'
+              ? 'Document chưa có chunks (ingest fail?)'
+              : 'Chunks sẽ xuất hiện khi ingest xong'}
           </Text>
         )
       }
@@ -232,9 +216,22 @@ const styles = StyleSheet.create({
   },
   webBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#666', marginTop: 16, textTransform: 'uppercase' },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#666',
+    marginTop: 16,
+    textTransform: 'uppercase',
+  },
 
-  chunkCard: { backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 10, gap: 6 },
+  chunkCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 10,
+    gap: 6,
+  },
   chunkHeader: { flexDirection: 'row', justifyContent: 'space-between' },
   chunkIdx: { fontSize: 11, fontWeight: '600', color: '#0066FF' },
   chunkPage: { fontSize: 11, color: '#888' },

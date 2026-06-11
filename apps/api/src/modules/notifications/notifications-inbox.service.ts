@@ -1,10 +1,3 @@
-/**
- * NotificationsInboxService — list + mark-read notification của user. Port từ
- * apps/web/src/app/api/notifications/{route,read/route}.ts — GIỮ NGUYÊN wire shape.
- *
- * Tách khỏi NotificationsService (creation/push) vì 2 hướng khác nhau: service
- * kia là PRODUCER (module social gọi), service này là inbox cho NotificationBell.
- */
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -15,7 +8,6 @@ import type { MarkReadInput } from './dto/notifications.dto';
 export class NotificationsInboxService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** List notification mới nhất + unread count (1 round-trip song song như cũ). */
   async list(userId: string, limit: number, unreadOnly: boolean) {
     const where = unreadOnly ? { user_id: userId, read_at: null } : { user_id: userId };
 
@@ -54,7 +46,6 @@ export class NotificationsInboxService {
     };
   }
 
-  /** Mark read theo ids HOẶC all=true — `all` thắng khi truyền cả hai (như cũ). */
   async markRead(userId: string, input: MarkReadInput) {
     const now = new Date();
     const updated = input.all

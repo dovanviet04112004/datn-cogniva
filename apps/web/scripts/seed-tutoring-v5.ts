@@ -1,25 +1,3 @@
-/**
- * Seed Tutoring V5 — 200+ tutor + 300+ request + reviews/rating.
- *
- * Mục tiêu: tạo dataset realistic để stress-test AI Concierge + ranking
- * algorithm. Tutor bio phân bố đều theo subject/level/modality/price. Mỗi
- * tutor có 3-30 review giả lập từ student users.
- *
- * Idempotent: dùng SEED_EMAIL_SUFFIX_V5='@seed-v5.cogniva.local' để identify
- * + cleanup. Chạy nhiều lần không trùng.
- *
- * Embedding: gọi embedQuery cho mỗi tutor bio + mỗi request description.
- * ~500 calls × ~$0.00001 = ~$0.005 tổng.
- *
- * Usage:
- *   cd apps/web
- *   pnpm exec tsx --env-file=.env.local scripts/seed-tutoring-v5.ts
- *
- * Reset:
- *   pnpm exec tsx --env-file=.env.local scripts/seed-tutoring-v5.ts --reset
- *
- * Spec: docs/plans/tutoring-v5-concierge-prod.md §Phase 4.
- */
 import { randomUUID } from 'node:crypto';
 import { eq, inArray, like } from 'drizzle-orm';
 import {
@@ -41,7 +19,6 @@ const STUDENT_SUFFIX = '@seed-v5-student.cogniva.local';
 const RESET = process.argv.includes('--reset');
 const NO_EMBED = process.argv.includes('--no-embed');
 
-// ─── Random utils ────────────────────────────────────────────────────
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
@@ -53,7 +30,6 @@ function rand(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 function normal(mean: number, std: number): number {
-  // Box-Muller approx
   const u1 = Math.random();
   const u2 = Math.random();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -73,21 +49,98 @@ function slugify(s: string): string {
     .replace(/^-|-$/g, '');
 }
 
-// ─── Pools ──────────────────────────────────────────────────────────
 const VN_FIRST_NAMES = [
-  'Mai', 'Linh', 'Hà', 'Trang', 'Hương', 'Lan', 'Hoa', 'Thảo', 'Trinh', 'Nhung',
-  'An', 'Bình', 'Cường', 'Dũng', 'Đức', 'Hải', 'Hùng', 'Khôi', 'Long', 'Minh',
-  'Nam', 'Phong', 'Quân', 'Sơn', 'Tài', 'Thành', 'Tuấn', 'Việt', 'Vũ', 'Đạt',
-  'Khánh', 'Khoa', 'Hiếu', 'Bảo', 'Phú', 'Nghĩa', 'Anh', 'Tâm', 'Hà My', 'Mỹ Linh',
-  'Phương', 'Quỳnh', 'Thuỳ', 'Ngọc', 'Diệu', 'Yến', 'Huyền', 'Châu', 'Vy', 'Chi',
+  'Mai',
+  'Linh',
+  'Hà',
+  'Trang',
+  'Hương',
+  'Lan',
+  'Hoa',
+  'Thảo',
+  'Trinh',
+  'Nhung',
+  'An',
+  'Bình',
+  'Cường',
+  'Dũng',
+  'Đức',
+  'Hải',
+  'Hùng',
+  'Khôi',
+  'Long',
+  'Minh',
+  'Nam',
+  'Phong',
+  'Quân',
+  'Sơn',
+  'Tài',
+  'Thành',
+  'Tuấn',
+  'Việt',
+  'Vũ',
+  'Đạt',
+  'Khánh',
+  'Khoa',
+  'Hiếu',
+  'Bảo',
+  'Phú',
+  'Nghĩa',
+  'Anh',
+  'Tâm',
+  'Hà My',
+  'Mỹ Linh',
+  'Phương',
+  'Quỳnh',
+  'Thuỳ',
+  'Ngọc',
+  'Diệu',
+  'Yến',
+  'Huyền',
+  'Châu',
+  'Vy',
+  'Chi',
 ];
 const VN_LAST_NAMES = [
-  'Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng',
-  'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý', 'Đinh', 'Trịnh', 'Đoàn', 'Cao',
+  'Nguyễn',
+  'Trần',
+  'Lê',
+  'Phạm',
+  'Hoàng',
+  'Huỳnh',
+  'Phan',
+  'Vũ',
+  'Võ',
+  'Đặng',
+  'Bùi',
+  'Đỗ',
+  'Hồ',
+  'Ngô',
+  'Dương',
+  'Lý',
+  'Đinh',
+  'Trịnh',
+  'Đoàn',
+  'Cao',
 ];
 const VN_MIDDLE_NAMES = [
-  'Thị', 'Văn', 'Hồng', 'Quốc', 'Minh', 'Đức', 'Thanh', 'Mai', 'Anh', 'Tuấn',
-  'Hữu', 'Hoàng', 'Bảo', 'Gia', 'Khánh', 'Ngọc', '',
+  'Thị',
+  'Văn',
+  'Hồng',
+  'Quốc',
+  'Minh',
+  'Đức',
+  'Thanh',
+  'Mai',
+  'Anh',
+  'Tuấn',
+  'Hữu',
+  'Hoàng',
+  'Bảo',
+  'Gia',
+  'Khánh',
+  'Ngọc',
+  '',
 ];
 
 function genName(): string {
@@ -105,7 +158,7 @@ type SubjectSpec = {
   requestTitles: string[];
   requestDescTemplates: string[];
   levels: Array<'PRIMARY' | 'SECONDARY' | 'HIGH_SCHOOL' | 'UNIVERSITY' | 'ADULT'>;
-  weight: number; // phân bố
+  weight: number;
 };
 
 const SUBJECTS: SubjectSpec[] = [
@@ -148,10 +201,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Gia sư Vật Lý {levelName} — chuyên dạy {topic}',
       'Lý {levelName} — {years} năm kinh nghiệm, ôn thi đại học',
     ],
-    requestTitles: [
-      'Cần gia sư Vật Lý {levelName}',
-      'Tìm thầy/cô Lý {levelName} kèm 1-1',
-    ],
+    requestTitles: ['Cần gia sư Vật Lý {levelName}', 'Tìm thầy/cô Lý {levelName} kèm 1-1'],
     requestDescTemplates: [
       'Học sinh lớp {grade} cần ôn lại Lý phần {topic}. Mục tiêu: nắm chắc lý thuyết + làm tốt bài tập trắc nghiệm. {sessions} buổi/tuần.',
       'Cần gia sư Lý giúp con luyện đề thi đại học khối A. Lực học hiện tại: trung bình. Mong tăng lên 7-8 điểm thi thử trong {weeks} tuần.',
@@ -170,10 +220,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Gia sư Hoá {levelName} — phương pháp giải bài tập nhanh',
       'Hoá học {levelName} — luyện thi {examName}',
     ],
-    requestTitles: [
-      'Tìm gia sư Hoá {levelName}',
-      'Cần kèm Hoá {topic}',
-    ],
+    requestTitles: ['Tìm gia sư Hoá {levelName}', 'Cần kèm Hoá {topic}'],
     requestDescTemplates: [
       'Cần gia sư Hoá kèm con lớp {grade}, đặc biệt phần {topic}. Hiện đang yếu, mất gốc, cần dạy lại từ cơ bản.',
       'Học sinh THPT chuẩn bị thi đại học, cần luyện đề Hoá {sessions} buổi/tuần. Mục tiêu 8+ điểm.',
@@ -192,10 +239,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Gia sư Văn {levelName} — luyện viết mở bài hay, kết bài chốt mạnh',
       'Văn {levelName} — chuyên dạy nghị luận xã hội',
     ],
-    requestTitles: [
-      'Cần gia sư Văn {levelName}',
-      'Tìm cô kèm Văn {topic}',
-    ],
+    requestTitles: ['Cần gia sư Văn {levelName}', 'Tìm cô kèm Văn {topic}'],
     requestDescTemplates: [
       'Con đang học lớp {grade}, Văn yếu phần nghị luận. Cần cô dạy cách lập dàn ý + viết mở bài.',
       'Học sinh THPT cần luyện thi tốt nghiệp môn Văn. {sessions} buổi/tuần, mục tiêu 7+ điểm.',
@@ -214,10 +258,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Gia sư Tiếng Anh {levelName} — focus speaking + listening',
       'English {levelName} — luyện ngữ pháp + viết essay',
     ],
-    requestTitles: [
-      'Cần gia sư Tiếng Anh giao tiếp',
-      'Tìm cô dạy English {levelName}',
-    ],
+    requestTitles: ['Cần gia sư Tiếng Anh giao tiếp', 'Tìm cô dạy English {levelName}'],
     requestDescTemplates: [
       'Mình {age} tuổi, muốn cải thiện Tiếng Anh giao tiếp công sở. Tập trung speaking + listening. {sessions} buổi/tuần, có thể học online.',
       'Cần gia sư kèm con lớp {grade} môn Tiếng Anh. Đặc biệt ngữ pháp + viết essay. Hiện học sinh điểm trung bình ~{currentScore}.',
@@ -258,10 +299,7 @@ const SUBJECTS: SubjectSpec[] = [
       'TOEIC {toeicScore} — luyện thi {targetScore}+ cho người đi làm',
       'Gia sư TOEIC — chuyên Listening & Reading strategy',
     ],
-    requestTitles: [
-      'Cần gia sư TOEIC target {targetScore}',
-      'Tìm tutor luyện TOEIC nhanh',
-    ],
+    requestTitles: ['Cần gia sư TOEIC target {targetScore}', 'Tìm tutor luyện TOEIC nhanh'],
     requestDescTemplates: [
       'Mình cần đạt TOEIC {targetScore} để ra trường, hiện ~{currentScore}. Còn {weeks} tuần. Học online, {sessions} buổi/tuần.',
       'Cần gia sư TOEIC chuyên luyện part 5-7 (reading). Mục tiêu {targetScore}+, hiện được ~{currentScore}.',
@@ -280,10 +318,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Lập trình {lang} — project-based, sẵn sàng phỏng vấn',
       'Gia sư lập trình {lang} cho người mới + sinh viên CNTT',
     ],
-    requestTitles: [
-      'Cần gia sư lập trình {lang}',
-      'Tìm tutor học {lang} cho người mới',
-    ],
+    requestTitles: ['Cần gia sư lập trình {lang}', 'Tìm tutor học {lang} cho người mới'],
     requestDescTemplates: [
       'Mình mới chuyển sang IT, muốn học {lang} từ zero. Mục tiêu: làm được {project} cơ bản sau {months} tháng. {sessions} buổi/tuần, online.',
       'Sinh viên năm 2 CNTT cần kèm môn {lang} + cấu trúc dữ liệu. Mức điểm hiện tại: 6-7, mong lên 8+.',
@@ -302,10 +337,7 @@ const SUBJECTS: SubjectSpec[] = [
       'Tiếng Nhật {jlptLevel} — du học sinh Tokyo, dạy giao tiếp + JLPT',
       'Gia sư Tiếng Nhật — chuyên ngữ pháp + kanji',
     ],
-    requestTitles: [
-      'Cần gia sư Tiếng Nhật {jlptLevel}',
-      'Tìm tutor học Tiếng Nhật cơ bản',
-    ],
+    requestTitles: ['Cần gia sư Tiếng Nhật {jlptLevel}', 'Tìm tutor học Tiếng Nhật cơ bản'],
     requestDescTemplates: [
       'Mình mới học Tiếng Nhật, target JLPT {jlptLevel}. {sessions} buổi/tuần, online.',
     ],
@@ -344,7 +376,18 @@ const LEVEL_NAMES: Record<string, string> = {
   ADULT: 'Người đi làm',
 };
 
-const DISTRICTS = ['Cầu Giấy', 'Đống Đa', 'Hai Bà Trưng', 'Hoàng Mai', 'Thanh Xuân', '1', '3', '5', '7', '10'];
+const DISTRICTS = [
+  'Cầu Giấy',
+  'Đống Đa',
+  'Hai Bà Trưng',
+  'Hoàng Mai',
+  'Thanh Xuân',
+  '1',
+  '3',
+  '5',
+  '7',
+  '10',
+];
 const COMPANIES = ['FPT Software', 'VinAI', 'Tiki', 'MoMo', 'VNG', 'Shopee', 'Grab', 'Be'];
 const COUNTRIES = ['Anh', 'Úc', 'Mỹ', 'Canada', 'Nhật', 'New Zealand'];
 
@@ -392,7 +435,6 @@ function fillTemplate(tmpl: string, sub: SubjectSpec, level: string): string {
     .replace(/{score}/g, String(rand(85, 110)));
 }
 
-// ─── Tutor generator ────────────────────────────────────────────────
 type TutorRow = {
   id: string;
   userId: string;
@@ -430,12 +472,10 @@ function genTutor(i: number): TutorRow {
   const sub = weightedPick(SUBJECTS);
   const primaryLevel = pick(sub.levels);
   const subjects: TutorRow['subjects'] = [{ slug: sub.slug, level: primaryLevel }];
-  // 40% có thêm subject thứ 2 (cùng level hoặc level khác)
   if (maybe(0.4) && sub.levels.length > 1) {
     const lvl2 = pick(sub.levels.filter((l) => l !== primaryLevel));
     if (lvl2) subjects.push({ slug: sub.slug, level: lvl2 });
   }
-  // 25% có subject thứ 2 từ category khác (e.g. english + english-ielts)
   if (maybe(0.25)) {
     const sub2 = weightedPick(SUBJECTS.filter((s) => s.slug !== sub.slug));
     const lvl2 = pick(sub2.levels);
@@ -454,9 +494,8 @@ function genTutor(i: number): TutorRow {
   const bio = fillTemplate(pick(sub.bioTemplates), sub, primaryLevel);
   const rate = Math.max(80, Math.min(700, Math.round(normal(220, 90)))) * 1000;
 
-  // 70% có rating, 30% mới
   const hasRating = maybe(0.7);
-  const ratingAvg = hasRating ? (Math.max(3.5, Math.min(5.0, normal(4.6, 0.3)))).toFixed(1) : null;
+  const ratingAvg = hasRating ? Math.max(3.5, Math.min(5.0, normal(4.6, 0.3))).toFixed(1) : null;
   const ratingCount = hasRating ? rand(3, 60) : 0;
   const sessionsCompleted = hasRating ? Math.round(Math.exp(normal(3.5, 1.2))) : rand(0, 5);
 
@@ -474,11 +513,7 @@ function genTutor(i: number): TutorRow {
     ratingAvg,
     ratingCount,
     sessionsCompleted,
-    verificationStatus: hasRating
-      ? maybe(0.7)
-        ? 'KYC_VERIFIED'
-        : 'KYC_PENDING'
-      : 'NONE',
+    verificationStatus: hasRating ? (maybe(0.7) ? 'KYC_VERIFIED' : 'KYC_PENDING') : 'NONE',
     instantBookEnabled: maybe(0.3),
     trialSessionEnabled: maybe(0.6),
     avgResponseMinutes: maybe(0.8) ? rand(5, 180) : null,
@@ -486,7 +521,6 @@ function genTutor(i: number): TutorRow {
   };
 }
 
-// ─── Request generator ──────────────────────────────────────────────
 type RequestRow = {
   id: string;
   studentEmail: string;
@@ -549,7 +583,6 @@ function genRequest(i: number): RequestRow {
   };
 }
 
-// ─── Reset path ─────────────────────────────────────────────────────
 async function resetSeed() {
   console.log('[reset] Tìm users đã seed...');
   const seededUsers = await db
@@ -566,7 +599,6 @@ async function resetSeed() {
     return;
   }
 
-  // Tutor profile IDs
   const tutors = await db
     .select({ id: tutorProfile.id })
     .from(tutorProfile)
@@ -582,12 +614,9 @@ async function resetSeed() {
   }
   await db.delete(tutorRequest).where(inArray(tutorRequest.studentId, allIds));
   await db.delete(user).where(inArray(user.id, allIds));
-  console.log(
-    `[reset] Đã xoá ${allIds.length} user, ${tutorIds.length} tutor profile.`,
-  );
+  console.log(`[reset] Đã xoá ${allIds.length} user, ${tutorIds.length} tutor profile.`);
 }
 
-// ─── Main ───────────────────────────────────────────────────────────
 async function main() {
   if (RESET) {
     await resetSeed();
@@ -597,7 +626,6 @@ async function main() {
 
   console.log('[seed] Bắt đầu — sẽ tạo 200 tutor + 300 request + reviews...');
 
-  // 1. Tạo tutor users + profiles
   const tutors: TutorRow[] = Array.from({ length: 200 }, (_, i) => genTutor(i));
   console.log('[seed] Tutor seeds prepared, inserting users...');
 
@@ -618,7 +646,6 @@ async function main() {
   }
   console.log(`[seed] Created ${tutors.length} tutor users.`);
 
-  // 2. Embed bios in batch
   console.log('[seed] Embedding tutor bios (sequential, can take 1-2 min)...');
   const tutorEmbeddings = new Map<string, number[] | null>();
   if (!NO_EMBED) {
@@ -637,7 +664,6 @@ async function main() {
     console.log('[seed] --no-embed flag detected, skipping embeddings.');
   }
 
-  // 3. Insert tutor profile + subject + availability
   for (const t of tutors) {
     const emb = tutorEmbeddings.get(t.email) ?? null;
     const [p] = await db
@@ -663,7 +689,6 @@ async function main() {
       .returning({ id: tutorProfile.id });
     t.id = p!.id;
 
-    // Subjects
     await db.insert(tutorSubject).values(
       t.subjects.map((s) => ({
         tutorId: t.id,
@@ -672,7 +697,6 @@ async function main() {
       })),
     );
 
-    // Availability — 3-6 slots / week, format HH:MM string
     const slotCount = rand(3, 6);
     const days = pickN([0, 1, 2, 3, 4, 5, 6], slotCount);
     await db.insert(tutorAvailability).values(
@@ -691,7 +715,6 @@ async function main() {
   }
   console.log(`[seed] Inserted ${tutors.length} tutor_profile + subjects + availability.`);
 
-  // 4. Tạo student users cho requests
   const requests: RequestRow[] = Array.from({ length: 300 }, (_, i) => genRequest(i));
   const studentIdByEmail = new Map<string, string>();
 
@@ -713,7 +736,6 @@ async function main() {
   }
   console.log(`[seed] Created ${studentIdByEmail.size} student users.`);
 
-  // 5. Embed request descriptions
   console.log('[seed] Embedding request descriptions...');
   const reqEmbeddings = new Map<number, number[] | null>();
   if (!NO_EMBED) {
@@ -730,7 +752,6 @@ async function main() {
     }
   }
 
-  // 6. Insert requests
   for (let i = 0; i < requests.length; i++) {
     const r = requests[i]!;
     const emb = reqEmbeddings.get(i) ?? null;
@@ -750,7 +771,6 @@ async function main() {
   }
   console.log(`[seed] Inserted ${requests.length} tutor_request.`);
 
-  // 7. Tạo bookings + reviews
   console.log('[seed] Generating bookings + reviews...');
   let reviewsCreated = 0;
   let bookingsCreated = 0;
@@ -758,7 +778,6 @@ async function main() {
 
   for (const t of tutors) {
     if (t.ratingCount === 0) continue;
-    // Tạo `ratingCount` booking + review pairs
     for (let i = 0; i < t.ratingCount; i++) {
       const reviewerId = pick(studentUserIds);
       const pastDate = new Date(Date.now() - rand(7, 180) * 24 * 60 * 60 * 1000);
@@ -777,15 +796,7 @@ async function main() {
         })
         .returning({ id: tutoringBooking.id });
       bookingsCreated++;
-      // Review tied to booking
-      const rating =
-        Number(t.ratingAvg) >= 4.5
-          ? maybe(0.8)
-            ? 5
-            : 4
-          : maybe(0.5)
-            ? 4
-            : 3;
+      const rating = Number(t.ratingAvg) >= 4.5 ? (maybe(0.8) ? 5 : 4) : maybe(0.5) ? 4 : 3;
       await db.insert(tutorReview).values({
         bookingId: booking!.id,
         reviewerId,
@@ -799,7 +810,10 @@ async function main() {
           'Phong cách dạy thoải mái, không áp lực. Recommend!',
           'Cô chấm essay rất kỹ, feedback hữu ích. 5 sao.',
         ]),
-        tags: pickN(['nhiệt tình', 'dễ hiểu', 'chuyên môn cao', 'kiên nhẫn', 'đúng giờ'], rand(1, 3)),
+        tags: pickN(
+          ['nhiệt tình', 'dễ hiểu', 'chuyên môn cao', 'kiên nhẫn', 'đúng giờ'],
+          rand(1, 3),
+        ),
         helpfulCount: rand(0, 8),
       });
       reviewsCreated++;
