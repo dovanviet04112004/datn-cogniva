@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
@@ -29,9 +29,9 @@ import {
   type AnnotationHoverDetail,
   type AnnotationOverlayItem,
   type AnnotationsLoadedDetail,
-} from './annotation-events';
+} from '@/lib/library/annotation-events';
 
-export { ANNOTATION_SELECT_EVENT } from './annotation-events';
+export { ANNOTATION_SELECT_EVENT } from '@/lib/library/annotation-events';
 
 const Document = dynamic(() => import('react-pdf').then((m) => m.Document), { ssr: false });
 const Page = dynamic(() => import('react-pdf').then((m) => m.Page), { ssr: false });

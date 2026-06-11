@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { Timer } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
-import { usePomodoroEnabled } from '@/components/app/use-pomodoro-enabled';
+import { usePomodoroEnabled } from '@/lib/use-pomodoro-enabled';
 
 export function PomodoroToggleCard() {
   const [enabled, setEnabled] = usePomodoroEnabled();

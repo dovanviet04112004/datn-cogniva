@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { EyeOff, Loader2, MessageCircle, Pin, ThumbsUp, Trash2, X } from 'lucide-react';
@@ -27,7 +27,7 @@ import {
   type AnnotationSelectDetail,
   type AnnotationSelectionRect,
   type AnnotationsLoadedDetail,
-} from './annotation-events';
+} from '@/lib/library/annotation-events';
 
 type Annotation = {
   id: string;

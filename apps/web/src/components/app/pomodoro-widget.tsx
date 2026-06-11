@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { Coffee, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 
-import { usePomodoroEnabled } from './use-pomodoro-enabled';
+import { usePomodoroEnabled } from '@/lib/use-pomodoro-enabled';
 
 const FOCUS_SECONDS = 25 * 60;
 const BREAK_SECONDS = 5 * 60;

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
@@ -21,7 +21,7 @@ import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-
 import { ComboSelect } from '@/components/ui/combo-select';
 import { cn } from '@/lib/utils';
 
-import { MAX_FILE_BYTES, useDocumentUpload } from './use-document-upload';
+import { MAX_FILE_BYTES, useDocumentUpload } from '@/lib/use-document-upload';
 
 type Workspace = { id: string; name: string };
 
