@@ -63,12 +63,20 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
   useEffect(() => {
     if (sessionStorage.getItem(SILENT_REFRESH_KEY)) return;
     sessionStorage.setItem(SILENT_REFRESH_KEY, '1');
-    void fetch('/api/auth/refresh', { method: 'POST' }).then((res) => {
-      if (res.ok) {
-        sessionStorage.removeItem(SILENT_REFRESH_KEY);
-        redirectAfterSignIn(redirectTo);
+    void (async () => {
+      try {
+        const res = await fetch('/api/auth/refresh', { method: 'POST' });
+        // Chỉ tin khi body thật sự có user — status lẫn shape đều phải đúng,
+        // tránh lặp redirect nếu server trả 200 nhưng không phát phiên mới.
+        const data = res.ok ? await res.json().catch(() => null) : null;
+        if (data?.user && data?.accessToken) {
+          sessionStorage.removeItem(SILENT_REFRESH_KEY);
+          redirectAfterSignIn(redirectTo);
+        }
+      } catch {
+        /* offline/refresh hỏng → hiện form đăng nhập bình thường */
       }
-    }).catch(() => {});
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

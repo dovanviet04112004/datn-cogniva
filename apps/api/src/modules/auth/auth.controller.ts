@@ -14,6 +14,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { randomBytes } from 'node:crypto';
@@ -151,7 +152,9 @@ export class AuthController {
     @Ip() ip: string,
   ) {
     const raw = body.refreshToken ?? this.readCookie(req, REFRESH_COOKIE);
-    if (!raw) return { error: 'Thiếu refresh token' };
+    // 401 chứ KHÔNG 200 {error} — silent-refresh của trang sign-in dựa vào
+    // status để biết có phiên hay không (200 giả từng gây loop redirect).
+    if (!raw) throw new UnauthorizedException({ error: 'Thiếu refresh token' });
     const t = await this.auth.refresh(raw, { ip, userAgent: req.headers['user-agent'] });
     this.setCookies(res, t);
     return this.toBody(t);
