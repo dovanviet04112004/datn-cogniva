@@ -39,6 +39,27 @@ function checkEdgeVerified(request: NextRequest): boolean {
   return request.headers.get('x-edge-verified') === secret;
 }
 
+const LEGACY_AUTH_COOKIES = [
+  'better-auth.session_token',
+  'better-auth.session_data',
+  'better-auth.dont_remember',
+  '__Secure-better-auth.session_token',
+  '__Secure-better-auth.session_data',
+];
+
+function purgeLegacyAuthCookies(request: NextRequest, response: NextResponse): NextResponse {
+  for (const name of LEGACY_AUTH_COOKIES) {
+    if (request.cookies.has(name)) {
+      response.cookies.set(name, '', {
+        maxAge: 0,
+        path: '/',
+        ...(name.startsWith('__Secure-') ? { secure: true } : {}),
+      });
+    }
+  }
+  return response;
+}
+
 const IMPERSONATION_COOKIE = 'cogniva-imp';
 const IMPERSONATION_BYPASS_PATHS = ['/api/admin/impersonate'];
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -96,7 +117,7 @@ export function middleware(request: NextRequest) {
     url.searchParams.set('redirect', pathname);
     const response = NextResponse.redirect(url);
     response.headers.set('x-trace-id', traceId);
-    return response;
+    return purgeLegacyAuthCookies(request, response);
   }
 
   if (isProtected && !sessionCookie) {
@@ -104,13 +125,13 @@ export function middleware(request: NextRequest) {
     url.searchParams.set('redirect', pathname);
     const response = NextResponse.redirect(url);
     response.headers.set('x-trace-id', traceId);
-    return response;
+    return purgeLegacyAuthCookies(request, response);
   }
 
   if (isAuthRoute && sessionCookie) {
     const response = NextResponse.redirect(new URL('/dashboard', request.url));
     response.headers.set('x-trace-id', traceId);
-    return response;
+    return purgeLegacyAuthCookies(request, response);
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -122,7 +143,7 @@ export function middleware(request: NextRequest) {
   });
   response.headers.set('x-trace-id', traceId);
   response.headers.set('x-cogniva-region', region);
-  return response;
+  return purgeLegacyAuthCookies(request, response);
 }
 
 export const config = {

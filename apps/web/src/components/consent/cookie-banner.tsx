@@ -113,8 +113,8 @@ export function CookieBanner() {
             Cogniva dùng cookie
           </h3>
           <p className="text-muted-foreground mt-1 text-xs">
-            Cookie cần thiết (auth session) luôn bật. Phân tích sử dụng (PostHog, Sentry) chỉ bật
-            khi bạn đồng ý — giúp cải thiện app, không gửi data cho marketing.{' '}
+            Cookie cần thiết cho đăng nhập (cg_at/cg_rt) luôn bật. Phân tích sử dụng (PostHog,
+            Sentry) chỉ bật khi bạn đồng ý — giúp cải thiện app, không gửi data cho marketing.{' '}
             <Link href="/privacy" className="underline">
               Privacy Policy
             </Link>
