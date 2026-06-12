@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 
 import { eq } from 'drizzle-orm';
@@ -7,7 +7,7 @@ import fontkit from '@pdf-lib/fontkit';
 
 import { db, libraryCourse, libraryDoc } from '@cogniva/db';
 
-import { putR2Object, getPublicUrl } from '../src/lib/r2-client';
+import { putR2Object, getPublicUrl } from './r2-client';
 import { REAL_CONTENTS, findContent, type Block } from './fixtures/real-doc-content';
 import { makeThumbnail } from './lib/pdf-render';
 

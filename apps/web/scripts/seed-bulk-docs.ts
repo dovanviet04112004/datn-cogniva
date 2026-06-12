@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { db, libraryCourse, libraryDoc, libraryUniversity, user as userTable } from '@cogniva/db';
 
-import { putR2Object, getPublicUrl } from '../src/lib/r2-client';
+import { putR2Object, getPublicUrl } from './r2-client';
 import { renderDocPdf, plainText, makeThumbnail } from './lib/pdf-render';
 import { fetchArticle, fetchCategoryMembers, articleToBlocks, articlePlain } from './lib/wiki';
 import { WIKI_SOURCES, type WikiSource } from './fixtures/wiki-sources';

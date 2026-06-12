@@ -1,4 +1,4 @@
-import { getPresignedUploadUrl } from '../src/lib/r2-client';
+﻿import { getPresignedUploadUrl } from './r2-client';
 
 const ORIGIN = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'http://localhost:3000';
 

@@ -1,10 +1,10 @@
-import { and, eq, isNull, or } from 'drizzle-orm';
+﻿import { and, eq, isNull, or } from 'drizzle-orm';
 import sharp from 'sharp';
 
 import { db, libraryDoc } from '@cogniva/db';
 import { SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
-import { putR2Object, getPublicUrl } from '../src/lib/r2-client';
+import { putR2Object, getPublicUrl } from './r2-client';
 
 const REGENERATE = process.argv.includes('--regenerate');
 

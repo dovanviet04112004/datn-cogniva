@@ -1,10 +1,10 @@
-import { eq, like, and, not } from 'drizzle-orm';
+﻿import { eq, like, and, not } from 'drizzle-orm';
 import sharp from 'sharp';
 import { pdf } from 'pdf-to-img';
 
 import { db, libraryDoc } from '@cogniva/db';
 
-import { getR2Object, putR2Object, getPublicUrl } from '../src/lib/r2-client';
+import { getR2Object, putR2Object, getPublicUrl } from './r2-client';
 
 const REGENERATE = process.argv.includes('--regenerate');
 

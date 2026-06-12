@@ -1,8 +1,8 @@
-import { eq, and, like } from 'drizzle-orm';
+﻿import { eq, and, like } from 'drizzle-orm';
 
 import { db, libraryDoc } from '@cogniva/db';
 
-import { putR2Object, getPublicUrl } from '../src/lib/r2-client';
+import { putR2Object, getPublicUrl } from './r2-client';
 import { makeThumbnail } from './lib/pdf-render';
 
 async function main() {
