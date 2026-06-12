@@ -17,7 +17,7 @@ import type { AuthUser } from '../../common/auth/session.types';
 import { PermissionsService, type GroupRole } from './permissions.service';
 import { generateInviteCode, normalizeInviteCode } from './group-code';
 import { parseSearch, toTsQuery } from './group-search-query';
-import { toChannelDto, toGroupDto } from './group.mappers';
+import { toCategoryDto, toChannelDto, toGroupDto } from './group.mappers';
 import { updateGroupSchema, type CreateGroupInput, type JoinGroupInput } from './dto/groups.dto';
 
 const SEARCH_MAX_LIMIT = 50;
@@ -186,6 +186,71 @@ export class GroupsService {
     }
 
     return { group: toGroupDto(group) };
+  }
+
+  async latestJoinedGroup(uid: string) {
+    const row = await this.prisma.study_group_member.findFirst({
+      where: { user_id: uid },
+      orderBy: { joined_at: 'desc' },
+      select: { group_id: true },
+    });
+    return { groupId: row?.group_id ?? null };
+  }
+
+  async getShell(uid: string, id: string) {
+    const mine = await this.membership(id, uid);
+    if (!mine) throw new ForbiddenException({ error: 'Not a member' });
+
+    const group = await this.prisma.study_group.findUnique({ where: { id } });
+    if (!group) throw new NotFoundException({ error: 'Not found' });
+
+    const [channels, categories, myGroups] = await Promise.all([
+      this.prisma.study_group_channel.findMany({
+        where: { group_id: id },
+        orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
+      }),
+      this.prisma.study_group_category.findMany({
+        where: { group_id: id },
+        orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
+      }),
+      this.prisma.study_group.findMany({
+        where: { study_group_member: { some: { user_id: uid } } },
+        select: { id: true, name: true, icon_url: true },
+      }),
+    ]);
+
+    return {
+      group: toGroupDto(group),
+      channels: channels.map(toChannelDto),
+      categories: categories.map(toCategoryDto),
+      myGroups: myGroups.map((g) => ({ id: g.id, name: g.name, iconUrl: g.icon_url })),
+      myRole: mine.role,
+    };
+  }
+
+  async firstChannel(uid: string, id: string) {
+    const mine = await this.membership(id, uid);
+    if (!mine) throw new ForbiddenException({ error: 'Not a member' });
+
+    const textCh = await this.prisma.study_group_channel.findFirst({
+      where: { group_id: id, type: 'TEXT' },
+      orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
+      select: { id: true },
+    });
+    if (textCh) return { channelId: textCh.id };
+
+    const anyCh = await this.prisma.study_group_channel.findFirst({
+      where: { group_id: id },
+      orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
+      select: { id: true },
+    });
+    return { channelId: anyCh?.id ?? null };
+  }
+
+  async memberRole(uid: string, id: string) {
+    const mine = await this.membership(id, uid);
+    if (!mine) throw new ForbiddenException({ error: 'Not a member' });
+    return { role: mine.role };
   }
 
   async getGroupDetail(uid: string, id: string) {

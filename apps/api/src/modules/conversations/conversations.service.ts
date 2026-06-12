@@ -58,6 +58,7 @@ export class ConversationsService {
   async getMessages(userId: string, id: string) {
     const conv = await this.prisma.conversation.findFirst({
       where: { id, user_id: userId },
+      include: { workspace: { select: { name: true } } },
     });
     if (!conv) throw new NotFoundException({ error: 'Not found' });
 
@@ -144,6 +145,7 @@ export class ConversationsService {
         id: conv.id,
         title: conv.title,
         workspaceId: conv.workspace_id,
+        workspaceName: conv.workspace?.name ?? null,
         createdAt: conv.created_at.toISOString(),
       },
       messages,

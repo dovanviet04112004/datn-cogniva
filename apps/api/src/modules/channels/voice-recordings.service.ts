@@ -255,6 +255,45 @@ export class VoiceRecordingsService {
     };
   }
 
+  async getRecordingDetail(userId: string, recId: string) {
+    const rec = await this.prisma.recording.findUnique({ where: { id: recId } });
+    if (!rec || !rec.study_group_channel_id) throw new NotFoundException({ error: 'Not found' });
+
+    const ch = await this.prisma.study_group_channel.findUnique({
+      where: { id: rec.study_group_channel_id },
+      select: { group_id: true, name: true },
+    });
+    if (!ch) throw new NotFoundException({ error: 'Not found' });
+
+    const member = await this.prisma.study_group_member.findUnique({
+      where: { group_id_user_id: { group_id: ch.group_id, user_id: userId } },
+      select: { role: true },
+    });
+    if (!member) throw new NotFoundException({ error: 'Not found' });
+
+    const group = await this.prisma.study_group.findUnique({
+      where: { id: ch.group_id },
+      select: { name: true },
+    });
+
+    return {
+      recording: {
+        id: rec.id,
+        status: rec.status,
+        fileUrl: rec.file_url,
+        duration: rec.duration_seconds,
+        summary: rec.summary,
+        transcript: rec.transcript,
+        chapters: rec.chapters,
+        startedAt: rec.started_at,
+        endedAt: rec.ended_at,
+      },
+      channel: { id: rec.study_group_channel_id, groupId: ch.group_id, name: ch.name },
+      groupName: group?.name ?? null,
+      canDelete: ['OWNER', 'ADMIN', 'MODERATOR'].includes(member.role),
+    };
+  }
+
   async deleteRecording(channelId: string, recordingId: string, userId: string) {
     await this.requireRecordMod(channelId, userId, 'Chỉ mod/admin/owner mới được xoá recording');
 

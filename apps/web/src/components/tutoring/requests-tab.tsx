@@ -1,16 +1,8 @@
-import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
-import { ChevronRight, Users } from 'lucide-react';
+﻿import { ChevronRight, Users } from 'lucide-react';
 
-import {
-  db,
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-  tutorRequest,
-  URGENCY_NAMES,
-  user as userTable,
-} from '@cogniva/db';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@cogniva/db/taxonomy';
 
+import { apiServer } from '@/lib/api-server';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/layout/empty-state';
 import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
@@ -42,6 +34,21 @@ const URGENCY_COLORS: Record<string, string> = {
   FLEXIBLE: 'bg-muted/60 text-muted-foreground ring-border',
 };
 
+type BrowseRequest = {
+  id: string;
+  title: string;
+  description: string;
+  subjectSlug: string;
+  level: string;
+  budgetVnd: number | null;
+  modality: string;
+  urgency: string;
+  createdAt: string;
+  studentId: string;
+  studentName: string | null;
+  studentImage: string | null;
+};
+
 export async function RequestsTab({
   sp,
   currentUserId,
@@ -60,67 +67,23 @@ export async function RequestsTab({
 }) {
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
   const pageSize = parsePageSize(sp.per);
-  const offset = (page - 1) * pageSize;
-
-  const conds = [eq(tutorRequest.status, 'OPEN')];
-  if (sp.subject) conds.push(eq(tutorRequest.subjectSlug, sp.subject));
-  if (sp.level) conds.push(eq(tutorRequest.level, sp.level));
-  if (sp.modality) conds.push(eq(tutorRequest.modality, sp.modality));
-  if (sp.urgency) conds.push(eq(tutorRequest.urgency, sp.urgency));
-
   const sort = sp.sort ?? 'urgency';
-  const orderClause = (() => {
-    switch (sort) {
-      case 'newest':
-        return [desc(tutorRequest.createdAt)];
-      case 'budget-high':
-        return [desc(tutorRequest.budgetVnd), desc(tutorRequest.createdAt)];
-      case 'budget-low':
-        return [asc(tutorRequest.budgetVnd), desc(tutorRequest.createdAt)];
-      case 'urgency':
-      default:
-        return [
-          desc(sql`CASE ${tutorRequest.urgency}
-                    WHEN 'ASAP' THEN 3
-                    WHEN 'THIS_WEEK' THEN 2
-                    WHEN 'THIS_MONTH' THEN 1
-                    ELSE 0
-                  END`),
-          desc(tutorRequest.createdAt),
-        ];
-    }
-  })();
 
-  const [countRow, rows] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(tutorRequest)
-      .where(and(...conds))
-      .then((r) => r[0]),
-    db
-      .select({
-        id: tutorRequest.id,
-        title: tutorRequest.title,
-        description: tutorRequest.description,
-        subjectSlug: tutorRequest.subjectSlug,
-        level: tutorRequest.level,
-        budgetVnd: tutorRequest.budgetVnd,
-        modality: tutorRequest.modality,
-        urgency: tutorRequest.urgency,
-        createdAt: tutorRequest.createdAt,
-        studentId: tutorRequest.studentId,
-        studentName: userTable.name,
-        studentImage: userTable.image,
-      })
-      .from(tutorRequest)
-      .innerJoin(userTable, eq(userTable.id, tutorRequest.studentId))
-      .where(and(...conds))
-      .orderBy(...orderClause)
-      .limit(pageSize)
-      .offset(offset),
-  ]);
+  const qs = new URLSearchParams();
+  if (sp.subject) qs.set('subject', sp.subject);
+  if (sp.level) qs.set('level', sp.level);
+  if (sp.modality) qs.set('modality', sp.modality);
+  if (sp.urgency) qs.set('urgency', sp.urgency);
+  if (sp.sort) qs.set('sort', sp.sort);
+  if (sp.page) qs.set('page', sp.page);
+  if (sp.per) qs.set('per', sp.per);
+  const query = qs.toString();
 
-  const totalCount = countRow?.n ?? 0;
+  const { totalCount, requests: rows } = await apiServer<{
+    totalCount: number;
+    requests: BrowseRequest[];
+  }>(`/api/tutoring/requests${query ? `?${query}` : ''}`);
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const activeFilters: ActiveFilterChip[] = [];
@@ -209,7 +172,7 @@ export async function RequestsTab({
                         )}
                       </p>
                       <p className="text-text-muted mt-0.5 font-mono text-[11px] tabular-nums">
-                        <RelativeTime date={r.createdAt.toISOString()} />
+                        <RelativeTime date={r.createdAt} />
                       </p>
                     </div>
                     <span

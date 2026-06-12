@@ -22,6 +22,7 @@ type DocumentListRow = {
   size: number;
   status: string;
   workspaceId: string;
+  workspaceName: string | null;
   createdAt: Date;
   pageCount: number | null;
   chunks: number;
@@ -114,10 +115,12 @@ export class DocumentsService {
           d.size,
           d.status,
           d.workspace_id AS "workspaceId",
+          w.name AS "workspaceName",
           d.created_at AS "createdAt",
           (d.metadata->>'pageCount')::int AS "pageCount",
           coalesce(cc.n, 0)::int AS chunks
         FROM document d
+        LEFT JOIN workspace w ON w.id = d.workspace_id
         LEFT JOIN (
           SELECT document_id, count(id) AS n
           FROM chunk
@@ -130,6 +133,28 @@ export class DocumentsService {
     });
 
     return { documents };
+  }
+
+  async getDocument(userId: string, id: string) {
+    const doc = await this.prisma.document.findFirst({
+      where: { id, user_id: userId },
+    });
+    if (!doc) throw new NotFoundException({ error: 'Not found' });
+
+    const chunks = await this.prisma.chunk.count({ where: { document_id: id } });
+    const meta = (doc.metadata ?? {}) as { pageCount?: number };
+
+    return {
+      id: doc.id,
+      filename: doc.filename,
+      mimeType: doc.mime_type,
+      size: doc.size,
+      pageCount: typeof meta.pageCount === 'number' ? meta.pageCount : null,
+      status: doc.status,
+      workspaceId: doc.workspace_id,
+      createdAt: doc.created_at.toISOString(),
+      chunks,
+    };
   }
 
   async deleteDocument(userId: string, id: string) {

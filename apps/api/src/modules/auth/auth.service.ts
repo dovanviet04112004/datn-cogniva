@@ -201,10 +201,10 @@ export class AuthService {
     else if (userId) await this.refreshTokens.revokeAllForUser(userId);
   }
 
-  async me(userId: string): Promise<AuthUser> {
+  async me(userId: string): Promise<AuthUser & { twoFactorEnabled: boolean }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException({ error: 'Unauthorized' });
-    return this.toAuthUser(user);
+    return { ...this.toAuthUser(user), twoFactorEnabled: user.two_factor_enabled };
   }
 
   async forgotPassword(email: string): Promise<{ devToken?: string }> {

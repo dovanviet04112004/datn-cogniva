@@ -1,13 +1,28 @@
 import { notFound, redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
-
-import { db, recording, studyGroup, studyGroupChannel, studyGroupMember } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
-import { ReplayClient } from '@/components/rooms/replay-client';
+import { apiServerOrNull } from '@/lib/api-server';
+import { ReplayClient, type ReplayChapter } from '@/components/rooms/replay-client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type RecordingDetail = {
+  recording: {
+    id: string;
+    status: string;
+    fileUrl: string | null;
+    duration: number | null;
+    summary: string | null;
+    transcript: string | null;
+    chapters: ReplayChapter[] | null;
+    startedAt: string;
+    endedAt: string | null;
+  };
+  channel: { id: string; groupId: string; name: string };
+  groupName: string | null;
+  canDelete: boolean;
+};
 
 type Props = { params: Promise<{ recId: string }> };
 
@@ -16,61 +31,35 @@ export default async function GroupRecordingReplayPage({ params }: Props) {
   if (!session) redirect('/sign-in');
   const { recId } = await params;
 
-  const [rec] = await db.select().from(recording).where(eq(recording.id, recId)).limit(1);
-  if (!rec || !rec.studyGroupChannelId) notFound();
+  const data = await apiServerOrNull<RecordingDetail>(`/api/channels/recordings/${recId}`);
+  if (!data) notFound();
 
-  const [ch] = await db
-    .select({ groupId: studyGroupChannel.groupId, name: studyGroupChannel.name })
-    .from(studyGroupChannel)
-    .where(eq(studyGroupChannel.id, rec.studyGroupChannelId))
-    .limit(1);
-  if (!ch) notFound();
+  const { recording, channel, groupName, canDelete } = data;
 
-  const [member] = await db
-    .select({ id: studyGroupMember.id, role: studyGroupMember.role })
-    .from(studyGroupMember)
-    .where(
-      and(eq(studyGroupMember.groupId, ch.groupId), eq(studyGroupMember.userId, session.user.id)),
-    )
-    .limit(1);
-  if (!member) notFound();
-  const canDelete = ['OWNER', 'ADMIN', 'MODERATOR'].includes(member.role);
-
-  const [group] = await db
-    .select({ name: studyGroup.name })
-    .from(studyGroup)
-    .where(eq(studyGroup.id, ch.groupId))
-    .limit(1);
-
-  if (rec.status === 'RECORDING') {
-    redirect(`/groups/${ch.groupId}?channel=${rec.studyGroupChannelId}`);
+  if (recording.status === 'RECORDING') {
+    redirect(`/groups/${channel.groupId}?channel=${channel.id}`);
   }
 
   return (
     <div className="h-[calc(100vh-3.5rem)] w-full">
       <ReplayClient
-        roomId={rec.studyGroupChannelId}
-        roomName={`${group?.name ?? 'Group'} · #${ch.name}`}
+        roomId={channel.id}
+        roomName={`${groupName ?? 'Group'} · #${channel.name}`}
         pusherChannelPrefix="presence-voice-"
-        syncUrl={`/api/channels/${rec.studyGroupChannelId}/record/${rec.id}/sync`}
-        deleteUrl={`/api/channels/${rec.studyGroupChannelId}/record/${rec.id}`}
+        syncUrl={`/api/channels/${channel.id}/record/${recording.id}/sync`}
+        deleteUrl={`/api/channels/${channel.id}/record/${recording.id}`}
         canDelete={canDelete}
-        afterDeleteHref={`/groups/${ch.groupId}?channel=${rec.studyGroupChannelId}`}
+        afterDeleteHref={`/groups/${channel.groupId}?channel=${channel.id}`}
         recording={{
-          id: rec.id,
-          status: rec.status as 'PROCESSING' | 'PROCESSED' | 'FAILED',
-          fileUrl: rec.fileUrl,
-          duration: rec.duration,
-          summary: rec.summary,
-          transcript: rec.transcript,
-          chapters: rec.chapters as Array<{
-            startSec: number;
-            endSec: number;
-            title: string;
-            preview: string;
-          }> | null,
-          startedAt: rec.startedAt.toISOString(),
-          endedAt: rec.endedAt ? rec.endedAt.toISOString() : null,
+          id: recording.id,
+          status: recording.status as 'PROCESSING' | 'PROCESSED' | 'FAILED',
+          fileUrl: recording.fileUrl,
+          duration: recording.duration,
+          summary: recording.summary,
+          transcript: recording.transcript,
+          chapters: recording.chapters,
+          startedAt: recording.startedAt,
+          endedAt: recording.endedAt,
         }}
       />
     </div>

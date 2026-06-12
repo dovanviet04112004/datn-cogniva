@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
-
-import { db, studyGroupMember } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { GroupSettings } from '@/components/groups/group-settings';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -13,15 +11,13 @@ export default async function GroupSettingsPage({ params }: PageProps) {
   const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}/settings`)}`);
 
-  const [member] = await db
-    .select({ role: studyGroupMember.role })
-    .from(studyGroupMember)
-    .where(and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)))
-    .limit(1);
-  if (!member) redirect('/groups');
-  if (member.role !== 'OWNER' && member.role !== 'ADMIN') {
+  const data = await apiServerOrNull<{ role: 'OWNER' | 'ADMIN' | 'MODERATOR' | 'MEMBER' }>(
+    `/api/groups/${id}/member-role`,
+  );
+  if (!data) redirect('/groups');
+  if (data.role !== 'OWNER' && data.role !== 'ADMIN') {
     redirect(`/groups/${id}`);
   }
 
-  return <GroupSettings groupId={id} myRole={member.role} currentUserId={session.user.id} />;
+  return <GroupSettings groupId={id} myRole={data.role} currentUserId={session.user.id} />;
 }

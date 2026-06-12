@@ -1,10 +1,8 @@
 import { redirect } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
 import { Users } from 'lucide-react';
 
-import { db, studyGroup, studyGroupMember } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { CreateGroupDialog } from '@/components/groups/create-group-dialog';
@@ -24,16 +22,10 @@ export default async function GroupsHubPage({
 
   const { invite } = await searchParams;
 
-  const [latest] = await db
-    .select({ groupId: studyGroupMember.groupId })
-    .from(studyGroupMember)
-    .innerJoin(studyGroup, eq(studyGroup.id, studyGroupMember.groupId))
-    .where(eq(studyGroupMember.userId, session.user.id))
-    .orderBy(desc(studyGroupMember.joinedAt))
-    .limit(1);
+  const { groupId } = await apiServer<{ groupId: string | null }>('/api/groups/latest');
 
-  if (latest) {
-    redirect(`/groups/${latest.groupId}`);
+  if (groupId) {
+    redirect(`/groups/${groupId}`);
   }
 
   return (

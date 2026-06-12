@@ -14,8 +14,10 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import type { AuthUser } from '../../../common/auth/session.types';
 import { GoalPlannerService } from './goal-planner.service';
+import { HybridSearchService } from './hybrid-search.service';
 import { ReverseSearchService } from './reverse-search.service';
 import { VoiceSearchService } from './voice-search.service';
 import type { Plan } from '../shared/llm.service';
@@ -41,6 +43,35 @@ const GOAL_BODY = z.object({
   userMessage: z.string().min(5).max(500),
 });
 
+const SEARCH_BODY = z.object({
+  query: z.string().max(300).optional(),
+  filters: z
+    .object({
+      subjectSlug: z.string().optional(),
+      level: z.string().optional(),
+      grade: z.array(z.number().int()).optional(),
+      docType: z.array(z.string()).optional(),
+      examType: z.string().optional(),
+      schoolYear: z.string().optional(),
+      region: z.string().optional(),
+      language: z.string().optional(),
+      fileFormat: z.array(z.string()).optional(),
+      minPages: z.number().int().optional(),
+      maxPages: z.number().int().optional(),
+      minRating: z.number().optional(),
+      tags: z.array(z.string()).optional(),
+      verifiedUploaderOnly: z.boolean().optional(),
+      difficulty: z.array(z.enum(['easy', 'medium', 'hard'])).optional(),
+      universityId: z.string().optional(),
+      courseId: z.string().optional(),
+    })
+    .optional(),
+  sort: z.enum(['top', 'rating', 'popular', 'newest']).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+  matchMode: z.enum(['and', 'or']).optional(),
+});
+
 @ApiTags('library')
 @Controller('library')
 export class LibrarySearchController {
@@ -48,7 +79,19 @@ export class LibrarySearchController {
     private readonly reverse: ReverseSearchService,
     private readonly voice: VoiceSearchService,
     private readonly goalPlanner: GoalPlannerService,
+    private readonly hybridSearch: HybridSearchService,
   ) {}
+
+  @Public()
+  @HttpCode(200)
+  @Post('search')
+  async search(@Body() raw: unknown) {
+    const parsed = SEARCH_BODY.safeParse(raw);
+    if (!parsed.success) {
+      throw new HttpException({ error: 'Invalid body', details: parsed.error.flatten() }, 400);
+    }
+    return this.hybridSearch.hybridSearchLibraryDocs(parsed.data);
+  }
 
   @HttpCode(200)
   @Post('search/reverse')

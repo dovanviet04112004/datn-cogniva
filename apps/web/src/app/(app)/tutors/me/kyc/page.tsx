@@ -1,32 +1,33 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
 import { ChevronLeft, ShieldCheck } from 'lucide-react';
 
-import { db, tutorKycDocument, tutorProfile } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer } from '@/lib/api-server';
 import { KycUploadForm } from '@/components/tutoring/kyc-upload-form';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type MyKyc = {
+  profile: { id: string; verificationStatus: string; status: string } | null;
+  documents: Array<{
+    id: string;
+    docType: string;
+    storageKey: string;
+    originalName: string;
+    status: string;
+    reviewNote: string | null;
+    createdAt: string;
+  }>;
+};
+
 export default async function KycPage() {
   const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/tutors/me/kyc');
 
-  const [profile] = await db
-    .select()
-    .from(tutorProfile)
-    .where(eq(tutorProfile.userId, session.user.id))
-    .limit(1);
+  const { profile, documents } = await apiServer<MyKyc>('/api/tutoring/my-kyc');
   if (!profile) redirect('/tutors/become');
-
-  const docs = await db
-    .select()
-    .from(tutorKycDocument)
-    .where(eq(tutorKycDocument.tutorId, profile.id))
-    .orderBy(desc(tutorKycDocument.createdAt));
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 p-6">
@@ -58,14 +59,14 @@ export default async function KycPage() {
 
       <KycUploadForm
         tutorId={profile.id}
-        initialDocs={docs.map((d) => ({
+        initialDocs={documents.map((d) => ({
           id: d.id,
           docType: d.docType,
           storageKey: d.storageKey,
           originalName: d.originalName,
           status: d.status,
           reviewNote: d.reviewNote,
-          createdAt: d.createdAt.toISOString(),
+          createdAt: d.createdAt,
         }))}
       />
     </div>

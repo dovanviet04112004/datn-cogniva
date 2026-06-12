@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, Sparkles } from 'lucide-react';
-import { and, desc, eq } from 'drizzle-orm';
 
-import { db, libraryDoc, libraryDocImport } from '@cogniva/db';
-
+import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 import { PageShell } from '@/components/layout/page-shell';
@@ -19,48 +17,16 @@ export default async function LibraryRemixPage() {
   }
   const t = await getServerT();
 
-  const imports = await db
-    .selectDistinctOn([libraryDoc.id], {
-      id: libraryDoc.id,
-      title: libraryDoc.title,
-      subjectSlug: libraryDoc.subjectSlug,
-      docType: libraryDoc.docType,
-      pageCount: libraryDoc.pageCount,
-      qualityScore: libraryDoc.qualityScore,
-    })
-    .from(libraryDocImport)
-    .innerJoin(libraryDoc, eq(libraryDoc.id, libraryDocImport.docId))
-    .where(
-      and(eq(libraryDocImport.importerId, session.user.id), eq(libraryDoc.status, 'PUBLISHED')),
-    )
-    .orderBy(libraryDoc.id, desc(libraryDocImport.importedAt))
-    .limit(50);
-
-  const ownUploads = await db
-    .select({
-      id: libraryDoc.id,
-      title: libraryDoc.title,
-      subjectSlug: libraryDoc.subjectSlug,
-      docType: libraryDoc.docType,
-      pageCount: libraryDoc.pageCount,
-      qualityScore: libraryDoc.qualityScore,
-    })
-    .from(libraryDoc)
-    .where(and(eq(libraryDoc.uploaderId, session.user.id), eq(libraryDoc.status, 'PUBLISHED')))
-    .orderBy(desc(libraryDoc.createdAt))
-    .limit(20);
-
-  const seen = new Set<string>();
-  const available = [...imports, ...ownUploads]
-    .filter((d) => {
-      if (seen.has(d.id)) return false;
-      seen.add(d.id);
-      return true;
-    })
-    .map((d) => ({
-      ...d,
-      qualityScore: d.qualityScore ? Number(d.qualityScore) : null,
-    }));
+  const { available } = await apiServer<{
+    available: Array<{
+      id: string;
+      title: string;
+      subjectSlug: string;
+      docType: string;
+      pageCount: number | null;
+      qualityScore: number | null;
+    }>;
+  }>('/api/library/remix/available');
 
   return (
     <PageShell size="wide">

@@ -42,6 +42,11 @@ export class DocumentsController {
     return this.documents.listDocuments(user.id);
   }
 
+  @Get(':id')
+  detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.documents.getDocument(user.id, id);
+  }
+
   @Post('upload')
   @HttpCode(200)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 52 * 1024 * 1024 } }))

@@ -7,7 +7,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { cached } from '@cogniva/server-core/cache/cache-aside';
+import { ck } from '@cogniva/server-core/cache/keys';
 
 import { EmbeddingService } from '../../../infra/ai/embedding.service';
 import { PrismaService } from '../../../infra/database/prisma.service';
@@ -72,12 +75,262 @@ interface SubjectRow {
   verify_score: number | null;
 }
 
+export interface TutorsBrowseQuery {
+  subject?: string;
+  level?: string;
+  modality?: string;
+  minRate?: string;
+  maxRate?: string;
+  sort?: string;
+  page?: string;
+  per?: string;
+}
+
+interface BrowseRow {
+  id: string;
+  headline: string;
+  hourly_rate_vnd: number;
+  modality: string;
+  avatar_url: string | null;
+  rating_avg: string | null;
+  rating_count: number;
+  sessions_completed: number;
+  verification_status: string;
+  instant_book_enabled: boolean;
+  trial_session_enabled: boolean;
+  avg_response_minutes: number | null;
+  user_id: string;
+  user_name: string | null;
+  user_image: string | null;
+  subjects: Array<{ slug: string; level: string; verifiedAt: string | null }>;
+}
+
+const ALLOWED_PAGE_SIZES = [12, 24, 48, 96];
+const DEFAULT_PAGE_SIZE = 24;
+
+function parsePageSize(raw: string | undefined): number {
+  const n = parseInt(raw ?? '', 10);
+  return ALLOWED_PAGE_SIZES.includes(n) ? n : DEFAULT_PAGE_SIZE;
+}
+
 @Injectable()
 export class TutorsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embedding: EmbeddingService,
   ) {}
+
+  async browse(query: TutorsBrowseQuery) {
+    const page = Math.max(1, parseInt(query.page ?? '1', 10) || 1);
+    const pageSize = parsePageSize(query.per);
+    const offset = (page - 1) * pageSize;
+    const sort = query.sort ?? 'top';
+
+    const conds: Prisma.Sql[] = [Prisma.sql`tp.status = 'PUBLISHED'`];
+    if (query.modality) conds.push(Prisma.sql`tp.modality = ${query.modality}`);
+    if (query.minRate) {
+      const v = parseInt(query.minRate, 10);
+      if (!isNaN(v)) conds.push(Prisma.sql`tp.hourly_rate_vnd >= ${v}`);
+    }
+    if (query.maxRate) {
+      const v = parseInt(query.maxRate, 10);
+      if (!isNaN(v)) conds.push(Prisma.sql`tp.hourly_rate_vnd <= ${v}`);
+    }
+    if (query.subject) {
+      conds.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM tutor_subject ts
+        WHERE ts.tutor_id = tp.id
+          AND ts.subject_slug = ${query.subject}
+          ${query.level ? Prisma.sql`AND ts.level = ${query.level}` : Prisma.empty}
+      )`);
+    }
+    const where = Prisma.join(conds, ' AND ');
+
+    const orderBy = (() => {
+      switch (sort) {
+        case 'rating':
+          return Prisma.sql`COALESCE(tp.rating_avg, 0) DESC, tp.rating_count DESC`;
+        case 'price-low':
+          return Prisma.sql`tp.hourly_rate_vnd ASC`;
+        case 'price-high':
+          return Prisma.sql`tp.hourly_rate_vnd DESC`;
+        case 'newest':
+          return Prisma.sql`tp.created_at DESC`;
+        case 'sessions':
+          return Prisma.sql`tp.sessions_completed DESC`;
+        case 'top':
+        default:
+          return Prisma.sql`(COALESCE(tp.rating_avg, 0) * 100
+            + LEAST(tp.sessions_completed, 200)
+            + CASE WHEN tp.verification_status = 'KYC_VERIFIED' THEN 50 ELSE 0 END
+            + CASE WHEN tp.instant_book_enabled THEN 30 ELSE 0 END) DESC`;
+      }
+    })();
+
+    const filterHash = [
+      `s=${query.subject ?? 'all'}`,
+      `l=${query.level ?? 'all'}`,
+      `m=${query.modality ?? 'all'}`,
+      `min=${query.minRate ?? ''}`,
+      `max=${query.maxRate ?? ''}`,
+      `sort=${sort}`,
+      `p=${page}`,
+      `per=${pageSize}`,
+    ].join('|');
+
+    const data = await cached(ck.tutorsBrowse(filterHash), 600, async () => {
+      const [countRows, rows] = await Promise.all([
+        this.prisma.$queryRaw<Array<{ n: number }>>(
+          Prisma.sql`SELECT count(*)::int AS n FROM tutor_profile tp WHERE ${where}`,
+        ),
+        this.prisma.$queryRaw<BrowseRow[]>(Prisma.sql`
+          SELECT tp.id, tp.headline, tp.hourly_rate_vnd, tp.modality, tp.avatar_url,
+                 tp.rating_avg::text AS rating_avg, tp.rating_count, tp.sessions_completed,
+                 tp.verification_status, tp.instant_book_enabled, tp.trial_session_enabled,
+                 tp.avg_response_minutes, tp.user_id,
+                 u.name AS user_name, u.image AS user_image,
+                 COALESCE(
+                   (SELECT json_agg(json_build_object(
+                     'slug', ts.subject_slug,
+                     'level', ts.level,
+                     'verifiedAt', ts.verified_at
+                   ))
+                   FROM tutor_subject ts
+                   WHERE ts.tutor_id = tp.id),
+                   '[]'::json
+                 ) AS subjects
+          FROM tutor_profile tp
+          INNER JOIN "user" u ON u.id = tp.user_id
+          WHERE ${where}
+          ORDER BY ${orderBy}
+          LIMIT ${pageSize} OFFSET ${offset}`),
+      ]);
+      return { totalCount: countRows[0]?.n ?? 0, rows };
+    });
+
+    return {
+      totalCount: data.totalCount,
+      tutors: data.rows.map((r) => ({
+        id: r.id,
+        headline: r.headline,
+        hourlyRateVnd: r.hourly_rate_vnd,
+        modality: r.modality,
+        avatarUrl: r.avatar_url,
+        ratingAvg: r.rating_avg,
+        ratingCount: r.rating_count,
+        sessionsCompleted: r.sessions_completed,
+        verificationStatus: r.verification_status,
+        instantBookEnabled: r.instant_book_enabled,
+        trialSessionEnabled: r.trial_session_enabled,
+        avgResponseMinutes: r.avg_response_minutes,
+        userId: r.user_id,
+        userName: r.user_name,
+        userImage: r.user_image,
+        subjects: r.subjects,
+      })),
+    };
+  }
+
+  async getDetail(viewerId: string, id: string) {
+    const profileRow = await this.prisma.tutor_profile.findUnique({
+      where: { id },
+      include: { user: { select: { name: true, image: true } } },
+    });
+    if (!profileRow) throw new NotFoundException({ error: 'Not found' });
+
+    const isOwner = profileRow.user_id === viewerId;
+    if (profileRow.status !== 'PUBLISHED' && !isOwner) {
+      throw new NotFoundException({ error: 'Not found' });
+    }
+
+    const [subjects, availability, reviews, packs, favorite, trialBooking] = await Promise.all([
+      this.prisma.tutor_subject.findMany({ where: { tutor_id: id } }),
+      this.prisma.tutor_availability.findMany({
+        where: { tutor_id: id },
+        orderBy: [{ day_of_week: 'asc' }, { start_time: 'asc' }],
+      }),
+      this.prisma.tutor_review.findMany({
+        where: { tutor_id: id, hidden_at: null },
+        orderBy: { created_at: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          created_at: true,
+          user_tutor_review_reviewer_idTouser: { select: { name: true, image: true } },
+        },
+      }),
+      this.prisma.tutoring_pack.findMany({ where: { tutor_id: id, status: 'ACTIVE' } }),
+      this.prisma.tutor_favorite.findUnique({
+        where: { user_id_tutor_id: { user_id: viewerId, tutor_id: id } },
+        select: { tutor_id: true },
+      }),
+      this.prisma.tutoring_booking.findFirst({
+        where: { student_id: viewerId, tutor_id: id, is_trial: true },
+        select: { id: true },
+      }),
+    ]);
+
+    return {
+      profile: {
+        id: profileRow.id,
+        userId: profileRow.user_id,
+        headline: profileRow.headline,
+        bio: profileRow.bio,
+        hourlyRateVnd: profileRow.hourly_rate_vnd,
+        modality: profileRow.modality,
+        avatarUrl: profileRow.avatar_url,
+        bannerUrl: profileRow.banner_url,
+        sessionsCompleted: profileRow.sessions_completed,
+        ratingAvg: profileRow.rating_avg === null ? null : profileRow.rating_avg.toFixed(2),
+        ratingCount: profileRow.rating_count,
+        verificationStatus: profileRow.verification_status,
+        status: profileRow.status,
+        instantBookEnabled: profileRow.instant_book_enabled,
+        trialSessionEnabled: profileRow.trial_session_enabled,
+        avgResponseMinutes: profileRow.avg_response_minutes,
+        responseRatePct: profileRow.response_rate_pct,
+        introVideoUrl: profileRow.intro_video_url,
+        introVideoThumbUrl: profileRow.intro_video_thumb_url,
+        userName: profileRow.user.name,
+        userImage: profileRow.user.image,
+      },
+      subjects: subjects.map((s) => this.toSubjectDto(s)),
+      availability: availability.map((a) => ({
+        id: a.id,
+        tutorId: a.tutor_id,
+        dayOfWeek: a.day_of_week,
+        startTime: a.start_time,
+        endTime: a.end_time,
+        timezone: a.timezone,
+      })),
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.created_at,
+        reviewerName: r.user_tutor_review_reviewer_idTouser.name,
+        reviewerImage: r.user_tutor_review_reviewer_idTouser.image,
+      })),
+      packs: packs.map((p) => ({
+        id: p.id,
+        tutorId: p.tutor_id,
+        subjectSlug: p.subject_slug,
+        level: p.level,
+        sessionCount: p.session_count,
+        durationMin: p.duration_min,
+        ratePerSessionVnd: p.rate_per_session_vnd,
+        totalVnd: p.total_vnd,
+        discountPct: p.discount_pct,
+        status: p.status,
+        description: p.description,
+      })),
+      isFavorited: favorite !== null,
+      hasTrialUsed: trialBooking !== null,
+      isOwner,
+    };
+  }
 
   async createProfile(
     userId: string,

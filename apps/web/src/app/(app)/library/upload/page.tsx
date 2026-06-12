@@ -1,7 +1,4 @@
-import { eq } from 'drizzle-orm';
-
-import { db, libraryCourse } from '@cogniva/db';
-
+import { apiServerOrNull } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { UploadWizard } from '@/components/library/upload-wizard';
 
@@ -16,11 +13,9 @@ export default async function LibraryUploadPage({
 
   let initialCourse: { id: string; label: string } | null = null;
   if (sp.course) {
-    const [c] = await db
-      .select({ id: libraryCourse.id, name: libraryCourse.name, code: libraryCourse.code })
-      .from(libraryCourse)
-      .where(eq(libraryCourse.id, sp.course))
-      .limit(1);
+    const c = await apiServerOrNull<{ id: string; name: string; code: string | null }>(
+      `/api/library/courses/${sp.course}`,
+    );
     if (c) {
       initialCourse = { id: c.id, label: c.code ? `${c.code} — ${c.name}` : c.name };
     }

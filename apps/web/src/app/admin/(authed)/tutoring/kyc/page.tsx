@@ -1,42 +1,27 @@
 import Link from 'next/link';
-import { desc, eq, sql } from 'drizzle-orm';
 import { CheckCircle2, ChevronRight, Clock } from 'lucide-react';
 
-import { db, tutorKycDocument, tutorProfile, user as userTable } from '@cogniva/db';
-
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { apiServer } from '@/lib/api-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type KycQueueRow = {
+  tutorId: string;
+  tutorUserId: string;
+  tutorName: string | null;
+  tutorEmail: string;
+  tutorAvatarUrl: string | null;
+  headline: string;
+  verificationStatus: string;
+  pendingCount: number;
+  totalCount: number;
+  latestUpload: string;
+};
+
 export default async function AdminKycPage() {
-  const rows = await db
-    .select({
-      tutorId: tutorProfile.id,
-      tutorUserId: tutorProfile.userId,
-      tutorName: userTable.name,
-      tutorEmail: userTable.email,
-      tutorAvatarUrl: tutorProfile.avatarUrl,
-      headline: tutorProfile.headline,
-      verificationStatus: tutorProfile.verificationStatus,
-      pendingCount: sql<number>`COUNT(CASE WHEN ${tutorKycDocument.status} = 'PENDING' THEN 1 END)::int`,
-      totalCount: sql<number>`COUNT(${tutorKycDocument.id})::int`,
-      latestUpload: sql<Date>`MAX(${tutorKycDocument.createdAt})`,
-    })
-    .from(tutorKycDocument)
-    .innerJoin(tutorProfile, eq(tutorProfile.id, tutorKycDocument.tutorId))
-    .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
-    .groupBy(
-      tutorProfile.id,
-      tutorProfile.userId,
-      userTable.name,
-      userTable.email,
-      tutorProfile.avatarUrl,
-      tutorProfile.headline,
-      tutorProfile.verificationStatus,
-    )
-    .orderBy(desc(sql`MAX(${tutorKycDocument.createdAt})`))
-    .limit(50);
+  const { tutors: rows } = await apiServer<{ tutors: KycQueueRow[] }>('/api/admin/kyc');
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-6">

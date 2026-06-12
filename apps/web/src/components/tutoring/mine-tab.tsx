@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import {
   Banknote,
   Calendar,
@@ -14,15 +14,69 @@ import {
   UserPlus,
 } from 'lucide-react';
 
-import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@cogniva/db';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@cogniva/db/taxonomy';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { EarningsCard } from '@/components/tutoring/earnings-card';
 import { RelativeTime } from '@/components/ui/relative-time';
-import { getMineTab } from '@/lib/tutoring/get-mine-tab';
+import { apiServer } from '@/lib/api-server';
 import { cn } from '@/lib/utils';
+
+type MineProfile = {
+  id: string;
+  headline: string;
+  hourlyRateVnd: number;
+  modality: string;
+  avatarUrl: string | null;
+  sessionsCompleted: number;
+  verificationStatus: string;
+  status: string;
+};
+
+type MineRequest = {
+  id: string;
+  title: string;
+  subjectSlug: string;
+  level: string;
+  modality: string;
+  urgency: string;
+  status: string;
+  budgetVnd: number | null;
+  createdAt: string;
+};
+
+type MineBooking = {
+  id: string;
+  tutorId: string;
+  studentId: string;
+  subjectSlug: string;
+  startAt: string;
+  endAt: string;
+  status: string;
+  tutorName: string | null;
+  tutorAvatarUrl: string | null;
+};
+
+type MineApplication = {
+  id: string;
+  requestId: string;
+  status: string;
+  proposedRateVnd: number;
+  createdAt: string;
+  requestTitle: string;
+  requestSubject: string;
+  requestLevel: string;
+  requestStatus: string;
+};
+
+type MineTabData = {
+  myProfile: MineProfile | null;
+  myRequests: MineRequest[];
+  upcomingBookings: MineBooking[];
+  myApplications: MineApplication[];
+};
 
 const URGENCY_COLORS: Record<string, string> = {
   ASAP: 'bg-red-500/10 text-red-700 dark:text-red-400 ring-red-500/20',
@@ -57,8 +111,9 @@ const APP_STATUS_LABELS: Record<string, string> = {
   WITHDRAWN: 'Đã huỷ',
 };
 
-export async function MineTab({ userId }: { userId: string }) {
-  const { myProfile, myRequests, upcomingBookings, myApplications } = await getMineTab(userId);
+export async function MineTab() {
+  const { myProfile, myRequests, upcomingBookings, myApplications } =
+    await apiServer<MineTabData>('/api/tutoring/mine-tab');
 
   return (
     <div className="space-y-10">
@@ -262,7 +317,7 @@ export async function MineTab({ userId }: { userId: string }) {
                         {APP_STATUS_LABELS[a.status] ?? a.status}
                       </span>
                       <span className="text-text-muted text-[11px]">
-                        <RelativeTime date={a.createdAt.toISOString()} />
+                        <RelativeTime date={a.createdAt} />
                       </span>
                       <ChevronRight className="text-muted-foreground/40 group-hover/a:text-muted-foreground h-3.5 w-3.5 transition-all group-hover/a:translate-x-0.5" />
                     </Link>

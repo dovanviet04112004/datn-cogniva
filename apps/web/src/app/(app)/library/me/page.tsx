@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { desc, eq, sql } from 'drizzle-orm';
 import {
   ArrowLeft,
   Crown,
@@ -12,14 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 
-import {
-  db,
-  libraryDoc,
-  libraryDocEndorsement,
-  libraryCreatorKarma,
-  libraryKarmaEvent,
-} from '@cogniva/db';
-
+import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
@@ -47,85 +39,54 @@ const STATUS_LABEL: Record<string, { labelKey: string; class: string }> = {
   },
 };
 
+type CreatorDashboard = {
+  docs: Array<{
+    id: string;
+    title: string;
+    subjectSlug: string;
+    docType: string;
+    status: string;
+    pageCount: number | null;
+    viewCount: number;
+    downloadCount: number;
+    workspaceImportCount: number;
+    remixCount: number;
+    ratingAvg: number | null;
+    ratingCount: number;
+    qualityScore: number | null;
+    badges: string[];
+    createdAt: string;
+  }>;
+  karma: { points: number; lastEventAt: string | null } | null;
+  rank: number | null;
+  agg: {
+    totalImports: number;
+    totalDownloads: number;
+    totalRemixes: number;
+    totalDocs: number;
+    avgQuality: number;
+  };
+  endorseTotal: number;
+  recentEvents: Array<{
+    id: string;
+    eventType: string;
+    points: number;
+    docId: string | null;
+    createdAt: string;
+    docTitle: string | null;
+  }>;
+};
+
 export default async function CreatorDashboardPage() {
   const t = await getServerT();
   const session = await getServerSession();
   if (!session) {
     redirect('/sign-in?callbackUrl=/library/me');
   }
-  const userId = session.user.id;
 
-  const docs = await db
-    .select({
-      id: libraryDoc.id,
-      title: libraryDoc.title,
-      subjectSlug: libraryDoc.subjectSlug,
-      docType: libraryDoc.docType,
-      status: libraryDoc.status,
-      pageCount: libraryDoc.pageCount,
-      viewCount: libraryDoc.viewCount,
-      downloadCount: libraryDoc.downloadCount,
-      workspaceImportCount: libraryDoc.workspaceImportCount,
-      remixCount: libraryDoc.remixCount,
-      ratingAvg: libraryDoc.ratingAvg,
-      ratingCount: libraryDoc.ratingCount,
-      qualityScore: libraryDoc.qualityScore,
-      badges: libraryDoc.badges,
-      createdAt: libraryDoc.createdAt,
-    })
-    .from(libraryDoc)
-    .where(eq(libraryDoc.uploaderId, userId))
-    .orderBy(desc(libraryDoc.createdAt));
-
-  const [karma] = await db
-    .select({
-      points: libraryCreatorKarma.points,
-      lastEventAt: libraryCreatorKarma.lastEventAt,
-    })
-    .from(libraryCreatorKarma)
-    .where(eq(libraryCreatorKarma.userId, userId))
-    .limit(1);
-
-  let rank: number | null = null;
-  if (karma?.points) {
-    const [r] = await db
-      .select({ n: sql<number>`COUNT(*)::int + 1` })
-      .from(libraryCreatorKarma)
-      .where(sql`${libraryCreatorKarma.points} > ${karma.points}`);
-    rank = Number(r?.n ?? 1);
-  }
-
-  const [agg] = await db
-    .select({
-      totalImports: sql<number>`COALESCE(SUM(${libraryDoc.workspaceImportCount}), 0)::int`,
-      totalDownloads: sql<number>`COALESCE(SUM(${libraryDoc.downloadCount}), 0)::int`,
-      totalRemixes: sql<number>`COALESCE(SUM(${libraryDoc.remixCount}), 0)::int`,
-      totalDocs: sql<number>`COUNT(*)::int`,
-      avgQuality: sql<number>`COALESCE(AVG(${libraryDoc.qualityScore}), 0)::float`,
-    })
-    .from(libraryDoc)
-    .where(eq(libraryDoc.uploaderId, userId));
-
-  const [endorseAgg] = await db
-    .select({ total: sql<number>`COUNT(*)::int` })
-    .from(libraryDocEndorsement)
-    .innerJoin(libraryDoc, eq(libraryDoc.id, libraryDocEndorsement.docId))
-    .where(eq(libraryDoc.uploaderId, userId));
-
-  const recentEvents = await db
-    .select({
-      id: libraryKarmaEvent.id,
-      eventType: libraryKarmaEvent.eventType,
-      points: libraryKarmaEvent.points,
-      docId: libraryKarmaEvent.docId,
-      createdAt: libraryKarmaEvent.createdAt,
-      docTitle: libraryDoc.title,
-    })
-    .from(libraryKarmaEvent)
-    .leftJoin(libraryDoc, eq(libraryDoc.id, libraryKarmaEvent.docId))
-    .where(eq(libraryKarmaEvent.userId, userId))
-    .orderBy(desc(libraryKarmaEvent.createdAt))
-    .limit(10);
+  const { docs, karma, rank, agg, endorseTotal, recentEvents } = await apiServer<CreatorDashboard>(
+    '/api/library/creator/dashboard',
+  );
 
   return (
     <PageShell size="wide">
@@ -193,7 +154,7 @@ export default async function CreatorDashboardPage() {
           tint="bg-amber-500/10"
           tintText="text-amber-600 dark:text-amber-400"
           label={t('library.me.stat.endorse')}
-          value={(endorseAgg?.total ?? 0).toLocaleString('vi-VN')}
+          value={endorseTotal.toLocaleString('vi-VN')}
         />
       </section>
 

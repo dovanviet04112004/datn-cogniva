@@ -13,6 +13,7 @@ import { AdminSystemController } from './admin-system.controller';
 import { AdminSystemService } from './admin-system.service';
 import { AdminUsersController } from './admin-users.controller';
 import { AdminUsersService } from './admin-users.service';
+import { PublicSystemController } from './public-system.controller';
 
 @Module({
   imports: [QueueModule, AdminSharedModule],
@@ -22,6 +23,7 @@ import { AdminUsersService } from './admin-users.service';
     AdminSystemController,
     AdminGroupsController,
     AdminMiscController,
+    PublicSystemController,
   ],
   providers: [
     AdminNotifyService,

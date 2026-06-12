@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpException,
   Param,
   Post,
   Put,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -30,6 +32,25 @@ export class TutorsController {
     private readonly kyc: TutorKycService,
     private readonly verifyQuiz: TutorVerifyQuizService,
   ) {}
+
+  @Get()
+  browse(
+    @Query('subject') subject?: string,
+    @Query('level') level?: string,
+    @Query('modality') modality?: string,
+    @Query('minRate') minRate?: string,
+    @Query('maxRate') maxRate?: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: string,
+    @Query('per') per?: string,
+  ) {
+    return this.tutors.browse({ subject, level, modality, minRate, maxRate, sort, page, per });
+  }
+
+  @Get(':id')
+  detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.tutors.getDetail(user.id, id);
+  }
 
   @Post()
   async create(

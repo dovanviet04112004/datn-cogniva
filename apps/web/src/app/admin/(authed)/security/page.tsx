@@ -1,19 +1,12 @@
-import { eq } from 'drizzle-orm';
-
-import { db, user } from '@cogniva/db';
-
 import { requireAdmin } from '@/lib/admin/guard';
+import { apiServer } from '@/lib/api-server';
 import { TwoFactorClient } from '@/components/admin/two-factor-client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSecurityPage() {
-  const ctx = await requireAdmin();
-  const [row] = await db
-    .select({ twoFactorEnabled: user.twoFactorEnabled })
-    .from(user)
-    .where(eq(user.id, ctx.userId))
-    .limit(1);
-  return <TwoFactorClient enabled={row?.twoFactorEnabled ?? false} />;
+  await requireAdmin();
+  const { user } = await apiServer<{ user: { twoFactorEnabled: boolean } }>('/api/auth/me');
+  return <TwoFactorClient enabled={user.twoFactorEnabled ?? false} />;
 }

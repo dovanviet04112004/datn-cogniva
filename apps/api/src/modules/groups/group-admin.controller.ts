@@ -53,6 +53,15 @@ export class GroupAdminController {
     return this.channels.createChannel(user.id, id, raw);
   }
 
+  @Get(':id/channels/:channelId')
+  channelDetail(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('channelId') channelId: string,
+  ) {
+    return this.channels.getChannel(user.id, id, channelId);
+  }
+
   @Post(':id/channels/reorder')
   @HttpCode(200)
   reorderChannels(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() raw: unknown) {

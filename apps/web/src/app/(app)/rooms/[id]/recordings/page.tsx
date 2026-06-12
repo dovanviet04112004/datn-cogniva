@@ -1,12 +1,9 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
 import { ArrowLeft, PlayCircle } from 'lucide-react';
 
-import { db, room, roomMember } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
-import { getRoomRecordings } from '@/lib/rooms/get-room-recordings';
+import { apiServerOrNull } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState } from '@/components/layout/empty-state';
 
@@ -14,6 +11,14 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ id: string }> };
+
+type RecordingRow = {
+  id: string;
+  status: string;
+  duration: number | null;
+  summary: string | null;
+  startedAt: string;
+};
 
 function fmtDuration(sec: number | null): string {
   if (!sec) return '—';
@@ -27,31 +32,18 @@ export default async function RecordingsPage({ params }: Props) {
   if (!session) redirect('/sign-in');
   const { id: roomId } = await params;
 
-  const [member] = await db
-    .select()
-    .from(roomMember)
-    .where(
-      and(
-        eq(roomMember.roomId, roomId),
-        eq(roomMember.userId, session.user.id),
-        eq(roomMember.status, 'ACTIVE'),
-      ),
-    )
-    .limit(1);
-  if (!member) notFound();
+  const [recRes, roomRes] = await Promise.all([
+    apiServerOrNull<{ recordings: RecordingRow[] }>(`/api/rooms/${roomId}/record`),
+    apiServerOrNull<{ room: { name: string } }>(`/api/rooms/${roomId}`),
+  ]);
+  if (!recRes) notFound();
 
-  const [roomRow] = await db
-    .select({ name: room.name })
-    .from(room)
-    .where(eq(room.id, roomId))
-    .limit(1);
-
-  const rows = await getRoomRecordings(roomId);
+  const rows = recRes.recordings;
 
   return (
     <PageShell
       title="Lịch sử ghi hình"
-      description={`${roomRow?.name ?? 'Room'} — ${rows.length} buổi đã ghi`}
+      description={`${roomRes?.room.name ?? 'Room'} — ${rows.length} buổi đã ghi`}
     >
       <Link
         href={`/rooms/${roomId}`}

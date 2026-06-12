@@ -136,6 +136,15 @@ export class RoomsController {
     return this.recordings.listRecordings(user.id, id);
   }
 
+  @Get(':id/record/:recordingId')
+  getRecord(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('recordingId') recordingId: string,
+  ) {
+    return this.recordings.getRecording(user.id, id, recordingId);
+  }
+
   @Post(':id/record/:recordingId/stop')
   @HttpCode(200)
   stopRecord(

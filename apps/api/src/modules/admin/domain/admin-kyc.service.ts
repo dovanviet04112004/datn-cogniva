@@ -13,9 +13,7 @@ export class AdminKycService {
     private readonly audit: AdminAuditService,
   ) {}
 
-  async listQueue(statusParam: string | undefined) {
-    const status = statusParam ?? 'PENDING';
-
+  async listQueue() {
     const tutors = await this.prisma.$queryRaw<
       Array<{
         tutorId: string;
@@ -25,8 +23,8 @@ export class AdminKycService {
         tutorAvatarUrl: string | null;
         headline: string;
         verificationStatus: string;
-        docCount: number;
         pendingCount: number;
+        totalCount: number;
         latestUpload: Date;
       }>
     >(Prisma.sql`
@@ -38,19 +36,61 @@ export class AdminKycService {
         tp.avatar_url AS "tutorAvatarUrl",
         tp.headline AS "headline",
         tp.verification_status AS "verificationStatus",
-        COUNT(d.id)::int AS "docCount",
         COUNT(CASE WHEN d.status = 'PENDING' THEN 1 END)::int AS "pendingCount",
+        COUNT(d.id)::int AS "totalCount",
         MAX(d.created_at) AS "latestUpload"
       FROM tutor_kyc_document d
       JOIN tutor_profile tp ON tp.id = d.tutor_id
       JOIN "user" u ON u.id = tp.user_id
-      WHERE d.status = ${status}
       GROUP BY tp.id, tp.user_id, u.name, u.email, tp.avatar_url, tp.headline, tp.verification_status
       ORDER BY MAX(d.created_at) DESC
       LIMIT 50
     `);
 
     return { tutors };
+  }
+
+  async detail(id: string) {
+    const profile = await this.prisma.tutor_profile.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        headline: true,
+        bio: true,
+        verification_status: true,
+        avatar_url: true,
+        user: { select: { name: true, email: true, image: true } },
+      },
+    });
+    if (!profile) throw new NotFoundException({ error: 'Not found' });
+
+    const docs = await this.prisma.tutor_kyc_document.findMany({
+      where: { tutor_id: id },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return {
+      profile: {
+        id: profile.id,
+        headline: profile.headline,
+        bio: profile.bio,
+        verificationStatus: profile.verification_status,
+        avatarUrl: profile.avatar_url,
+        userName: profile.user.name,
+        userEmail: profile.user.email,
+        userImage: profile.user.image,
+      },
+      docs: docs.map((d) => ({
+        id: d.id,
+        docType: d.doc_type,
+        originalName: d.original_name,
+        sizeBytes: d.size_bytes,
+        storageKey: d.storage_key,
+        status: d.status,
+        reviewNote: d.review_note,
+        createdAt: d.created_at.toISOString(),
+      })),
+    };
   }
 
   async review(ctx: AdminContext, id: string, body: KycReviewInput) {

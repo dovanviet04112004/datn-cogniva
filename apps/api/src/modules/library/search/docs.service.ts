@@ -101,12 +101,42 @@ export class LibraryDocsService {
           rating_count: true,
           quality_score: true,
           badges: true,
+          parent_remix_doc_ids: true,
+          remix_count: true,
+          is_premium: true,
+          price_vnd: true,
+          creator_share_pct: true,
+          course_id: true,
+          course_name_cache: true,
+          university_id: true,
           created_at: true,
           user: { select: { name: true, image: true } },
         },
       });
 
       if (!docRow) return null;
+
+      let parentRemixDocs: Array<{ id: string; title: string; uploaderName: string | null }> = [];
+      if (docRow.parent_remix_doc_ids.length > 0) {
+        const parents = await this.prisma.library_doc.findMany({
+          where: { id: { in: docRow.parent_remix_doc_ids }, status: 'PUBLISHED' },
+          select: { id: true, title: true, user: { select: { name: true } } },
+        });
+        parentRemixDocs = parents.map((p) => ({
+          id: p.id,
+          title: p.title,
+          uploaderName: p.user.name,
+        }));
+      }
+
+      let universityName: string | null = null;
+      if (docRow.university_id) {
+        const uni = await this.prisma.library_university.findUnique({
+          where: { id: docRow.university_id },
+          select: { name: true, short_name: true },
+        });
+        universityName = uni?.short_name || uni?.name || null;
+      }
 
       const reviews = await this.fetchReviews(id, 5, 0);
 
@@ -142,19 +172,39 @@ export class LibraryDocsService {
           ratingCount: docRow.rating_count,
           qualityScore: docRow.quality_score ? Number(docRow.quality_score) : null,
           badges: docRow.badges,
+          parentRemixDocIds: docRow.parent_remix_doc_ids,
+          remixCount: docRow.remix_count,
+          isPremium: docRow.is_premium ?? false,
+          priceVnd: docRow.price_vnd,
+          creatorSharePct: docRow.creator_share_pct,
+          courseId: docRow.course_id,
+          courseNameCache: docRow.course_name_cache,
+          universityId: docRow.university_id,
           createdAt: docRow.created_at,
         },
+        parentRemixDocs,
+        universityName,
         reviews,
       };
     });
 
     if (!detail) throw new NotFoundException({ error: 'Not found' });
 
+    const access = await this.accessVerdict(
+      {
+        id: detail.doc.id,
+        uploaderId: detail.doc.uploaderId,
+        isPremium: detail.doc.isPremium,
+        status: detail.doc.status,
+      },
+      userId,
+    );
+
     void this.prisma.library_doc
       .update({ where: { id }, data: { view_count: { increment: 1 } } })
       .catch(() => {});
 
-    if (userId) {
+    if (userId && detail.doc.status === 'PUBLISHED') {
       void this.prisma.library_doc_view
         .upsert({
           where: { user_id_doc_id: { user_id: userId, doc_id: id } },
@@ -164,7 +214,37 @@ export class LibraryDocsService {
         .catch(() => {});
     }
 
-    return detail;
+    return { ...detail, access };
+  }
+
+  private async accessVerdict(
+    doc: { id: string; uploaderId: string; isPremium: boolean; status: string | null },
+    userId: string | null,
+  ): Promise<'free' | 'owner' | 'pro' | 'purchased' | 'denied'> {
+    if (!doc.isPremium) {
+      if (doc.status === 'PUBLISHED') return 'free';
+      if (userId && userId === doc.uploaderId) return 'owner';
+      return 'denied';
+    }
+
+    if (!userId) return 'denied';
+    if (userId === doc.uploaderId) return 'owner';
+
+    const proRow = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, pro_until_at: true },
+    });
+    const isProActive =
+      proRow?.plan === 'PRO' && (proRow.pro_until_at === null || proRow.pro_until_at > new Date());
+    if (isProActive) return 'pro';
+
+    const purchase = await this.prisma.library_doc_purchase.findFirst({
+      where: { doc_id: doc.id, buyer_id: userId },
+      select: { id: true },
+    });
+    if (purchase) return 'purchased';
+
+    return 'denied';
   }
 
   async deleteDoc(userId: string, id: string) {

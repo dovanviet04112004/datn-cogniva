@@ -1,23 +1,32 @@
-import { and, asc, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
-import { Users } from 'lucide-react';
+﻿import { Users } from 'lucide-react';
 
-import {
-  dbReplica,
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-  tutorProfile,
-  tutorSubject,
-  user as userTable,
-} from '@cogniva/db';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
-import { cached } from '@/lib/cache/cache-aside';
-import { ck } from '@/lib/cache/keys';
+import { apiServer } from '@/lib/api-server';
 import { EmptyState } from '@/components/layout/empty-state';
 import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
 import { Pagination } from '@/components/tutoring/pagination';
 import { TutorCard, type TutorCardData } from '@/components/tutoring/tutor-card';
 import { TutorFilters } from '@/components/tutoring/tutor-filters';
+
+type BrowseTutor = {
+  id: string;
+  headline: string;
+  hourlyRateVnd: number;
+  modality: string;
+  avatarUrl: string | null;
+  ratingAvg: string | null;
+  ratingCount: number;
+  sessionsCompleted: number;
+  verificationStatus: string;
+  instantBookEnabled: boolean;
+  trialSessionEnabled: boolean | null;
+  avgResponseMinutes: number | null;
+  userId: string;
+  userName: string | null;
+  userImage: string | null;
+  subjects: Array<{ slug: string; level: string; verifiedAt: string | null }>;
+};
 
 const TUTOR_SORT_OPTIONS = [
   { value: 'top', label: 'Đề xuất' },
@@ -53,111 +62,24 @@ export async function TutorsTab({
 }) {
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
   const pageSize = parsePageSize(sp.per);
-  const offset = (page - 1) * pageSize;
-  const conds = [eq(tutorProfile.status, 'PUBLISHED')];
-  if (sp.modality) conds.push(eq(tutorProfile.modality, sp.modality));
-  if (sp.minRate) {
-    const v = parseInt(sp.minRate, 10);
-    if (!isNaN(v)) conds.push(gte(tutorProfile.hourlyRateVnd, v));
-  }
-  if (sp.maxRate) {
-    const v = parseInt(sp.maxRate, 10);
-    if (!isNaN(v)) conds.push(lte(tutorProfile.hourlyRateVnd, v));
-  }
-  if (sp.subject) {
-    conds.push(
-      sql`EXISTS (
-        SELECT 1 FROM ${tutorSubject}
-        WHERE ${tutorSubject.tutorId} = ${tutorProfile.id}
-          AND ${tutorSubject.subjectSlug} = ${sp.subject}
-          ${sp.level ? sql`AND ${tutorSubject.level} = ${sp.level}` : sql``}
-      )`,
-    );
-  }
-
   const sort = sp.sort ?? 'top';
-  const orderClause = (() => {
-    switch (sort) {
-      case 'rating':
-        return [desc(sql`COALESCE(${tutorProfile.ratingAvg}, 0)`), desc(tutorProfile.ratingCount)];
-      case 'price-low':
-        return [asc(tutorProfile.hourlyRateVnd)];
-      case 'price-high':
-        return [desc(tutorProfile.hourlyRateVnd)];
-      case 'newest':
-        return [desc(tutorProfile.createdAt)];
-      case 'sessions':
-        return [desc(tutorProfile.sessionsCompleted)];
-      case 'top':
-      default:
-        return [
-          desc(
-            sql`COALESCE(${tutorProfile.ratingAvg}, 0) * 100
-              + LEAST(${tutorProfile.sessionsCompleted}, 200)
-              + CASE WHEN ${tutorProfile.verificationStatus} = 'KYC_VERIFIED' THEN 50 ELSE 0 END
-              + CASE WHEN ${tutorProfile.instantBookEnabled} THEN 30 ELSE 0 END`,
-          ),
-        ];
-    }
-  })();
 
-  const filterHash = [
-    `s=${sp.subject ?? 'all'}`,
-    `l=${sp.level ?? 'all'}`,
-    `m=${sp.modality ?? 'all'}`,
-    `min=${sp.minRate ?? ''}`,
-    `max=${sp.maxRate ?? ''}`,
-    `sort=${sort}`,
-    `p=${page}`,
-    `per=${pageSize}`,
-  ].join('|');
+  const qs = new URLSearchParams();
+  if (sp.subject) qs.set('subject', sp.subject);
+  if (sp.level) qs.set('level', sp.level);
+  if (sp.modality) qs.set('modality', sp.modality);
+  if (sp.minRate) qs.set('minRate', sp.minRate);
+  if (sp.maxRate) qs.set('maxRate', sp.maxRate);
+  if (sp.sort) qs.set('sort', sp.sort);
+  if (sp.page) qs.set('page', sp.page);
+  if (sp.per) qs.set('per', sp.per);
+  const query = qs.toString();
 
-  const { countRow, rows } = await cached(ck.tutorsBrowse(filterHash), 600, async () => {
-    const [countRow, rows] = await Promise.all([
-      dbReplica
-        .select({ n: count() })
-        .from(tutorProfile)
-        .where(and(...conds))
-        .then((r) => r[0]),
-      dbReplica
-        .select({
-          id: tutorProfile.id,
-          headline: tutorProfile.headline,
-          hourlyRateVnd: tutorProfile.hourlyRateVnd,
-          modality: tutorProfile.modality,
-          avatarUrl: tutorProfile.avatarUrl,
-          ratingAvg: tutorProfile.ratingAvg,
-          ratingCount: tutorProfile.ratingCount,
-          sessionsCompleted: tutorProfile.sessionsCompleted,
-          verificationStatus: tutorProfile.verificationStatus,
-          instantBookEnabled: tutorProfile.instantBookEnabled,
-          trialSessionEnabled: tutorProfile.trialSessionEnabled,
-          avgResponseMinutes: tutorProfile.avgResponseMinutes,
-          userId: tutorProfile.userId,
-          userName: userTable.name,
-          userImage: userTable.image,
-          subjects: sql<Array<{ slug: string; level: string; verifiedAt: string | null }>>`COALESCE(
-          (SELECT json_agg(json_build_object(
-            'slug', ${tutorSubject.subjectSlug},
-            'level', ${tutorSubject.level},
-            'verifiedAt', ${tutorSubject.verifiedAt}
-          ))
-          FROM ${tutorSubject}
-          WHERE ${tutorSubject.tutorId} = ${tutorProfile.id}),
-          '[]'::json
-        )`,
-        })
-        .from(tutorProfile)
-        .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
-        .where(and(...conds))
-        .orderBy(...orderClause)
-        .limit(pageSize)
-        .offset(offset),
-    ]);
-    return { countRow, rows };
-  });
+  const { totalCount, tutors: rows } = await apiServer<{
+    totalCount: number;
+    tutors: BrowseTutor[];
+  }>(`/api/tutors${query ? `?${query}` : ''}`);
 
-  const totalCount = countRow?.n ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const tutors: TutorCardData[] = rows.map((r) => ({

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -9,6 +9,11 @@ import { LibraryMoneyService } from './money.service';
 @Controller('library')
 export class LibraryMoneyController {
   constructor(private readonly money: LibraryMoneyService) {}
+
+  @Get('pro-status')
+  proStatus(@CurrentUser() user: AuthUser) {
+    return this.money.proStatus(user.id);
+  }
 
   @HttpCode(200)
   @Post('docs/:id/purchase')

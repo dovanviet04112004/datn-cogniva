@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowRight, FileText, Flame, MessageSquare, Sparkles, Zap } from 'lucide-react';
 
 import { getServerSession } from '@/lib/auth-server';
-import { getDashboardStats } from '@/lib/dashboard/get-dashboard-stats';
+import { apiServer } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { NeuralPattern } from '@/components/ui/neural-pattern';
@@ -16,6 +16,17 @@ import { OnboardingChecklist } from '@/components/dashboard/onboarding-checklist
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type DashboardStats = {
+  totalDocs: number;
+  cardsDue: number;
+  totalConv: number;
+  xp: number;
+  streak: number;
+  recentDocs: Array<{ id: string; filename: string; createdAt: string; status: string }>;
+  firstWorkspaceId: string | null;
+  hasFlashcards: boolean;
+};
 
 function greetingByHour(hour: number, name: string | null): string {
   const who = name ? `, ${name}` : '';
@@ -29,7 +40,6 @@ function greetingByHour(hour: number, name: string | null): string {
 export default async function DashboardPage() {
   const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/dashboard');
-  const userId = session.user.id;
   const firstName = session.user.name?.split(' ').pop() ?? null;
 
   const {
@@ -41,7 +51,7 @@ export default async function DashboardPage() {
     recentDocs,
     firstWorkspaceId,
     hasFlashcards,
-  } = await getDashboardStats(userId);
+  } = await apiServer<DashboardStats>('/api/dashboard');
 
   const tutorHref = '/workspaces/new-chat';
 
@@ -145,7 +155,7 @@ function ContinueFromCard({
   cardsDue,
   tutorHref,
 }: {
-  doc: { id: string; filename: string; createdAt: Date };
+  doc: { id: string; filename: string; createdAt: string };
   cardsDue: number;
   tutorHref: string;
 }) {

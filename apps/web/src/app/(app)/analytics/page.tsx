@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { TrendingUp } from 'lucide-react';
 
-import { getUserAnalytics } from '@/lib/analytics/get-user-analytics';
+import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { Card } from '@/components/ui/card';
 import { SectionHeading } from '@/components/ui/section-heading';
@@ -10,10 +10,19 @@ import { PageShell } from '@/components/layout/page-shell';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type AnalyticsData = {
+  totalMessages: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalCostUsd: number;
+  last7Days: Array<{ date: string; messages: number; costUsd: number }>;
+  byModel: Array<{ model: string; messages: number; costUsd: number }>;
+};
+
 export default async function AnalyticsPage() {
   const session = await getServerSession();
   if (!session) redirect('/sign-in?redirect=/analytics');
-  const data = await getUserAnalytics(session.user.id);
+  const data = await apiServer<AnalyticsData>('/api/analytics');
 
   const maxCost = Math.max(...data.last7Days.map((d) => d.costUsd), 0.0001);
 

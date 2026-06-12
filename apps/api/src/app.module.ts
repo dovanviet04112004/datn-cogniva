@@ -20,6 +20,7 @@ import { ChannelsModule } from './modules/channels/channels.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ChannelsVoiceModule } from './modules/channels/channels-voice.module';
 import { ConversationsModule } from './modules/conversations/conversations.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { FlashcardsModule } from './modules/flashcards/flashcards.module';
@@ -75,6 +76,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     QuizModule,
     ExamsModule,
     ConversationsModule,
+    DashboardModule,
     GroupsModule,
     ChannelsModule,
     ChannelsVoiceModule,

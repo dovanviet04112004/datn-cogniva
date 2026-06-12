@@ -1,10 +1,8 @@
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Message as AIMessage } from 'ai';
 
-import { chunk, conversation, db, document, message, workspace } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { ChatDetailClient } from '@/components/chat/chat-detail-client';
 
 export const runtime = 'nodejs';
@@ -13,112 +11,47 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
+type ChatDetailResponse = {
+  conversation: {
+    id: string;
+    title: string | null;
+    workspaceId: string | null;
+    workspaceName: string | null;
+    createdAt: string;
+  };
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    createdAt: string;
+    annotations?: AIMessage['annotations'];
+  }>;
+};
+
 export default async function ChatDetailPage({ params }: Props) {
   const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id } = await params;
 
-  const [conv] = await db
-    .select({
-      id: conversation.id,
-      title: conversation.title,
-      workspaceId: conversation.workspaceId,
-      workspaceName: workspace.name,
-    })
-    .from(conversation)
-    .leftJoin(workspace, eq(workspace.id, conversation.workspaceId))
-    .where(and(eq(conversation.id, id), eq(conversation.userId, session.user.id)))
-    .limit(1);
-  if (!conv) notFound();
+  const data = await apiServerOrNull<ChatDetailResponse>(`/api/conversations/${id}/messages`);
+  if (!data) notFound();
 
-  const dbMessages = await db
-    .select()
-    .from(message)
-    .where(eq(message.conversationId, id))
-    .orderBy(asc(message.createdAt));
-
-  const allChunkIds = new Set<string>();
-  for (const m of dbMessages) {
-    if (Array.isArray(m.citations)) {
-      for (const c of m.citations) {
-        if (typeof c === 'object' && c !== null && 'chunkId' in c) {
-          const cid = String((c as { chunkId: unknown }).chunkId);
-          if (cid) allChunkIds.add(cid);
-        }
-      }
-    }
-  }
-
-  const chunkLookup = new Map<
-    string,
-    { documentId: string; filename: string; page: number | null }
-  >();
-  if (allChunkIds.size > 0) {
-    const rows = await db
-      .select({
-        chunkId: chunk.id,
-        documentId: chunk.documentId,
-        metadata: chunk.metadata,
-        filename: document.filename,
-      })
-      .from(chunk)
-      .innerJoin(document, eq(document.id, chunk.documentId))
-      .where(inArray(chunk.id, Array.from(allChunkIds)));
-    for (const r of rows) {
-      const page =
-        typeof r.metadata === 'object' && r.metadata && 'page' in r.metadata
-          ? Number((r.metadata as { page: unknown }).page) || null
-          : null;
-      chunkLookup.set(r.chunkId, {
-        documentId: r.documentId,
-        filename: r.filename,
-        page,
-      });
-    }
-  }
-
-  const initialMessages: AIMessage[] = dbMessages.map((m) => {
-    const citations = Array.isArray(m.citations)
-      ? m.citations.map((c, i) => {
-          const cid =
-            typeof c === 'object' && c !== null && 'chunkId' in c
-              ? String((c as { chunkId: unknown }).chunkId)
-              : '';
-          const hydrated = chunkLookup.get(cid);
-          return {
-            n: i + 1,
-            chunkId: cid,
-            documentId: hydrated?.documentId ?? '',
-            filename: hydrated?.filename ?? '',
-            page: hydrated?.page ?? null,
-            score:
-              typeof c === 'object' && c !== null && 'score' in c
-                ? Number((c as { score: unknown }).score)
-                : 0,
-            snippet:
-              typeof c === 'object' && c !== null && 'snippet' in c
-                ? String((c as { snippet: unknown }).snippet)
-                : '',
-          };
-        })
-      : [];
-    return {
-      id: m.id,
-      role: m.role.toLowerCase() as AIMessage['role'],
-      content: m.content,
-      createdAt: m.createdAt,
-      annotations: citations.length > 0 ? [{ type: 'citations', citations }] : undefined,
-    };
-  });
+  const initialMessages: AIMessage[] = data.messages.map((m) => ({
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    createdAt: new Date(m.createdAt),
+    annotations: m.annotations,
+  }));
 
   return (
     <div className="h-full">
       <ChatDetailClient
         conversation={{
-          id: conv.id,
-          title: conv.title,
-          workspaceId: conv.workspaceId,
-          workspaceName: conv.workspaceName,
+          id: data.conversation.id,
+          title: data.conversation.title,
+          workspaceId: data.conversation.workspaceId,
+          workspaceName: data.conversation.workspaceName,
         }}
         initialMessages={initialMessages}
       />

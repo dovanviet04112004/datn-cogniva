@@ -1,18 +1,41 @@
 import Link from 'next/link';
 import { FileText, RotateCcw, Upload } from 'lucide-react';
 
-import { eq } from 'drizzle-orm';
-
-import { db, libraryCourse, libraryUniversity } from '@cogniva/db';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/layout/empty-state';
 import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
 import { Pagination } from '@/components/tutoring/pagination';
 import { LEVEL_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
-import { hybridSearchLibraryDocs } from '@/lib/library/hybrid-search-doc';
+import { apiServer, apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
 import { DocCard, type DocCardData } from './doc-card';
+
+type LibraryDocItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  subjectSlug: string;
+  level: string;
+  grade: number | null;
+  docType: string;
+  language: string;
+  tags: string[];
+  fileFormat: string;
+  pageCount: number | null;
+  previewThumbUrl: string | null;
+  aiSummary: string | null;
+  ratingAvg: number | null;
+  ratingCount: number;
+  workspaceImportCount: number;
+  uploaderName: string | null;
+  badges: string[];
+  difficulty: string | null;
+  isPremium: boolean;
+  priceVnd: number | null;
+  courseNameCache: string | null;
+  createdAt: string;
+};
 
 const ALLOWED_PAGE_SIZES = [12, 24, 48, 96];
 const DEFAULT_PAGE_SIZE = 24;
@@ -87,23 +110,30 @@ export async function LibraryGrid({
       ? (sp.sort as 'rating' | 'popular' | 'newest')
       : 'top';
 
-  const { items, total } = await hybridSearchLibraryDocs({
-    query: sp.q,
-    filters: {
-      subjectSlug: sp.subject,
-      level: sp.level,
-      grade: parseIntArr(sp.grade),
-      docType: parseStrArr(sp.docType),
-      language: sp.language,
-      fileFormat: parseStrArr(sp.fileFormat),
-      difficulty: parseDifficulty(sp.difficulty),
-      universityId: sp.university,
-      courseId: sp.course,
+  const { items, total } = await apiServer<{ items: LibraryDocItem[]; total: number }>(
+    '/api/library/search',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query: sp.q,
+        filters: {
+          subjectSlug: sp.subject,
+          level: sp.level,
+          grade: parseIntArr(sp.grade),
+          docType: parseStrArr(sp.docType),
+          language: sp.language,
+          fileFormat: parseStrArr(sp.fileFormat),
+          difficulty: parseDifficulty(sp.difficulty),
+          universityId: sp.university,
+          courseId: sp.course,
+        },
+        sort: sortKey,
+        limit: pageSize,
+        offset,
+      }),
     },
-    sort: sortKey,
-    limit: pageSize,
-    offset,
-  });
+  );
 
   const docs: DocCardData[] = items.map((it) => ({
     id: it.id,
@@ -128,7 +158,7 @@ export async function LibraryGrid({
     isPremium: it.isPremium,
     priceVnd: it.priceVnd,
     courseNameCache: it.courseNameCache,
-    createdAt: it.createdAt.toISOString(),
+    createdAt: it.createdAt,
   }));
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -136,19 +166,15 @@ export async function LibraryGrid({
   let universityLabel: string | null = null;
   let courseLabel: string | null = null;
   if (sp.university) {
-    const [u] = await db
-      .select({ name: libraryUniversity.name, shortName: libraryUniversity.shortName })
-      .from(libraryUniversity)
-      .where(eq(libraryUniversity.id, sp.university))
-      .limit(1);
-    universityLabel = u?.shortName || u?.name || null;
+    const detail = await apiServerOrNull<{ uni: { name: string; shortName: string | null } }>(
+      `/api/library/universities/${sp.university}`,
+    );
+    universityLabel = detail?.uni.shortName || detail?.uni.name || null;
   }
   if (sp.course) {
-    const [c] = await db
-      .select({ name: libraryCourse.name, code: libraryCourse.code })
-      .from(libraryCourse)
-      .where(eq(libraryCourse.id, sp.course))
-      .limit(1);
+    const c = await apiServerOrNull<{ name: string; code: string | null }>(
+      `/api/library/courses/${sp.course}`,
+    );
     courseLabel = c ? (c.code ? `${c.code} ${c.name}` : c.name) : null;
   }
 

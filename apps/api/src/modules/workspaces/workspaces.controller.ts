@@ -34,6 +34,16 @@ export class WorkspacesController {
     return this.workspaces.createWorkspace(user.id, body);
   }
 
+  @Get('default')
+  defaultWorkspace(@CurrentUser() user: AuthUser) {
+    return this.workspaces.getOrCreateDefault(user.id);
+  }
+
+  @Get('overview')
+  overview(@CurrentUser() user: AuthUser) {
+    return this.workspaces.overview(user.id);
+  }
+
   @Get(':id')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.workspaces.getWorkspace(user.id, id);

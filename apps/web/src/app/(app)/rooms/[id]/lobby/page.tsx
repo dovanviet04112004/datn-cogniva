@@ -1,11 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { eq } from 'drizzle-orm';
-
-import { db, room } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { Button } from '@/components/ui/button';
 import { LobbyForm } from '@/components/rooms/lobby-form';
 import { RoomShareCode } from '@/components/rooms/room-share-code';
@@ -20,8 +18,11 @@ export default async function LobbyPage({ params }: Props) {
   if (!session) redirect(`/sign-in?redirect=/rooms`);
   const { id } = await params;
 
-  const [target] = await db.select().from(room).where(eq(room.id, id)).limit(1);
-  if (!target) notFound();
+  const res = await apiServerOrNull<{
+    room: { id: string; name: string; joinCode: string | null };
+  }>(`/api/rooms/${id}`);
+  if (!res) notFound();
+  const target = res.room;
 
   return (
     <div className="container max-w-5xl space-y-6 py-8">

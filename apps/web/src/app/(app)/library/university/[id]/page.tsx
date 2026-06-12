@@ -5,18 +5,24 @@ import { ArrowLeft, BookOpen, Building2, Compass, Upload } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { UniversityCourseBrowser } from '@/components/library/university-course-browser';
-import { getUniversityDetail } from '@/lib/library/get-catalog-detail';
+import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ id: string }> };
 
+type UniversityDetail = {
+  uni: { id: string; name: string; shortName: string | null; docCount: number };
+  courses: Array<{ id: string; name: string; code: string | null; docCount: number }>;
+  docTypeBreakdown: Array<{ docType: string; n: number }>;
+};
+
 export default async function UniversityPage({ params }: Params) {
   const { id } = await params;
   const t = await getServerT();
 
-  const detail = await getUniversityDetail(id);
+  const detail = await apiServerOrNull<UniversityDetail>(`/api/library/universities/${id}`);
   if (!detail) return notFound();
   const { uni, courses, docTypeBreakdown } = detail;
 

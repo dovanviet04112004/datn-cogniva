@@ -66,6 +66,34 @@ export class TutoringMarketController {
     return this.market.listFavorites(user.id);
   }
 
+  @Get('my-profile')
+  myProfile(@CurrentUser() user: AuthUser) {
+    return this.market.getMyProfile(user.id);
+  }
+
+  @Get('my-kyc')
+  myKyc(@CurrentUser() user: AuthUser) {
+    return this.market.getMyKyc(user.id);
+  }
+
+  @Get('mine-tab')
+  mineTab(@CurrentUser() user: AuthUser) {
+    return this.market.getMineTab(user.id);
+  }
+
+  @Get('requests')
+  browseRequests(
+    @Query('subject') subject?: string,
+    @Query('level') level?: string,
+    @Query('modality') modality?: string,
+    @Query('urgency') urgency?: string,
+    @Query('sort') sort?: string,
+    @Query('page') page?: string,
+    @Query('per') per?: string,
+  ) {
+    return this.market.browseRequests({ subject, level, modality, urgency, sort, page, per });
+  }
+
   @Get('matches')
   matches(@Query('requestId') requestId?: string) {
     if (!requestId) {

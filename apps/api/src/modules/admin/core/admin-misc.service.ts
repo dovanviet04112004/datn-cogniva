@@ -72,6 +72,38 @@ export class AdminMiscService {
     private readonly audit: AdminAuditService,
   ) {}
 
+  async dashboard() {
+    const [userCount, docCount, recentAudit] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.document.count(),
+      this.prisma.admin_audit_log.findMany({
+        select: {
+          id: true,
+          action: true,
+          target_type: true,
+          target_id: true,
+          admin_id: true,
+          created_at: true,
+        },
+        orderBy: { created_at: 'desc' },
+        take: 5,
+      }),
+    ]);
+
+    return {
+      userCount,
+      docCount,
+      recentAudit: recentAudit.map((r) => ({
+        id: r.id,
+        action: r.action,
+        targetType: r.target_type,
+        targetId: r.target_id,
+        adminId: r.admin_id,
+        createdAt: r.created_at.toISOString(),
+      })),
+    };
+  }
+
   async listAudit(query: {
     adminEmail?: string;
     action?: string;

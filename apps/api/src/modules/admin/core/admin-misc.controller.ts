@@ -29,6 +29,11 @@ import { impersonateSchema, type ImpersonateInput } from './dto/admin-core.dto';
 export class AdminMiscController {
   constructor(private readonly misc: AdminMiscService) {}
 
+  @Get('dashboard')
+  dashboard() {
+    return this.misc.dashboard();
+  }
+
   @Get('audit')
   audit(
     @Query('adminEmail') adminEmail?: string,

@@ -76,6 +76,27 @@ export class DmService {
     return { threads };
   }
 
+  async getThread(uid: string, threadId: string) {
+    const t = await this.prisma.dm_thread.findUnique({ where: { id: threadId } });
+    if (!t) throw new NotFoundException({ error: 'Not found' });
+    if (!isThreadMember(t, uid)) throw new ForbiddenException({ error: 'Forbidden' });
+
+    const peerId = t.user1_id === uid ? t.user2_id : t.user1_id;
+    const peer = await this.prisma.user.findUnique({
+      where: { id: peerId },
+      select: { id: true, name: true, image: true },
+    });
+
+    return {
+      thread: {
+        id: t.id,
+        peer: peer ?? { id: peerId, name: 'Unknown', image: null },
+        lastMessageAt: t.last_message_at,
+        createdAt: t.created_at,
+      },
+    };
+  }
+
   async createThread(uid: string, input: CreateDmThreadInput) {
     try {
       if (input.peerUserId === uid) {

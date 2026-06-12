@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Flame, Trophy } from 'lucide-react';
 
-import { getLeaderboard } from '@/lib/leaderboard/get-leaderboard';
+import { apiServer } from '@/lib/api-server';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
@@ -12,6 +12,17 @@ import { cn } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type LeaderboardRow = {
+  rank: number;
+  userId: string;
+  name: string | null;
+  image: string | null;
+  xp: number;
+  currentStreak: number;
+  longestStreak: number;
+  achievementsCount: number;
+};
 
 const PODIUM_STYLES: Array<{
   bg: string;
@@ -40,7 +51,9 @@ const PODIUM_STYLES: Array<{
 ];
 
 export default async function LeaderboardPage() {
-  const rows = await getLeaderboard(20);
+  const { leaderboard: rows } = await apiServer<{ leaderboard: LeaderboardRow[] }>(
+    '/api/leaderboard?limit=20',
+  );
 
   const top3 = rows.slice(0, 3);
   const rest = rows.slice(3);

@@ -5,6 +5,7 @@ import { GoalPlannerService } from './goal-planner.service';
 import { HybridSearchService } from './hybrid-search.service';
 import { LibraryCatalogController } from './catalog.controller';
 import { LibraryCatalogService } from './catalog.service';
+import { LibraryDiscoveryService } from './discovery.service';
 import { LibraryDocsController } from './docs.controller';
 import { LibraryDocsService } from './docs.service';
 import { LibraryLlmService } from '../shared/llm.service';
@@ -19,6 +20,7 @@ import { VoiceSearchService } from './voice-search.service';
     CrossDocSearchService,
     LibraryDocsService,
     LibraryCatalogService,
+    LibraryDiscoveryService,
     LibraryLlmService,
     ReverseSearchService,
     GoalPlannerService,

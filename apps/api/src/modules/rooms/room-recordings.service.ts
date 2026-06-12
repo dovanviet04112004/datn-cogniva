@@ -8,6 +8,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EgressClient, EncodedFileType, EncodedFileOutput, S3Upload } from 'livekit-server-sdk';
+import { cached } from '@cogniva/server-core/cache/cache-aside';
+import { ck } from '@cogniva/server-core/cache/keys';
 import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
 
 import { PrismaService } from '../../infra/database/prisma.service';
@@ -141,23 +143,23 @@ export class RoomRecordingsService {
       throw new ForbiddenException({ error: 'Not a member' });
     }
 
-    const rows = await this.prisma.recording.findMany({
-      where: { room_id: roomId },
-      orderBy: { started_at: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        status: true,
-        duration_seconds: true,
-        file_url: true,
-        summary: true,
-        started_at: true,
-        ended_at: true,
-      },
-    });
+    const recordings = await cached(ck.roomRecordings(roomId), 600, async () => {
+      const rows = await this.prisma.recording.findMany({
+        where: { room_id: roomId },
+        orderBy: { started_at: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          status: true,
+          duration_seconds: true,
+          file_url: true,
+          summary: true,
+          started_at: true,
+          ended_at: true,
+        },
+      });
 
-    return {
-      recordings: rows.map((r) => ({
+      return rows.map((r) => ({
         id: r.id,
         status: r.status,
         duration: r.duration_seconds,
@@ -165,7 +167,44 @@ export class RoomRecordingsService {
         summary: r.summary,
         startedAt: r.started_at,
         endedAt: r.ended_at,
-      })),
+      }));
+    });
+
+    return { recordings };
+  }
+
+  async getRecording(uid: string, roomId: string, recordingId: string) {
+    const m = await this.prisma.room_member.findUnique({
+      where: { room_id_user_id: { room_id: roomId, user_id: uid } },
+      select: { status: true },
+    });
+    if (!m || m.status !== 'ACTIVE') {
+      throw new ForbiddenException({ error: 'Not a member' });
+    }
+
+    const rec = await this.prisma.recording.findFirst({
+      where: { id: recordingId, room_id: roomId },
+    });
+    if (!rec) throw new NotFoundException({ error: 'Recording not found' });
+
+    const roomRow = await this.prisma.room.findUnique({
+      where: { id: roomId },
+      select: { name: true },
+    });
+
+    return {
+      recording: {
+        id: rec.id,
+        status: rec.status,
+        fileUrl: rec.file_url,
+        duration: rec.duration_seconds,
+        summary: rec.summary,
+        transcript: rec.transcript,
+        chapters: rec.chapters,
+        startedAt: rec.started_at,
+        endedAt: rec.ended_at,
+      },
+      roomName: roomRow?.name ?? null,
     };
   }
 

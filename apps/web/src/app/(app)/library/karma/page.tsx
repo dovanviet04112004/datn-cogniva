@@ -16,10 +16,32 @@ import { PageHero } from '@/components/layout/page-hero';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
+import { apiServer } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
-import { getKarmaBoard } from '@/lib/library/get-karma-board';
 
 export const dynamic = 'force-dynamic';
+
+type KarmaBoard = {
+  leaderboard: Array<{
+    userId: string;
+    points: number;
+    lastEventAt: string | null;
+    name: string | null;
+    image: string | null;
+  }>;
+  recentEvents: Array<{
+    id: string;
+    userId: string;
+    eventType: string;
+    points: number;
+    docId: string | null;
+    createdAt: string;
+    userName: string | null;
+    userImage: string | null;
+    docTitle: string | null;
+  }>;
+  totalsByType: Array<{ eventType: string; total: number; totalPoints: number }>;
+};
 
 const EVENT_META: Record<
   string,
@@ -53,7 +75,9 @@ const EVENT_META: Record<
 
 export default async function KarmaLeaderboardPage() {
   const t = await getServerT();
-  const { leaderboard, recentEvents, totalsByType } = await getKarmaBoard();
+  const { leaderboard, recentEvents, totalsByType } = await apiServer<KarmaBoard>(
+    '/api/library/karma/board',
+  );
 
   return (
     <PageShell size="wide">

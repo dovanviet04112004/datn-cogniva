@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import {
@@ -18,8 +18,13 @@ export class AdminKycController {
   constructor(private readonly kyc: AdminKycService) {}
 
   @Get('kyc')
-  list(@Query('status') status?: string) {
-    return this.kyc.listQueue(status);
+  list() {
+    return this.kyc.listQueue();
+  }
+
+  @Get('kyc/:id')
+  detail(@Param('id') id: string) {
+    return this.kyc.detail(id);
   }
 
   @Patch('kyc/:id')

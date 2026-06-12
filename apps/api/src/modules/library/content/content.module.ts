@@ -5,6 +5,8 @@ import { AtomExtractorService } from './atom-extractor.service';
 import { KarmaService } from './karma.service';
 import { LibraryAccessService } from './access.service';
 import { LibraryContentController } from './content.controller';
+import { LibraryCreatorController } from './creator.controller';
+import { LibraryCreatorService } from './creator.service';
 import { LibraryLlmService } from '../shared/llm.service';
 import { LibraryEnrichController } from './enrich.controller';
 import { LibraryEnrichService } from './enrich.service';
@@ -19,9 +21,15 @@ import { QualityScoreService } from './quality-score.service';
 
 @Module({
   imports: [PaymentsModule],
-  controllers: [LibraryContentController, LibraryMoneyController, LibraryEnrichController],
+  controllers: [
+    LibraryContentController,
+    LibraryCreatorController,
+    LibraryMoneyController,
+    LibraryEnrichController,
+  ],
   providers: [
     LibraryAccessService,
+    LibraryCreatorService,
     KarmaService,
     QualityScoreService,
     LibraryRateLimitService,

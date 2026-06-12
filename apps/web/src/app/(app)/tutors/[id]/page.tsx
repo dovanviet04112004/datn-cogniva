@@ -1,6 +1,5 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { and, asc, eq, isNull } from 'drizzle-orm';
 import {
   BookOpen,
   Calendar,
@@ -15,21 +14,10 @@ import {
   Zap,
 } from 'lucide-react';
 
-import { desc } from 'drizzle-orm';
-
-import {
-  db,
-  LEVEL_NAMES,
-  MODALITY_NAMES,
-  SUBJECT_BY_SLUG,
-  tutorAvailability,
-  tutorProfile,
-  tutorReview,
-  tutorSubject,
-  user as userTable,
-} from '@cogniva/db';
+import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
 import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { BookButton } from '@/components/tutoring/book-button';
@@ -37,7 +25,6 @@ import { ContactTutorButton } from '@/components/tutoring/contact-tutor-button';
 import { NeuralPattern } from '@/components/ui/neural-pattern';
 import { SubjectVerifyButton } from '@/components/tutoring/subject-verify-button';
 import { FavoriteButton } from '@/components/tutoring/favorite-button';
-import { tutorFavorite, tutoringBooking, tutoringPack } from '@cogniva/db';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,93 +33,78 @@ const DAY_NAMES = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 type Params = { params: Promise<{ id: string }> };
 
+type TutorDetail = {
+  profile: {
+    id: string;
+    userId: string;
+    headline: string;
+    bio: string;
+    hourlyRateVnd: number;
+    modality: string;
+    avatarUrl: string | null;
+    bannerUrl: string | null;
+    sessionsCompleted: number;
+    ratingAvg: string | null;
+    ratingCount: number;
+    verificationStatus: string;
+    status: string;
+    instantBookEnabled: boolean | null;
+    trialSessionEnabled: boolean | null;
+    avgResponseMinutes: number | null;
+    responseRatePct: number | null;
+    introVideoUrl: string | null;
+    introVideoThumbUrl: string | null;
+    userName: string | null;
+    userImage: string | null;
+  };
+  subjects: Array<{
+    id: string;
+    subjectSlug: string;
+    level: string;
+    verifiedAt: string | null;
+    verifyScore: number | null;
+  }>;
+  availability: Array<{
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    timezone: string;
+  }>;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+    reviewerName: string | null;
+    reviewerImage: string | null;
+  }>;
+  packs: Array<{
+    id: string;
+    subjectSlug: string;
+    level: string;
+    sessionCount: number;
+    durationMin: number;
+    ratePerSessionVnd: number;
+    totalVnd: number;
+    discountPct: number;
+    description: string | null;
+  }>;
+  isFavorited: boolean;
+  hasTrialUsed: boolean;
+  isOwner: boolean;
+};
+
 export default async function TutorDetailPage({ params }: Params) {
   const { id } = await params;
   const session = await getServerSession();
   if (!session) redirect(`/sign-in?redirect=/tutors/${id}`);
 
-  const [profile] = await db
-    .select({
-      id: tutorProfile.id,
-      userId: tutorProfile.userId,
-      headline: tutorProfile.headline,
-      bio: tutorProfile.bio,
-      hourlyRateVnd: tutorProfile.hourlyRateVnd,
-      modality: tutorProfile.modality,
-      avatarUrl: tutorProfile.avatarUrl,
-      bannerUrl: tutorProfile.bannerUrl,
-      sessionsCompleted: tutorProfile.sessionsCompleted,
-      ratingAvg: tutorProfile.ratingAvg,
-      ratingCount: tutorProfile.ratingCount,
-      verificationStatus: tutorProfile.verificationStatus,
-      status: tutorProfile.status,
-      instantBookEnabled: tutorProfile.instantBookEnabled,
-      trialSessionEnabled: tutorProfile.trialSessionEnabled,
-      avgResponseMinutes: tutorProfile.avgResponseMinutes,
-      responseRatePct: tutorProfile.responseRatePct,
-      introVideoUrl: tutorProfile.introVideoUrl,
-      introVideoThumbUrl: tutorProfile.introVideoThumbUrl,
-      userName: userTable.name,
-      userImage: userTable.image,
-    })
-    .from(tutorProfile)
-    .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
-    .where(eq(tutorProfile.id, id))
-    .limit(1);
+  const detail = await apiServerOrNull<TutorDetail>(`/api/tutors/${id}`);
+  if (!detail) notFound();
 
-  if (!profile) notFound();
-
-  const isOwner = profile.userId === session.user.id;
-  if (profile.status !== 'PUBLISHED' && !isOwner) notFound();
-
-  const [subjects, availability, reviews, packs, isFavorited, hasTrialUsed] = await Promise.all([
-    db.select().from(tutorSubject).where(eq(tutorSubject.tutorId, id)),
-    db
-      .select()
-      .from(tutorAvailability)
-      .where(eq(tutorAvailability.tutorId, id))
-      .orderBy(asc(tutorAvailability.dayOfWeek), asc(tutorAvailability.startTime)),
-    db
-      .select({
-        id: tutorReview.id,
-        rating: tutorReview.rating,
-        comment: tutorReview.comment,
-        createdAt: tutorReview.createdAt,
-        reviewerName: userTable.name,
-        reviewerImage: userTable.image,
-      })
-      .from(tutorReview)
-      .innerJoin(userTable, eq(userTable.id, tutorReview.reviewerId))
-      .where(and(eq(tutorReview.tutorId, id), isNull(tutorReview.hiddenAt)))
-      .orderBy(desc(tutorReview.createdAt))
-      .limit(20),
-    db
-      .select()
-      .from(tutoringPack)
-      .where(and(eq(tutoringPack.tutorId, id), eq(tutoringPack.status, 'ACTIVE'))),
-    session
-      ? db
-          .select({ tutorId: tutorFavorite.tutorId })
-          .from(tutorFavorite)
-          .where(and(eq(tutorFavorite.userId, session.user.id), eq(tutorFavorite.tutorId, id)))
-          .limit(1)
-          .then((rows) => rows.length > 0)
-      : Promise.resolve(false),
-    session
-      ? db
-          .select({ id: tutoringBooking.id })
-          .from(tutoringBooking)
-          .where(
-            and(
-              eq(tutoringBooking.studentId, session.user.id),
-              eq(tutoringBooking.tutorId, id),
-              eq(tutoringBooking.isTrial, true),
-            ),
-          )
-          .limit(1)
-          .then((rows) => rows.length > 0)
-      : Promise.resolve(false),
-  ]);
+  const { profile, subjects, availability, reviews, packs, isFavorited, hasTrialUsed, isOwner } =
+    detail;
 
   const trialEligible = !!profile.trialSessionEnabled && !hasTrialUsed && !isOwner;
 
@@ -495,7 +467,7 @@ export default async function TutorDetailPage({ params }: Params) {
                             ))}
                           </span>
                           <span className="text-text-muted text-[10.5px]">
-                            {r.createdAt.toLocaleDateString('vi-VN')}
+                            {new Date(r.createdAt).toLocaleDateString('vi-VN')}
                           </span>
                         </div>
                         {r.comment && (

@@ -716,6 +716,28 @@ thừa + thêm eslint 9 (expo lint pass); edge gỡ script lint/test hỏng;
 (`format:check` green, `.prettierignore` chừa migrations). Verify: tái lập
 strip+format từ HEAD → 778 file byte-identical, typecheck 10/10, lint 3/3.
 
+**SSR READS → NEST HOÀN TẤT (2026-06-12) ✅ — WEB API-FIRST 100%:** toàn bộ lớp
+Drizzle SSR read-only đã chuyển về gọi Nest (9 domain song song): helper
+`lib/api-server.ts` (RSC fetch `NEST_API_ORIGIN` Bearer cg_at, no-store);
+endpoint mới: `GET /api/dashboard` (module dashboard mới), library
+`stats/hub · karma/board · browse/universities · universities/:id ·
+courses/:id · recently-viewed · hub-sections · creator/dashboard ·
+remix/available · pro-status · POST /api/library/search`, groups
+`latest · :id/shell · first-channel · member-role · channels/:channelId` +
+`channels/recordings/:recId`, `dm/threads/:id`, `documents/:id`,
+`workspaces/default (get-or-create) · overview`, exams
+`:id/redirect-info · lookup?code=`, tutoring `my-profile · my-kyc · mine-tab ·
+GET /api/tutors (browse) · tutors/:id`, rooms `:id/record/:recId`, admin
+`dashboard · kyc/:id`, `GET /api/system/maintenance` @Public, auth/me thêm
+twoFactorEnabled; cache key Redis giữ y cũ (choke-point invalidation không
+đổi). Web XÓA: 21 lib Drizzle + cache cluster + lib/redis + observability
+logger/db-monitor + smoke-redis; `@cogniva/server-core` gỡ khỏi web;
+`drizzle-orm` → devDeps (chỉ seeds dùng); client chỉ còn import type +
+`@cogniva/db/taxonomy`. Verify: typecheck 10/10, `next build` pass, smoke
+21 endpoint + 17 trang 200/307 (kể cả new-chat 307 → workspace default),
+`git grep` 0 import giá trị Drizzle trong web src. Mobile RN không đổi —
+endpoint mới đều REST chuẩn Bearer dùng chung được.
+
 **Nguyên tắc xuyên suốt GĐ1:**
 
 - **Move-once:** port domain = move lib server-only thành service+repository;

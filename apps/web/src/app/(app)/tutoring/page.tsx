@@ -1,11 +1,9 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
 import { CalendarDays, GraduationCap, Plus, UserPlus, Wallet } from 'lucide-react';
 
-import { db, tutorProfile } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer } from '@/lib/api-server';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
@@ -52,11 +50,8 @@ export default async function TutoringHubPage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const tab = normaliseTab(sp.tab);
 
-  const [myProfile] = await db
-    .select({ id: tutorProfile.id, status: tutorProfile.status })
-    .from(tutorProfile)
-    .where(eq(tutorProfile.userId, session.user.id))
-    .limit(1);
+  const myProfile =
+    (await apiServer<{ id: string; status: string } | null>('/api/tutoring/my-profile')) ?? null;
 
   return (
     <PageShell size="wide" padded className="space-y-5">
@@ -109,7 +104,7 @@ export default async function TutoringHubPage({ searchParams }: { searchParams: 
       {tab === 'requests' && <RequestsTab sp={sp} currentUserId={session.user.id} />}
       {tab === 'orders' && <BookingsManager defaultRole="student" showRoleToggle={!!myProfile} />}
       {tab === 'favorites' && <FavoritesTab />}
-      {tab === 'mine' && <MineTab userId={session.user.id} />}
+      {tab === 'mine' && <MineTab />}
 
       <CompareFloatingCart />
     </PageShell>

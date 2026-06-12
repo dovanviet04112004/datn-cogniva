@@ -1,81 +1,22 @@
 import Link from 'next/link';
-import { and, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { Sparkles, TrendingUp } from 'lucide-react';
 
-import { db, libraryDoc, libraryDocImport, libraryDocView, user as userTable } from '@cogniva/db';
-
-import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
-import { docCardColumns, toDocCardData } from '@/lib/library/doc-card-data';
 import { SectionHeading } from '@/components/ui/section-heading';
 import type { DocCardData } from './doc-card';
 
 import { DocCarousel } from './doc-carousel';
 
-async function fetchCurated(
-  orderBySql: ReturnType<typeof desc> | ReturnType<typeof desc>[],
-  whereExtra?: ReturnType<typeof eq> | ReturnType<typeof sql<unknown>>,
-): Promise<DocCardData[]> {
-  const conds: Array<ReturnType<typeof eq> | ReturnType<typeof sql<unknown>>> = [
-    eq(libraryDoc.status, 'PUBLISHED'),
-  ];
-  if (whereExtra) conds.push(whereExtra);
-
-  const orderArr = Array.isArray(orderBySql) ? orderBySql : [orderBySql];
-
-  const rows = await db
-    .select(docCardColumns)
-    .from(libraryDoc)
-    .leftJoin(userTable, eq(userTable.id, libraryDoc.uploaderId))
-    .where(and(...conds))
-    .orderBy(...orderArr, desc(libraryDoc.id))
-    .limit(12);
-
-  return rows.map(toDocCardData);
-}
-
 export async function HubCuratedSections({ hasActiveSearch }: { hasActiveSearch: boolean }) {
   if (hasActiveSearch) return null;
 
   const t = await getServerT();
-  const session = await getServerSession();
-  const userId = session?.user.id ?? null;
-
-  let forYou: DocCardData[] = [];
-  if (userId) {
-    const [viewed, imported] = await Promise.all([
-      db
-        .select({ docId: libraryDocView.docId, subjectSlug: libraryDoc.subjectSlug })
-        .from(libraryDocView)
-        .innerJoin(libraryDoc, eq(libraryDoc.id, libraryDocView.docId))
-        .where(eq(libraryDocView.userId, userId))
-        .orderBy(desc(libraryDocView.viewedAt))
-        .limit(40),
-      db
-        .select({ docId: libraryDocImport.docId, subjectSlug: libraryDoc.subjectSlug })
-        .from(libraryDocImport)
-        .innerJoin(libraryDoc, eq(libraryDoc.id, libraryDocImport.docId))
-        .where(eq(libraryDocImport.importerId, userId))
-        .limit(40),
-    ]);
-
-    const seenIds = new Set<string>();
-    const subjCount = new Map<string, number>();
-    for (const r of [...viewed, ...imported]) {
-      seenIds.add(r.docId);
-      subjCount.set(r.subjectSlug, (subjCount.get(r.subjectSlug) ?? 0) + 1);
-    }
-    const topSubjects = [...subjCount.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
-      .map(([s]) => s);
-
-    if (topSubjects.length > 0) {
-      const conds = [inArray(libraryDoc.subjectSlug, topSubjects)];
-      if (seenIds.size > 0) conds.push(notInArray(libraryDoc.id, [...seenIds]));
-      forYou = await fetchCurated([desc(libraryDoc.qualityScore)], and(...conds));
-    }
-  }
+  const data = await apiServerOrNull<{ forYou: DocCardData[]; popular: DocCardData[] }>(
+    '/api/library/hub-sections',
+  );
+  const forYou = data?.forYou ?? [];
+  const popular = data?.popular ?? [];
 
   const sections: Array<{
     label: string;
@@ -93,21 +34,14 @@ export async function HubCuratedSections({ hasActiveSearch }: { hasActiveSearch:
       docs: forYou,
       href: null,
     });
-  } else {
-    const popular = await fetchCurated([
-      desc(
-        sql`COALESCE(${libraryDoc.workspaceImportCount}, 0) * 2 + COALESCE(${libraryDoc.viewCount}, 0)`,
-      ),
-    ]);
-    if (popular.length > 0) {
-      sections.push({
-        label: t('library.curated.trending'),
-        icon: TrendingUp,
-        iconClass: 'text-rose-500',
-        docs: popular,
-        href: '/library?sort=popular',
-      });
-    }
+  } else if (popular.length > 0) {
+    sections.push({
+      label: t('library.curated.trending'),
+      icon: TrendingUp,
+      iconClass: 'text-rose-500',
+      docs: popular,
+      href: '/library?sort=popular',
+    });
   }
 
   return (

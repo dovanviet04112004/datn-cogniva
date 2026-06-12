@@ -1,18 +1,39 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
 import { ChevronLeft, FileText } from 'lucide-react';
-
-import { db, tutorKycDocument, tutorProfile, user as userTable } from '@cogniva/db';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { KycDocActions } from '@/components/admin/kyc-doc-actions';
+import { apiServerOrNull } from '@/lib/api-server';
 import { cn } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ id: string }> };
+
+type KycDetail = {
+  profile: {
+    id: string;
+    headline: string;
+    bio: string;
+    verificationStatus: string;
+    avatarUrl: string | null;
+    userName: string | null;
+    userEmail: string;
+    userImage: string | null;
+  };
+  docs: Array<{
+    id: string;
+    docType: string;
+    originalName: string;
+    sizeBytes: number;
+    storageKey: string;
+    status: string;
+    reviewNote: string | null;
+    createdAt: string;
+  }>;
+};
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   CCCD_FRONT: 'CCCD mặt trước',
@@ -31,29 +52,9 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function AdminKycDetailPage({ params }: Params) {
   const { id } = await params;
 
-  const [profile] = await db
-    .select({
-      id: tutorProfile.id,
-      headline: tutorProfile.headline,
-      bio: tutorProfile.bio,
-      verificationStatus: tutorProfile.verificationStatus,
-      avatarUrl: tutorProfile.avatarUrl,
-      userName: userTable.name,
-      userEmail: userTable.email,
-      userImage: userTable.image,
-    })
-    .from(tutorProfile)
-    .innerJoin(userTable, eq(userTable.id, tutorProfile.userId))
-    .where(eq(tutorProfile.id, id))
-    .limit(1);
-
-  if (!profile) notFound();
-
-  const docs = await db
-    .select()
-    .from(tutorKycDocument)
-    .where(eq(tutorKycDocument.tutorId, id))
-    .orderBy(desc(tutorKycDocument.createdAt));
+  const data = await apiServerOrNull<KycDetail>(`/api/admin/kyc/${id}`);
+  if (!data) notFound();
+  const { profile, docs } = data;
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-6">
@@ -109,7 +110,7 @@ export default async function AdminKycDetailPage({ params }: Params) {
               <p className="truncate font-mono text-[11px] text-slate-400">{d.originalName}</p>
               <p className="mt-0.5 font-mono text-[10.5px] tabular-nums text-slate-500">
                 {(d.sizeBytes / 1024).toFixed(0)} KB · uploaded{' '}
-                {d.createdAt.toLocaleString('vi-VN')}
+                {new Date(d.createdAt).toLocaleString('vi-VN')}
               </p>
               <p className="mt-1 font-mono text-[10px] text-slate-500">storage: {d.storageKey}</p>
               {d.reviewNote && (

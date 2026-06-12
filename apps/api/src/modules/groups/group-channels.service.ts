@@ -128,6 +128,18 @@ export class GroupChannelsService {
     return { channels: channels.map(toChannelDto) };
   }
 
+  async getChannel(uid: string, groupId: string, channelId: string) {
+    const me = await this.membership(groupId, uid);
+    if (!me) throw new ForbiddenException({ error: 'Not a member' });
+
+    const channel = await this.prisma.study_group_channel.findFirst({
+      where: { id: channelId, group_id: groupId },
+    });
+    if (!channel) throw new NotFoundException({ error: 'Channel không tồn tại' });
+
+    return { channel: toChannelDto(channel), myRole: me.role };
+  }
+
   async createChannel(uid: string, groupId: string, raw: unknown) {
     const me = await this.membership(groupId, uid);
     if (!me) throw new ForbiddenException({ error: 'Not a member' });

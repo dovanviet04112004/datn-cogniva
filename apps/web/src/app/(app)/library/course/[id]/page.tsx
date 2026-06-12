@@ -5,12 +5,22 @@ import { ArrowLeft, BookOpen, FileText, Upload } from 'lucide-react';
 import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { LibraryGrid } from '@/components/library/library-grid';
-import { getCourseDetail } from '@/lib/library/get-catalog-detail';
+import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ id: string }> };
+
+type CourseDetail = {
+  id: string;
+  name: string;
+  code: string | null;
+  docCount: number;
+  universityId: string | null;
+  universityName: string | null;
+  universityShort: string | null;
+};
 type SP = {
   level?: string;
   grade?: string;
@@ -30,7 +40,7 @@ export default async function CoursePage({
   const sp = await searchParams;
   const t = await getServerT();
 
-  const course = await getCourseDetail(id);
+  const course = await apiServerOrNull<CourseDetail>(`/api/library/courses/${id}`);
   if (!course) return notFound();
 
   return (

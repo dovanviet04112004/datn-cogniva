@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
 
-import { db, user, type AdminRole } from '@cogniva/db';
+import type { AdminRole } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
 
@@ -34,29 +33,15 @@ export async function getAdminContext(): Promise<AdminContext | null> {
   const session = await getServerSession();
   if (!session?.user) return null;
 
-  const [row] = await db
-    .select({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      adminRole: user.adminRole,
-      suspendedAt: user.suspendedAt,
-    })
-    .from(user)
-    .where(eq(user.id, session.user.id))
-    .limit(1);
-
-  if (!row) return null;
-  if (row.suspendedAt !== null) return null;
-
+  const { id, email, name, role: rawRole } = session.user;
   const role: AdminRole | null =
-    (row.adminRole as AdminRole | null) ?? (isAdminEmail(row.email) ? 'SUPER_ADMIN' : null);
+    (rawRole as AdminRole | null) ?? (isAdminEmail(email) ? 'SUPER_ADMIN' : null);
 
   if (!role) return null;
   return {
-    userId: row.id,
-    email: row.email,
-    name: row.name,
+    userId: id,
+    email,
+    name,
     role,
   };
 }

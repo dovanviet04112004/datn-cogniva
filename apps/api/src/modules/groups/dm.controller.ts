@@ -18,6 +18,11 @@ export class DmController {
     return this.dm.listThreads(user.id);
   }
 
+  @Get('threads/:id')
+  thread(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.dm.getThread(user.id, id);
+  }
+
   @Post()
   async create(
     @CurrentUser() user: AuthUser,

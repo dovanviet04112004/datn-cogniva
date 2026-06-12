@@ -1,16 +1,25 @@
 import { redirect } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
 
-import {
-  db,
-  studyGroup,
-  studyGroupCategory,
-  studyGroupChannel,
-  studyGroupMember,
-} from '@cogniva/db';
+import type { StudyGroup, StudyGroupChannel } from '@cogniva/db';
 
 import { getServerSession } from '@/lib/auth-server';
+import { apiServerOrNull } from '@/lib/api-server';
 import { GroupShell } from '@/components/groups/group-shell';
+
+type GroupDto = Omit<StudyGroup, 'createdAt' | 'suspendedAt'> & {
+  createdAt: string;
+  suspendedAt: string | null;
+};
+
+type ChannelDto = Omit<StudyGroupChannel, 'createdAt'> & { createdAt: string };
+
+type ShellResponse = {
+  group: GroupDto;
+  channels: ChannelDto[];
+  categories: { id: string; name: string; position: number }[];
+  myGroups: { id: string; name: string; iconUrl: string | null }[];
+  myRole: 'OWNER' | 'ADMIN' | 'MODERATOR' | 'MEMBER';
+};
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -24,45 +33,20 @@ export default async function GroupLayout({ children, params }: LayoutProps) {
     redirect(`/sign-in?redirect=${encodeURIComponent(`/groups/${id}`)}`);
   }
 
-  const [member] = await db
-    .select({ role: studyGroupMember.role })
-    .from(studyGroupMember)
-    .where(and(eq(studyGroupMember.groupId, id), eq(studyGroupMember.userId, session.user.id)))
-    .limit(1);
-  if (!member) redirect('/groups');
-
-  const [group] = await db.select().from(studyGroup).where(eq(studyGroup.id, id)).limit(1);
-  if (!group) redirect('/groups');
-
-  const [channels, categories, myGroups] = await Promise.all([
-    db
-      .select()
-      .from(studyGroupChannel)
-      .where(eq(studyGroupChannel.groupId, id))
-      .orderBy(asc(studyGroupChannel.position), asc(studyGroupChannel.createdAt)),
-    db
-      .select()
-      .from(studyGroupCategory)
-      .where(eq(studyGroupCategory.groupId, id))
-      .orderBy(asc(studyGroupCategory.position), asc(studyGroupCategory.createdAt)),
-    db
-      .select({
-        id: studyGroup.id,
-        name: studyGroup.name,
-        iconUrl: studyGroup.iconUrl,
-      })
-      .from(studyGroup)
-      .innerJoin(studyGroupMember, eq(studyGroupMember.groupId, studyGroup.id))
-      .where(eq(studyGroupMember.userId, session.user.id)),
-  ]);
+  const data = await apiServerOrNull<ShellResponse>(`/api/groups/${id}/shell`);
+  if (!data) redirect('/groups');
 
   return (
     <GroupShell
-      group={group}
-      channels={channels}
-      categories={categories}
-      myGroups={myGroups}
-      myRole={member.role}
+      group={{
+        ...data.group,
+        createdAt: new Date(data.group.createdAt),
+        suspendedAt: data.group.suspendedAt ? new Date(data.group.suspendedAt) : null,
+      }}
+      channels={data.channels.map((c) => ({ ...c, createdAt: new Date(c.createdAt) }))}
+      categories={data.categories}
+      myGroups={data.myGroups}
+      myRole={data.myRole}
       activeGroupId={id}
       currentUserId={session.user.id}
     >

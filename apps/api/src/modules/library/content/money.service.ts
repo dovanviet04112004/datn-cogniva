@@ -23,6 +23,14 @@ export class LibraryMoneyService {
     private readonly karma: KarmaService,
   ) {}
 
+  async proStatus(userId: string) {
+    const row = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true, pro_until_at: true },
+    });
+    return { plan: row?.plan ?? null, proUntilAt: row?.pro_until_at ?? null };
+  }
+
   async purchase(buyerId: string, docId: string) {
     const doc = await this.prisma.library_doc.findUnique({
       where: { id: docId },

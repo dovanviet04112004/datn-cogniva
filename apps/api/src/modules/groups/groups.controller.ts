@@ -164,6 +164,11 @@ export class GroupsController {
     }
   }
 
+  @Get('latest')
+  latest(@CurrentUser() user: AuthUser) {
+    return this.groups.latestJoinedGroup(user.id);
+  }
+
   @Get('resource-search')
   resourceSearch(
     @CurrentUser() user: AuthUser,
@@ -186,6 +191,21 @@ export class GroupsController {
   @Delete(':id')
   remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.groups.deleteGroup(user.id, id);
+  }
+
+  @Get(':id/shell')
+  shell(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.groups.getShell(user.id, id);
+  }
+
+  @Get(':id/first-channel')
+  firstChannel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.groups.firstChannel(user.id, id);
+  }
+
+  @Get(':id/member-role')
+  memberRole(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.groups.memberRole(user.id, id);
   }
 
   @Get(':id/unread')

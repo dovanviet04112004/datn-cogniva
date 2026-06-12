@@ -50,9 +50,19 @@ export class ExamsController {
     return this.exams.joinByCode(raw);
   }
 
+  @Get('lookup')
+  lookup(@Query('code') code?: string) {
+    return this.exams.lookupByCode(code);
+  }
+
   @Get(':id')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.exams.getExam(user.id, id);
+  }
+
+  @Get(':id/redirect-info')
+  redirectInfo(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.exams.redirectInfo(user.id, id);
   }
 
   @Put(':id')

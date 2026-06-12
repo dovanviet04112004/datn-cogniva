@@ -1,31 +1,26 @@
-import { count, desc, eq } from 'drizzle-orm';
-
-import { db, adminAuditLog, document, user } from '@cogniva/db';
-
 import { requireAdmin } from '@/lib/admin/guard';
+import { apiServer } from '@/lib/api-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type DashboardData = {
+  userCount: number;
+  docCount: number;
+  recentAudit: Array<{
+    id: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    adminId: string;
+    createdAt: string;
+  }>;
+};
+
 export default async function AdminDashboardPage() {
   const admin = await requireAdmin();
-
-  const [[totalUsers], [totalDocs], recentAudit] = await Promise.all([
-    db.select({ n: count(user.id) }).from(user),
-    db.select({ n: count(document.id) }).from(document),
-    db
-      .select({
-        id: adminAuditLog.id,
-        action: adminAuditLog.action,
-        targetType: adminAuditLog.targetType,
-        targetId: adminAuditLog.targetId,
-        adminId: adminAuditLog.adminId,
-        createdAt: adminAuditLog.createdAt,
-      })
-      .from(adminAuditLog)
-      .orderBy(desc(adminAuditLog.createdAt))
-      .limit(5),
-  ]);
+  const { userCount, docCount, recentAudit } =
+    await apiServer<DashboardData>('/api/admin/dashboard');
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
@@ -37,8 +32,8 @@ export default async function AdminDashboardPage() {
       </header>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <MetricTile label="Total users" value={String(totalUsers?.n ?? 0)} hint={null} />
-        <MetricTile label="Total documents" value={String(totalDocs?.n ?? 0)} hint={null} />
+        <MetricTile label="Total users" value={String(userCount)} hint={null} />
+        <MetricTile label="Total documents" value={String(docCount)} hint={null} />
         <MetricTile label="AI cost today" value="—" hint="đang kết nối nguồn" />
         <MetricTile label="Errors 24h" value="—" hint="Sentry pending" />
       </div>

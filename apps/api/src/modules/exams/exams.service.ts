@@ -184,6 +184,52 @@ export class ExamsService {
     return { examId: row.id, mode: row.mode };
   }
 
+  async lookupByCode(codeRaw: string | undefined) {
+    const code = (codeRaw ?? '').trim().toUpperCase();
+    if (code.length < 4 || code.length > 12) return { id: null };
+
+    const row = await this.prisma.exam.findFirst({
+      where: { live_code: code },
+      select: { id: true, status: true },
+    });
+
+    return { id: row && row.status === 'PUBLISHED' ? row.id : null };
+  }
+
+  async redirectInfo(userId: string, id: string) {
+    const row = await this.prisma.exam.findUnique({
+      where: { id },
+      select: { id: true, owner_id: true, workspace_id: true, status: true },
+    });
+    if (!row) {
+      return {
+        found: false,
+        isOwner: false,
+        workspaceId: null as string | null,
+        status: null as string | null,
+        inProgressAttemptId: null as string | null,
+      };
+    }
+
+    const isOwner = row.owner_id === userId;
+    let inProgressAttemptId: string | null = null;
+    if (!isOwner && row.status === 'PUBLISHED' && !row.workspace_id) {
+      const attempt = await this.prisma.exam_attempt.findFirst({
+        where: { exam_id: row.id, user_id: userId, status: 'IN_PROGRESS' },
+        select: { id: true },
+      });
+      inProgressAttemptId = attempt?.id ?? null;
+    }
+
+    return {
+      found: true,
+      isOwner,
+      workspaceId: row.workspace_id,
+      status: row.status as string,
+      inProgressAttemptId,
+    };
+  }
+
   async getExam(userId: string, id: string) {
     const row = await this.prisma.exam.findUnique({ where: { id } });
     if (!row) throw new NotFoundException({ error: 'Not found' });

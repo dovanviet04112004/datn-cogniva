@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { and, eq, inArray } from 'drizzle-orm';
 import {
   ArrowLeft,
   Award,
@@ -17,9 +16,6 @@ import {
   Star,
 } from 'lucide-react';
 
-import { randomUUID } from 'node:crypto';
-
-import { db, libraryDoc, libraryDocView, libraryUniversity, user as userTable } from '@cogniva/db';
 import { LEVEL_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -39,8 +35,7 @@ import { PremiumLockedPreview } from '@/components/library/premium-purchase-butt
 import { PrereqWarning } from '@/components/library/prereq-warning';
 import { RelatedDocsSection } from '@/components/library/related-docs-section';
 import { TranslatableText } from '@/components/library/translate-button';
-import { getServerSession } from '@/lib/auth-server';
-import { checkDocAccess } from '@/lib/library/access';
+import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
@@ -60,113 +55,71 @@ const DOC_TYPE_KEY: Record<string, string> = {
 
 type Params = { params: Promise<{ id: string }> };
 
+type DocAccess = 'free' | 'owner' | 'pro' | 'purchased' | 'denied';
+
+type DocDetail = {
+  doc: {
+    id: string;
+    uploaderId: string;
+    uploaderName: string | null;
+    uploaderImage: string | null;
+    title: string;
+    description: string | null;
+    subjectSlug: string;
+    level: string;
+    grade: number | null;
+    docType: string;
+    examType: string | null;
+    schoolYear: string | null;
+    region: string | null;
+    language: string | null;
+    tags: string[];
+    fileFormat: string;
+    fileSizeBytes: number;
+    pageCount: number | null;
+    previewThumbUrl: string | null;
+    aiSummary: string | null;
+    previewText: string | null;
+    license: string | null;
+    status: string | null;
+    viewCount: number | null;
+    downloadCount: number | null;
+    workspaceImportCount: number | null;
+    ratingAvg: number | null;
+    ratingCount: number | null;
+    qualityScore: number | null;
+    badges: string[];
+    parentRemixDocIds: string[];
+    remixCount: number;
+    isPremium: boolean;
+    priceVnd: number | null;
+    creatorSharePct: number | null;
+    courseId: string | null;
+    courseNameCache: string | null;
+    universityId: string | null;
+    createdAt: string;
+  };
+  parentRemixDocs: Array<{ id: string; title: string; uploaderName: string | null }>;
+  universityName: string | null;
+  access: DocAccess;
+};
+
 export default async function LibraryDetailPage({ params }: Params) {
   const { id } = await params;
 
-  const [doc] = await db
-    .select({
-      id: libraryDoc.id,
-      uploaderId: libraryDoc.uploaderId,
-      uploaderName: userTable.name,
-      uploaderImage: userTable.image,
-      title: libraryDoc.title,
-      description: libraryDoc.description,
-      subjectSlug: libraryDoc.subjectSlug,
-      level: libraryDoc.level,
-      grade: libraryDoc.grade,
-      docType: libraryDoc.docType,
-      examType: libraryDoc.examType,
-      schoolYear: libraryDoc.schoolYear,
-      region: libraryDoc.region,
-      language: libraryDoc.language,
-      tags: libraryDoc.tags,
-      fileFormat: libraryDoc.fileFormat,
-      fileSizeBytes: libraryDoc.fileSizeBytes,
-      pageCount: libraryDoc.pageCount,
-      previewThumbUrl: libraryDoc.previewThumbUrl,
-      aiSummary: libraryDoc.aiSummary,
-      previewText: libraryDoc.previewText,
-      license: libraryDoc.license,
-      status: libraryDoc.status,
-      ratingAvg: libraryDoc.ratingAvg,
-      ratingCount: libraryDoc.ratingCount,
-      viewCount: libraryDoc.viewCount,
-      downloadCount: libraryDoc.downloadCount,
-      workspaceImportCount: libraryDoc.workspaceImportCount,
-      qualityScore: libraryDoc.qualityScore,
-      badges: libraryDoc.badges,
-      parentRemixDocIds: libraryDoc.parentRemixDocIds,
-      remixCount: libraryDoc.remixCount,
-      isPremium: libraryDoc.isPremium,
-      priceVnd: libraryDoc.priceVnd,
-      creatorSharePct: libraryDoc.creatorSharePct,
-      courseId: libraryDoc.courseId,
-      courseNameCache: libraryDoc.courseNameCache,
-      universityId: libraryDoc.universityId,
-      createdAt: libraryDoc.createdAt,
-    })
-    .from(libraryDoc)
-    .leftJoin(userTable, eq(userTable.id, libraryDoc.uploaderId))
-    .where(eq(libraryDoc.id, id))
-    .limit(1);
+  const detail = await apiServerOrNull<DocDetail>(`/api/library/docs/${id}`);
+  if (!detail) return notFound();
 
-  if (!doc) return notFound();
-
-  let parentRemixDocs: Array<{ id: string; title: string; uploaderName: string | null }> = [];
-  if (doc.parentRemixDocIds && doc.parentRemixDocIds.length > 0) {
-    parentRemixDocs = await db
-      .select({
-        id: libraryDoc.id,
-        title: libraryDoc.title,
-        uploaderName: userTable.name,
-      })
-      .from(libraryDoc)
-      .leftJoin(userTable, eq(userTable.id, libraryDoc.uploaderId))
-      .where(
-        and(inArray(libraryDoc.id, doc.parentRemixDocIds), eq(libraryDoc.status, 'PUBLISHED')),
-      );
-  }
+  const { doc, parentRemixDocs, universityName, access } = detail;
 
   const t = await getServerT();
   const subj = SUBJECT_BY_SLUG[doc.subjectSlug];
   const isProcessing = doc.status === 'PROCESSING';
   const isHidden = doc.status === 'HIDDEN';
 
-  let universityName: string | null = null;
-  if (doc.universityId) {
-    const [u] = await db
-      .select({ name: libraryUniversity.name, shortName: libraryUniversity.shortName })
-      .from(libraryUniversity)
-      .where(eq(libraryUniversity.id, doc.universityId))
-      .limit(1);
-    universityName = u?.shortName || u?.name || null;
-  }
-
-  const session = await getServerSession();
-  const viewerId = session?.user.id ?? null;
-  const accessInfo = await checkDocAccess(doc.id, viewerId);
   const isPremiumLocked =
-    !!doc.isPremium &&
-    !!doc.priceVnd &&
-    doc.priceVnd > 0 &&
-    !!accessInfo &&
-    !accessInfo.access.allowed;
-
-  if (viewerId && doc.status === 'PUBLISHED') {
-    void db
-      .insert(libraryDocView)
-      .values({
-        id: randomUUID(),
-        userId: viewerId,
-        docId: doc.id,
-        viewedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [libraryDocView.userId, libraryDocView.docId],
-        set: { viewedAt: new Date() },
-      })
-      .catch(() => {});
-  }
+    doc.isPremium && !!doc.priceVnd && doc.priceVnd > 0 && access === 'denied';
+  const fullAccess = access === 'owner' || access === 'pro' || access === 'purchased';
 
   return (
     <PageShell size="wide">
@@ -236,7 +189,7 @@ export default async function LibraryDetailPage({ params }: Params) {
             <PremiumLockedPreview
               docId={doc.id}
               priceVnd={doc.priceVnd!}
-              creatorSharePct={doc.creatorSharePct}
+              creatorSharePct={doc.creatorSharePct ?? 80}
               thumbUrl={doc.previewThumbUrl}
               title={doc.title}
             />
@@ -246,11 +199,7 @@ export default async function LibraryDetailPage({ params }: Params) {
               fileFormat={doc.fileFormat}
               thumbUrl={doc.previewThumbUrl}
               title={doc.title}
-              fullAccess={
-                !!accessInfo &&
-                accessInfo.access.allowed &&
-                ['owner', 'pro', 'purchased'].includes(accessInfo.access.reason)
-              }
+              fullAccess={fullAccess}
             />
           )}
         </div>

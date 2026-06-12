@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
 
-import { db, exam } from '@cogniva/db';
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer } from '@/lib/api-server';
 
 import { JoinForm } from './join-form';
 
@@ -24,13 +23,11 @@ export default async function JoinExamPage({ searchParams }: Props) {
   }
 
   if (cleanedCode && cleanedCode.length >= 4 && cleanedCode.length <= 12) {
-    const [row] = await db
-      .select({ id: exam.id, status: exam.status })
-      .from(exam)
-      .where(eq(exam.liveCode, cleanedCode))
-      .limit(1);
-    if (row && row.status === 'PUBLISHED') {
-      redirect(`/exams/${row.id}`);
+    const result = await apiServer<{ id: string | null }>(
+      `/api/exams/lookup?code=${encodeURIComponent(cleanedCode)}`,
+    );
+    if (result.id) {
+      redirect(`/exams/${result.id}`);
     }
     return (
       <JoinForm

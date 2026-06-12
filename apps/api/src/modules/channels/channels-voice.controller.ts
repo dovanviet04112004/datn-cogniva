@@ -16,6 +16,11 @@ export class ChannelsVoiceController {
     private readonly recordings: VoiceRecordingsService,
   ) {}
 
+  @Get('recordings/:recId')
+  recordingDetail(@CurrentUser() user: AuthUser, @Param('recId') recId: string) {
+    return this.recordings.getRecordingDetail(user.id, recId);
+  }
+
   @HttpCode(200)
   @Post(':id/voice/join')
   joinVoice(@CurrentUser() user: AuthUser, @Param('id') channelId: string) {

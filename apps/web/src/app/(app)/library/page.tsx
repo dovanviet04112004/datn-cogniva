@@ -1,9 +1,8 @@
 import { Suspense } from 'react';
 import { Compass, Crown, FileText, Library as LibraryIcon, Layers, Upload } from 'lucide-react';
 
+import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
-import { isUserPro } from '@/lib/library/access';
-import { getLibraryHubStats } from '@/lib/library/get-hub-stats';
 import { getServerT } from '@/lib/i18n/server';
 
 import { PageShell } from '@/components/layout/page-shell';
@@ -57,10 +56,18 @@ export default async function LibraryPage({
   const showGrid = hasActiveSearch || Boolean(sp.sort);
   const isDiscovery = !showGrid;
 
-  const totalStats = await getLibraryHubStats();
+  const totalStats = await apiServer<{ total: number; totalImports: number }>(
+    '/api/library/stats/hub',
+  );
 
   const session = await getServerSession();
-  const isPro = session ? await isUserPro(session.user.id) : false;
+  const proStatus = session
+    ? await apiServer<{ plan: string | null; proUntilAt: string | null }>('/api/library/pro-status')
+    : null;
+  const isPro =
+    !!proStatus &&
+    proStatus.plan === 'PRO' &&
+    (!proStatus.proUntilAt || new Date(proStatus.proUntilAt) > new Date());
   const t = await getServerT();
 
   return (

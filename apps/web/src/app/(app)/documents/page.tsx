@@ -1,12 +1,10 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
 import { ChevronRight, FileText } from 'lucide-react';
 
-import { db, document, workspace } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
 import { EmptyState } from '@/components/layout/empty-state';
@@ -17,24 +15,20 @@ import { DocumentsUploadAction } from '@/components/documents/documents-upload-a
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+type DocumentRow = {
+  id: string;
+  filename: string;
+  status: string;
+  createdAt: string;
+  workspaceId: string;
+  workspaceName: string | null;
+};
+
 export default async function DocumentsListPage() {
   const session = await getServerSession();
   if (!session) redirect('/sign-in');
 
-  const rows = await db
-    .select({
-      id: document.id,
-      filename: document.filename,
-      status: document.status,
-      createdAt: document.createdAt,
-      workspaceId: document.workspaceId,
-      workspaceName: workspace.name,
-    })
-    .from(document)
-    .leftJoin(workspace, eq(workspace.id, document.workspaceId))
-    .where(eq(document.userId, session.user.id))
-    .orderBy(desc(document.createdAt))
-    .limit(100);
+  const { documents: rows } = await apiServer<{ documents: DocumentRow[] }>('/api/documents');
 
   return (
     <PageShell>
@@ -76,7 +70,7 @@ export default async function DocumentsListPage() {
                         {d.workspaceName}
                       </span>
                     )}
-                    <RelativeTime date={d.createdAt} />
+                    <RelativeTime date={new Date(d.createdAt)} />
                     {d.status !== 'READY' && (
                       <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-semibold text-amber-600">
                         {d.status}

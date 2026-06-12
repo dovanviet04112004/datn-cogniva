@@ -1,11 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
-import { and, eq, sql } from 'drizzle-orm';
 import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
 
-import { chunk, db, document } from '@cogniva/db';
-
 import { getServerSession } from '@/lib/auth-server';
+import { apiServer, apiServerOrNull } from '@/lib/api-server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,28 +18,30 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
+type DocumentDetail = {
+  id: string;
+  filename: string;
+  status: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED';
+  workspaceId: string;
+};
+
+type ChunkRow = {
+  id: string;
+  content: string;
+  tokens: number;
+  chunkIndex: number | null;
+  page: number | null;
+};
+
 export default async function DocumentDetailPage({ params }: Props) {
   const session = await getServerSession();
   if (!session) redirect('/sign-in');
   const { id } = await params;
 
-  const [doc] = await db
-    .select()
-    .from(document)
-    .where(and(eq(document.id, id), eq(document.userId, session.user.id)))
-    .limit(1);
+  const doc = await apiServerOrNull<DocumentDetail>(`/api/documents/${id}`);
   if (!doc) notFound();
 
-  const chunks = await db
-    .select({
-      id: chunk.id,
-      content: chunk.content,
-      tokens: chunk.tokens,
-      metadata: chunk.metadata,
-    })
-    .from(chunk)
-    .where(eq(chunk.documentId, id))
-    .orderBy(sql`(${chunk.metadata}->>'chunkIndex')::int ASC NULLS LAST`);
+  const { chunks } = await apiServer<{ chunks: ChunkRow[] }>(`/api/documents/${id}/chunks`);
 
   return (
     <div className="flex h-full flex-col">
@@ -86,7 +86,10 @@ export default async function DocumentDetailPage({ params }: Props) {
                   id: c.id,
                   content: c.content,
                   tokens: c.tokens,
-                  metadata: c.metadata as { page?: number; chunkIndex?: number } | null,
+                  metadata: {
+                    page: c.page ?? undefined,
+                    chunkIndex: c.chunkIndex ?? undefined,
+                  },
                 }))}
               />
             </div>

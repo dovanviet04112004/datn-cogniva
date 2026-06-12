@@ -1,41 +1,33 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { eq } from 'drizzle-orm';
 import { Award, CheckCircle2, Crown, Library, Sparkles, Wallet, Zap } from 'lucide-react';
-
-import { db, user as userTable, userWallet } from '@cogniva/db';
 
 import { PageShell } from '@/components/layout/page-shell';
 import { CancelProButton } from '@/components/library/cancel-pro-button';
 import { SubscribeProForm } from '@/components/library/subscribe-pro-form';
+import { apiServer, apiServerOrNull } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
+
+type ProStatus = { plan: string | null; proUntilAt: string | null };
+type WalletResponse = {
+  wallet: { balanceVnd: number; promoBalanceVnd: number } | null;
+};
 
 export default async function LibraryProPage() {
   const t = await getServerT();
   const session = await getServerSession();
   if (!session) redirect('/sign-in?next=/library/pro');
 
-  const [row] = await db
-    .select({
-      plan: userTable.plan,
-      proUntilAt: userTable.proUntilAt,
-    })
-    .from(userTable)
-    .where(eq(userTable.id, session.user.id))
-    .limit(1);
-  const [wallet] = await db
-    .select({
-      balanceVnd: userWallet.balanceVnd,
-      promoBalanceVnd: userWallet.promoBalanceVnd,
-    })
-    .from(userWallet)
-    .where(eq(userWallet.userId, session.user.id))
-    .limit(1);
+  const [row, walletRes] = await Promise.all([
+    apiServer<ProStatus>('/api/library/pro-status'),
+    apiServerOrNull<WalletResponse>('/api/wallet'),
+  ]);
+  const wallet = walletRes?.wallet ?? null;
 
-  const isPro = row?.plan === 'PRO' && (!row.proUntilAt || row.proUntilAt > new Date());
+  const isPro = row.plan === 'PRO' && (!row.proUntilAt || new Date(row.proUntilAt) > new Date());
   const totalBalance = (wallet?.balanceVnd ?? 0) + (wallet?.promoBalanceVnd ?? 0);
 
   return (
@@ -65,11 +57,11 @@ export default async function LibraryProPage() {
               </p>
               <p className="text-muted-foreground">
                 {t('library.pro.expires_at')}{' '}
-                {row?.proUntilAt ? new Date(row.proUntilAt).toLocaleString('vi-VN') : '—'}{' '}
+                {row.proUntilAt ? new Date(row.proUntilAt).toLocaleString('vi-VN') : '—'}{' '}
                 {t('library.pro.renew_hint')}
               </p>
             </div>
-            <CancelProButton proUntilAt={row?.proUntilAt?.toISOString() ?? null} />
+            <CancelProButton proUntilAt={row.proUntilAt} />
           </div>
         )}
 

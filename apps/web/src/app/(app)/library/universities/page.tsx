@@ -3,15 +3,28 @@ import { ArrowLeft, Compass } from 'lucide-react';
 
 import { PageShell } from '@/components/layout/page-shell';
 import { PageHero } from '@/components/layout/page-hero';
+import { apiServer } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
-import { getUniversitiesDirectory } from '@/lib/library/get-universities-directory';
 import { BrowseDirectory } from '@/components/library/browse-directory';
 
 export const dynamic = 'force-dynamic';
 
+type UniversitiesDirectory = {
+  unis: Array<{
+    id: string;
+    name: string;
+    shortName: string | null;
+    docCount: number;
+    courseCount: number;
+  }>;
+  generalCourses: Array<{ id: string; name: string; code: string | null; docCount: number }>;
+};
+
 export default async function UniversitiesDirectoryPage() {
   const t = await getServerT();
-  const { unis, generalCourses } = await getUniversitiesDirectory();
+  const { unis, generalCourses } = await apiServer<UniversitiesDirectory>(
+    '/api/library/browse/universities',
+  );
 
   return (
     <PageShell size="wide">

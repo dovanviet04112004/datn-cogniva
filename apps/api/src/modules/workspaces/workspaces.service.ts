@@ -84,6 +84,90 @@ export class WorkspacesService {
     return { workspaces: rows };
   }
 
+  async overview(userId: string) {
+    const [workspaceRows, recentDocRows] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          createdAt: Date;
+          documentCount: number;
+          lastActivityAt: Date | null;
+        }>
+      >(Prisma.sql`
+        SELECT w.id, w.name, w.description, w.created_at AS "createdAt",
+               COALESCE(dc.n, 0)::int AS "documentCount",
+               dc.last_doc_at AS "lastActivityAt"
+        FROM workspace w
+        LEFT JOIN (
+          SELECT workspace_id, COUNT(id) AS n, MAX(created_at) AS last_doc_at
+          FROM document
+          WHERE user_id = ${userId}
+          GROUP BY workspace_id
+        ) dc ON dc.workspace_id = w.id
+        WHERE w.user_id = ${userId}
+        ORDER BY w.created_at ASC`),
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          filename: string;
+          createdAt: Date;
+          workspaceId: string;
+          workspaceName: string | null;
+        }>
+      >(Prisma.sql`
+        SELECT d.id, d.filename, d.created_at AS "createdAt",
+               d.workspace_id AS "workspaceId", w.name AS "workspaceName"
+        FROM document d
+        LEFT JOIN workspace w ON w.id = d.workspace_id
+        WHERE d.user_id = ${userId}
+        ORDER BY d.created_at DESC
+        LIMIT 5`),
+    ]);
+
+    const totalDocs = workspaceRows.reduce((sum, w) => sum + w.documentCount, 0);
+
+    return {
+      workspaces: workspaceRows.map((w) => ({
+        id: w.id,
+        name: w.name,
+        description: w.description,
+        createdAt: w.createdAt.toISOString(),
+        documentCount: w.documentCount,
+        lastActivityAt: w.lastActivityAt ? w.lastActivityAt.toISOString() : null,
+      })),
+      totalDocs,
+      recentDocs: recentDocRows.map((d) => ({
+        id: d.id,
+        filename: d.filename,
+        createdAt: d.createdAt.toISOString(),
+        workspaceId: d.workspaceId,
+        workspaceName: d.workspaceName,
+      })),
+    };
+  }
+
+  async getOrCreateDefault(userId: string) {
+    const found = await this.prisma.workspace.findFirst({
+      where: { user_id: userId, name: 'Default' },
+      select: { id: true },
+    });
+    if (found) return { id: found.id };
+
+    const created = await this.prisma.workspace.create({
+      data: {
+        id: randomUUID(),
+        user_id: userId,
+        name: 'Default',
+        description: 'Workspace mặc định — tự tạo khi upload tài liệu đầu tiên.',
+      },
+    });
+
+    await onWorkspaceChanged(userId);
+    return { id: created.id };
+  }
+
   async createWorkspace(userId: string, input: CreateWorkspaceInput) {
     const inserted = await this.prisma.workspace.create({
       data: {
