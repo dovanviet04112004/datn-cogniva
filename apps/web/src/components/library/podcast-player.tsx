@@ -164,9 +164,14 @@ export function PodcastPlayer({ docId }: { docId: string }) {
       <button
         type="button"
         onClick={fetchScript}
-        className="border-divider bg-card hover:bg-muted inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors"
+        disabled={loading}
+        className="border-divider bg-card hover:bg-muted inline-flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60"
       >
-        <Headphones className="h-3.5 w-3.5" />
+        {loading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Headphones className="h-3.5 w-3.5" />
+        )}
         {t('library.podcast.listen')}
       </button>
 

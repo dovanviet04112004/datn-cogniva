@@ -161,19 +161,19 @@ export class LibraryDiscoveryService {
         >(Prisma.sql`
           SELECT id, name, short_name, doc_count
           FROM library_university
-          WHERE doc_count > 0
+          WHERE doc_count > 0 AND approved = true
           ORDER BY doc_count DESC`),
         this.prisma.$queryRaw<Array<{ university_id: string | null; n: number }>>(Prisma.sql`
           SELECT university_id, count(*)::int AS n
           FROM library_course
-          WHERE doc_count > 0
+          WHERE doc_count > 0 AND approved = true
           GROUP BY university_id`),
         this.prisma.$queryRaw<
           Array<{ id: string; name: string; code: string | null; doc_count: number }>
         >(Prisma.sql`
           SELECT id, name, code, doc_count
           FROM library_course
-          WHERE doc_count > 0 AND university_id IS NULL
+          WHERE doc_count > 0 AND approved = true AND university_id IS NULL
           ORDER BY doc_count DESC`),
       ]);
 
@@ -209,7 +209,7 @@ export class LibraryDiscoveryService {
       >(Prisma.sql`
         SELECT id, name, short_name, doc_count
         FROM library_university
-        WHERE id = ${id}
+        WHERE id = ${id} AND approved = true
         LIMIT 1`);
       const uni = uniRows[0];
       if (!uni) return null;
@@ -220,7 +220,7 @@ export class LibraryDiscoveryService {
         >(Prisma.sql`
           SELECT id, name, code, doc_count
           FROM library_course
-          WHERE university_id = ${id} AND doc_count > 0
+          WHERE university_id = ${id} AND doc_count > 0 AND approved = true
           ORDER BY doc_count DESC
           LIMIT 200`),
         this.prisma.$queryRaw<Array<{ doc_type: string; n: number }>>(Prisma.sql`
@@ -262,7 +262,7 @@ export class LibraryDiscoveryService {
           u.name AS university_name, u.short_name AS university_short
         FROM library_course c
         LEFT JOIN library_university u ON u.id = c.university_id
-        WHERE c.id = ${id}
+        WHERE c.id = ${id} AND c.approved = true
         LIMIT 1`);
       const course = rows[0];
       if (!course) return null;

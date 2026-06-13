@@ -135,7 +135,7 @@ export class LibraryUploadService {
       const course = await this.prisma.library_course.findUnique({
         where: { id: metadata.courseId },
       });
-      if (course) {
+      if (course && course.approved) {
         courseId = course.id;
         universityId = course.university_id;
         courseNameCache = course.code ? `${course.code} ${course.name}` : course.name;
