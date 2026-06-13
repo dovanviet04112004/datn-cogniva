@@ -15,6 +15,7 @@ import {
 } from '@xyflow/react';
 import { FileUp, Loader2, Network, Sparkles } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import '@xyflow/react/dist/style.css';
 
@@ -268,6 +269,7 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [activeDomain, setActiveDomain] = React.useState<string | null>(null);
+  const [mining, setMining] = React.useState(false);
 
   const { fitView } = useReactFlow();
 
@@ -285,25 +287,53 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
 
   React.useEffect(() => {
     if (!graphData) return;
+    const withEnter = (list: Node[]) =>
+      list.map((n, i) => ({ ...n, data: { ...n.data, enterDelay: Math.min(i * 6, 480) } }));
     const hash = hashGraph(graphData.nodes, graphData.edges);
     const cached = readLayoutCache();
     if (cached && cached.hash === hash) {
-      setRawConceptNodes(applyCachedPositions(graphData.nodes, cached.positions));
+      setRawConceptNodes(withEnter(applyCachedPositions(graphData.nodes, cached.positions)));
       setLabelNodes(cached.labels);
     } else {
       const { nodes: laidOut, labels } = layoutGraph(graphData.nodes, graphData.edges);
       const positions: Record<string, { x: number; y: number }> = {};
       for (const n of laidOut) positions[n.id] = n.position;
       writeLayoutCache({ hash, positions, labels });
-      setRawConceptNodes(laidOut);
+      setRawConceptNodes(withEnter(laidOut));
       setLabelNodes(labels);
     }
     setEdges(graphData.edges);
   }, [graphData]);
 
+  const mine = React.useCallback(async () => {
+    setMining(true);
+    try {
+      const res = await fetch('/api/graph/mine', { method: 'POST' });
+      const data = (await res.json().catch(() => null)) as {
+        inserted?: number;
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(data?.error ?? `Status ${res.status}`);
+      const n = data?.inserted ?? 0;
+      toast.success(
+        n > 0
+          ? `Đã nối thêm ${n} liên kết khái niệm.`
+          : 'Chưa tìm thấy liên kết mới — bản đồ đã cập nhật.',
+      );
+      try {
+        sessionStorage.removeItem(LAYOUT_CACHE_KEY);
+      } catch {}
+      void refetch();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setMining(false);
+    }
+  }, [refetch]);
+
   React.useEffect(() => {
     if (rawConceptNodes.length === 0) return;
-    const t = setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
+    const t = setTimeout(() => fitView({ padding: 0.15, duration: 600 }), 80);
     return () => clearTimeout(t);
   }, [rawConceptNodes, fitView]);
 
@@ -366,7 +396,7 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         ...e,
         style: {
           ...(e.style ?? {}),
-          stroke: isSelectedEdge ? '#6366f1' : '#64748b',
+          stroke: isSelectedEdge ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
           strokeWidth: isSelectedEdge ? 2.5 : 1.5,
           opacity: dim ? 0.15 : 1,
         },
@@ -438,14 +468,39 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         onSearchChange={setSearchQuery}
         totalConcepts={rawConceptNodes.length}
         totalEdges={edges.length}
-        onMined={() => {
-          try {
-            sessionStorage.removeItem(LAYOUT_CACHE_KEY);
-          } catch {}
-          void refetch();
-        }}
+        mining={mining}
+        onMine={() => void mine()}
       />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        {edges.length === 0 && rawConceptNodes.length >= 2 && !selectedId && (
+          <div className="animate-fade-in pointer-events-none absolute inset-x-0 top-4 z-10 flex justify-center px-4">
+            <div className="border-divider bg-elevated/95 shadow-elevated pointer-events-auto flex max-w-xl items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-md">
+              <span className="from-primary/15 to-discovery-500/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br">
+                <Sparkles className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold tracking-tight">Bản đồ chưa có liên kết</p>
+                <p className="text-muted-foreground text-[13px] leading-snug">
+                  {rawConceptNodes.length} khái niệm đang rời rạc. Để AI phân tích quan hệ tiên
+                  quyết và nối chúng thành bản đồ.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5"
+                disabled={mining}
+                onClick={() => void mine()}
+              >
+                {mining ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {mining ? 'Đang nối...' : 'Nối khái niệm'}
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="flex-1">
           <ReactFlow
             nodes={displayedNodes}

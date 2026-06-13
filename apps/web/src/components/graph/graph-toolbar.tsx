@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { Search, Sparkles, X, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -41,7 +40,8 @@ type Props = {
   onSearchChange: (q: string) => void;
   totalConcepts: number;
   totalEdges: number;
-  onMined: () => void;
+  mining: boolean;
+  onMine: () => void;
 };
 
 export function GraphToolbar({
@@ -52,10 +52,10 @@ export function GraphToolbar({
   onSearchChange,
   totalConcepts,
   totalEdges,
-  onMined,
+  mining,
+  onMine,
 }: Props) {
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const [mining, setMining] = React.useState(false);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,31 +73,6 @@ export function GraphToolbar({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onSearchChange]);
-
-  const mine = async () => {
-    setMining(true);
-    try {
-      const res = await fetch('/api/graph/mine', { method: 'POST' });
-      const data = (await res.json().catch(() => null)) as {
-        inserted?: number;
-        error?: string;
-      } | null;
-      if (!res.ok) {
-        throw new Error(data?.error ?? `Status ${res.status}`);
-      }
-      const n = data?.inserted ?? 0;
-      toast.success(
-        n > 0
-          ? `Đã tìm thêm ${n} liên kết khái niệm.`
-          : 'Không tìm thấy liên kết mới — graph đã cập nhật.',
-      );
-      onMined();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setMining(false);
-    }
-  };
 
   return (
     <div className="border-divider bg-surface/40 flex flex-wrap items-center gap-2 border-b px-3 py-2 backdrop-blur-sm sm:px-4">
@@ -147,10 +122,10 @@ export function GraphToolbar({
           {totalEdges} liên kết
         </span>
         <Button
-          onClick={mine}
+          onClick={onMine}
           disabled={mining || totalConcepts < 2}
           size="sm"
-          variant="outline"
+          variant={totalEdges === 0 ? 'default' : 'outline'}
           className="h-8 gap-1.5"
           title={
             totalConcepts < 2

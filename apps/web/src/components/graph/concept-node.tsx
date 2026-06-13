@@ -12,6 +12,7 @@ export type ConceptNodeData = {
   mastery: number | undefined;
   dim?: boolean;
   neighbor?: boolean;
+  enterDelay?: number;
 };
 
 const DOMAIN_STYLES: Record<string, string> = {
@@ -39,10 +40,12 @@ function ConceptNodeImpl({ data, selected }: NodeProps) {
 
   return (
     <div
+      style={d.enterDelay !== undefined ? { animationDelay: `${d.enterDelay}ms` } : undefined}
       className={cn(
         'group/node relative rounded-xl border px-3.5 py-2.5 backdrop-blur-md',
         'text-foreground min-w-[148px] max-w-[210px] cursor-pointer',
         'bg-surface/70 shadow-soft',
+        'animate-graph-node-in',
         'duration-base ease-expo-out transition-all',
         'hover:shadow-elevated hover:-translate-y-0.5',
         domainStyle,
