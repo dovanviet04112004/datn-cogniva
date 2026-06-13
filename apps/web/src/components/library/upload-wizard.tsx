@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ComboSelect } from '@/components/ui/combo-select';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
+import { ALL_SUBJECTS } from '@cogniva/db/taxonomy';
 
 import { CoursePicker } from './course-picker';
 
@@ -55,6 +56,7 @@ export function UploadWizard({
   const [description, setDescription] = React.useState('');
   const [courseId, setCourseId] = React.useState<string | null>(initialCourse?.id ?? null);
   const [level, setLevel] = React.useState('HIGH_SCHOOL');
+  const [subjectSlug, setSubjectSlug] = React.useState('');
   const [grade, setGrade] = React.useState<string>('');
   const [docType, setDocType] = React.useState('summary');
   const [schoolYear, setSchoolYear] = React.useState('');
@@ -63,6 +65,12 @@ export function UploadWizard({
     'CC-BY-4.0',
   );
   const [licenseConfirmed, setLicenseConfirmed] = React.useState(false);
+
+  const subjectOptions = React.useMemo(() => {
+    const matching = ALL_SUBJECTS.filter((s) => (s.levels as readonly string[]).includes(level));
+    const list = matching.length > 0 ? matching : ALL_SUBJECTS;
+    return list.map((s) => ({ value: s.slug, label: `${s.emoji} ${s.name}`, hint: s.nameEn }));
+  }, [level]);
 
   const fileFormat = React.useMemo<'pdf' | 'docx' | 'image' | null>(() => {
     if (!file) return null;
@@ -171,6 +179,7 @@ export function UploadWizard({
         title: title.trim(),
         description: description.trim() || undefined,
         courseId: courseId ?? undefined,
+        subjectSlug: subjectSlug || undefined,
         level,
         grade: grade ? parseInt(grade, 10) : undefined,
         docType,
@@ -307,6 +316,17 @@ export function UploadWizard({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
+              {t('library.upload.subject')}
+            </label>
+            <ComboSelect
+              value={subjectSlug}
+              onChange={setSubjectSlug}
+              placeholder={t('library.upload.subject_placeholder')}
+              options={subjectOptions}
+            />
+          </div>
+          <div>
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.level')}
             </label>
             <ComboSelect
@@ -316,6 +336,9 @@ export function UploadWizard({
               options={LEVELS.map((l) => ({ value: l.value, label: t(l.labelKey) }))}
             />
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.doctype_label')}
@@ -327,9 +350,6 @@ export function UploadWizard({
               options={DOC_TYPES.map((dt) => ({ value: dt.value, label: t(dt.labelKey) }))}
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.grade')}
@@ -343,6 +363,9 @@ export function UploadWizard({
               placeholder={t('library.upload.grade_placeholder')}
             />
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
               {t('library.upload.school_year')}
@@ -354,17 +377,16 @@ export function UploadWizard({
               pattern="\d{4}-\d{4}"
             />
           </div>
-        </div>
-
-        <div>
-          <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
-            {t('library.upload.tags')}
-          </label>
-          <Input
-            placeholder={t('library.upload.tags_placeholder')}
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-          />
+          <div>
+            <label className="text-muted-foreground mb-1 block text-[10px] font-semibold uppercase">
+              {t('library.upload.tags')}
+            </label>
+            <Input
+              placeholder={t('library.upload.tags_placeholder')}
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+            />
+          </div>
         </div>
       </section>
 

@@ -312,6 +312,7 @@ const vi: Dict = {
   'library.upload.desc_placeholder':
     'Mô tả ngắn (50-200 từ — giúp AI search hiểu nội dung tốt hơn)',
   'library.upload.subject': 'Lĩnh vực',
+  'library.upload.subject_placeholder': 'Chọn môn / lĩnh vực',
   'library.upload.level': 'Cấp học',
   'library.upload.grade': 'Lớp (1-12, optional)',
   'library.upload.grade_placeholder': 'Vd: 12',
@@ -999,6 +1000,7 @@ const en: Dict = {
   'library.upload.desc_placeholder':
     'Short description (50-200 words — helps AI search understand the content)',
   'library.upload.subject': 'Field',
+  'library.upload.subject_placeholder': 'Select subject / field',
   'library.upload.level': 'Level',
   'library.upload.grade': 'Grade (1-12, optional)',
   'library.upload.grade_placeholder': 'e.g. 12',
