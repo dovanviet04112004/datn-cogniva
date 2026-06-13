@@ -5,30 +5,7 @@ import { Search, Sparkles, X, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-const DOMAIN_LABELS: Record<string, string> = {
-  math: 'Toán',
-  cs: 'Khoa học máy tính',
-  physics: 'Vật lý',
-  chemistry: 'Hóa học',
-  biology: 'Sinh học',
-  history: 'Lịch sử',
-  language: 'Ngôn ngữ',
-  business: 'Kinh doanh',
-  general: 'Khác',
-  unknown: 'Chưa phân loại',
-};
-
-const DOMAIN_DOT_COLOR: Record<string, string> = {
-  math: 'bg-blue-500',
-  cs: 'bg-purple-500',
-  physics: 'bg-orange-500',
-  chemistry: 'bg-pink-500',
-  biology: 'bg-green-500',
-  history: 'bg-amber-500',
-  language: 'bg-rose-500',
-  business: 'bg-emerald-500',
-};
+import { DOMAIN_DOT, DOMAIN_LABELS } from '@/lib/graph/domains';
 
 type DomainCount = { domain: string; count: number };
 
@@ -110,7 +87,7 @@ export function GraphToolbar({
             key={d.domain}
             active={activeDomain === d.domain}
             onClick={() => onDomainChange(activeDomain === d.domain ? null : d.domain)}
-            dotClass={DOMAIN_DOT_COLOR[d.domain] ?? 'bg-slate-500'}
+            dotClass={DOMAIN_DOT[d.domain] ?? 'bg-slate-500'}
           >
             {DOMAIN_LABELS[d.domain] ?? d.domain} · {d.count}
           </Chip>

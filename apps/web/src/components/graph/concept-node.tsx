@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 
 import { cn } from '@/lib/utils';
+import { DOMAIN_CARD } from '@/lib/graph/domains';
 
 export type ConceptNodeData = {
   name: string;
@@ -15,18 +16,6 @@ export type ConceptNodeData = {
   enterDelay?: number;
 };
 
-const DOMAIN_STYLES: Record<string, string> = {
-  math: 'border-blue-500/60 bg-blue-500/15',
-  cs: 'border-purple-500/60 bg-purple-500/15',
-  physics: 'border-orange-500/60 bg-orange-500/15',
-  chemistry: 'border-pink-500/60 bg-pink-500/15',
-  biology: 'border-green-500/60 bg-green-500/15',
-  history: 'border-amber-500/60 bg-amber-500/15',
-  language: 'border-rose-500/60 bg-rose-500/15',
-  business: 'border-emerald-500/60 bg-emerald-500/15',
-  general: 'border-slate-500/60 bg-slate-500/15',
-};
-
 function masteryRing(mastery: number | undefined): string {
   if (mastery === undefined) return 'ring-1 ring-slate-700/40';
   if (mastery >= 0.7) return 'ring-2 ring-green-400/80';
@@ -36,7 +25,7 @@ function masteryRing(mastery: number | undefined): string {
 
 function ConceptNodeImpl({ data, selected }: NodeProps) {
   const d = data as unknown as ConceptNodeData;
-  const domainStyle = DOMAIN_STYLES[d.domain] ?? DOMAIN_STYLES.general;
+  const domainStyle = DOMAIN_CARD[d.domain] ?? DOMAIN_CARD.general;
 
   return (
     <div

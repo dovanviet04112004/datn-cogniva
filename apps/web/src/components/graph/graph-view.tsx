@@ -13,7 +13,7 @@ import {
   type Node,
   type NodeMouseHandler,
 } from '@xyflow/react';
-import { FileUp, Loader2, Network, Sparkles } from 'lucide-react';
+import { FileUp, Loader2, Network } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -25,8 +25,10 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 import { ConceptNode, type ConceptNodeData } from './concept-node';
+import { ConceptGallery } from './concept-gallery';
 import { ConceptPanel } from './concept-panel';
 import { GraphToolbar } from './graph-toolbar';
+import { DOMAIN_LABELS, DOMAIN_MINIMAP } from '@/lib/graph/domains';
 
 const NODE_TYPES = { concept: ConceptNode, domainLabel: DomainLabelNode };
 
@@ -36,19 +38,6 @@ const GRID_GAP_X = 220;
 const GRID_GAP_Y = 96;
 const DOMAIN_HEADER_HEIGHT = 32;
 const DOMAIN_BLOCK_GAP = 64;
-
-const DOMAIN_LABELS: Record<string, string> = {
-  math: 'Toán',
-  cs: 'Khoa học máy tính',
-  physics: 'Vật lý',
-  chemistry: 'Hóa học',
-  biology: 'Sinh học',
-  history: 'Lịch sử',
-  language: 'Ngôn ngữ',
-  business: 'Kinh doanh',
-  general: 'Khác',
-  unknown: 'Chưa phân loại',
-};
 
 function DomainLabelNode({ data }: { data: { label: string; count: number } }) {
   return (
@@ -332,10 +321,10 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
   }, [refetch]);
 
   React.useEffect(() => {
-    if (rawConceptNodes.length === 0) return;
+    if (rawConceptNodes.length === 0 || edges.length === 0) return;
     const t = setTimeout(() => fitView({ padding: 0.15, duration: 600 }), 80);
     return () => clearTimeout(t);
-  }, [rawConceptNodes, fitView]);
+  }, [rawConceptNodes, edges.length, fitView]);
 
   const domainCounts = React.useMemo(() => {
     const m = new Map<string, number>();
@@ -471,77 +460,52 @@ function GraphCanvas({ workspaceId }: { workspaceId?: string }) {
         mining={mining}
         onMine={() => void mine()}
       />
-      <div className="relative flex min-h-0 flex-1">
-        {edges.length === 0 && rawConceptNodes.length >= 2 && !selectedId && (
-          <div className="animate-fade-in pointer-events-none absolute inset-x-0 top-4 z-10 flex justify-center px-4">
-            <div className="border-divider bg-elevated/95 shadow-elevated pointer-events-auto flex max-w-xl items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-md">
-              <span className="from-primary/15 to-discovery-500/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br">
-                <Sparkles className="h-4 w-4" strokeWidth={1.75} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold tracking-tight">Bản đồ chưa có liên kết</p>
-                <p className="text-muted-foreground text-[13px] leading-snug">
-                  {rawConceptNodes.length} khái niệm đang rời rạc. Để AI phân tích quan hệ tiên
-                  quyết và nối chúng thành bản đồ.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                className="shrink-0 gap-1.5"
-                disabled={mining}
-                onClick={() => void mine()}
-              >
-                {mining ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {mining ? 'Đang nối...' : 'Nối khái niệm'}
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="flex-1">
-          <ReactFlow
-            nodes={displayedNodes}
-            edges={displayedEdges}
-            nodeTypes={NODE_TYPES}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            fitView
-            fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.2}
-            maxZoom={2}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background gap={24} size={1} />
-            <Controls showInteractive={false} />
-            <MiniMap
-              nodeColor={(n) => {
-                if (n.type === 'domainLabel') return 'transparent';
-                const d = (n.data as ConceptNodeData).domain;
-                return (
-                  {
-                    math: '#3b82f6',
-                    cs: '#a855f7',
-                    physics: '#f97316',
-                    chemistry: '#ec4899',
-                    biology: '#22c55e',
-                    history: '#f59e0b',
-                    language: '#f43f5e',
-                    business: '#10b981',
-                  }[d] ?? '#64748b'
-                );
-              }}
-              nodeStrokeWidth={2}
-              maskColor="rgb(15 23 42 / 0.05)"
-              pannable
-              zoomable
-            />
-          </ReactFlow>
+      {edges.length === 0 ? (
+        <div className="flex min-h-0 flex-1">
+          <ConceptGallery
+            nodes={rawConceptNodes as Node<ConceptNodeData>[]}
+            searchQuery={searchQuery}
+            activeDomain={activeDomain}
+            selectedId={selectedId}
+            onSelect={(id) => setSelectedId((prev) => (prev === id ? null : id))}
+            mining={mining}
+            onMine={() => void mine()}
+          />
+          <ConceptPanel conceptId={selectedId} onClose={() => setSelectedId(null)} />
         </div>
-        <ConceptPanel conceptId={selectedId} onClose={() => setSelectedId(null)} />
-      </div>
+      ) : (
+        <div className="relative flex min-h-0 flex-1">
+          <div className="flex-1">
+            <ReactFlow
+              nodes={displayedNodes}
+              edges={displayedEdges}
+              nodeTypes={NODE_TYPES}
+              onNodeClick={onNodeClick}
+              onPaneClick={onPaneClick}
+              fitView
+              fitViewOptions={{ padding: 0.15 }}
+              minZoom={0.2}
+              maxZoom={2}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background gap={24} size={1} />
+              <Controls showInteractive={false} />
+              <MiniMap
+                nodeColor={(n) => {
+                  if (n.type === 'domainLabel') return 'transparent';
+                  const d = (n.data as ConceptNodeData).domain;
+                  return DOMAIN_MINIMAP[d] ?? '#64748b';
+                }}
+                nodeStrokeWidth={2}
+                maskColor="rgb(15 23 42 / 0.05)"
+                pannable
+                zoomable
+              />
+            </ReactFlow>
+          </div>
+          <ConceptPanel conceptId={selectedId} onClose={() => setSelectedId(null)} />
+        </div>
+      )}
     </div>
   );
 }
