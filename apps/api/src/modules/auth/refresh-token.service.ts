@@ -62,9 +62,11 @@ export class RefreshTokenService {
     return { userId: row.user_id, next };
   }
 
-  async revokeByRaw(raw: string): Promise<void> {
+  async revokeByRaw(raw: string): Promise<string | null> {
     const row = await this.prisma.refresh_token.findUnique({ where: { token_hash: sha256(raw) } });
-    if (row) await this.revokeFamily(row.family_id);
+    if (!row) return null;
+    await this.revokeFamily(row.family_id);
+    return row.user_id;
   }
 
   async revokeFamily(familyId: string): Promise<void> {

@@ -62,6 +62,7 @@ export function DmChat({
       apiGet<{ messages: Message[] }>(`/api/dm/${threadId}/messages?limit=50`).then(
         (d) => d.messages ?? [],
       ),
+    refetchOnMount: 'always',
   });
 
   useRealtimeSetData<Message[], Message>(

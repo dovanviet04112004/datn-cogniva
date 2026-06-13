@@ -151,7 +151,13 @@ export class ChatController {
     }
 
     const chunks = context.chunks;
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
     pipeDataStreamToResponse(res, {
+      headers: {
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
       execute: (dataStream) => {
         dataStream.writeMessageAnnotation({
           type: 'citations',

@@ -284,26 +284,23 @@ export class GroupChannelsService {
   }
 
   async typing(uid: string, groupId: string, channelId: string) {
-    const member = await this.membership(groupId, uid);
+    const [member, channel, u] = await Promise.all([
+      this.membership(groupId, uid),
+      this.prisma.study_group_channel.findFirst({
+        where: { id: channelId, group_id: groupId },
+        select: { id: true },
+      }),
+      this.prisma.user.findUnique({ where: { id: uid }, select: { name: true, image: true } }),
+    ]);
     if (!member) throw new ForbiddenException({ error: 'Forbidden' });
-
-    const channel = await this.prisma.study_group_channel.findFirst({
-      where: { id: channelId, group_id: groupId },
-      select: { id: true },
-    });
     if (!channel) throw new NotFoundException({ error: 'Channel not found' });
 
-    const u = await this.prisma.user.findUnique({
-      where: { id: uid },
-      select: { name: true, image: true },
-    });
-
-    await triggerEvent(`private-channel-${channelId}`, 'user:typing', {
+    void triggerEvent(`private-channel-${channelId}`, 'user:typing', {
       userId: uid,
       name: u?.name ?? 'Ai đó',
       image: u?.image ?? null,
-      expiresAt: Date.now() + 5_000,
-    });
+      expiresAt: Date.now() + 4_000,
+    }).catch(() => {});
 
     return { ok: true };
   }

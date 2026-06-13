@@ -42,6 +42,7 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
     queryKey: qk.thread(channelId, rootMessageId),
     queryFn: () =>
       apiGet<ThreadData>(`/api/channels/${channelId}/messages/${rootMessageId}/thread`),
+    refetchOnMount: 'always',
   });
   const root = threadData?.root ?? null;
   const replies = threadData?.replies ?? [];

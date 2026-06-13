@@ -62,6 +62,17 @@ export function VoiceSessionProvider({ children }: { children: React.ReactNode }
     activeRef.current = active;
   }, [active]);
 
+  React.useEffect(() => {
+    const onPageHide = () => {
+      const cur = activeRef.current;
+      if (cur && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(`/api/channels/${cur.channel.id}/voice/leave`);
+      }
+    };
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+  }, []);
+
   const postLeave = React.useCallback((channelId: string) => {
     fetch(`/api/channels/${channelId}/voice/leave`, { method: 'POST' }).catch(() => {});
   }, []);

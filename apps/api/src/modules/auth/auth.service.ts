@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
+
 import { PasswordService } from '../../common/auth/password.service';
 import { TokenService } from '../../common/auth/token.service';
 import type { AuthUser } from '../../common/auth/session.types';
@@ -197,8 +199,28 @@ export class AuthService {
   }
 
   async signOut(rawToken: string | undefined, userId: string | undefined): Promise<void> {
-    if (rawToken) await this.refreshTokens.revokeByRaw(rawToken);
-    else if (userId) await this.refreshTokens.revokeAllForUser(userId);
+    let uid = userId ?? null;
+    if (rawToken) {
+      const revokedUid = await this.refreshTokens.revokeByRaw(rawToken);
+      uid ??= revokedUid;
+    } else if (userId) {
+      await this.refreshTokens.revokeAllForUser(userId);
+    }
+    if (uid) await this.clearVoicePresence(uid);
+  }
+
+  private async clearVoicePresence(userId: string): Promise<void> {
+    const states = await this.prisma.study_group_voice_state.findMany({
+      where: { user_id: userId },
+      select: { channel_id: true },
+    });
+    if (states.length === 0) return;
+    await this.prisma.study_group_voice_state.deleteMany({ where: { user_id: userId } });
+    for (const s of states) {
+      void triggerEvent(`presence-voice-${s.channel_id}`, 'voice:leave', { userId }).catch(
+        () => {},
+      );
+    }
   }
 
   async me(userId: string): Promise<AuthUser & { twoFactorEnabled: boolean }> {

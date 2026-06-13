@@ -37,6 +37,7 @@ export function TextChannel({ channel, myRole, currentUserId }: Props) {
   const { data, isLoading: loading } = useQuery({
     queryKey: msgKey,
     queryFn: () => apiGet<MsgPage>(`/api/channels/${channel.id}/messages?limit=50`),
+    refetchOnMount: 'always',
   });
   const messages = React.useMemo(() => data?.messages ?? [], [data]);
   const hasMore = data?.hasMore ?? false;

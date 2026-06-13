@@ -47,7 +47,7 @@ export function TypingIndicator({ channelId }: { channelId: string }) {
         }
         return changed ? next : prev;
       });
-    }, 1000);
+    }, 500);
     return () => clearInterval(id);
   }, []);
 
@@ -91,7 +91,7 @@ function formatNames(names: string[]): string {
 
 export function useEmitTyping(groupId: string, channelId: string) {
   const lastSentRef = React.useRef(0);
-  const DEBOUNCE_MS = 3_000;
+  const DEBOUNCE_MS = 1_000;
 
   return React.useCallback(() => {
     const now = Date.now();

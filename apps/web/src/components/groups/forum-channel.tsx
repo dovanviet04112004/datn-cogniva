@@ -98,6 +98,7 @@ export function ForumChannel({ channel, myRole, currentUserId }: Props) {
       if (sort !== 'latest') url.searchParams.set('sort', sort);
       return apiGet<ForumResponse>(url.toString());
     },
+    refetchOnMount: 'always',
   });
   const posts = data?.posts ?? [];
   const availableTags = data?.availableTags ?? (channel.availableTags as Tag[] | null) ?? [];
