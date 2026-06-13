@@ -28,7 +28,7 @@ import { DocAtomMap } from '@/components/library/doc-atom-map';
 import { DocPreviewPanel } from '@/components/library/doc-preview-panel';
 import { DocReviewSection } from '@/components/library/doc-review-section';
 import { DuplicateWarning } from '@/components/library/duplicate-warning';
-import { EndorseSection } from '@/components/library/endorse-section';
+import { EndorseModal } from '@/components/library/endorse-section';
 import { ImportToWorkspaceButton } from '@/components/library/import-to-workspace-button';
 import { PodcastPlayer } from '@/components/library/podcast-player';
 import { PremiumLockedPreview } from '@/components/library/premium-purchase-button';
@@ -343,9 +343,7 @@ export default async function LibraryDetailPage({ params }: Params) {
             <DocAtomMap docId={doc.id} pageCount={doc.pageCount} />
           </CollapsibleSection>
 
-          <CollapsibleSection label={t('library.detail.educator_confirm')}>
-            <EndorseSection docId={doc.id} />
-          </CollapsibleSection>
+          <EndorseModal docId={doc.id} />
 
           {doc.aiSummary && (
             <section className="border-discovery-500/20 bg-discovery-500/5 rounded-xl border p-3">

@@ -86,7 +86,7 @@ export function TranslateButton({
   );
 }
 
-export function TranslatableText({
+function TranslatableTextImpl({
   docId,
   text,
   sourceLang,
@@ -162,3 +162,5 @@ export function TranslatableText({
     </div>
   );
 }
+
+export const TranslatableText = React.memo(TranslatableTextImpl);

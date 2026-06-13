@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Loader2, Sparkles, X } from 'lucide-react';
+import { BadgeCheck, CheckCircle2, Loader2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
@@ -9,9 +9,12 @@ import { apiGet, apiSend } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirm } from '@/lib/use-confirm';
 import { useT } from '@/lib/i18n/context';
+
+type EndorseData = { endorsements: Endorsement[]; viewer: TutorEligibility };
 
 type Endorsement = {
   id: string;
@@ -38,7 +41,6 @@ export function EndorseSection({ docId }: { docId: string }) {
   const [note, setNote] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
 
-  type EndorseData = { endorsements: Endorsement[]; viewer: TutorEligibility };
   const {
     data,
     isLoading: loading,
@@ -189,5 +191,46 @@ export function EndorseSection({ docId }: { docId: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+export function EndorseModal({ docId }: { docId: string }) {
+  const t = useT();
+  const [open, setOpen] = React.useState(false);
+  const { data } = useQuery({
+    queryKey: qk.libraryDocEndorse(docId),
+    queryFn: () => apiGet<EndorseData>(`/api/library/docs/${docId}/endorse`),
+    enabled: !!docId,
+  });
+  const endorsements = data?.endorsements ?? [];
+  const v = data?.viewer;
+  const canEndorse = !!(v?.isTutor && v.isVerified && v.isPublished && !v.hasEndorsed);
+  const shouldShow = endorsements.length > 0 || canEndorse || (v?.hasEndorsed ?? false);
+  if (!shouldShow) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="border-divider bg-card hover:bg-muted flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors"
+      >
+        <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" />
+        {t('library.detail.educator_confirm')}
+        {endorsements.length > 0 && (
+          <span className="ml-auto rounded-full bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+            {endorsements.length}
+          </span>
+        )}
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader className="text-left">
+            <DialogTitle>{t('library.detail.educator_confirm')}</DialogTitle>
+          </DialogHeader>
+          <EndorseSection docId={docId} />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Bookmark, Loader2, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,13 +37,14 @@ const TRACKABLE_PARAMS = [
   'language',
   'fileFormat',
   'difficulty',
+  'university',
+  'course',
   'sort',
 ];
 
 export function SavedSearchBar() {
   const t = useT();
   const confirm = useConfirm();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = React.useState(false);

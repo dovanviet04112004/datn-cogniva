@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { apiSend } from '@cogniva/shared/api';
 import { Button } from '@/components/ui/button';
 import { ComboSelect } from '@/components/ui/combo-select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
 
@@ -158,8 +159,8 @@ export function PodcastPlayer({ docId }: { docId: string }) {
     if (playing) playTurn(next);
   };
 
-  if (!open) {
-    return (
+  return (
+    <>
       <button
         type="button"
         onClick={fetchScript}
@@ -168,128 +169,126 @@ export function PodcastPlayer({ docId }: { docId: string }) {
         <Headphones className="h-3.5 w-3.5" />
         {t('library.podcast.listen')}
       </button>
-    );
-  }
 
-  return (
-    <section className="border-discovery-500/30 from-discovery-500/10 rounded-xl border bg-gradient-to-br to-sky-500/5 p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-discovery-700 dark:text-discovery-300 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-          <Headphones className="h-3 w-3" />
-          {t('library.podcast.title')}{' '}
-          {data &&
-            `· ~${Math.ceil(data.estimatedDurationSec / 60)} ${t('library.podcast.minutes')}`}
-        </p>
-        <button
-          type="button"
-          onClick={() => {
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o) {
             reset();
             setOpen(false);
-          }}
-          className="text-muted-foreground hover:text-foreground text-[11px]"
-        >
-          {t('library.podcast.close')}
-        </button>
-      </div>
+          }
+        }}
+      >
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-1.5 text-base">
+              <Headphones className="text-discovery-600 h-4 w-4" />
+              {t('library.podcast.title')}
+              {data &&
+                ` · ~${Math.ceil(data.estimatedDurationSec / 60)} ${t('library.podcast.minutes')}`}
+            </DialogTitle>
+          </DialogHeader>
 
-      {loading || !data ? (
-        <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-[12px]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t('library.podcast.writing')}
-        </div>
-      ) : (
-        <>
-          <div className="border-divider bg-background mb-3 flex items-center gap-1.5 rounded-lg border p-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => skip(-1)}
-              disabled={currentTurn === 0}
-              className="h-7 px-1.5"
-            >
-              <SkipBack className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="default" size="sm" onClick={togglePlay} className="h-7 px-2">
-              {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => skip(1)}
-              disabled={currentTurn >= data.turns.length - 1}
-              className="h-7 px-1.5"
-            >
-              <SkipForward className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={reset} className="h-7 px-1.5">
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
-            <div className="ml-auto flex items-center gap-1">
-              <Settings2 className="text-muted-foreground h-3 w-3" />
-              <ComboSelect
-                value={String(rate)}
-                onChange={(v) => setRate(Number(v))}
-                options={[
-                  { value: '0.75', label: '0.75×' },
-                  { value: '1', label: '1×' },
-                  { value: '1.25', label: '1.25×' },
-                  { value: '1.5', label: '1.5×' },
-                  { value: '2', label: '2×' },
-                ]}
-                className="text-[10px]"
-              />
+          {loading || !data ? (
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-[12px]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t('library.podcast.writing')}
             </div>
-          </div>
-
-          <div className="bg-muted mb-2 h-1 overflow-hidden rounded-full">
-            <div
-              className="bg-discovery-500 h-full transition-all"
-              style={{
-                width: `${((currentTurn + (playing ? 0.5 : 0)) / data.turns.length) * 100}%`,
-              }}
-            />
-          </div>
-          <p className="text-muted-foreground mb-2 text-center text-[10px]">
-            {t('library.podcast.turn')
-              .replace('{current}', String(currentTurn + 1))
-              .replace('{total}', String(data.turns.length))}
-          </p>
-
-          <ul className="max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
-            {data.turns.map((turn, idx) => {
-              const meta = SPEAKER_META[turn.speaker];
-              const isActive = idx === currentTurn;
-              return (
-                <li
-                  key={idx}
-                  onClick={() => {
-                    window.speechSynthesis.cancel();
-                    setCurrentTurn(idx);
-                    if (playing) playTurn(idx);
-                  }}
-                  className={cn(
-                    'cursor-pointer rounded-md border p-2 transition-all',
-                    isActive
-                      ? 'border-discovery-500 bg-discovery-500/10 shadow-sm'
-                      : 'border-divider/60 bg-background hover:bg-muted/50',
-                  )}
+          ) : (
+            <>
+              <div className="border-divider bg-background mb-3 flex items-center gap-1.5 rounded-lg border p-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => skip(-1)}
+                  disabled={currentTurn === 0}
+                  className="h-7 px-1.5"
                 >
-                  <p className={cn('mb-0.5 text-[10.5px] font-semibold', meta.color)}>
-                    {meta.emoji} {meta.name}
-                  </p>
-                  <p className="text-[11.5px] leading-relaxed">{turn.text}</p>
-                </li>
-              );
-            })}
-          </ul>
+                  <SkipBack className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="default" size="sm" onClick={togglePlay} className="h-7 px-2">
+                  {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => skip(1)}
+                  disabled={currentTurn >= data.turns.length - 1}
+                  className="h-7 px-1.5"
+                >
+                  <SkipForward className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={reset} className="h-7 px-1.5">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+                <div className="ml-auto flex items-center gap-1">
+                  <Settings2 className="text-muted-foreground h-3 w-3" />
+                  <ComboSelect
+                    value={String(rate)}
+                    onChange={(v) => setRate(Number(v))}
+                    options={[
+                      { value: '0.75', label: '0.75×' },
+                      { value: '1', label: '1×' },
+                      { value: '1.25', label: '1.25×' },
+                      { value: '1.5', label: '1.5×' },
+                      { value: '2', label: '2×' },
+                    ]}
+                    className="text-[10px]"
+                  />
+                </div>
+              </div>
 
-          {(!voiceA || !voiceB) && (
-            <p className="mt-2 rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-300">
-              {t('library.podcast.no_voice')}
-            </p>
+              <div className="bg-muted mb-2 h-1 overflow-hidden rounded-full">
+                <div
+                  className="bg-discovery-500 h-full transition-all"
+                  style={{
+                    width: `${((currentTurn + (playing ? 0.5 : 0)) / data.turns.length) * 100}%`,
+                  }}
+                />
+              </div>
+              <p className="text-muted-foreground mb-2 text-center text-[10px]">
+                {t('library.podcast.turn')
+                  .replace('{current}', String(currentTurn + 1))
+                  .replace('{total}', String(data.turns.length))}
+              </p>
+
+              <ul className="max-h-[300px] space-y-1.5 overflow-y-auto pr-1">
+                {data.turns.map((turn, idx) => {
+                  const meta = SPEAKER_META[turn.speaker];
+                  const isActive = idx === currentTurn;
+                  return (
+                    <li
+                      key={idx}
+                      onClick={() => {
+                        window.speechSynthesis.cancel();
+                        setCurrentTurn(idx);
+                        if (playing) playTurn(idx);
+                      }}
+                      className={cn(
+                        'cursor-pointer rounded-md border p-2 transition-all',
+                        isActive
+                          ? 'border-discovery-500 bg-discovery-500/10 shadow-sm'
+                          : 'border-divider/60 bg-background hover:bg-muted/50',
+                      )}
+                    >
+                      <p className={cn('mb-0.5 text-[10.5px] font-semibold', meta.color)}>
+                        {meta.emoji} {meta.name}
+                      </p>
+                      <p className="text-[11.5px] leading-relaxed">{turn.text}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {(!voiceA || !voiceB) && (
+                <p className="mt-2 rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-300">
+                  {t('library.podcast.no_voice')}
+                </p>
+              )}
+            </>
           )}
-        </>
-      )}
-    </section>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
