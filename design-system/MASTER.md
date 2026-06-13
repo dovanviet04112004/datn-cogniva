@@ -190,6 +190,13 @@ Mọi trang trong `(app)/` bọc bằng [`PageShell`](../apps/web/src/components
 
 Padding mặc định `p-6`; section spacing `space-y-6` (dashboard dùng `space-y-10`).
 
+**Header: compact mặc định, hero opt-in.** `PageShell` render **header compact** (icon-tile
+`h-8 w-8 bg-primary/10` + title `text-lg/xl` + description `text-[13px] line-clamp-1` + action,
+hairline `border-b`) khi truyền `title`/`description`/`action`. Chỉ thêm prop `hero` cho **trang
+landing/độ-quan-trọng cao** (hiện tại CHỈ dashboard) → khi đó dùng `PageHero` band gradient lớn.
+KHÔNG dùng hero band cho mọi trang nội bộ — lặp 15 trang band khổng lồ làm app "nặng & cổ".
+Eyebrow text chỉ hiển thị trong hero; header compact dùng `eyebrowIcon` (icon-tile) thay nhãn chữ.
+
 ### 4.2 Spacing scale
 
 Theo thang Tailwind mặc định (4px step). Hay dùng: `gap-1.5 / gap-2 / gap-3 / gap-4`,
@@ -358,6 +365,18 @@ Dùng `react-hook-form` + shadcn `Form`/`FormField` (validation chuẩn), KHÔNG
 ### 9.9 Toast — Sonner
 
 `<Toaster richColors closeButton />` mount 1 lần ở root. Dùng `toast.success/error/...`.
+
+### 9.10 EmptyState — [`components/ui/empty-state.tsx`](../apps/web/src/components/ui/empty-state.tsx)
+
+Khối "chưa có gì" dùng `<EmptyState icon={LucideIcon} title description? action? compact?/>`.
+Style: card `bg-surface-secondary/50 border-divider rounded-2xl` (**KHÔNG border-dashed** — viền
+đứt nét trông như wireframe chưa xong) + icon-tile gradient `from-primary/15 to-discovery-500/10`
+
+- title `text-sm font-semibold` + description `text-[13px] muted` + action. `compact` (py-10) cho
+  khối trong panel hẹp, mặc định py-16. **Mọi empty state phải dùng component này**, KHÔNG tự code
+  `border-dashed` rời. (Bản cũ ở `components/layout/empty-state.tsx` đã xoá 2026-06-13.)
+  > Phân biệt: dropzone upload (react-dropzone), notice phân quyền, slot trống lịch — KHÔNG phải
+  > empty state, giữ style riêng của chúng.
 
 ---
 

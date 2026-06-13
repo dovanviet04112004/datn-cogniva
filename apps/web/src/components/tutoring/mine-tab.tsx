@@ -18,6 +18,7 @@ import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG, URGENCY_NAMES } from '@co
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { EarningsCard } from '@/components/tutoring/earnings-card';
 import { RelativeTime } from '@/components/ui/relative-time';
@@ -272,20 +273,21 @@ export async function MineTab() {
           </SectionHeading>
 
           {myApplications.length === 0 ? (
-            <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
-              <Sparkles className="text-muted-foreground/50 mx-auto mb-2 h-5 w-5" />
-              <p className="text-sm font-medium">Chưa apply yêu cầu nào</p>
-              <p className="text-muted-foreground mx-auto mt-1 max-w-md text-[11.5px]">
-                Browse các yêu cầu học đang mở — apply nhanh để học sinh chọn.
-              </p>
-              <Link
-                href="/tutoring?tab=requests"
-                className="text-primary mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
-              >
-                Xem yêu cầu
-                <ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
+            <EmptyState
+              compact
+              icon={Sparkles}
+              title="Chưa apply yêu cầu nào"
+              description="Browse các yêu cầu học đang mở — apply nhanh để học sinh chọn."
+              action={
+                <Link
+                  href="/tutoring?tab=requests"
+                  className="text-primary inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
+                >
+                  Xem yêu cầu
+                  <ChevronRight className="h-3 w-3" />
+                </Link>
+              }
+            />
           ) : (
             <ul className="space-y-2">
               {myApplications.map((a) => {
@@ -345,20 +347,21 @@ export async function MineTab() {
         </SectionHeading>
 
         {myRequests.length === 0 ? (
-          <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
-            <FilePlus className="text-muted-foreground/50 mx-auto mb-2 h-5 w-5" />
-            <p className="text-sm font-medium">Chưa đăng yêu cầu nào</p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-md text-[11.5px]">
-              Mô tả nhu cầu học của bạn — gia sư sẽ apply ngược trong 24h.
-            </p>
-            <Link
-              href="/tutoring/requests/new"
-              className="text-primary mt-3 inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
-            >
-              Đăng yêu cầu đầu tiên
-              <ChevronRight className="h-3 w-3" />
-            </Link>
-          </div>
+          <EmptyState
+            compact
+            icon={FilePlus}
+            title="Chưa đăng yêu cầu nào"
+            description="Mô tả nhu cầu học của bạn — gia sư sẽ apply ngược trong 24h."
+            action={
+              <Link
+                href="/tutoring/requests/new"
+                className="text-primary inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
+              >
+                Đăng yêu cầu đầu tiên
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {myRequests.map((r) => {

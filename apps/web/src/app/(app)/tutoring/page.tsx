@@ -6,7 +6,6 @@ import { getServerSession } from '@/lib/auth-server';
 import { apiServer } from '@/lib/api-server';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
 import { BookingsManager } from '@/components/tutoring/bookings-manager';
 import { MineTab } from '@/components/tutoring/mine-tab';
 import { RequestsTab } from '@/components/tutoring/requests-tab';
@@ -54,13 +53,14 @@ export default async function TutoringHubPage({ searchParams }: { searchParams: 
     (await apiServer<{ id: string; status: string } | null>('/api/tutoring/my-profile')) ?? null;
 
   return (
-    <PageShell size="wide" padded className="space-y-5">
-      <PageHero
-        eyebrow="Gia sư"
-        eyebrowIcon={GraduationCap}
-        title="Tutoring Marketplace"
-        description="Gia sư · Lớp nhóm · Yêu cầu học"
-      >
+    <PageShell
+      size="wide"
+      padded
+      className="space-y-5"
+      eyebrowIcon={GraduationCap}
+      title="Tutoring Marketplace"
+      description="Gia sư · Lớp nhóm · Yêu cầu học"
+      action={
         <div className="flex items-center gap-2">
           <Link
             href="/wallet"
@@ -93,8 +93,8 @@ export default async function TutoringHubPage({ searchParams }: { searchParams: 
             </Button>
           )}
         </div>
-      </PageHero>
-
+      }
+    >
       <ConciergeTrigger variant="searchBar" />
 
       <TutoringTabNav active={tab} />

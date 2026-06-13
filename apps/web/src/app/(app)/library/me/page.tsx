@@ -14,10 +14,9 @@ import {
 import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { StatCard } from '@/components/ui/stat-card';
 import { getServerT } from '@/lib/i18n/server';
@@ -98,20 +97,29 @@ export default async function CreatorDashboardPage() {
         {t('library.back')}
       </Link>
 
-      <PageHero
-        eyebrow="Creator"
-        eyebrowIcon={Sparkles}
-        title={t('library.me.title')}
-        description={t('library.me.subtitle')}
-        className="mb-5"
-      >
-        <Button asChild>
-          <Link href="/library/upload" className="gap-1">
-            <Upload className="h-3.5 w-3.5" />
-            {t('library.me.upload_new')}
-          </Link>
-        </Button>
-      </PageHero>
+      <header className="border-divider mb-5 flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="bg-primary/10 text-primary inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <Sparkles className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+              {t('library.me.title')}
+            </h1>
+            <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[13px] leading-snug">
+              {t('library.me.subtitle')}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild>
+            <Link href="/library/upload" className="gap-1">
+              <Upload className="h-3.5 w-3.5" />
+              {t('library.me.upload_new')}
+            </Link>
+          </Button>
+        </div>
+      </header>
 
       <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
         <div className="to-card rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 p-3">
@@ -164,7 +172,6 @@ export default async function CreatorDashboardPage() {
 
           {docs.length === 0 ? (
             <EmptyState
-              variant="card"
               icon={Upload}
               title={t('library.me.empty_prefix')}
               action={

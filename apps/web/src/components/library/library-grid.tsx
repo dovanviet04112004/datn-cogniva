@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { FileText, RotateCcw, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
 import { Pagination } from '@/components/tutoring/pagination';
 import { LEVEL_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';

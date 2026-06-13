@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
@@ -89,13 +88,21 @@ export default async function KarmaLeaderboardPage() {
         {t('library.back')}
       </Link>
 
-      <PageHero
-        eyebrow="Karma"
-        eyebrowIcon={Crown}
-        title={t('library.karma.title')}
-        description={t('library.karma.subtitle')}
-        className="mb-6"
-      />
+      <header className="border-divider mb-6 flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="bg-primary/10 text-primary inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <Crown className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+              {t('library.karma.title')}
+            </h1>
+            <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[13px] leading-snug">
+              {t('library.karma.subtitle')}
+            </p>
+          </div>
+        </div>
+      </header>
 
       {totalsByType.length > 0 && (
         <section className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">

@@ -37,7 +37,6 @@ import { AiUsageCard } from '@/components/settings/ai-usage-card';
 import { DeleteAccountCard } from '@/components/settings/delete-account-card';
 import { PomodoroToggleCard } from '@/components/settings/pomodoro-toggle-card';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
 import { PageLoading } from '@/components/layout/page-loading';
 import { cn } from '@/lib/utils';
 import { useLocale } from '@/lib/i18n/context';
@@ -170,14 +169,15 @@ export default function SettingsPage() {
   const user = data.user;
 
   return (
-    <PageShell size="wide" padded className="space-y-6">
-      <PageHero
-        eyebrow={t('settings.user_default')}
-        eyebrowIcon={Settings}
-        title={user.name ?? t('settings.user_default')}
-        description={<span className="font-mono">{user.email}</span>}
-      >
-        <div className="flex items-center gap-4">
+    <PageShell
+      size="wide"
+      padded
+      className="space-y-6"
+      eyebrowIcon={Settings}
+      title={user.name ?? t('settings.user_default')}
+      description={<span className="font-mono">{user.email}</span>}
+      action={
+        <div className="flex items-center gap-3">
           <div className="flex flex-wrap justify-end gap-1.5">
             <span className="border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium">
               <Crown className="h-2.5 w-2.5" />
@@ -204,15 +204,15 @@ export default function SettingsPage() {
               )}
             </span>
           </div>
-          <Avatar className="ring-primary/30 ring-offset-card h-16 w-16 ring-2 ring-offset-4">
+          <Avatar className="ring-primary/30 ring-offset-card h-10 w-10 ring-2 ring-offset-2">
             <AvatarImage src={user.image ?? undefined} alt={user.name ?? user.email} />
-            <AvatarFallback className="from-primary to-primary-hover text-primary-foreground bg-gradient-to-br text-lg font-semibold">
+            <AvatarFallback className="from-primary to-primary-hover text-primary-foreground bg-gradient-to-br text-sm font-semibold">
               {(user.name ?? user.email)[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
         </div>
-      </PageHero>
-
+      }
+    >
       <div className="grid gap-6 md:grid-cols-[220px_1fr] md:gap-8">
         <nav
           aria-label="Settings sections"

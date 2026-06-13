@@ -7,6 +7,7 @@ import {
   Camera,
   ChevronRight,
   Loader2,
+  SearchX,
   Sparkles,
   Target,
   Upload as UploadIcon,
@@ -18,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiSend } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
@@ -621,9 +623,7 @@ function ReverseCluster({ title, hits }: { title: string; hits: CrossDocHit[] })
         <span className="text-muted-foreground/60 font-mono text-[10px]">({hits.length})</span>
       </p>
       {hits.length === 0 ? (
-        <p className="border-divider text-muted-foreground/60 rounded-lg border border-dashed px-3 py-4 text-center text-[11px] italic">
-          {t('library.search.cluster_empty')}
-        </p>
+        <EmptyState compact icon={SearchX} title={t('library.search.cluster_empty')} />
       ) : (
         <ul className="space-y-1.5">
           {hits.map((d) => (

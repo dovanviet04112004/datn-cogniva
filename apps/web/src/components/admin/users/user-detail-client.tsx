@@ -10,6 +10,7 @@ import {
   Flame,
   LogOut,
   MessageSquare,
+  ScrollText,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -23,6 +24,7 @@ import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/admin/confirm-dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -372,9 +374,11 @@ export function UserDetailClient({ data, currentAdminId, adminRole }: Props) {
           Audit log tác động lên user này (10 mới nhất)
         </h2>
         {data.recentAudit.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-700 bg-slate-900/40 px-3 py-6 text-center text-xs text-slate-500">
-            Chưa có hành động admin nào trên user này.
-          </p>
+          <EmptyState
+            compact
+            icon={ScrollText}
+            title="Chưa có hành động admin nào trên user này."
+          />
         ) : (
           <ul className="divide-y divide-slate-800">
             {data.recentAudit.map((row) => {

@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
-import { TrendingUp } from 'lucide-react';
+import { BarChart3, Cpu, TrendingUp } from 'lucide-react';
 
 import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { PageShell } from '@/components/layout/page-shell';
 
@@ -85,9 +86,12 @@ export default async function AnalyticsPage() {
         </SectionHeading>
 
         {data.last7Days.length === 0 ? (
-          <p className="bg-surface-secondary/40 text-muted-foreground rounded-lg border border-dashed py-8 text-center text-xs">
-            Chưa có data — chat thử để thấy biểu đồ.
-          </p>
+          <EmptyState
+            compact
+            icon={BarChart3}
+            title="Chưa có data"
+            description="Chat thử để thấy biểu đồ."
+          />
         ) : (
           <div className="flex h-44 items-end gap-2">
             {data.last7Days.map((d) => {
@@ -120,9 +124,7 @@ export default async function AnalyticsPage() {
       <Card className="border-divider shadow-soft rounded-xl p-5">
         <SectionHeading count={data.byModel.length}>Theo model</SectionHeading>
         {data.byModel.length === 0 ? (
-          <p className="bg-surface-secondary/40 text-muted-foreground rounded-lg border border-dashed py-8 text-center text-xs">
-            Chưa có data.
-          </p>
+          <EmptyState compact icon={Cpu} title="Chưa có data." />
         ) : (
           <table className="w-full text-sm">
             <thead className="text-text-muted text-[11px] font-semibold uppercase tracking-[0.14em]">

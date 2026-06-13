@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/lib/use-confirm';
 import { PageShell } from '@/components/layout/page-shell';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -107,8 +107,7 @@ export function WorkspacesDashboardClient({ workspaces, totalDocs, recentDocs }:
       size="wide"
       padded
       className="space-y-8"
-      hero
-      eyebrow="Thư viện"
+      eyebrowIcon={BookOpen}
       title="Thư viện tài liệu"
       description={
         workspaces.length > 0

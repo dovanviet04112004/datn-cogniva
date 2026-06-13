@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ChevronRight, Loader2, Sparkles } from 'lucide-react';
+import { ChevronRight, Loader2, SearchX, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
 
@@ -75,11 +76,12 @@ export function AiMatches({ requestId }: { requestId: string }) {
           <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
         </div>
       ) : !matches || matches.length === 0 ? (
-        <div className="border-divider bg-card/40 rounded-2xl border border-dashed p-6 text-center">
-          <p className="text-muted-foreground text-xs">
-            Chưa tìm thấy match phù hợp. Browse /tutoring để tìm thủ công nhé.
-          </p>
-        </div>
+        <EmptyState
+          compact
+          icon={SearchX}
+          title="Chưa tìm thấy match phù hợp"
+          description="Browse /tutoring để tìm thủ công nhé."
+        />
       ) : (
         <ul className="space-y-2">
           {matches.map((m) => {

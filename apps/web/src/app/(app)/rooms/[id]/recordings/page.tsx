@@ -5,7 +5,7 @@ import { ArrowLeft, PlayCircle } from 'lucide-react';
 import { getServerSession } from '@/lib/auth-server';
 import { apiServerOrNull } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

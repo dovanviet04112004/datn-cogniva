@@ -6,7 +6,6 @@ import { getServerSession } from '@/lib/auth-server';
 import { getServerT } from '@/lib/i18n/server';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -71,27 +70,26 @@ export default async function LibraryPage({
   const t = await getServerT();
 
   return (
-    <PageShell size="wide">
-      <PageHero
-        eyebrow="Thư viện"
-        eyebrowIcon={LibraryIcon}
-        title={t('library.hub.title')}
-        description={
-          <>
-            <span className="font-mono font-semibold tabular-nums">{totalStats.total}</span>{' '}
-            {t('library.hub.stats.docs')}
-            {totalStats.totalImports > 0 && (
-              <>
-                {' · '}
-                <span className="font-mono font-semibold tabular-nums">
-                  {totalStats.totalImports}
-                </span>{' '}
-                {t('library.hub.stats.imports')}
-              </>
-            )}
-          </>
-        }
-      >
+    <PageShell
+      size="wide"
+      eyebrowIcon={LibraryIcon}
+      title={t('library.hub.title')}
+      description={
+        <>
+          <span className="font-mono font-semibold tabular-nums">{totalStats.total}</span>{' '}
+          {t('library.hub.stats.docs')}
+          {totalStats.totalImports > 0 && (
+            <>
+              {' · '}
+              <span className="font-mono font-semibold tabular-nums">
+                {totalStats.totalImports}
+              </span>{' '}
+              {t('library.hub.stats.imports')}
+            </>
+          )}
+        </>
+      }
+      action={
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link
@@ -141,9 +139,9 @@ export default async function LibraryPage({
             </Link>
           </Button>
         </div>
-      </PageHero>
-
-      <div className="mb-6 mt-6 flex flex-col gap-4">
+      }
+    >
+      <div className="mb-6 flex flex-col gap-4">
         <UnifiedSearch />
 
         {session && !isPro && isDiscovery && (

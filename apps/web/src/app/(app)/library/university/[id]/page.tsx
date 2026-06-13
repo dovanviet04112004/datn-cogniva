@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, Building2, Compass, Upload } from 'lucide-react';
 
 import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { UniversityCourseBrowser } from '@/components/library/university-course-browser';
 import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
@@ -78,9 +79,7 @@ export default async function UniversityPage({ params }: Params) {
           {courses.length > 0 ? (
             <UniversityCourseBrowser courses={courses} />
           ) : (
-            <p className="border-divider text-muted-foreground rounded-xl border border-dashed py-10 text-center text-[13px]">
-              {t('library.university.no_course_match')}
-            </p>
+            <EmptyState compact icon={BookOpen} title={t('library.university.no_course_match')} />
           )}
         </div>
 

@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { ComboSelect } from '@/components/ui/combo-select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NeuralPattern } from '@/components/ui/neural-pattern';
 import { PageShell } from '@/components/layout/page-shell';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -84,26 +83,19 @@ export function NewRequestForm() {
         Quay lại
       </Link>
 
-      <header className="from-card via-card to-surface-secondary shadow-soft relative overflow-hidden rounded-2xl bg-gradient-to-br px-8 py-7">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:radial-gradient(ellipse_at_right,_black_25%,_transparent_75%)]"
-        >
-          <NeuralPattern className="text-primary opacity-[0.18]" />
-        </div>
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-primary h-3.5 w-3.5" />
-            <span className="text-primary text-[11px] font-semibold uppercase tracking-[0.18em]">
-              Tutoring Marketplace
-            </span>
+      <header className="border-divider flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="bg-primary/10 text-primary inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <Sparkles className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+              Đăng yêu cầu tìm gia sư
+            </h1>
+            <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[13px] leading-snug">
+              Mô tả rõ nhu cầu — gia sư apply ngược cho bạn, không cần search thủ công.
+            </p>
           </div>
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
-            Đăng yêu cầu tìm gia sư
-          </h1>
-          <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
-            Mô tả rõ nhu cầu — gia sư apply ngược cho bạn, không cần search thủ công.
-          </p>
         </div>
       </header>
 

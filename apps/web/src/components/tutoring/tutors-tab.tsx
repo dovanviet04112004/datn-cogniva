@@ -3,7 +3,7 @@
 import { LEVEL_NAMES, MODALITY_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 
 import { apiServer } from '@/lib/api-server';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { ListToolbar, type ActiveFilterChip } from '@/components/tutoring/list-toolbar';
 import { Pagination } from '@/components/tutoring/pagination';
 import { TutorCard, type TutorCardData } from '@/components/tutoring/tutor-card';

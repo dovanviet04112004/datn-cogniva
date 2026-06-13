@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { CheckCircle2, ChevronRight, Clock } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmptyState } from '@/components/ui/empty-state';
 import { apiServer } from '@/lib/api-server';
 
 export const runtime = 'nodejs';
@@ -33,13 +34,11 @@ export default async function AdminKycPage() {
       </header>
 
       {rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-12 text-center">
-          <Clock className="mx-auto mb-2 h-6 w-6 text-slate-500" />
-          <p className="text-sm font-medium text-slate-300">Chưa có hồ sơ nào</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Khi tutor upload CCCD/bằng cấp, hồ sơ sẽ hiện ở đây.
-          </p>
-        </div>
+        <EmptyState
+          icon={Clock}
+          title="Chưa có hồ sơ nào"
+          description="Khi tutor upload CCCD/bằng cấp, hồ sơ sẽ hiện ở đây."
+        />
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => (

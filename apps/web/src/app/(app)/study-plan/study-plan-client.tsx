@@ -18,11 +18,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiSend } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoading } from '@/components/layout/page-loading';
 import { CreateStudyItemDialog } from '@/components/study-plan/create-study-item-dialog';
-import { NeuralPattern } from '@/components/ui/neural-pattern';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
 import { type Item, type ItemStatus, normalizeItem } from '@/lib/study-plan/item';
@@ -111,52 +109,39 @@ export function StudyPlanClient({ initialItems }: { initialItems?: Item[] }) {
   );
 
   return (
-    <PageShell size="wide" padded className="space-y-10">
-      <PageHero
-        eyebrow="Study Plan · Hôm nay"
-        eyebrowIcon={GraduationCap}
-        title="Kế hoạch học hôm nay"
-        description={
-          <>
-            AI đề xuất atom cần ôn (SRS due) + atom mới + quiz củng cố. Tick xong hoặc bỏ qua hôm
-            nay. Phía dưới là todo cá nhân nếu cần.
-            {(proposalPending.length > 0 || overdueCount > 0) && (
-              <span className="mt-3 flex flex-wrap gap-2">
-                {proposalPending.length > 0 && (
-                  <span className="border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
-                    <Sparkles className="h-3 w-3" />
-                    <span className="font-mono tabular-nums">{proposalPending.length}</span> AI đề
-                    xuất · ~{totalProposalMinutes} phút
-                  </span>
-                )}
-                {overdueCount > 0 && (
-                  <span className="border-destructive/20 bg-destructive/5 text-destructive inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
-                    <Calendar className="h-3 w-3" />
-                    <span className="font-mono tabular-nums">{overdueCount}</span> quá hạn
-                  </span>
-                )}
-              </span>
-            )}
-          </>
-        }
-        decoration={
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:radial-gradient(ellipse_at_right,_black_25%,_transparent_75%)]"
-          >
-            <NeuralPattern className="text-primary opacity-[0.18]" />
-          </div>
-        }
-      >
-        <CreateStudyItemDialog onCreated={refresh} />
-      </PageHero>
-
+    <PageShell
+      size="wide"
+      padded
+      className="space-y-10"
+      eyebrowIcon={GraduationCap}
+      title="Kế hoạch học hôm nay"
+      description="AI đề xuất atom cần ôn (SRS due) + atom mới + quiz củng cố — tick xong hoặc bỏ qua hôm nay."
+      action={
+        <div className="flex items-center gap-2">
+          {proposalPending.length > 0 && (
+            <span className="border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
+              <Sparkles className="h-3 w-3" />
+              <span className="font-mono tabular-nums">{proposalPending.length}</span> AI đề xuất ·
+              ~{totalProposalMinutes} phút
+            </span>
+          )}
+          {overdueCount > 0 && (
+            <span className="border-destructive/20 bg-destructive/5 text-destructive inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
+              <Calendar className="h-3 w-3" />
+              <span className="font-mono tabular-nums">{overdueCount}</span> quá hạn
+            </span>
+          )}
+          <CreateStudyItemDialog onCreated={refresh} />
+        </div>
+      }
+    >
       {loading && <PageLoading variant="skeleton" rows={3} />}
 
       {!loading && (
         <>
           {proposalPending.length === 0 && manualItems.length === 0 ? (
             <EmptyState
+              icon={Calendar}
               title="Chưa có gì để học hôm nay"
               description="Upload PDF + đợi AI extract atom (30-60s) → quay lại đây sẽ thấy đề xuất. Hoặc tự thêm todo bên dưới."
             />
@@ -211,7 +196,8 @@ export function StudyPlanClient({ initialItems }: { initialItems?: Item[] }) {
                       <SectionHeading count={manualPending.length}>Cần làm</SectionHeading>
                       {manualPending.length === 0 ? (
                         <EmptyState
-                          variant="inline"
+                          compact
+                          icon={Check}
                           title="Không có todo pending"
                           description="Hoàn thành hết — tuyệt!"
                         />
@@ -232,7 +218,8 @@ export function StudyPlanClient({ initialItems }: { initialItems?: Item[] }) {
                       <SectionHeading count={manualDone.length}>Đã xong</SectionHeading>
                       {manualDone.length === 0 ? (
                         <EmptyState
-                          variant="inline"
+                          compact
+                          icon={ListChecks}
                           title="Chưa có gì xong"
                           description="Tick checkbox bên trái khi xong."
                         />

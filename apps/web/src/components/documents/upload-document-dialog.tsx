@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useDropzone, type FileRejection } from 'react-dropzone';
-import { FileUp, Loader2, Plus } from 'lucide-react';
+import { FileUp, FolderPlus, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { CreateWorkspaceDialog } from '@/components/workspaces/create-workspace-dialog';
 import { ComboSelect } from '@/components/ui/combo-select';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 
 import { MAX_FILE_BYTES, useDocumentUpload } from '@/lib/use-document-upload';
@@ -130,12 +131,13 @@ export function UploadDocumentDialog({
                 <Loader2 className="h-3 w-3 animate-spin" /> Đang tải workspace…
               </p>
             ) : workspaces.length === 0 ? (
-              <div className="border-border bg-muted/30 rounded-lg border border-dashed p-3 text-center">
-                <p className="text-muted-foreground mb-2 text-xs">
-                  Bạn chưa có workspace nào — tạo 1 cái để chứa tài liệu.
-                </p>
-                <CreateWorkspaceDialog />
-              </div>
+              <EmptyState
+                compact
+                icon={FolderPlus}
+                title="Bạn chưa có workspace nào"
+                description="Tạo 1 cái để chứa tài liệu."
+                action={<CreateWorkspaceDialog />}
+              />
             ) : (
               <ComboSelect
                 value={selectedWsId ?? ''}

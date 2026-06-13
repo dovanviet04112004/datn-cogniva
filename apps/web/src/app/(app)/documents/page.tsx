@@ -6,8 +6,7 @@ import { ChevronRight, FileText } from 'lucide-react';
 import { getServerSession } from '@/lib/auth-server';
 import { apiServer } from '@/lib/api-server';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { RelativeTime } from '@/components/ui/relative-time';
 import { DocumentsUploadAction } from '@/components/documents/documents-upload-action';
@@ -35,19 +34,30 @@ export default async function DocumentsListPage() {
       <Breadcrumbs
         segments={[{ href: '/workspaces', label: 'Workspaces' }, { label: 'Tất cả tài liệu' }]}
       />
-      <PageHero
-        eyebrow="Tài liệu"
-        eyebrowIcon={FileText}
-        title="Tất cả tài liệu"
-        description={`${rows.length} tài liệu cross-workspace — mới nhất trên cùng.`}
-      >
-        <Suspense>
-          <DocumentsUploadAction />
-        </Suspense>
-      </PageHero>
+      <header className="border-divider flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="bg-primary/10 text-primary inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+            <FileText className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+              Tất cả tài liệu
+            </h1>
+            <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[13px] leading-snug">
+              {rows.length} tài liệu cross-workspace — mới nhất trên cùng.
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Suspense>
+            <DocumentsUploadAction />
+          </Suspense>
+        </div>
+      </header>
 
       {rows.length === 0 ? (
         <EmptyState
+          icon={FileText}
           title="Chưa có tài liệu nào"
           description="Bấm Upload ở góc trên để thêm PDF đầu tiên — Cogniva sẽ parse + index để bạn hỏi đáp có citation."
         />

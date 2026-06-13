@@ -1,3 +1,6 @@
+import { ScrollText } from 'lucide-react';
+
+import { EmptyState } from '@/components/ui/empty-state';
 import { requireAdmin } from '@/lib/admin/guard';
 import { apiServer } from '@/lib/api-server';
 
@@ -49,9 +52,7 @@ export default async function AdminDashboardPage() {
           </a>
         </div>
         {recentAudit.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-700 bg-slate-900/40 px-3 py-6 text-center text-xs text-slate-500">
-            Chưa có hành động admin nào được ghi.
-          </p>
+          <EmptyState compact icon={ScrollText} title="Chưa có hành động admin nào được ghi." />
         ) : (
           <ul className="divide-y divide-slate-800">
             {recentAudit.map((row) => (

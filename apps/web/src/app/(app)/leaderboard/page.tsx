@@ -4,9 +4,7 @@ import { Flame, Trophy } from 'lucide-react';
 import { apiServer } from '@/lib/api-server';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PageShell } from '@/components/layout/page-shell';
-import { PageHero } from '@/components/layout/page-hero';
-import { EmptyState } from '@/components/layout/empty-state';
-import { NeuralPattern } from '@/components/ui/neural-pattern';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { cn } from '@/lib/utils';
 
@@ -59,28 +57,14 @@ export default async function LeaderboardPage() {
   const rest = rows.slice(3);
 
   return (
-    <PageShell size="wide" padded className="space-y-10">
-      <PageHero
-        eyebrow="Bảng xếp hạng"
-        eyebrowIcon={Trophy}
-        title="Top học viên"
-        description="Xếp hạng theo XP. Chỉ user công khai profile mới xuất hiện — mở Settings → Public profile để tham gia."
-        decoration={
-          <>
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:radial-gradient(ellipse_at_right,_black_25%,_transparent_75%)]"
-            >
-              <NeuralPattern className="text-amber-500 opacity-[0.18]" />
-            </div>
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-amber-500/15 blur-3xl"
-            />
-          </>
-        }
-      />
-
+    <PageShell
+      size="wide"
+      padded
+      className="space-y-10"
+      eyebrowIcon={Trophy}
+      title="Top học viên"
+      description="Xếp hạng theo XP — chỉ user bật public profile trong Settings mới xuất hiện."
+    >
       {rows.length === 0 && (
         <EmptyState
           icon={Trophy}

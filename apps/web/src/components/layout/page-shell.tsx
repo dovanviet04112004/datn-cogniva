@@ -29,7 +29,7 @@ type Props = {
 
 export function PageShell({
   eyebrow,
-  eyebrowIcon,
+  eyebrowIcon: EyebrowIcon,
   hero = false,
   title,
   description,
@@ -43,12 +43,14 @@ export function PageShell({
   const hasHeader = Boolean(eyebrow || title || description || action);
 
   return (
-    <div className={cn('mx-auto w-full space-y-6', sizeMap[size], padded && 'p-6', className)}>
+    <div
+      className={cn('mx-auto w-full space-y-5', sizeMap[size], padded && 'px-6 py-5', className)}
+    >
       {hasHeader &&
         (hero && title ? (
           <PageHero
             eyebrow={eyebrow}
-            eyebrowIcon={eyebrowIcon}
+            eyebrowIcon={EyebrowIcon}
             title={title}
             description={description}
             className={headerClassName}
@@ -58,24 +60,30 @@ export function PageShell({
         ) : (
           <header
             className={cn(
-              'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4',
+              'border-divider flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4',
               headerClassName,
             )}
           >
-            <div className="min-w-0 space-y-1.5">
-              {eyebrow && (
-                <div className="text-primary inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]">
-                  {eyebrow}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                {EyebrowIcon && (
+                  <span className="bg-primary/10 text-primary inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+                    <EyebrowIcon className="h-4 w-4" strokeWidth={2} />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  {title && (
+                    <h1 className="truncate text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+                      {title}
+                    </h1>
+                  )}
+                  {description && (
+                    <p className="text-muted-foreground mt-0.5 line-clamp-1 text-[13px] leading-snug">
+                      {description}
+                    </p>
+                  )}
                 </div>
-              )}
-              {title && (
-                <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">{title}</h1>
-              )}
-              {description && (
-                <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
-                  {description}
-                </p>
-              )}
+              </div>
             </div>
             {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
           </header>

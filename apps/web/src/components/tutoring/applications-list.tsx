@@ -3,11 +3,12 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronRight, MessageSquare, Star, X } from 'lucide-react';
+import { Check, ChevronRight, Inbox, MessageSquare, Star, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
 import { useConfirm } from '@/lib/use-confirm';
 import { cn } from '@/lib/utils';
@@ -88,9 +89,12 @@ export function ApplicationsList({
       <SectionHeading count={applications.length}>Gia sư đã apply</SectionHeading>
 
       {applications.length === 0 ? (
-        <div className="border-divider bg-surface-secondary/40 text-muted-foreground rounded-2xl border border-dashed py-8 text-center text-sm">
-          Chưa có gia sư nào apply. Đợi vài giờ — gia sư sẽ thấy yêu cầu mới.
-        </div>
+        <EmptyState
+          compact
+          icon={Inbox}
+          title="Chưa có gia sư nào apply"
+          description="Đợi vài giờ — gia sư sẽ thấy yêu cầu mới."
+        />
       ) : (
         <ul className="space-y-3">
           {applications.map((a) => {

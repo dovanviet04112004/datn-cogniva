@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { FileWarning } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import { apiGet } from '@cogniva/shared/api';
@@ -9,7 +10,7 @@ import type { NoteDTO } from '@cogniva/shared/types';
 import { PageShell } from '@/components/layout/page-shell';
 import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { PageLoading } from '@/components/layout/page-loading';
-import { EmptyState } from '@/components/layout/empty-state';
+import { EmptyState } from '@/components/ui/empty-state';
 import { NoteEditor } from '@/components/notes/note-editor';
 
 type PageProps = {
@@ -26,7 +27,11 @@ export default function NotePage({ params }: PageProps) {
   if (error) {
     return (
       <PageShell size="narrow">
-        <EmptyState title="Không load được note" description={(error as Error).message} />
+        <EmptyState
+          icon={FileWarning}
+          title="Không load được note"
+          description={(error as Error).message}
+        />
       </PageShell>
     );
   }

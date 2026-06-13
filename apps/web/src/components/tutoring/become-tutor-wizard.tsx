@@ -27,7 +27,6 @@ import { Button } from '@/components/ui/button';
 import { ComboSelect } from '@/components/ui/combo-select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NeuralPattern } from '@/components/ui/neural-pattern';
 import { PageShell } from '@/components/layout/page-shell';
 import { cn } from '@/lib/utils';
 
@@ -122,30 +121,14 @@ export function BecomeTutorWizard() {
   };
 
   return (
-    <PageShell size="default" padded className="space-y-8">
-      <header className="from-card via-card to-surface-secondary shadow-soft relative overflow-hidden rounded-2xl bg-gradient-to-br px-8 py-7">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:radial-gradient(ellipse_at_right,_black_25%,_transparent_75%)]"
-        >
-          <NeuralPattern className="text-primary opacity-[0.18]" />
-        </div>
-        <div className="relative space-y-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-primary h-3.5 w-3.5" />
-            <span className="text-primary text-[11px] font-semibold uppercase tracking-[0.18em]">
-              Tutoring Marketplace
-            </span>
-          </div>
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
-            Trở thành gia sư
-          </h1>
-          <p className="text-muted-foreground max-w-xl text-sm leading-relaxed">
-            Setup hồ sơ trong 3 bước — học sinh sẽ tìm thấy bạn qua filter môn, cấp, giá.
-          </p>
-        </div>
-      </header>
-
+    <PageShell
+      size="default"
+      padded
+      className="space-y-8"
+      eyebrowIcon={Sparkles}
+      title="Trở thành gia sư"
+      description="Setup hồ sơ trong 3 bước — học sinh sẽ tìm thấy bạn qua filter môn, cấp, giá."
+    >
       <div className="flex items-center justify-between gap-2">
         {['Hồ sơ', 'Môn dạy', 'Khung giờ'].map((label, i) => {
           const active = i === step;

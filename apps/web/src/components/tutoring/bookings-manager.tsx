@@ -9,6 +9,7 @@ import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { LEVEL_NAMES, SUBJECT_BY_SLUG } from '@cogniva/db/taxonomy';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { EmptyState } from '@/components/ui/empty-state';
 import { cn } from '@/lib/utils';
 
 import { BookingDetailModal } from './booking-detail-drawer';
@@ -181,12 +182,10 @@ export function BookingsManager({
           Đang tải đơn…
         </div>
       ) : filtered.length === 0 ? (
-        <div className="border-divider bg-surface-secondary/40 flex flex-col items-center gap-2 rounded-2xl border border-dashed py-12 text-center">
-          <Inbox className="text-muted-foreground/50 h-7 w-7" />
-          <p className="text-muted-foreground text-sm">
-            {role === 'tutor' ? 'Chưa có đơn nào ở mục này.' : 'Bạn chưa có đơn nào ở mục này.'}
-          </p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title={role === 'tutor' ? 'Chưa có đơn nào ở mục này.' : 'Bạn chưa có đơn nào ở mục này.'}
+        />
       ) : (
         <ul className="space-y-2.5">
           {filtered.map((b) => {
