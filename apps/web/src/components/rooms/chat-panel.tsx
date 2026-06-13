@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { apiSend } from '@cogniva/shared/api';
 import { useRealtimeEvent } from '@/lib/realtime-client';
+import { useMe } from '@/lib/use-me';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ type Msg = {
   type: 'TEXT' | 'FILE' | 'AI' | 'SYSTEM';
   createdAt: string | Date;
   aiStatus?: AiStatus;
+  pending?: boolean;
 };
 
 type Props = {
@@ -31,9 +33,9 @@ type Props = {
 const AI_PREFIX = /^\s*@ai\b\s*/i;
 
 export function ChatPanel({ roomId, currentUserId }: Props) {
+  const { data: me } = useMe();
   const [messages, setMessages] = React.useState<Msg[]>([]);
   const [input, setInput] = React.useState('');
-  const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef(true);
 
@@ -92,7 +94,7 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
 
   const send = async () => {
     const content = input.trim();
-    if (!content || sending) return;
+    if (!content) return;
 
     const aiMatch = content.match(AI_PREFIX);
     const isAiQuery = !!aiMatch;
@@ -103,21 +105,45 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
       return;
     }
 
-    setSending(true);
+    const snapshotInput = input;
+    setInput('');
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: Msg = {
+      id: tempId,
+      userId: currentUserId,
+      userName: me?.name ?? null,
+      userImage: me?.image ?? null,
+      content,
+      type: 'TEXT',
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+
+    const dropTemp = () => setMessages((prev) => prev.filter((m) => m.id !== tempId));
+
     try {
+      const created = await apiSend<{ ok: boolean; id: string }>(
+        `/api/rooms/${roomId}/chat`,
+        'POST',
+        { content },
+      );
+      const realId = created?.id;
+      setMessages((prev) => {
+        const withoutTemp = prev.filter((m) => m.id !== tempId);
+        if (!realId || withoutTemp.some((m) => m.id === realId)) return withoutTemp;
+        return [...withoutTemp, { ...optimistic, id: realId, pending: false }];
+      });
       if (isAiQuery) {
-        await apiSend(`/api/rooms/${roomId}/chat`, 'POST', { content });
         await apiSend(`/api/rooms/${roomId}/ai-message`, 'POST', {
           message: aiQuery,
         });
-      } else {
-        await apiSend(`/api/rooms/${roomId}/chat`, 'POST', { content });
       }
-      setInput('');
     } catch (err) {
+      dropTemp();
+      setInput(snapshotInput);
       toast.error((err as Error).message);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -154,12 +180,11 @@ export function ChatPanel({ roomId, currentUserId }: Props) {
             placeholder="Nhập tin nhắn... (gõ @AI để hỏi gia sư AI)"
             rows={2}
             maxLength={2000}
-            disabled={sending}
             className="bg-background flex-1 resize-none rounded-md border px-2 py-1.5 text-sm"
           />
           <Button
             onClick={send}
-            disabled={sending || !input.trim()}
+            disabled={!input.trim()}
             size="icon"
             aria-label={willTriggerAI ? 'Hỏi AI' : 'Gửi'}
             title={willTriggerAI ? 'Hỏi AI Tutor' : 'Gửi tin nhắn'}
@@ -219,7 +244,7 @@ function MessageRow({ message, isOwn }: { message: Msg; isOwn: boolean }) {
   }
 
   return (
-    <div className={cn('flex gap-2', isOwn && 'flex-row-reverse')}>
+    <div className={cn('flex gap-2', isOwn && 'flex-row-reverse', message.pending && 'opacity-55')}>
       <Avatar className="h-6 w-6 shrink-0">
         {message.userImage && <AvatarImage src={message.userImage} alt={name} />}
         <AvatarFallback className="text-[10px]">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>

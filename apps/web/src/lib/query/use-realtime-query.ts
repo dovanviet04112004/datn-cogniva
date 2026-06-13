@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 
-import { useRealtimeEvent } from '@/lib/realtime-client';
+import { addCacheBridge, useRealtimeEvent } from '@/lib/realtime-client';
 
 export function useRealtimeSetData<TData, TEvent = unknown>(
   channel: string,
@@ -13,13 +13,19 @@ export function useRealtimeSetData<TData, TEvent = unknown>(
 ) {
   const qc = useQueryClient();
   const keyStr = JSON.stringify(key);
-  const cb = React.useCallback(
-    (payload: TEvent) => {
-      qc.setQueryData<TData>(JSON.parse(keyStr) as QueryKey, (prev) => updater(prev, payload));
-    },
-    [qc, keyStr, updater],
-  );
-  useRealtimeEvent<TEvent>(channel, event, cb);
+  const updaterRef = React.useRef(updater);
+  React.useLayoutEffect(() => {
+    updaterRef.current = updater;
+  });
+
+  React.useEffect(() => {
+    const run = (payload: unknown) => {
+      qc.setQueryData<TData>(JSON.parse(keyStr) as QueryKey, (prev) =>
+        updaterRef.current(prev, payload as TEvent),
+      );
+    };
+    return addCacheBridge(channel, event, run);
+  }, [channel, event, keyStr, qc]);
 }
 
 export function useRealtimeInvalidate(channel: string, event: string, keys: QueryKey[]) {

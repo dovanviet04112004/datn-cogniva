@@ -59,6 +59,7 @@ export type Message = {
   threadCount?: number;
   threadLastAt?: string | null;
   isSolution?: boolean;
+  pending?: boolean;
 };
 
 type Props = {
@@ -194,6 +195,7 @@ export function MessageItem({
         'text-[15px] [[data-density="compact"]_&]:text-[13.5px]',
         msg.pinned &&
           'bg-primary/[0.04] before:bg-primary/60 before:absolute before:inset-y-0 before:left-0 before:w-[2px]',
+        msg.pending && 'opacity-55',
       )}
     >
       {!grouped && (

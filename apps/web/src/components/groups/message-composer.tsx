@@ -14,6 +14,8 @@ import {
   Smile,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import { qk } from '@cogniva/shared/query';
 
 import { Button } from '@/components/ui/button';
 import { can, type GroupRole } from '@/lib/group/permissions';
@@ -43,15 +45,16 @@ type Props = {
 
 export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: Props) {
   const { data: me } = useMe();
+  const qc = useQueryClient();
+  const msgKey = qk.channelMessages(channel.id);
   const [content, setContent] = React.useState('');
-  const [sending, setSending] = React.useState(false);
   const [cooldown, setCooldown] = React.useState(0);
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [uploading, setUploading] = React.useState(0);
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const notifyTyping = useEmitTyping(channel.groupId, channel.id);
+  const notifyTyping = useEmitTyping(channel.id);
 
   const insertEmoji = React.useCallback(
     (e: string) => {
@@ -129,7 +132,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
       userName: me?.name ?? 'someone',
     });
     const text = transformed ?? rawText;
-    if ((!text && attachments.length === 0) || sending || cooldown > 0) return;
+    if ((!text && attachments.length === 0) || cooldown > 0) return;
     if (uploading > 0) {
       toast.error('Đang upload, chờ xong rồi gửi');
       return;
@@ -141,7 +144,35 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
     setAttachments([]);
     onClearReply?.();
     textareaRef.current?.focus();
-    setSending(true);
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: Message = {
+      id: tempId,
+      channelId: channel.id,
+      authorId: me?.id ?? '',
+      authorName: me?.name ?? null,
+      authorImage: me?.image ?? null,
+      content: text,
+      contentType: 'text',
+      replyToId: snapshotReplyId ?? null,
+      attachments: snapshotAttachments.length > 0 ? snapshotAttachments : null,
+      reactions: null,
+      mentions: null,
+      pinned: false,
+      editedAt: null,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    qc.setQueryData<{ messages: Message[]; hasMore: boolean }>(msgKey, (old) => ({
+      messages: [...(old?.messages ?? []), optimistic],
+      hasMore: old?.hasMore ?? false,
+    }));
+    const dropTemp = () =>
+      qc.setQueryData<{ messages: Message[]; hasMore: boolean }>(msgKey, (old) =>
+        old ? { ...old, messages: old.messages.filter((m) => m.id !== tempId) } : old,
+      );
+
     try {
       const res = await fetch(`/api/channels/${channel.id}/messages`, {
         method: 'POST',
@@ -157,6 +188,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         const wait = d?.retryAfter ?? 5;
         setCooldown(wait);
         toast.error(`Slow mode — chờ ${wait}s`);
+        dropTemp();
         setContent(snapshotContent);
         setAttachments(snapshotAttachments);
         return;
@@ -165,16 +197,25 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
         const d = await res.json().catch(() => null);
         throw new Error(d?.error ?? `status ${res.status}`);
       }
-      if (/(^|\s)@AI(\s|$|[?!.,])/i.test(text)) {
-        const created = (await res
-          .clone()
-          .json()
-          .catch(() => null)) as { message?: { id: string } } | null;
-        if (created?.message?.id) {
+      const created = (await res.json().catch(() => null)) as { message?: Message } | null;
+      if (created?.message) {
+        const real = created.message;
+        qc.setQueryData<{ messages: Message[]; hasMore: boolean }>(msgKey, (old) =>
+          old
+            ? {
+                ...old,
+                messages: [
+                  ...old.messages.filter((m) => m.id !== tempId && m.id !== real.id),
+                  real,
+                ],
+              }
+            : old,
+        );
+        if (/(^|\s)@AI(\s|$|[?!.,])/i.test(text)) {
           fetch(`/api/channels/${channel.id}/ai-reply`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ originalMessageId: created.message.id, prompt: text }),
+            body: JSON.stringify({ originalMessageId: real.id, prompt: text }),
           })
             .then(async (r) => {
               if (!r.ok) {
@@ -184,13 +225,14 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
             })
             .catch((err) => toast.error('AI: ' + (err as Error).message));
         }
+      } else {
+        dropTemp();
       }
     } catch (err) {
       toast.error('Gửi thất bại: ' + (err as Error).message);
+      dropTemp();
       setContent(snapshotContent);
       setAttachments(snapshotAttachments);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -264,7 +306,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={sending || attachments.length >= 10}
+                disabled={attachments.length >= 10}
                 aria-label="Đính kèm file"
                 title="Đính kèm (max 25MB)"
                 className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
@@ -277,7 +319,6 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
                 <button
                   type="button"
                   onClick={() => setEmojiOpen((s) => !s)}
-                  disabled={sending}
                   aria-label="Chèn emoji"
                   title="Emoji"
                   className="text-muted-foreground hover:bg-muted hover:text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
@@ -322,7 +363,7 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
                 placeholder={
                   cooldown > 0 ? `Slow mode — chờ ${cooldown}s` : `Tin nhắn tới #${channel.name}`
                 }
-                disabled={sending || cooldown > 0}
+                disabled={cooldown > 0}
                 rows={1}
                 className="placeholder:text-text-muted block max-h-[140px] min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-relaxed outline-none disabled:opacity-50"
               />
@@ -331,19 +372,12 @@ export function MessageComposer({ channel, myRole, replyingTo, onClearReply }: P
                 type="button"
                 onClick={send}
                 disabled={
-                  (!content.trim() && attachments.length === 0) ||
-                  sending ||
-                  cooldown > 0 ||
-                  uploading > 0
+                  (!content.trim() && attachments.length === 0) || cooldown > 0 || uploading > 0
                 }
                 aria-label="Gửi"
                 className="h-9 w-9 shrink-0 rounded-full p-0"
               >
-                {sending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-[16px] w-[16px]" strokeWidth={2.25} />
-                )}
+                <Send className="h-[16px] w-[16px]" strokeWidth={2.25} />
               </Button>
             </div>
           </>

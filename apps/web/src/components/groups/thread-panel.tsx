@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useRealtimeEvent } from '@/lib/realtime-client';
 import { can, type GroupRole } from '@/lib/group/permissions';
+import { useMe } from '@/lib/use-me';
 
 import type { Message } from './message-item';
 
@@ -30,8 +31,8 @@ type Props = {
 
 export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }: Props) {
   const qc = useQueryClient();
+  const { data: me } = useMe();
   const [content, setContent] = React.useState('');
-  const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const {
@@ -145,17 +146,77 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
 
   const send = async () => {
     const text = content.trim();
-    if (!text || sending) return;
-    setSending(true);
+    if (!text) return;
+    const key = qk.thread(channelId, rootMessageId);
+    setContent('');
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: Message = {
+      id: tempId,
+      channelId,
+      authorId: me?.id ?? '',
+      authorName: me?.name ?? null,
+      authorImage: me?.image ?? null,
+      content: text,
+      contentType: 'markdown',
+      replyToId: null,
+      attachments: null,
+      reactions: null,
+      mentions: null,
+      pinned: false,
+      editedAt: null,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    qc.setQueryData<ThreadData>(key, (old) =>
+      old ? { ...old, replies: [...old.replies, optimistic] } : old,
+    );
+
     try {
-      await apiSend(`/api/channels/${channelId}/messages/${rootMessageId}/thread`, 'POST', {
-        content: text,
-      });
-      setContent('');
+      const created = await apiSend<{ reply?: { id: string } & Partial<Message> }>(
+        `/api/channels/${channelId}/messages/${rootMessageId}/thread`,
+        'POST',
+        { content: text },
+      );
+      const reply = created?.reply;
+      if (reply) {
+        const real: Message = {
+          id: reply.id,
+          channelId,
+          authorId: reply.authorId ?? me?.id ?? '',
+          authorName: reply.authorName ?? me?.name ?? null,
+          authorImage: reply.authorImage ?? me?.image ?? null,
+          content: reply.content ?? text,
+          contentType: 'markdown',
+          replyToId: null,
+          attachments: reply.attachments ?? null,
+          reactions: null,
+          mentions: null,
+          pinned: false,
+          editedAt: null,
+          deletedAt: null,
+          createdAt: reply.createdAt ?? optimistic.createdAt,
+        };
+        qc.setQueryData<ThreadData>(key, (old) =>
+          old
+            ? {
+                ...old,
+                replies: [...old.replies.filter((m) => m.id !== tempId && m.id !== real.id), real],
+              }
+            : old,
+        );
+      } else {
+        qc.setQueryData<ThreadData>(key, (old) =>
+          old ? { ...old, replies: old.replies.filter((m) => m.id !== tempId) } : old,
+        );
+      }
     } catch (err) {
+      qc.setQueryData<ThreadData>(key, (old) =>
+        old ? { ...old, replies: old.replies.filter((m) => m.id !== tempId) } : old,
+      );
+      setContent(text);
       toast.error((err as Error).message);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -227,7 +288,7 @@ export function ThreadPanel({ channelId, rootMessageId, onClose, forumContext }:
           />
           <Button
             onClick={send}
-            disabled={!content.trim() || sending}
+            disabled={!content.trim()}
             size="sm"
             className="h-9 w-9 shrink-0 p-0 sm:h-7 sm:w-auto sm:px-2"
             aria-label="Gửi"
@@ -258,6 +319,7 @@ function ThreadMessage({
         highlight && 'bg-amber-500/5 p-2',
         !highlight && 'p-1',
         msg.isSolution && 'border border-emerald-500/40 bg-emerald-500/5 p-2',
+        msg.pending && 'opacity-55',
       )}
     >
       {msg.isSolution && (

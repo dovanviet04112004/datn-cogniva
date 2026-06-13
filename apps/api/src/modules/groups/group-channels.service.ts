@@ -6,7 +6,6 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { triggerEvent } from '@cogniva/server-core/realtime-emitter';
 import { onGroupChanged } from '@cogniva/server-core/cache/invalidate';
 import { Prisma } from '@prisma/client';
 
@@ -281,27 +280,5 @@ export class GroupChannelsService {
     await onGroupChanged(groupId);
 
     return { updated: parsed.data.orders.length };
-  }
-
-  async typing(uid: string, groupId: string, channelId: string) {
-    const [member, channel, u] = await Promise.all([
-      this.membership(groupId, uid),
-      this.prisma.study_group_channel.findFirst({
-        where: { id: channelId, group_id: groupId },
-        select: { id: true },
-      }),
-      this.prisma.user.findUnique({ where: { id: uid }, select: { name: true, image: true } }),
-    ]);
-    if (!member) throw new ForbiddenException({ error: 'Forbidden' });
-    if (!channel) throw new NotFoundException({ error: 'Channel not found' });
-
-    void triggerEvent(`private-channel-${channelId}`, 'user:typing', {
-      userId: uid,
-      name: u?.name ?? 'Ai đó',
-      image: u?.image ?? null,
-      expiresAt: Date.now() + 4_000,
-    }).catch(() => {});
-
-    return { ok: true };
   }
 }

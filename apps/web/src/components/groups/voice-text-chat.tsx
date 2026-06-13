@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useRealtimeEvent } from '@/lib/realtime-client';
+import { useMe } from '@/lib/use-me';
 import { cn } from '@/lib/utils';
 
 type Message = {
@@ -20,6 +21,7 @@ type Message = {
   createdAt: string;
   editedAt: string | null;
   deletedAt: string | null;
+  pending?: boolean;
 };
 
 const AI_TUTOR_ID = 'system-ai-tutor';
@@ -32,10 +34,10 @@ export function VoiceTextChat({
   channelId: string;
   currentUserId: string;
 }) {
+  const { data: me } = useMe();
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(true);
-  const [sending, setSending] = React.useState(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const isAtBottomRef = React.useRef(true);
 
@@ -70,9 +72,25 @@ export function VoiceTextChat({
 
   const send = async () => {
     const content = input.trim();
-    if (!content || sending) return;
+    if (!content) return;
     const isAi = AI_REGEX.test(content);
-    setSending(true);
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: Message = {
+      id: tempId,
+      channelId,
+      authorId: me?.id ?? currentUserId,
+      authorName: me?.name ?? null,
+      authorImage: me?.image ?? null,
+      content,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      editedAt: null,
+      deletedAt: null,
+      pending: true,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setInput('');
+
     try {
       const res = await fetch(`/api/channels/${channelId}/messages`, {
         method: 'POST',
@@ -84,24 +102,25 @@ export function VoiceTextChat({
         throw new Error(typeof e?.error === 'string' ? e.error : 'Gửi lỗi');
       }
       const data = (await res.json()) as { message: Message };
+      const real = data.message;
+      setMessages((prev) => [...prev.filter((m) => m.id !== tempId && m.id !== real.id), real]);
 
       if (isAi) {
         fetch(`/api/channels/${channelId}/ai-reply`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            originalMessageId: data.message.id,
+            originalMessageId: real.id,
             prompt: content,
           }),
         }).catch((err) => {
           toast.error(`AI lỗi: ${(err as Error).message}`);
         });
       }
-      setInput('');
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInput(content);
       toast.error((err as Error).message);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -147,12 +166,11 @@ export function VoiceTextChat({
             placeholder="Nhập tin nhắn... gõ @AI để hỏi"
             rows={2}
             maxLength={2000}
-            disabled={sending}
             className="bg-background focus-visible:ring-primary/30 flex-1 resize-none rounded-md border px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2"
           />
           <Button
             onClick={send}
-            disabled={sending || !input.trim()}
+            disabled={!input.trim()}
             size="icon"
             aria-label={willTriggerAi ? 'Hỏi AI' : 'Gửi'}
             title={willTriggerAi ? 'Sẽ trigger AI Tutor' : 'Enter để gửi'}
@@ -198,7 +216,7 @@ function MessageRow({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
   }
 
   return (
-    <div className={cn('flex gap-2', isOwn && 'flex-row-reverse')}>
+    <div className={cn('flex gap-2', isOwn && 'flex-row-reverse', msg.pending && 'opacity-55')}>
       <Avatar className="h-6 w-6 shrink-0">
         {msg.authorImage && <AvatarImage src={msg.authorImage} alt={name} />}
         <AvatarFallback className="text-[10px]">{name[0]?.toUpperCase() ?? '?'}</AvatarFallback>

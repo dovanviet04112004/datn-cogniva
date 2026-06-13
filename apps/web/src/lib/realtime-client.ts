@@ -50,6 +50,60 @@ function refUnsubscribe(channel: string) {
   }
 }
 
+export function emitTyping(channel: string) {
+  getSocket()?.emit('typing', channel);
+}
+
+type Bridge = {
+  channel: string;
+  event: string;
+  runs: Set<(payload: unknown) => void>;
+  handler: (ch: string, payload: unknown) => void;
+  removeTimer: ReturnType<typeof setTimeout> | null;
+};
+
+const bridges = new Map<string, Bridge>();
+const BRIDGE_GRACE_MS = 5 * 60 * 1000;
+
+export function addCacheBridge(
+  channel: string,
+  event: string,
+  run: (payload: unknown) => void,
+): () => void {
+  const id = `${channel}::${event}`;
+  let b = bridges.get(id);
+  if (!b) {
+    const handler = (ch: string, payload: unknown) => {
+      if (ch !== channel) return;
+      const cur = bridges.get(id);
+      if (cur) for (const r of cur.runs) r(payload);
+    };
+    b = { channel, event, runs: new Set(), handler, removeTimer: null };
+    bridges.set(id, b);
+    refSubscribe(channel);
+    getSocket()?.on(event, handler);
+  }
+  if (b.removeTimer) {
+    clearTimeout(b.removeTimer);
+    b.removeTimer = null;
+  }
+  b.runs.add(run);
+
+  return () => {
+    const cur = bridges.get(id);
+    if (!cur) return;
+    cur.runs.delete(run);
+    if (cur.runs.size > 0 || cur.removeTimer) return;
+    cur.removeTimer = setTimeout(() => {
+      const stale = bridges.get(id);
+      if (!stale || stale.runs.size > 0) return;
+      getSocket()?.off(stale.event, stale.handler);
+      bridges.delete(id);
+      refUnsubscribe(stale.channel);
+    }, BRIDGE_GRACE_MS);
+  };
+}
+
 export function useRealtimeEvent<T = unknown>(
   channel: string,
   event: string,

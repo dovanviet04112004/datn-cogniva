@@ -58,6 +58,17 @@ io.on('connection', (socket: Socket) => {
     if (presenceJoined.delete(channel)) await onLeave(io, socket, channel);
   });
 
+  socket.on('typing', (channel: string) => {
+    if (typeof channel !== 'string' || !socket.rooms.has(channel)) return;
+    const user = (socket.data as { user: Identity }).user;
+    socket.to(channel).volatile.emit('user:typing', channel, {
+      userId: user.id,
+      name: user.name || 'Ai đó',
+      image: user.image,
+      expiresAt: Date.now() + 4_000,
+    });
+  });
+
   socket.on('disconnecting', () => {
     for (const channel of presenceJoined) {
       void onLeave(io, socket, channel).catch(() => {});

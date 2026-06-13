@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 
-import { useRealtimeEvent } from '@/lib/realtime-client';
+import { emitTyping, useRealtimeEvent } from '@/lib/realtime-client';
 import { useMe } from '@/lib/use-me';
 
 type TypingEvent = {
@@ -89,16 +89,14 @@ function formatNames(names: string[]): string {
   return `${names[0]}, ${names[1]} và ${names.length - 2} người khác đang gõ…`;
 }
 
-export function useEmitTyping(groupId: string, channelId: string) {
+export function useEmitTyping(channelId: string) {
   const lastSentRef = React.useRef(0);
-  const DEBOUNCE_MS = 1_000;
+  const DEBOUNCE_MS = 800;
 
   return React.useCallback(() => {
     const now = Date.now();
     if (now - lastSentRef.current < DEBOUNCE_MS) return;
     lastSentRef.current = now;
-    fetch(`/api/groups/${groupId}/channels/${channelId}/typing`, {
-      method: 'POST',
-    }).catch(() => {});
-  }, [groupId, channelId]);
+    emitTyping(`private-channel-${channelId}`);
+  }, [channelId]);
 }

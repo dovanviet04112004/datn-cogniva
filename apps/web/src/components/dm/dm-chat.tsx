@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
 import { useRealtimeSetData } from '@/lib/query/use-realtime-query';
+import { useMe } from '@/lib/use-me';
 import { cn } from '@/lib/utils';
 
 type Message = {
@@ -26,6 +27,7 @@ type Message = {
   editedAt: string | null;
   deletedAt: string | null;
   createdAt: string;
+  pending?: boolean;
 };
 
 type Attachment = {
@@ -56,8 +58,11 @@ export function DmChat({
   onClose,
   onMinimize,
 }: Props) {
+  const { data: me } = useMe();
+  const qc = useQueryClient();
+  const msgKey = qk.dmMessages(threadId);
   const { data: messages = [], isLoading: loading } = useQuery({
-    queryKey: qk.dmMessages(threadId),
+    queryKey: msgKey,
     queryFn: () =>
       apiGet<{ messages: Message[] }>(`/api/dm/${threadId}/messages?limit=50`).then(
         (d) => d.messages ?? [],
@@ -68,7 +73,7 @@ export function DmChat({
   useRealtimeSetData<Message[], Message>(
     `private-dm-${threadId}`,
     'message:new',
-    qk.dmMessages(threadId),
+    msgKey,
     (prev, m) => {
       const list = prev ?? [];
       return list.some((x) => x.id === m.id) ? list : [...list, m];
@@ -76,7 +81,6 @@ export function DmChat({
   );
 
   const [content, setContent] = React.useState('');
-  const [sending, setSending] = React.useState(false);
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [uploading, setUploading] = React.useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
@@ -116,24 +120,66 @@ export function DmChat({
   };
 
   const send = async () => {
-    if ((!content.trim() && attachments.length === 0) || sending || uploading > 0) return;
-    setSending(true);
+    const text = content.trim();
+    if ((!text && attachments.length === 0) || uploading > 0) return;
+    const snapshotContent = content;
+    const snapshotAttachments = attachments;
+    setContent('');
+    setAttachments([]);
+    textareaRef.current?.focus();
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const optimistic: Message = {
+      id: tempId,
+      threadId,
+      authorId: me?.id ?? currentUserId,
+      authorName: me?.name ?? null,
+      authorImage: me?.image ?? null,
+      content: text,
+      replyToId: null,
+      attachments:
+        snapshotAttachments.length > 0
+          ? snapshotAttachments.map((a) => ({
+              type: a.type,
+              url: a.url,
+              name: a.name,
+              size: a.size,
+            }))
+          : null,
+      reactions: null,
+      editedAt: null,
+      deletedAt: null,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    qc.setQueryData<Message[]>(msgKey, (old) => [...(old ?? []), optimistic]);
+    const dropTemp = () =>
+      qc.setQueryData<Message[]>(msgKey, (old) => (old ? old.filter((m) => m.id !== tempId) : old));
+
     try {
       const res = await fetch(`/api/dm/${threadId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: content.trim(),
-          attachments: attachments.length > 0 ? attachments : undefined,
+          content: text,
+          attachments: snapshotAttachments.length > 0 ? snapshotAttachments : undefined,
         }),
       });
       if (!res.ok) throw new Error('Gửi thất bại');
-      setContent('');
-      setAttachments([]);
+      const created = (await res.json().catch(() => null)) as { message?: Message } | null;
+      if (created?.message) {
+        const real = created.message;
+        qc.setQueryData<Message[]>(msgKey, (old) =>
+          old ? [...old.filter((m) => m.id !== tempId && m.id !== real.id), real] : [real],
+        );
+      } else {
+        dropTemp();
+      }
     } catch (err) {
       toast.error((err as Error).message);
-    } finally {
-      setSending(false);
+      dropTemp();
+      setContent(snapshotContent);
+      setAttachments(snapshotAttachments);
     }
   };
 
@@ -298,15 +344,11 @@ export function DmChat({
             <Button
               type="button"
               onClick={send}
-              disabled={(!content.trim() && attachments.length === 0) || sending || uploading > 0}
+              disabled={(!content.trim() && attachments.length === 0) || uploading > 0}
               aria-label="Gửi"
               className="h-9 w-9 shrink-0 rounded-full p-0"
             >
-              {sending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
-              )}
+              <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.5} />
             </Button>
           </div>
         </div>
@@ -418,6 +460,7 @@ function MessageBubble({
         'flex items-end gap-2',
         mine ? 'flex-row-reverse' : 'flex-row',
         groupStart ? 'mt-2' : 'mt-0.5',
+        message.pending && 'opacity-55',
       )}
     >
       {!mine && (

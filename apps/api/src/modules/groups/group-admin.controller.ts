@@ -87,16 +87,6 @@ export class GroupAdminController {
     return this.channels.deleteChannel(user.id, id, channelId);
   }
 
-  @Post(':id/channels/:channelId/typing')
-  @HttpCode(200)
-  typing(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Param('channelId') channelId: string,
-  ) {
-    return this.channels.typing(user.id, id, channelId);
-  }
-
   @Get(':id/invites')
   listInvites(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.members.listInvites(user.id, id);
