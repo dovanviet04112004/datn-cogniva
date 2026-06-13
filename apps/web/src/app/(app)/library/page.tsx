@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Compass, Crown, FileText, Library as LibraryIcon, Layers, Upload } from 'lucide-react';
+import { Compass, Crown, FileText, Library as LibraryIcon, Layers } from 'lucide-react';
 
 import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
@@ -14,6 +14,7 @@ import { LibraryGrid } from '@/components/library/library-grid';
 import { RecentlyViewed } from '@/components/library/recently-viewed';
 import { SavedSearchBar } from '@/components/library/saved-search-bar';
 import { UnifiedSearch } from '@/components/library/unified-search';
+import { UploadButton } from '@/components/library/upload-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,12 +133,7 @@ export default async function LibraryPage({
               </Link>
             </Button>
           )}
-          <Button size="sm" asChild>
-            <Link href="/library/upload" className="gap-1">
-              <Upload className="h-3.5 w-3.5" />
-              {t('library.hub.nav.upload')}
-            </Link>
-          </Button>
+          <UploadButton size="sm" label={t('library.hub.nav.upload')} />
         </div>
       }
     >

@@ -14,10 +14,10 @@ import {
 import { apiServer } from '@/lib/api-server';
 import { getServerSession } from '@/lib/auth-server';
 import { PageShell } from '@/components/layout/page-shell';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SectionHeading } from '@/components/ui/section-heading';
+import { UploadButton } from '@/components/library/upload-button';
 import { StatCard } from '@/components/ui/stat-card';
 import { getServerT } from '@/lib/i18n/server';
 
@@ -112,12 +112,7 @@ export default async function CreatorDashboardPage() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button asChild>
-            <Link href="/library/upload" className="gap-1">
-              <Upload className="h-3.5 w-3.5" />
-              {t('library.me.upload_new')}
-            </Link>
-          </Button>
+          <UploadButton label={t('library.me.upload_new')} />
         </div>
       </header>
 
@@ -174,14 +169,7 @@ export default async function CreatorDashboardPage() {
             <EmptyState
               icon={Upload}
               title={t('library.me.empty_prefix')}
-              action={
-                <Button size="sm" asChild>
-                  <Link href="/library/upload" className="gap-1.5">
-                    <Upload className="h-3.5 w-3.5" />
-                    {t('library.me.empty_cta')}
-                  </Link>
-                </Button>
-              }
+              action={<UploadButton size="sm" label={t('library.me.empty_cta')} />}
             />
           ) : (
             <ul className="space-y-2">

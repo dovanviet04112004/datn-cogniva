@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileText, RotateCcw, Upload } from 'lucide-react';
+import { FileText, RotateCcw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -10,6 +10,7 @@ import { apiServer, apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
 import { DocCard, type DocCardData } from './doc-card';
+import { UploadButton } from './upload-button';
 
 type LibraryDocItem = {
   id: string;
@@ -262,12 +263,7 @@ export async function LibraryGrid({
                   </Link>
                 </Button>
               )}
-              <Button size="sm" asChild>
-                <Link href="/library/upload" className="gap-1.5">
-                  <Upload className="h-3.5 w-3.5" />
-                  {t('library.empty.upload')}
-                </Link>
-              </Button>
+              <UploadButton size="sm" label={t('library.empty.upload')} />
             </div>
           }
         />

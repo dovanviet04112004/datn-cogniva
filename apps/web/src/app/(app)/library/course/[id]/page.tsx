@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, FileText, Upload } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText } from 'lucide-react';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { Button } from '@/components/ui/button';
 import { LibraryGrid } from '@/components/library/library-grid';
+import { UploadButton } from '@/components/library/upload-button';
 import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
@@ -91,12 +91,14 @@ export default async function CoursePage({
             </p>
           </div>
         </div>
-        <Button asChild className="shrink-0">
-          <Link href={`/library/upload?course=${course.id}`} className="gap-1.5">
-            <Upload className="h-3.5 w-3.5" />
-            {t('library.course.contribute')}
-          </Link>
-        </Button>
+        <UploadButton
+          className="shrink-0"
+          label={t('library.course.contribute')}
+          initialCourse={{
+            id: course.id,
+            label: course.code ? `${course.code} — ${course.name}` : course.name,
+          }}
+        />
       </header>
 
       <LibraryGrid sp={{ ...sp, course: id }} />

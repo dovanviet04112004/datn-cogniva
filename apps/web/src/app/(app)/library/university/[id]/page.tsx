@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BookOpen, Building2, Compass, Upload } from 'lucide-react';
+import { BookOpen, Building2, Compass } from 'lucide-react';
 
 import { PageShell } from '@/components/layout/page-shell';
-import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { UniversityCourseBrowser } from '@/components/library/university-course-browser';
+import { UploadButton } from '@/components/library/upload-button';
 import { apiServerOrNull } from '@/lib/api-server';
 import { getServerT } from '@/lib/i18n/server';
 
@@ -59,12 +59,11 @@ export default async function UniversityPage({ params }: Params) {
             </p>
           </div>
         </div>
-        <Button asChild variant="outline" className="shrink-0">
-          <Link href="/library/upload" className="gap-1.5">
-            <Upload className="h-3.5 w-3.5" />
-            {t('library.hub.nav.upload')}
-          </Link>
-        </Button>
+        <UploadButton
+          variant="outline"
+          className="shrink-0"
+          label={t('library.hub.nav.upload')}
+        />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_260px]">

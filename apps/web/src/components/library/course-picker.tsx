@@ -7,7 +7,6 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 
 import { apiGet, apiSend } from '@cogniva/shared/api';
 import { qk } from '@cogniva/shared/query';
-import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/context';
 
 type University = { id: string; name: string; shortName: string | null; docCount: number };
@@ -148,7 +147,8 @@ function UniversityCombobox({ onSelect }: { onSelect: (u: University) => void })
         toast.error(data.error ?? t('library.picker.create_fail'));
         return;
       }
-      onSelect(data.university);
+      toast.success(t('library.picker.suggested'));
+      setQ('');
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -221,7 +221,8 @@ function CourseCombobox({
         toast.error(data.error ?? t('library.picker.create_fail'));
         return;
       }
-      onSelect(data.course);
+      toast.success(t('library.picker.suggested'));
+      setQ('');
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

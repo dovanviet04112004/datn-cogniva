@@ -41,8 +41,10 @@ const LEVELS = [
 
 export function UploadWizard({
   initialCourse = null,
+  onDone,
 }: {
   initialCourse?: { id: string; label: string } | null;
+  onDone?: () => void;
 }) {
   const t = useT();
   const router = useRouter();
@@ -195,6 +197,7 @@ export function UploadWizard({
 
       setProgress('done');
       toast.success(t('library.upload.success'));
+      onDone?.();
       router.push(`/library/${init.docId}`);
     } catch (err) {
       toast.error((err as Error).message);
