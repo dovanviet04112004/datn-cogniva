@@ -88,6 +88,10 @@ export const qk = {
   adminConversationDetail: (id: string) => ['admin', 'conversation', id] as const,
   adminDocuments: (q: string, status: string, email: string, mime: string) =>
     ['admin', 'documents', q, status, email, mime] as const,
+  adminLibraryUniversities: (q: string, includeUnapproved: boolean) =>
+    ['admin', 'library', 'universities', q, includeUnapproved] as const,
+  adminLibraryCourses: (q: string, universityId: string | null, includeUnapproved: boolean) =>
+    ['admin', 'library', 'courses', q, universityId ?? '', includeUnapproved] as const,
   adminReports: (status: string, targetType: string) =>
     ['admin', 'reports', status, targetType] as const,
   adminModerationContext: (type: string, id: string) =>

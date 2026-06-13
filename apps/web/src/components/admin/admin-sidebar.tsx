@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Hammer,
   History,
+  Library,
   MessageSquare,
   ShieldAlert,
   ShieldCheck,
@@ -63,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Content',
     items: [
       { href: '/admin/documents', label: 'Documents', icon: FileText },
+      { href: '/admin/library', label: 'Library catalog', icon: Library },
       { href: '/admin/conversations', label: 'Conversations', icon: MessageSquare },
       { href: '/admin/groups', label: 'Study groups', icon: BookOpen },
     ],

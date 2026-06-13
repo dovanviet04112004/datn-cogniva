@@ -10,6 +10,8 @@ import { AdminDocumentsController } from './admin-documents.controller';
 import { AdminDocumentsService } from './admin-documents.service';
 import { AdminKycController } from './admin-kyc.controller';
 import { AdminKycService } from './admin-kyc.service';
+import { AdminLibraryController } from './admin-library.controller';
+import { AdminLibraryService } from './admin-library.service';
 import { AdminTutoringController } from './admin-tutoring.controller';
 import { AdminTutoringService } from './admin-tutoring.service';
 
@@ -21,6 +23,7 @@ import { AdminTutoringService } from './admin-tutoring.service';
     AdminKycController,
     AdminTutoringController,
     AdminAiController,
+    AdminLibraryController,
   ],
   providers: [
     AdminDocumentsService,
@@ -28,6 +31,7 @@ import { AdminTutoringService } from './admin-tutoring.service';
     AdminKycService,
     AdminTutoringService,
     AdminAiService,
+    AdminLibraryService,
   ],
 })
 export class AdminDomainModule {}

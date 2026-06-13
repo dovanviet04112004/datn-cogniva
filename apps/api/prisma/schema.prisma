@@ -437,6 +437,7 @@ model library_course {
   slug               String
   subject_area       String?
   doc_count          Int                 @default(0)
+  approved           Boolean             @default(false)
   created_by         String?
   created_at         DateTime            @default(now()) @db.Timestamp(6)
   user               user?               @relation(fields: [created_by], references: [id], onUpdate: NoAction)
@@ -738,6 +739,7 @@ model library_university {
   country        String           @default("VN")
   logo_url       String?
   doc_count      Int              @default(0)
+  approved       Boolean          @default(false)
   created_at     DateTime         @default(now()) @db.Timestamp(6)
   library_course library_course[]
   library_doc    library_doc[]

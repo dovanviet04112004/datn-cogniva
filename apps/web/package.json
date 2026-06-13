@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "seed:tutoring-v5": "pnpm exec tsx --env-file=.env.local scripts/seed-tutoring-v5.ts",
+    "seed:library-catalog": "pnpm exec tsx --env-file=.env.local scripts/seed-library-catalog.ts",
     "smoke": "pnpm exec tsx scripts/smoke-test.ts",
     "clean": "rm -rf .next .turbo node_modules"
   },

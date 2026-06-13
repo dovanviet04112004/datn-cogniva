@@ -20,11 +20,14 @@ const COURSE_BODY = z.object({
 export class LibraryCatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listUniversities(q: string, limit: number) {
+  async listUniversities(q: string, limit: number, includeUnapproved = false) {
+    const conds: Prisma.Sql[] = [];
+    if (q.length > 0) {
+      conds.push(Prisma.sql`(name ILIKE ${`%${q}%`} OR short_name ILIKE ${`%${q}%`})`);
+    }
+    if (!includeUnapproved) conds.push(Prisma.sql`approved = true`);
     const where =
-      q.length > 0
-        ? Prisma.sql`WHERE (name ILIKE ${`%${q}%`} OR short_name ILIKE ${`%${q}%`})`
-        : Prisma.empty;
+      conds.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
       Array<{
         id: string;
@@ -32,12 +35,13 @@ export class LibraryCatalogService {
         name: string;
         short_name: string | null;
         doc_count: number;
+        approved: boolean;
       }>
     >(Prisma.sql`
-      SELECT id, slug, name, short_name, doc_count
+      SELECT id, slug, name, short_name, doc_count, approved
       FROM library_university
       ${where}
-      ORDER BY doc_count DESC
+      ORDER BY approved ASC, doc_count DESC
       LIMIT ${limit}`);
     return {
       universities: rows.map((r) => ({
@@ -46,11 +50,12 @@ export class LibraryCatalogService {
         name: r.name,
         shortName: r.short_name,
         docCount: r.doc_count,
+        approved: r.approved,
       })),
     };
   }
 
-  async createUniversity(raw: unknown) {
+  async createUniversity(raw: unknown, approved = false) {
     const parsed = UNIVERSITY_BODY.safeParse(raw);
     if (!parsed.success) {
       throw new BadRequestException({ error: 'Invalid body', details: parsed.error.flatten() });
@@ -69,12 +74,18 @@ export class LibraryCatalogService {
         slug,
         name: parsed.data.name.trim(),
         short_name: parsed.data.shortName?.trim() || null,
+        approved,
       },
     });
     return { university: toUniversityDto(created), created: true };
   }
 
-  async listCourses(q: string, universityId: string | null, limit: number) {
+  async listCourses(
+    q: string,
+    universityId: string | null,
+    limit: number,
+    includeUnapproved = false,
+  ) {
     const conds: Prisma.Sql[] = [];
     if (q.length > 0) {
       conds.push(Prisma.sql`(c.name ILIKE ${`%${q}%`} OR c.code ILIKE ${`%${q}%`})`);
@@ -82,6 +93,7 @@ export class LibraryCatalogService {
     if (universityId) {
       conds.push(Prisma.sql`(c.university_id = ${universityId} OR c.university_id IS NULL)`);
     }
+    if (!includeUnapproved) conds.push(Prisma.sql`c.approved = true`);
     const where =
       conds.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conds, ' AND ')}` : Prisma.empty;
 
@@ -94,14 +106,15 @@ export class LibraryCatalogService {
         university_name: string | null;
         university_short: string | null;
         doc_count: number;
+        approved: boolean;
       }>
     >(Prisma.sql`
       SELECT c.id, c.name, c.code, c.university_id,
-        u.name AS university_name, u.short_name AS university_short, c.doc_count
+        u.name AS university_name, u.short_name AS university_short, c.doc_count, c.approved
       FROM library_course c
       LEFT JOIN library_university u ON u.id = c.university_id
       ${where}
-      ORDER BY c.doc_count DESC
+      ORDER BY c.approved ASC, c.doc_count DESC
       LIMIT ${limit}`);
     return {
       courses: rows.map((r) => ({
@@ -112,11 +125,12 @@ export class LibraryCatalogService {
         universityName: r.university_name,
         universityShort: r.university_short,
         docCount: r.doc_count,
+        approved: r.approved,
       })),
     };
   }
 
-  async createCourse(userId: string, raw: unknown) {
+  async createCourse(userId: string, raw: unknown, approved = false) {
     const parsed = COURSE_BODY.safeParse(raw);
     if (!parsed.success) {
       throw new BadRequestException({ error: 'Invalid body', details: parsed.error.flatten() });
@@ -149,6 +163,7 @@ export class LibraryCatalogService {
         name: parsed.data.name.trim(),
         slug,
         created_by: userId,
+        approved,
       },
     });
     return { course: toCourseDto(created), created: true };
@@ -164,6 +179,7 @@ function toUniversityDto(row: library_university) {
     country: row.country,
     logoUrl: row.logo_url,
     docCount: row.doc_count,
+    approved: row.approved,
     createdAt: row.created_at,
   };
 }
@@ -177,12 +193,13 @@ function toCourseDto(row: library_course) {
     slug: row.slug,
     subjectArea: row.subject_area,
     docCount: row.doc_count,
+    approved: row.approved,
     createdBy: row.created_by,
     createdAt: row.created_at,
   };
 }
 
-function slugifyVi(input: string): string {
+export function slugifyVi(input: string): string {
   return input
     .trim()
     .toLowerCase()
